@@ -1,0 +1,368 @@
+import { invoke } from '@tauri-apps/api/core';
+import { platformFetch } from './httpClient';
+
+let config: Promise<[string, string]> | null = null;
+function nuvioConfig(): Promise<[string, string]> {
+  if (!config) config = invoke<[string, string]>('get_nuvio_config');
+  return config;
+}
+
+export interface NuvioSession {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
+  user: { id: string; email: string; created_at: string };
+}
+
+export interface NuvioProfile {
+  id: string;
+  user_id: string;
+  profile_index: number;
+  name: string;
+  avatar_color_hex: string | null;
+  uses_primary_addons: boolean;
+  uses_primary_plugins: boolean;
+  avatar_id: string | null;
+  avatar_url: string | null;
+  pin_enabled: boolean;
+  pin_locked_until: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NuvioAddon {
+  id: string;
+  user_id: string;
+  profile_id: number;
+  url: string;
+  name: string | null;
+  enabled: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NuvioLibraryItem {
+  id?: string;
+  user_id?: string;
+  profile_id?: number;
+  content_id: string;
+  content_type: string;
+  name: string;
+  poster: string | null;
+  poster_shape: string;
+  background: string | null;
+  description: string | null;
+  release_info: string | null;
+  imdb_rating: number | null;
+  genres: string[];
+  addon_base_url: string | null;
+  added_at: number;
+}
+
+export interface NuvioWatchProgress {
+  id?: string;
+  user_id?: string;
+  profile_id?: number;
+  content_id: string;
+  content_type: string;
+  video_id: string;
+  season: number | null;
+  episode: number | null;
+  progress_key: string;
+  position: number;
+  duration: number;
+  last_watched: number;
+}
+
+export interface NuvioWatchedItem {
+  id?: string;
+  user_id?: string;
+  profile_id?: number;
+  content_id: string;
+  content_type: string;
+  title: string;
+  season: number | null;
+  episode: number | null;
+  watched_at: number;
+}
+
+export interface NuvioAvatar {
+  id: string;
+  display_name: string;
+  storage_path: string;
+  category: string;
+  sort_order: number;
+  is_active: boolean;
+  bg_color: string | null;
+}
+
+export interface NuvioCollectionRow {
+  profile_id: number;
+  collections_json: unknown[];
+  updated_at: string;
+}
+
+async function headers(token?: string): Promise<Record<string, string>> {
+  const [, key] = await nuvioConfig();
+  const h: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'apikey': key,
+  };
+  if (token) h['Authorization'] = `Bearer ${token}`;
+  return h;
+}
+
+async function post<T>(path: string, body: unknown, token?: string): Promise<T> {
+  const [base] = await nuvioConfig();
+  const res = await platformFetch(`${base}${path}`, {
+    method: 'POST',
+    headers: await headers(token),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Nuvio API ${res.status}: ${text}`);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : (null as T);
+}
+
+async function get<T>(path: string, token: string): Promise<T> {
+  const [base] = await nuvioConfig();
+  const res = await platformFetch(`${base}${path}`, {
+    method: 'GET',
+    headers: await headers(token),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Nuvio API ${res.status}: ${text}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function nuvioSignUp(email: string, password: string): Promise<NuvioSession> {
+  return post<NuvioSession>('/auth/v1/signup', { email, password });
+}
+
+export async function nuvioSignIn(email: string, password: string): Promise<NuvioSession> {
+  return post<NuvioSession>('/auth/v1/token?grant_type=password', { email, password });
+}
+
+export async function nuvioRefreshToken(refresh_token: string): Promise<NuvioSession> {
+  return post<NuvioSession>('/auth/v1/token?grant_type=refresh_token', { refresh_token });
+}
+
+export async function nuvioSignOut(token: string): Promise<void> {
+  const [base] = await nuvioConfig();
+  await platformFetch(`${base}/auth/v1/logout`, {
+    method: 'POST',
+    headers: await headers(token),
+  });
+}
+
+export async function nuvioGetUser(token: string): Promise<{ id: string; email: string }> {
+  return get(`/auth/v1/user`, token);
+}
+
+export async function nuvioPullProfiles(token: string): Promise<NuvioProfile[]> {
+  return post<NuvioProfile[]>('/rest/v1/rpc/sync_pull_profiles', {}, token);
+}
+
+export async function nuvioPushProfiles(
+  token: string,
+  profiles: Array<{
+    profile_index: number;
+    name: string;
+    avatar_color_hex?: string | null;
+    uses_primary_addons?: boolean;
+    uses_primary_plugins?: boolean;
+    avatar_id?: string | null;
+    avatar_url?: string | null;
+  }>,
+): Promise<void> {
+  return post('/rest/v1/rpc/sync_push_profiles', {
+    p_client_max_profiles: 5,
+    p_profiles: profiles,
+  }, token);
+}
+
+export async function nuvioPullAddons(token: string, profileId: number): Promise<NuvioAddon[]> {
+  return get<NuvioAddon[]>(
+    `/rest/v1/addons?select=*&profile_id=eq.${profileId}&order=sort_order`,
+    token,
+  );
+}
+
+export async function nuvioPushAddons(
+  token: string,
+  profileId: number,
+  addons: Array<{ url: string; name?: string; enabled?: boolean; sort_order?: number }>,
+): Promise<void> {
+  return post('/rest/v1/rpc/sync_push_addons', { p_profile_id: profileId, p_addons: addons }, token);
+}
+
+export async function nuvioPullPlugins(token: string, profileId: number): Promise<unknown[]> {
+  return get<unknown[]>(
+    `/rest/v1/plugins?select=*&profile_id=eq.${profileId}&order=sort_order`,
+    token,
+  );
+}
+
+export async function nuvioPullLibrary(
+  token: string,
+  profileId: number,
+  limit = 500,
+  offset = 0,
+): Promise<NuvioLibraryItem[]> {
+  return post<NuvioLibraryItem[]>('/rest/v1/rpc/sync_pull_library', {
+    p_profile_id: profileId,
+    p_limit: limit,
+    p_offset: offset,
+  }, token);
+}
+
+export async function nuvioPushLibrary(
+  token: string,
+  profileId: number,
+  items: Array<{
+    content_id: string;
+    content_type: string;
+    name?: string;
+    poster?: string | null;
+    poster_shape?: string;
+    background?: string | null;
+    description?: string | null;
+    release_info?: string | null;
+    imdb_rating?: number | null;
+    genres?: string[];
+    addon_base_url?: string | null;
+    added_at?: number;
+  }>,
+): Promise<void> {
+  return post('/rest/v1/rpc/sync_push_library', { p_profile_id: profileId, p_items: items }, token);
+}
+
+export async function nuvioPullWatchProgress(
+  token: string,
+  profileId: number,
+  limit = 200,
+): Promise<NuvioWatchProgress[]> {
+  return post<NuvioWatchProgress[]>('/rest/v1/rpc/sync_pull_watch_progress', {
+    p_profile_id: profileId,
+    p_limit: limit,
+  }, token);
+}
+
+export async function nuvioPushWatchProgress(
+  token: string,
+  profileId: number,
+  entries: Array<{
+    content_id: string;
+    content_type: string;
+    video_id: string;
+    position: number;
+    duration: number;
+    last_watched: number;
+    season?: number;
+    episode?: number;
+  }>,
+): Promise<void> {
+  return post('/rest/v1/rpc/sync_push_watch_progress', { p_profile_id: profileId, p_entries: entries }, token);
+}
+
+export async function nuvioPullWatchHistory(
+  token: string,
+  profileId: number,
+  pageSize = 500,
+): Promise<NuvioWatchedItem[]> {
+  return post<NuvioWatchedItem[]>('/rest/v1/rpc/sync_pull_watched_items', {
+    p_profile_id: profileId,
+    p_page: 1,
+    p_page_size: pageSize,
+  }, token);
+}
+
+export async function nuvioPushWatchHistory(
+  token: string,
+  profileId: number,
+  items: Array<{
+    content_id: string;
+    content_type: string;
+    title?: string;
+    season?: number;
+    episode?: number;
+    watched_at: number;
+  }>,
+): Promise<void> {
+  return post('/rest/v1/rpc/sync_push_watched_items', { p_profile_id: profileId, p_items: items }, token);
+}
+
+export async function nuvioPullProfileSettings(
+  token: string,
+  profileId: number,
+  platform = 'desktop',
+): Promise<Array<{ profile_id: number; settings_json: unknown; updated_at: string }>> {
+  return post('/rest/v1/rpc/sync_pull_profile_settings_blob', {
+    p_profile_id: profileId,
+    p_platform: platform,
+  }, token);
+}
+
+export async function nuvioPushProfileSettings(
+  token: string,
+  profileId: number,
+  settingsJson: unknown,
+  platform = 'desktop',
+): Promise<void> {
+  return post('/rest/v1/rpc/sync_push_profile_settings_blob', {
+    p_profile_id: profileId,
+    p_platform: platform,
+    p_settings_json: settingsJson,
+  }, token);
+}
+
+export async function nuvioPullCollections(
+  token: string,
+  profileId: number,
+): Promise<NuvioCollectionRow[]> {
+  return post<NuvioCollectionRow[]>('/rest/v1/rpc/sync_pull_collections', {
+    p_profile_id: profileId,
+  }, token);
+}
+
+export async function nuvioPushCollections(
+  token: string,
+  profileId: number,
+  collectionsJson: unknown[],
+): Promise<void> {
+  return post('/rest/v1/rpc/sync_push_collections', {
+    p_profile_id: profileId,
+    p_collections_json: collectionsJson,
+  }, token);
+}
+
+export async function nuvioListAvatars(): Promise<NuvioAvatar[]> {
+  const [base, key] = await nuvioConfig();
+  const res = await platformFetch(`${base}/rest/v1/rpc/get_avatar_catalog`, {
+    method: 'POST',
+    headers: { 'apikey': key, 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  if (!res.ok) return [];
+  return res.json() as Promise<NuvioAvatar[]>;
+}
+
+export async function nuvioGetSyncOverview(token: string): Promise<unknown> {
+  return post('/rest/v1/rpc/get_sync_overview', {}, token);
+}
+
+export async function nuvioHealthCheck(): Promise<{ status: string; database: string; latency_ms: number }> {
+  const [base, key] = await nuvioConfig();
+  const res = await platformFetch(`${base}/functions/v1/health-check`, {
+    method: 'GET',
+    headers: { 'apikey': key },
+  });
+  return res.json();
+}

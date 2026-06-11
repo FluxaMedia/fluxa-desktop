@@ -1,0 +1,126 @@
+import { useState } from 'react';
+import { t } from '../../i18n';
+import { nuvioSignIn, type NuvioSession } from '../../core/nuvioApi';
+import type { UserProfile } from '../../core/types';
+import { S, FONT } from './styles';
+import { TopBar, Field, PasswordField } from './fields';
+
+function buildNuvioProfile(session: NuvioSession, email: string): UserProfile {
+  const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+  const expiresAt = Math.floor(Date.now() / 1000) + (session.expires_in ?? 3600);
+  return {
+    id,
+    name: '',
+    email,
+    nuvioAccessToken: session.access_token,
+    nuvioRefreshToken: session.refresh_token,
+    nuvioTokenExpiresAt: expiresAt,
+    nuvioUserId: session.user?.id,
+    nuvioEmail: email,
+    nuvioProfileIndex: 1,
+  };
+}
+
+interface NuvioLoginViewProps {
+  onBack: () => void;
+  onImporting: (profile: UserProfile) => void;
+  onContinueLocal: () => Promise<void>;
+  localLoading: boolean;
+}
+
+export function NuvioLoginView({ onBack, onImporting, onContinueLocal, localLoading }: NuvioLoginViewProps) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !password) {
+      setError(t('auth.error.fill_required'));
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+    try {
+      const session = await nuvioSignIn(email.trim(), password);
+      const profile = buildNuvioProfile(session, email.trim());
+      onImporting(profile);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('400') || msg.includes('Invalid')) {
+        setError(t('auth.error.invalid_credentials'));
+      } else {
+        setError(t('auth.error.network'));
+      }
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={S.root}>
+      <TopBar onBack={onBack} />
+
+      <main style={S.authMain}>
+        <div style={S.card}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+            <img
+              src="https://nuvio.tv//assets/Logo_1080x1080.png"
+              alt="Nuvio"
+              style={{ width: 36, height: 36, objectFit: 'contain' }}
+            />
+            <div>
+              <p style={{ margin: 0, fontSize: 16, fontWeight: 600, fontFamily: FONT }}>{t('auth.nuvio.title')}</p>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.40)', fontFamily: FONT }}>{t('auth.nuvio.subtitle')}</p>
+            </div>
+          </div>
+
+          {error && <p style={S.globalError}>{error}</p>}
+
+          <form onSubmit={handleSubmit} noValidate style={S.form}>
+            <Field
+              label={t('auth.field.email')}
+              type="email"
+              value={email}
+              onChange={setEmail}
+              placeholder={t('auth.placeholder.email')}
+              autoFocus
+            />
+            <PasswordField
+              label={t('auth.field.password')}
+              value={password}
+              onChange={setPassword}
+              placeholder={t('auth.placeholder.password_login')}
+              show={showPassword}
+              onToggleShow={() => setShowPassword((v) => !v)}
+            />
+            <button
+              type="submit"
+              style={{ ...S.submitBtn, marginTop: 8, opacity: submitting ? 0.6 : 1 }}
+              disabled={submitting}
+            >
+              {submitting ? t('auth.nuvio.signing_in') : t('auth.nuvio.sign_in')}
+            </button>
+          </form>
+
+          <div style={S.divider}>
+            <span style={S.dividerLine} />
+            <span style={S.dividerText}>{t('auth.or')}</span>
+            <span style={S.dividerLine} />
+          </div>
+
+          <button
+            style={{ ...S.localBtn, opacity: localLoading ? 0.4 : 1 }}
+            onClick={onContinueLocal}
+            disabled={localLoading || submitting}
+          >
+            {localLoading ? t('welcome.loading') : t('welcome.continue_local')}
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}

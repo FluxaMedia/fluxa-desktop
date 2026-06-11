@@ -1,0 +1,549 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { NavSidebar, TopBar, type NavRoute } from './components/NavSidebar';
+import { ProfileChip } from './components/ProfileChip';
+import { GlobalSearchBar } from './components/GlobalSearchBar';
+import { PlayerLoadingOverlay } from './components/PlayerLoadingOverlay';
+import { ReactPlayerOverlay } from './components/ReactPlayerOverlay';
+import { listen } from '@tauri-apps/api/event';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { UpdateModal, startUpdateCheck } from './components/UpdateModal';
+import { HomeScreen } from './screens/HomeScreen';
+import { SearchScreen } from './screens/SearchScreen';
+import { DetailScreen } from './screens/DetailScreen';
+import { LibraryScreen } from './screens/LibraryScreen';
+const DiscoverScreen = React.lazy(() => import('./screens/DiscoverScreen').then((m) => ({ default: m.DiscoverScreen })));
+const CalendarScreen = React.lazy(() => import('./screens/CalendarScreen').then((m) => ({ default: m.CalendarScreen })));
+const SettingsScreen = React.lazy(() => import('./screens/SettingsScreen').then((m) => ({ default: m.SettingsScreen })));
+const ProfileSelectionScreen = React.lazy(() => import('./screens/ProfileSelectionScreen').then((m) => ({ default: m.ProfileSelectionScreen })));
+const WelcomeScreen = React.lazy(() => import('./screens/WelcomeScreen').then((m) => ({ default: m.WelcomeScreen })));
+import { NuvioStatusBanner } from './components/NuvioStatusBanner';
+import { P2PDialog } from './components/P2PDialog';
+import { useNuvioConnectivity } from './hooks/useNuvioConnectivity';
+import { setActiveProfileId, createProfileObject, saveProfile, loadProfiles } from './core/profiles';
+import { invalidateLibraryKeyCache } from './core/libraryOps';
+import { storageWrite, storageRead } from './core/engine';
+import { dispatchAction } from './core/engine';
+import { prefetchPlayerArtwork } from './core/mpvPlayer';
+import { pumpEffects } from './core/effectRunner';
+import { appPrefs, prefBool, prefString } from './core/appPrefs';
+import { playerArtwork } from './core/playerUtils';
+import { readStoredPlaybackSource } from './core/libraryStorage';
+import { mergeAppState } from './core/mergeState';
+import { usePlayer } from './hooks/usePlayer';
+import { useAppInit } from './hooks/useAppInit';
+import type { AppState, LibraryItem, Meta, Stream, Video, UserProfile } from './core/types';
+
+function accentForegroundColor(hex: string): string {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.substring(0, 2), 16) / 255;
+  const g = parseInt(c.substring(2, 4), 16) / 255;
+  const b = parseInt(c.substring(4, 6), 16) / 255;
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.45 ? '#000000' : '#FFFFFF';
+}
+
+const DEFAULT_STATE: AppState = {
+  navigation: { route: 'home', params: null },
+  home: {},
+  detail: {},
+  search: {},
+  player: {},
+  library: {},
+  discover: {},
+  calendar: {},
+  addons: { installed: [] },
+  settings: {},
+  profile: {},
+  pendingEffects: [],
+};
+
+export default function App() {
+  const [state, setState] = useState<AppState>(DEFAULT_STATE);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [activeRoute, setActiveRoute] = useState<NavRoute>('home');
+  const [detailMeta, setDetailMeta] = useState<Meta | null>(null);
+  const [detailInitialEpisode, setDetailInitialEpisode] = useState<Video | null>(null);
+  const [detailAutoShowStreams, setDetailAutoShowStreams] = useState(false);
+  const [detailResumeAt, setDetailResumeAt] = useState<number | undefined>(undefined);
+  const [discoverInitialGenre, setDiscoverInitialGenre] = useState<string | null>(null);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [nativePlayerActive, setNativePlayerActive] = useState(false);
+  const [p2pDialog, setP2PDialog] = useState<{ mode: 'first-time' | 'disabled'; pendingPlay: () => void } | null>(null);
+  const storedPrefsRef = useRef<Record<string, unknown>>({});
+  const stateRef = useRef<AppState>(DEFAULT_STATE);
+  const lastNonSettingsRouteRef = useRef<NavRoute>('home');
+  const lastNonSearchRouteRef = useRef<NavRoute>('home');
+  const artworkPrefetchRef = useRef<Promise<unknown> | null>(null);
+
+  const overlayPrefs = useCallback((merged: AppState): AppState => {
+    const prefs = storedPrefsRef.current;
+    // Only every screen's memo comparator checks state.settings by reference — skip
+    // rebuilding it when prefs haven't actually changed, or every dispatch/effect
+    // completion forces every screen to re-render regardless of relevance.
+    if (Object.keys(prefs).length === 0 || merged.settings.values === prefs) return merged;
+    return { ...merged, settings: { ...merged.settings, values: prefs } };
+  }, []);
+
+  const updateState = useCallback((s: Partial<AppState>) => {
+    const overlaid = overlayPrefs(mergeAppState(stateRef.current, s));
+    stateRef.current = overlaid;
+    setState(overlaid);
+  }, [overlayPrefs]);
+
+  const updateStateDeferred = useCallback((s: Partial<AppState>) => {
+    const overlaid = overlayPrefs(mergeAppState(stateRef.current, s));
+    stateRef.current = overlaid;
+    React.startTransition(() => setState(overlaid));
+  }, [overlayPrefs]);
+
+  useEffect(() => {
+    const unlisteners: Array<() => void> = [];
+    let cancelled = false;
+
+    listen('native-player-show', () => {
+      setNativePlayerActive(true);
+      document.documentElement.setAttribute('data-native-player-active', 'true');
+    }).then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); }).catch(() => undefined);
+
+    listen('native-player-hide', () => {
+      setNativePlayerActive(false);
+      document.documentElement.removeAttribute('data-native-player-active');
+    }).then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); }).catch(() => undefined);
+
+    return () => { cancelled = true; unlisteners.forEach((fn) => fn()); };
+  }, []);
+
+  const {
+    ready,
+    profilesChecked,
+    welcomeCompleted,
+    activeProfile,
+    allProfiles,
+    updateModalState,
+    setActiveProfile,
+    setAllProfiles,
+    setUpdateModalState,
+    setWelcomeCompleted,
+  } = useAppInit(updateState, setActiveRoute, storedPrefsRef);
+
+  const { playerLoadingOverlay, playerTitle, playerEpisodeTitle, handlePlay, closePlayer, notifyFirstFrame } = usePlayer({
+    stateRef,
+    activeProfile,
+    updateState,
+  });
+
+  const { serverDown, justRecovered, dismissed, dismiss } = useNuvioConnectivity(activeProfile);
+
+  const guardedPlay = useCallback(async (
+    stream: Stream,
+    meta: Meta,
+    episode: Video | null | undefined,
+    resumeAt?: number,
+    totalDuration?: number,
+  ) => {
+    const isP2P = !!(stream.isTorrent || stream.infoHash);
+    if (!isP2P) {
+      await handlePlay(stream, meta, episode, resumeAt, totalDuration);
+      return;
+    }
+
+    const prefs = appPrefs(stateRef.current);
+    const p2pEnabled = prefBool(prefs, 'p2pEnabled', true);
+    const proceed = () => void handlePlay(stream, meta, episode, resumeAt, totalDuration);
+
+    if (!p2pEnabled) {
+      setP2PDialog({ mode: 'disabled', pendingPlay: proceed });
+      return;
+    }
+
+    const warned = await storageRead<boolean>('p2p_warned').catch(() => false);
+    if (!warned) {
+      setP2PDialog({ mode: 'first-time', pendingPlay: proceed });
+      return;
+    }
+
+    proceed();
+  }, [handlePlay, stateRef]);
+
+  const navigateRoute = useCallback((route: NavRoute) => {
+    if (route !== 'settings') {
+      lastNonSettingsRouteRef.current = route;
+    } else if (activeRoute !== 'settings') {
+      lastNonSettingsRouteRef.current = activeRoute;
+    }
+    if (route !== 'search') {
+      lastNonSearchRouteRef.current = route;
+    } else if (activeRoute !== 'search' && activeRoute !== 'settings') {
+      lastNonSearchRouteRef.current = activeRoute;
+    }
+    setActiveRoute(route);
+    setDetailMeta(null);
+  }, [activeRoute]);
+
+  const dispatch = useCallback(async (actionJson: string) => {
+    const result = await dispatchAction(actionJson);
+    if (!result) return;
+    try {
+      const action = JSON.parse(actionJson) as { type?: string };
+      if (action.type === 'settingsChanged') {
+        const freshPrefs = (await storageRead<Record<string, unknown>>('prefs')) ?? {};
+        storedPrefsRef.current = freshPrefs;
+      }
+    } catch {}
+    updateState(result.state);
+    if (result.effects.length > 0) {
+      await pumpEffects(result.effects, updateStateDeferred).catch(() => undefined);
+    }
+  }, [updateState, updateStateDeferred]);
+
+  const handleNavigateDetail = useCallback((meta: Meta) => {
+    setDetailInitialEpisode(null);
+    setDetailAutoShowStreams(false);
+    setDetailMeta(meta);
+    const art = playerArtwork(meta, null);
+    artworkPrefetchRef.current = prefetchPlayerArtwork(art.background, art.logo).catch(() => undefined);
+    if (art.background) { const i = new Image(); i.src = art.background; }
+    if (art.logo) { const i = new Image(); i.src = art.logo; }
+  }, []);
+
+  const leaveSearch = useCallback(() => {
+    setGlobalSearchQuery('');
+    navigateRoute(lastNonSearchRouteRef.current);
+  }, [navigateRoute]);
+
+  const handleHomePlay = useCallback((meta: Meta) => { setDetailMeta(meta); }, []);
+  const handleLibraryBack = useCallback(() => { setActiveRoute('home'); }, []);
+  const handleProfileUpdated = useCallback((updated: UserProfile) => { setActiveProfile(updated); }, [setActiveProfile]);
+  const handleSearchQueryChange = useCallback((query: string) => { setGlobalSearchQuery(query); }, []);
+  const handleDiscoverBack = useCallback(() => { setDiscoverInitialGenre(null); setActiveRoute('home'); }, []);
+
+  const handleResumeFromContinueWatching = useCallback((meta: Meta) => {
+    const item = meta as LibraryItem;
+    const episode: Video | null = item.lastVideoId ? {
+      id: item.lastVideoId,
+      name: item.lastEpisodeName,
+      season: item.lastEpisodeSeason,
+      episode: item.lastEpisodeNumber,
+      number: item.lastEpisodeNumber,
+      thumbnail: item.lastEpisodeThumbnail,
+    } : null;
+
+    const art = playerArtwork(meta, episode);
+    artworkPrefetchRef.current = prefetchPlayerArtwork(art.background, art.logo).catch(() => undefined);
+    if (art.background) { const i = new Image(); i.src = art.background; }
+    if (art.logo) { const i = new Image(); i.src = art.logo; }
+
+    void (async () => {
+      const stream = item.lastStream ?? await readStoredPlaybackSource(meta.id);
+      const url = item.lastStreamUrl?.trim();
+      const resumeStream: Stream | null = stream ?? (url
+        ? { url, title: item.lastStreamTitle, name: item.lastStreamTitle }
+        : null);
+
+      if (!resumeStream) {
+        setDetailInitialEpisode(episode);
+        setDetailAutoShowStreams(true);
+        setDetailResumeAt(item.timeOffset ?? undefined);
+        setDetailMeta(meta);
+        return;
+      }
+      await guardedPlay(resumeStream, meta, episode, item.timeOffset, item.duration);
+    })();
+  }, [guardedPlay]);
+
+  const prefs = React.useMemo(() => appPrefs(state), [state.settings?.values]);
+  const accentColor = prefString(prefs, 'accentColorArgb', '#FFFFFF');
+  const rootStyle = React.useMemo(() => ({
+    ...appStyles.root,
+    background: nativePlayerActive ? 'transparent' : (prefBool(prefs, 'amoledMode') ? '#000000' : '#040508'),
+    ['--primary-accent-color' as string]: accentColor,
+    ['--primary-accent-foreground-color' as string]: accentForegroundColor(accentColor),
+  } as React.CSSProperties), [nativePlayerActive, prefs, accentColor]);
+
+  if (!ready || !profilesChecked) {
+    return (
+      <div style={appStyles.loading}>
+        <span style={appStyles.loadingText}>fluxa</span>
+      </div>
+    );
+  }
+
+  if (!welcomeCompleted) {
+    return (
+      <React.Suspense fallback={null}>
+      <WelcomeScreen
+        onGetStarted={async () => {
+          await storageWrite('welcome_done', true);
+          setWelcomeCompleted(true);
+        }}
+        onContinueLocal={async () => {
+          await storageWrite('welcome_done', true);
+          const profile = createProfileObject('Local', '#FFFFFF');
+          const profiles = await saveProfile(profile);
+          await setActiveProfileId(profile.id);
+          invalidateLibraryKeyCache();
+          setAllProfiles(profiles);
+          setWelcomeCompleted(true);
+          setActiveProfile(profile);
+          void dispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false }));
+        }}
+        onNuvioLogin={async (profile) => {
+          await storageWrite('welcome_done', true);
+          const profiles = await loadProfiles();
+          setAllProfiles(profiles);
+          setActiveProfile(profile);
+          await dispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false }));
+          void dispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
+          setWelcomeCompleted(true);
+        }}
+      />
+      </React.Suspense>
+    );
+  }
+
+  if (!activeProfile || editProfileOpen) {
+    return (
+      <React.Suspense fallback={null}>
+      <ProfileSelectionScreen
+        onProfileSelected={(profile) => {
+          setState(DEFAULT_STATE);
+          setActiveProfile(profile);
+          setEditProfileOpen(false);
+          void dispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false }));
+        }}
+        onProfilesChanged={setAllProfiles}
+      />
+      </React.Suspense>
+    );
+  }
+
+  const showDetail = detailMeta !== null;
+  const bannerOffset = (serverDown && !dismissed) || justRecovered ? 36 : 0;
+  const storedPrefs = (state.settings?.values ?? {}) as Record<string, unknown>;
+  const navLayout = prefString(prefs, 'navLayout', 'sidebar');
+  const rawNavBarPosition = typeof storedPrefs.navBarPosition === 'string'
+    ? prefString(storedPrefs, 'navBarPosition', navLayout === 'topbar' ? 'top' : 'left')
+    : (navLayout === 'topbar' ? 'top' : 'left');
+  const isTopBar = navLayout === 'topbar';
+  const navBarPosition = isTopBar && (rawNavBarPosition === 'left' || rawNavBarPosition === 'right')
+    ? 'top'
+    : rawNavBarPosition;
+  const navItemsAlign = prefString(prefs, 'navItemsAlign', 'center');
+  const navSidebarMode = prefString(prefs, 'navSidebarMode', 'hover');
+  const sidebarAlwaysOpen = !isTopBar && navSidebarMode === 'always';
+  const sidebarOffset = sidebarAlwaysOpen ? 112 : 0;
+  const mirrorSearchToLeft = isTopBar && (
+    navBarPosition === 'right' ||
+    (navBarPosition === 'top' && navItemsAlign === 'end')
+  );
+  return (
+    <div
+      style={rootStyle}
+      data-animations={prefBool(prefs, 'animationsEnabled', true) ? 'on' : 'off'}
+      data-density={prefString(prefs, 'interfaceDensity', 'medium')}
+      data-reduce-motion={prefBool(prefs, 'reduceMotion', false) ? 'true' : 'false'}
+    >
+      {!nativePlayerActive && (isTopBar ? (
+        <TopBar
+          activeRoute={activeRoute}
+          onNavigate={navigateRoute}
+          transparent={activeRoute === 'home' && !showDetail}
+          position={navBarPosition}
+          itemsAlign={navItemsAlign}
+          topOffset={bannerOffset}
+        />
+      ) : (
+        <NavSidebar
+          activeRoute={activeRoute}
+          onNavigate={navigateRoute}
+          position={navBarPosition}
+          itemsAlign={navItemsAlign}
+          topOffset={bannerOffset}
+          alwaysOpen={sidebarAlwaysOpen}
+        />
+      ))}
+
+      {!nativePlayerActive && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 18 + bannerOffset,
+            left: mirrorSearchToLeft ? 20 : undefined,
+            right: mirrorSearchToLeft ? undefined : 20,
+            zIndex: 46,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            pointerEvents: 'none',
+          }}
+        >
+          <GlobalSearchBar
+            query={globalSearchQuery}
+            onSearch={(query) => { setGlobalSearchQuery(query); navigateRoute('search'); }}
+            onBack={leaveSearch}
+          />
+          <div style={{ pointerEvents: 'auto', flexShrink: 0 }}>
+            <ProfileChip
+              profile={activeProfile}
+              allProfiles={allProfiles}
+              onSwitchProfile={() => setActiveProfile(null)}
+              onSwitchToProfile={async (p) => { await setActiveProfileId(p.id); invalidateLibraryKeyCache(); setState(DEFAULT_STATE); setActiveProfile(p); void dispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false })); }}
+              onOpenSettings={() => navigateRoute('settings')}
+              onEditProfile={() => setEditProfileOpen(true)}
+            />
+          </div>
+        </div>
+      )}
+
+      <div style={{ ...appStyles.content, top: (isTopBar && navBarPosition === 'top' && activeRoute !== 'home' && !showDetail ? 76 : 0) + bannerOffset, paddingLeft: sidebarAlwaysOpen && navBarPosition !== 'right' ? sidebarOffset : 0, paddingRight: sidebarAlwaysOpen && navBarPosition === 'right' ? sidebarOffset : 0, display: nativePlayerActive ? 'none' : undefined }}>
+        {showDetail && (
+          <DetailScreen
+            key={detailMeta!.id}
+            meta={detailMeta!}
+            state={state}
+            onDispatch={dispatch}
+            onPlay={(stream, meta, episode, resumeAt) => void guardedPlay(stream, meta, episode, resumeAt !== undefined ? resumeAt : (detailAutoShowStreams ? detailResumeAt : undefined))}
+            onNavigateDetail={handleNavigateDetail}
+            onNavigateGenre={(genre) => { setDiscoverInitialGenre(genre); setDetailMeta(null); navigateRoute('discover'); }}
+            onBack={() => { void closePlayer(); setDetailMeta(null); setDetailInitialEpisode(null); setDetailAutoShowStreams(false); setDetailResumeAt(undefined); }}
+            initialEpisode={detailInitialEpisode}
+            autoShowStreams={detailAutoShowStreams}
+          />
+        )}
+        <div style={{ display: !showDetail && activeRoute === 'home' ? 'contents' : 'none' }}>
+          <HomeScreen
+            state={state}
+            onDispatch={dispatch}
+            onNavigateDetail={handleNavigateDetail}
+            onPlay={handleHomePlay}
+            onResume={handleResumeFromContinueWatching}
+            isActive={!showDetail && activeRoute === 'home'}
+          />
+        </div>
+        {!showDetail && activeRoute === 'calendar' && (
+          <React.Suspense fallback={null}>
+            <CalendarScreen
+              state={state}
+              onDispatch={dispatch}
+            />
+          </React.Suspense>
+        )}
+        {!showDetail && activeRoute === 'discover' && (
+          <React.Suspense fallback={null}>
+            <DiscoverScreen
+              state={state}
+              onDispatch={dispatch}
+              onNavigateDetail={handleNavigateDetail}
+              onBack={handleDiscoverBack}
+              initialGenre={discoverInitialGenre}
+            />
+          </React.Suspense>
+        )}
+        {!showDetail && activeRoute === 'library' && (
+          <LibraryScreen
+            state={state}
+            onDispatch={dispatch}
+            onNavigateDetail={handleNavigateDetail}
+            onBack={handleLibraryBack}
+            activeProfile={activeProfile}
+            onProfileUpdated={handleProfileUpdated}
+          />
+        )}
+        {!showDetail && activeRoute === 'search' ? (
+          <SearchScreen
+            state={state}
+            onDispatch={dispatch}
+            onNavigateDetail={handleNavigateDetail}
+            query={globalSearchQuery}
+            onQueryChange={handleSearchQueryChange}
+            onBack={leaveSearch}
+          />
+        ) : !showDetail && activeRoute === 'settings' ? (
+          <React.Suspense fallback={null}>
+            <SettingsScreen
+              state={state}
+              onDispatch={dispatch}
+              activeProfile={activeProfile}
+              onProfileUpdated={(updated) => setActiveProfile(updated)}
+              onSwitchProfile={() => setActiveProfile(null)}
+              onBack={() => navigateRoute(lastNonSettingsRouteRef.current)}
+              onCheckForUpdates={() => void startUpdateCheck(setUpdateModalState)}
+            />
+          </React.Suspense>
+        ) : null}
+      </div>
+
+      <NuvioStatusBanner
+        serverDown={serverDown}
+        justRecovered={justRecovered}
+        dismissed={dismissed}
+        onDismiss={dismiss}
+      />
+      {p2pDialog && (
+        <P2PDialog
+          mode={p2pDialog.mode}
+          onCancel={() => setP2PDialog(null)}
+          onConfirm={() => {
+            void storageWrite('p2p_warned', true);
+            setP2PDialog(null);
+            p2pDialog.pendingPlay();
+          }}
+          onEnableP2P={() => {
+            void dispatch(JSON.stringify({ type: 'settingsChanged', key: 'p2pEnabled', value: true }));
+          }}
+        />
+      )}
+      <UpdateModal state={updateModalState} onClose={() => setUpdateModalState({ phase: 'idle' })} />
+      {playerLoadingOverlay && (
+        <PlayerLoadingOverlay
+          background={playerLoadingOverlay.background}
+          logo={playerLoadingOverlay.logo}
+          title={playerLoadingOverlay.title}
+          episodeLine={playerLoadingOverlay.episodeLine}
+          onBack={closePlayer}
+        />
+      )}
+      {nativePlayerActive && (
+        <ReactPlayerOverlay
+          closePlayer={closePlayer}
+          onFirstFrame={notifyFirstFrame}
+          initialTitle={playerTitle}
+          initialEpisodeTitle={playerEpisodeTitle}
+        />
+      )}
+    </div>
+  );
+}
+
+const appStyles: Record<string, React.CSSProperties> = {
+  root: {
+    position: 'relative',
+    width: '100vw',
+    height: '100vh',
+    background: '#040508',
+    overflow: 'hidden',
+  },
+  content: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    overflow: 'hidden',
+  },
+  loading: {
+    width: '100vw',
+    height: '100vh',
+    background: '#040508',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: 900,
+    fontFamily: "'Montserrat', sans-serif",
+    letterSpacing: 0,
+  },
+};

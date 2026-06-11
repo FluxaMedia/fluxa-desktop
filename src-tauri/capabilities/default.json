@@ -1,0 +1,22 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for Fluxa Desktop",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+    "shell:allow-open",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://*" },
+        { "url": "https://*" }
+      ]
+    },
+    "libmpv:default",
+    "updater:default",
+    "process:allow-restart",
+    "dialog:allow-open"
+  ]
+}
