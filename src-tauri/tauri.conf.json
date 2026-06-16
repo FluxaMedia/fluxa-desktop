@@ -39,9 +39,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZEQjVBNEMxQUVDRUQ0M0QKUldROTFNNnV3YVMxYlczdUU1aEFEOXUwQXBEbGdKR0FqZ3BESjcxL0pzNEdIcG4zV2c0NjRmTUEK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkwMTE2RTg4MzgwRTJDRjcKUldUM0xBNDRpRzRSa0dobkJZZlN5LzdWWi9GR1h2UTVqMXV5cHBGS1JZYmJiTXZ6NCtmU1BIb1MK",
       "endpoints": [
-        "https://github.com/KhooLy/FluxaDesktop/releases/latest/download/latest.json"
+        "https://github.com/KhooLy/fluxa-desktop/releases/latest/download/latest.json"
       ]
     },
     "deep-link": {
