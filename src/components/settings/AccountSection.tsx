@@ -301,7 +301,7 @@ export function AccountSection({
         {/* MAL */}
         {!malConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(42,133,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/mal.png" alt="MAL" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(42,133,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/mal.svg" alt="MAL" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
             title="MyAnimeList"
             value={malBusy ? t('trakt.device.waiting') : t('auto.connect_myanimelist_account') || 'Connect MyAnimeList Account'}
             onClick={() => void handleMalConnect()}
@@ -315,7 +315,7 @@ export function AccountSection({
         )}
         {malConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(42,133,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/mal.png" alt="MAL" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(42,133,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/mal.svg" alt="MAL" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
             title="MyAnimeList"
             value={t('trakt.device.connected')}
             valueColor="#54D17A"
@@ -326,7 +326,7 @@ export function AccountSection({
         {/* Simkl */}
         {!simklConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.png" alt="Simkl" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.svg" alt="Simkl" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
             title="Simkl"
             value={simklBusy ? t('trakt.device.waiting') : 'Connect Simkl Account'}
             onClick={() => void handleSimklConnect()}
@@ -341,7 +341,7 @@ export function AccountSection({
         {simklConnected && (
           <div style={{ position: 'relative' }}>
             <SyncServiceRow
-              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.png" alt="Simkl" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.svg" alt="Simkl" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
               title="Simkl"
               value={simklBusy ? t('trakt.device.syncing') : t('trakt.device.connected')}
               valueColor="#54D17A"
@@ -350,7 +350,7 @@ export function AccountSection({
             />
             {simklPopoverOpen && (
               <SyncServicePopover
-                logoSrc="/simkl.png"
+                logoSrc="/simkl.svg"
                 serviceName="Simkl"
                 meta={simklSyncMeta}
                 busy={simklBusy}
