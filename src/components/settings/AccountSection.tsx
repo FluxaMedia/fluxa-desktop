@@ -262,7 +262,7 @@ export function AccountSection({
         {/* Trakt */}
         {!traktConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(237,28,36,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/trakt.png" alt="Trakt" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(237,28,36,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/trakt.svg" alt="Trakt" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
             title="Trakt.tv"
             value={traktBusy ? t('trakt.device.waiting') : t('auto.connect_trakt_tv_account')}
             onClick={() => void handleTraktConnect()}
@@ -277,7 +277,7 @@ export function AccountSection({
         {traktConnected && (
           <div style={{ position: 'relative' }}>
             <SyncServiceRow
-              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(237,28,36,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/trakt.png" alt="Trakt" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(237,28,36,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/trakt.svg" alt="Trakt" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
               title="Trakt.tv"
               value={traktBusy ? t('trakt.device.syncing') : t('trakt.device.connected')}
               valueColor="#54D17A"
@@ -286,7 +286,7 @@ export function AccountSection({
             />
             {traktPopoverOpen && (
               <SyncServicePopover
-                logoSrc="/trakt.png"
+                logoSrc="/trakt.svg"
                 serviceName="Trakt.tv"
                 meta={traktSyncMeta}
                 busy={traktBusy}
