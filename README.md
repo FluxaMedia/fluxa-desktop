@@ -7,9 +7,11 @@
 A fast, native media client for Windows, macOS, and Linux.<br/>
 Browse catalogs, track what you watch, and play anything the Stremio addon ecosystem exposes.
 
-[![Stars](https://img.shields.io/github/stars/KhooLy/fluxa-desktop?style=flat-square&color=fff&labelColor=111)](https://github.com/KhooLy/fluxa-desktop/stargazers)
-[![Releases](https://img.shields.io/github/v/release/KhooLy/fluxa-desktop?style=flat-square&color=fff&labelColor=111)](https://github.com/KhooLy/fluxa-desktop/releases/latest)
-[![License](https://img.shields.io/github/license/KhooLy/fluxa-desktop?style=flat-square&color=fff&labelColor=111)](LICENSE)
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stars][stars-shield]][stars-url]
+[![Releases][releases-shield]][releases-url]
+[![License][license-shield]][license-url]
 
 [Download](#download) · [Features](#features) · [Building from source](#building-from-source)
 
@@ -78,3 +80,15 @@ npm run check   # typecheck + cargo check
 
 - [Fluxa for Android](https://github.com/KhooLy/Fluxa) — the Android counterpart to this app
 - [fluxa-core](https://github.com/KhooLy/fluxa-core) — the shared Rust library powering both
+
+<!-- MARKDOWN LINKS -->
+[contributors-shield]: https://img.shields.io/github/contributors/KhooLy/fluxa-desktop.svg?style=for-the-badge
+[contributors-url]: https://github.com/KhooLy/fluxa-desktop/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/KhooLy/fluxa-desktop.svg?style=for-the-badge
+[forks-url]: https://github.com/KhooLy/fluxa-desktop/network/members
+[stars-shield]: https://img.shields.io/github/stars/KhooLy/fluxa-desktop.svg?style=for-the-badge
+[stars-url]: https://github.com/KhooLy/fluxa-desktop/stargazers
+[releases-shield]: https://img.shields.io/github/v/release/KhooLy/fluxa-desktop.svg?style=for-the-badge
+[releases-url]: https://github.com/KhooLy/fluxa-desktop/releases/latest
+[license-shield]: https://img.shields.io/github/license/KhooLy/fluxa-desktop.svg?style=for-the-badge
+[license-url]: https://github.com/KhooLy/fluxa-desktop/blob/master/LICENSE
