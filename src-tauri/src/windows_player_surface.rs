@@ -350,7 +350,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                     let state = app.state::<DesktopState>();
                     if let Some(r) = state.player_renderer.lock().unwrap().as_ref() {
                         r.report_swap();
-                    }
+                    };
                 }
 
                 check_player_events(&app);
