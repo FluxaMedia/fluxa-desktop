@@ -7,7 +7,7 @@ on:
 
 # libmpv comes from KhooLy/mpv -- see that repo's FORK.md.
 env:
-  MPV_FORK_TAG: "v0.41.0-gpu-next.5"
+  MPV_FORK_TAG: "v0.41.0-gpu-next.8"
   NODE_VERSION: "22"
   RUST_VERSION: "stable"
 
