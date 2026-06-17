@@ -673,6 +673,7 @@ impl MpvRenderer {
                     let text = unsafe { CStr::from_ptr(msg.text) }.to_string_lossy();
                     let text = text.trim_end();
                     if !text.is_empty() {
+                        log::debug!("mpv: {text}");
                         if self.log_ring.len() >= 20 {
                             self.log_ring.pop_front();
                         }

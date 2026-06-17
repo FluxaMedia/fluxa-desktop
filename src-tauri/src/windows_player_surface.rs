@@ -129,6 +129,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
     let app = app_handle.clone();
 
     std::thread::spawn(move || {
+        log::info!("player surface: install thread starting");
         // Register the OpenGL-capable window class once per process.
         static CLASS_REGISTERED: OnceLock<()> = OnceLock::new();
         CLASS_REGISTERED.get_or_init(|| {
@@ -168,6 +169,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             )
         };
         if child_hwnd == 0 {
+            log::error!("player surface: CreateWindowExW failed for mpv surface");
             let _ = setup_tx.send(Err("CreateWindowExW failed for mpv surface".to_string()));
             return;
         }
@@ -180,6 +182,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
         // WGL context setup
         let hdc = unsafe { GetDC(child_hwnd) };
         if hdc == 0 {
+            log::error!("player surface: GetDC failed");
             let _ = setup_tx.send(Err("GetDC failed".to_string()));
             return;
         }
@@ -195,20 +198,24 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
 
         let pf_idx = unsafe { ChoosePixelFormat(hdc, &pfd) };
         if pf_idx == 0 {
+            log::error!("player surface: ChoosePixelFormat failed");
             let _ = setup_tx.send(Err("ChoosePixelFormat failed".to_string()));
             return;
         }
         if unsafe { SetPixelFormat(hdc, pf_idx, &pfd) } == FALSE {
+            log::error!("player surface: SetPixelFormat failed");
             let _ = setup_tx.send(Err("SetPixelFormat failed".to_string()));
             return;
         }
 
         let hglrc = unsafe { wglCreateContext(hdc) };
         if hglrc == 0 {
+            log::error!("player surface: wglCreateContext failed");
             let _ = setup_tx.send(Err("wglCreateContext failed".to_string()));
             return;
         }
         if unsafe { wglMakeCurrent(hdc, hglrc) } == FALSE {
+            log::error!("player surface: wglMakeCurrent failed");
             unsafe { wglDeleteContext(hglrc) };
             let _ = setup_tx.send(Err("wglMakeCurrent failed".to_string()));
             return;
@@ -224,8 +231,12 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             let mut renderer = state.player_renderer.lock().unwrap();
             if renderer.is_none() {
                 match crate::mpv_render::MpvRenderer::new() {
-                    Ok(r) => *renderer = Some(r),
+                    Ok(r) => {
+                        log::info!("player surface: MpvRenderer::new() succeeded");
+                        *renderer = Some(r);
+                    }
                     Err(e) => {
+                        log::error!("player surface: MpvRenderer::new() failed: {e}");
                         unsafe {
                             wglMakeCurrent(0 as _, 0 as _);
                             wglDeleteContext(hglrc);
@@ -237,6 +248,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             }
             if let Some(r) = renderer.as_mut() {
                 if let Err(e) = r.prepare_opengl_context() {
+                    log::error!("player surface: prepare_opengl_context() failed: {e}");
                     unsafe {
                         wglMakeCurrent(0 as _, 0 as _);
                         wglDeleteContext(hglrc);
@@ -252,6 +264,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             }
         }
 
+        log::info!("player surface: setup complete, entering render loop");
         let _ = setup_tx.send(Ok(()));
 
         // Render + command loop
@@ -263,6 +276,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             while let Ok(cmd) = receiver.try_recv() {
                 match cmd {
                     SurfaceCommand::Load { url, start_at, .. } => {
+                        log::info!("player surface: loading url={url} start_at={start_at:?}");
                         unsafe { ShowWindow(child_hwnd, SW_SHOW) };
                         unsafe {
                             SetWindowPos(
@@ -282,11 +296,16 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                         let mut renderer = state.player_renderer.lock().unwrap();
                         if let Some(r) = renderer.as_mut() {
                             if let Err(e) = r.load(&url, start_at) {
+                                log::error!("player surface: load() failed: {e}");
                                 drop(renderer);
                                 let _ = app.emit("native-player-error", e);
                                 visible = false;
                                 unsafe { ShowWindow(child_hwnd, SW_HIDE) };
+                            } else {
+                                log::info!("player surface: load() command accepted by mpv");
                             }
+                        } else {
+                            log::error!("player surface: Load command received but renderer is None");
                         }
                     }
                     SurfaceCommand::Hide => {
@@ -378,7 +397,9 @@ fn check_player_events(app: &AppHandle) {
     };
     for event in events {
         let crate::mpv_render::PlayerEvent::EndFile { eof, error } = event;
+        log::info!("player surface: mpv END_FILE event eof={eof} error={error:?}");
         if let Some(message) = error {
+            log::error!("player surface: stream failed to play: {message}");
             let _ = app.emit("native-player-error", message);
             continue;
         }
@@ -388,8 +409,10 @@ fn check_player_events(app: &AppHandle) {
         let next_sub = state.next_ep_subtitle.lock().unwrap().clone();
         let auto_play = *state.auto_play_next_episode.lock().unwrap();
         if !next_sub.is_empty() && auto_play {
+            log::info!("player surface: eof reached, auto-playing next episode");
             let _ = app.emit("native-player-next-episode", ());
         } else {
+            log::info!("player surface: eof reached, closing player");
             let _ = app.emit("native-player-close-requested", ());
         }
     }

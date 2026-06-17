@@ -256,6 +256,7 @@ pub fn player_load(
     start_at: Option<u64>,
     total_duration: Option<u64>,
 ) -> Result<(), String> {
+    log::info!("player_load: url={url} start_at={start_at:?} total_duration={total_duration:?}");
     *state.thumb_url.lock().unwrap() = Some(url.clone());
 
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
@@ -263,6 +264,7 @@ pub fn player_load(
         if let Some(surface) = ensure_native_player_surface(&app, &state) {
             return surface.load(url, start_at, total_duration);
         }
+        log::warn!("player_load: no native player surface available, falling back to headless renderer");
     }
 
     let _ = app;
