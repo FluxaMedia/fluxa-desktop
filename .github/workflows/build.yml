@@ -165,10 +165,22 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # apt has no network cache by default, so a slow mirror day makes every
+      # Linux build re-download this whole list from scratch. Caching the
+      # downloaded .debs under $HOME avoids permission issues with the
+      # root-owned /var/cache/apt/archives.
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.apt-cache
+          key: apt-noble-v2-${{ hashFiles('.github/workflows/build.yml') }}
+          restore-keys: apt-noble-v2-
+
       - name: Install system dependencies
         run: |
+          mkdir -p ~/.apt-cache
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get -o Dir::Cache::Archives="$HOME/.apt-cache" install -y \
             libavcodec-dev libavformat-dev libavutil-dev \
             libswscale-dev libswresample-dev libavfilter-dev \
             libass9 libplacebo-dev \
