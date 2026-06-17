@@ -10,6 +10,7 @@
   "notification.new_season_released": "New Season Released",
   "notification.release_now_episode": "%s S%s:E%s Released now",
   "library.empty": "Bu listede içerik yok",
+  "settings.oauth_state_mismatch": "Giriş doğrulanamadı. Lütfen yeniden bağlanmayı deneyin.",
   "settings.subtitle.outline_color": "Dış Hat Rengi",
   "settings.subtitle.outline_opacity": "Dış Hat Saydamlığı",
   "settings.subtitle.customize": "ÖZELLEŞTİR",

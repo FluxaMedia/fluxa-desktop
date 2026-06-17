@@ -66,6 +66,7 @@ pub async fn enqueue_offline_download(
     let safe_video_file_name = sanitize_file_name(&video_file_name);
     let target_path = offline_dir.join(&safe_video_file_name);
     let temp_path = offline_dir.join(format!("{safe_video_file_name}.part"));
+    crate::net_guard::ensure_public_host(playback_url).await?;
     let mut response = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60 * 60))
         .build()

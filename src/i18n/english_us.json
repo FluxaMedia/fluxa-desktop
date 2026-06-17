@@ -10,6 +10,7 @@
   "notification.new_season_released": "New Season Released",
   "notification.release_now_episode": "%s S%s:E%s Released now",
   "library.empty": "No content in this list",
+  "settings.oauth_state_mismatch": "Sign-in could not be verified. Please try connecting again.",
   "settings.subtitle.outline_color": "Outline Color",
   "settings.subtitle.outline_opacity": "Outline Transparency",
   "settings.subtitle.customize": "CUSTOMIZE",

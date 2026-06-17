@@ -55,6 +55,7 @@ pub async fn fetch_player_artwork_bytes(url: Option<&str>) -> Option<Vec<u8>> {
         }
     }
 
+    crate::net_guard::ensure_public_host(&normalized).await.ok()?;
     let response = artwork_http_client().get(&normalized).send().await.ok()?;
     if !response.status().is_success() {
         return None;

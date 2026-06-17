@@ -21,11 +21,12 @@ tauri-plugin-shell = "2"
 tauri-plugin-http = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-libmpv = { path = "plugins/tauri-plugin-libmpv" }
+aes-gcm = "0.10"
 base64 = "0.22"
 libc = "0.2"
 libloading = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "net"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 log = "0.4"

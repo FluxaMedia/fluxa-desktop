@@ -21,6 +21,11 @@ function generateCodeVerifier(): string {
     .slice(0, 64);
 }
 
+interface OAuthCodePayload {
+  code: string;
+  state: string | null;
+}
+
 export function AccountSection({
   prefs,
   setPref: _setPref,
@@ -43,6 +48,9 @@ export function AccountSection({
   const [malBusy, setMalBusy] = useState(false);
   const [malError, setMalError] = useState<string | null>(null);
   const malVerifierRef = useRef<string | null>(null);
+  const traktStateRef = useRef<string | null>(null);
+  const malStateRef = useRef<string | null>(null);
+  const simklStateRef = useRef<string | null>(null);
   const [simklBusy, setSimklBusy] = useState(false);
   const [simklError, setSimklError] = useState<string | null>(null);
   const [simklPopoverOpen, setSimklPopoverOpen] = useState(false);
@@ -67,13 +75,21 @@ export function AccountSection({
     setTraktError(null);
     try {
       const traktClientId = await invoke<string>('get_oauth_client_id', { service: 'trakt' });
-      const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${traktClientId}&redirect_uri=${encodeURIComponent('fluxa://oauth/trakt')}`;
+      const state = generateCodeVerifier();
+      traktStateRef.current = state;
+      const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${traktClientId}&redirect_uri=${encodeURIComponent('fluxa://oauth/trakt')}&state=${state}`;
       await shellOpen(authUrl);
 
-      const unlisten = await listen<string>('trakt-oauth-code', async (event) => {
+      const unlisten = await listen<OAuthCodePayload>('trakt-oauth-code', async (event) => {
         unlisten();
+        if (event.payload.state !== traktStateRef.current) {
+          setTraktError(t('settings.oauth_state_mismatch'));
+          setTraktBusy(false);
+          return;
+        }
+        traktStateRef.current = null;
         try {
-          const tokenJson = await invoke<string>('trakt_oauth_exchange', { code: event.payload });
+          const tokenJson = await invoke<string>('trakt_oauth_exchange', { code: event.payload.code });
           const tokens = JSON.parse(tokenJson) as TraktTokenResponse;
           const updated: UserProfile = { ...activeProfile, traktAccessToken: tokens.access_token, traktRefreshToken: tokens.refresh_token, traktTokenExpiresAt: tokens.created_at + tokens.expires_in };
           await saveProfile(updated);
@@ -110,15 +126,23 @@ export function AccountSection({
       }
       const verifier = generateCodeVerifier();
       malVerifierRef.current = verifier;
-      const authUrl = `https://myanimelist.net/v1/oauth2/authorize?response_type=code&client_id=${malClientId}&redirect_uri=${encodeURIComponent('fluxa://oauth/mal')}&code_challenge=${verifier}&code_challenge_method=plain`;
+      const state = generateCodeVerifier();
+      malStateRef.current = state;
+      const authUrl = `https://myanimelist.net/v1/oauth2/authorize?response_type=code&client_id=${malClientId}&redirect_uri=${encodeURIComponent('fluxa://oauth/mal')}&code_challenge=${verifier}&code_challenge_method=plain&state=${state}`;
       await shellOpen(authUrl);
 
-      const unlisten = await listen<string>('mal-oauth-code', async (event) => {
+      const unlisten = await listen<OAuthCodePayload>('mal-oauth-code', async (event) => {
         unlisten();
         const storedVerifier = malVerifierRef.current;
         if (!storedVerifier) { setMalBusy(false); return; }
+        if (event.payload.state !== malStateRef.current) {
+          setMalError(t('settings.oauth_state_mismatch'));
+          setMalBusy(false);
+          return;
+        }
+        malStateRef.current = null;
         try {
-          const tokenJson = await invoke<string>('mal_oauth_exchange', { code: event.payload, codeVerifier: storedVerifier });
+          const tokenJson = await invoke<string>('mal_oauth_exchange', { code: event.payload.code, codeVerifier: storedVerifier });
           const tokens = JSON.parse(tokenJson) as { access_token: string; refresh_token?: string; expires_in?: number };
           const updated: UserProfile = {
             ...activeProfile,
@@ -158,13 +182,21 @@ export function AccountSection({
         setSimklBusy(false);
         return;
       }
-      const authUrl = `https://simkl.com/oauth/authorize?response_type=code&client_id=${simklClientId}&redirect_uri=${encodeURIComponent('fluxa://oauth/simkl')}`;
+      const state = generateCodeVerifier();
+      simklStateRef.current = state;
+      const authUrl = `https://simkl.com/oauth/authorize?response_type=code&client_id=${simklClientId}&redirect_uri=${encodeURIComponent('fluxa://oauth/simkl')}&state=${state}`;
       await shellOpen(authUrl);
 
-      const unlisten = await listen<string>('simkl-oauth-code', async (event) => {
+      const unlisten = await listen<OAuthCodePayload>('simkl-oauth-code', async (event) => {
         unlisten();
+        if (event.payload.state !== simklStateRef.current) {
+          setSimklError(t('settings.oauth_state_mismatch'));
+          setSimklBusy(false);
+          return;
+        }
+        simklStateRef.current = null;
         try {
-          const tokenJson = await invoke<string>('simkl_oauth_exchange', { code: event.payload });
+          const tokenJson = await invoke<string>('simkl_oauth_exchange', { code: event.payload.code });
           const tokens = JSON.parse(tokenJson) as { access_token: string; refresh_token?: string };
           const updated: UserProfile = { ...activeProfile, simklAccessToken: tokens.access_token, simklRefreshToken: tokens.refresh_token };
           await saveProfile(updated);

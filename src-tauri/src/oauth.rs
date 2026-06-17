@@ -8,9 +8,40 @@ const SIMKL_CLIENT_SECRET: &str = env!("FLUXA_SIMKL_CLIENT_SECRET");
 const NUVIO_SUPABASE_URL: &str = env!("FLUXA_NUVIO_SUPABASE_URL");
 const NUVIO_SUPABASE_KEY: &str = env!("FLUXA_NUVIO_SUPABASE_KEY");
 
+// Proxies Nuvio/Supabase REST calls so the anon key stays on the Rust side --
+// JS only ever sees response bodies, never the key itself.
 #[tauri::command]
-pub fn get_nuvio_config() -> (&'static str, &'static str) {
-    (NUVIO_SUPABASE_URL, NUVIO_SUPABASE_KEY)
+pub async fn nuvio_request(
+    method: String,
+    path: String,
+    body: Option<String>,
+    token: Option<String>,
+) -> Result<(u16, String), String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let url = format!("{NUVIO_SUPABASE_URL}{path}");
+    let mut req = match method.as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        other => return Err(format!("unsupported method: {other}")),
+    };
+    req = req
+        .header("apikey", NUVIO_SUPABASE_KEY)
+        .header("Content-Type", "application/json");
+    if let Some(token) = &token {
+        req = req.header("Authorization", format!("Bearer {token}"));
+    }
+    req = match &body {
+        Some(body) => req.body(body.clone()),
+        None if method == "POST" => req.body("{}"),
+        None => req,
+    };
+    let res = req.send().await.map_err(|e| e.to_string())?;
+    let status = res.status().as_u16();
+    let text = res.text().await.map_err(|e| e.to_string())?;
+    Ok((status, text))
 }
 
 fn trakt_client() -> Result<reqwest::Client, String> {

@@ -8,6 +8,7 @@ mod macos_player_surface;
 mod mpv_render;
 mod artwork;
 mod downloads;
+mod net_guard;
 mod oauth;
 mod player;
 mod storage;
@@ -121,6 +122,7 @@ fn engine_snapshot(state: State<DesktopState>) -> Option<String> {
 
 #[tauri::command]
 async fn http_fetch_text(url: String) -> Result<HttpTextResponse, String> {
+    net_guard::ensure_public_host(&url).await?;
     let response = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -283,15 +285,19 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             for arg in &args {
                 if !arg.starts_with("fluxa://") { continue; }
-                let code = arg.split('?').nth(1)
+                let query = arg.split('?').nth(1);
+                let code = query
                     .and_then(|q| q.split('&').find(|p| p.starts_with("code=")))
                     .map(|p| p.trim_start_matches("code=").to_string());
+                let state = query
+                    .and_then(|q| q.split('&').find(|p| p.starts_with("state=")))
+                    .map(|p| p.trim_start_matches("state=").to_string());
                 if let Some(code) = code {
                     let evt = if arg.contains("/trakt") { "trakt-oauth-code" }
                         else if arg.contains("/mal") { "mal-oauth-code" }
                         else if arg.contains("/simkl") { "simkl-oauth-code" }
                         else { continue };
-                    let _ = app.emit(evt, code);
+                    let _ = app.emit(evt, json!({ "code": code, "state": state }));
                 }
             }
         }))
@@ -319,6 +325,10 @@ pub fn run() {
                         .query_pairs()
                         .find(|(k, _)| k == "code")
                         .map(|(_, v)| v.into_owned());
+                    let state = url
+                        .query_pairs()
+                        .find(|(k, _)| k == "state")
+                        .map(|(_, v)| v.into_owned());
                     if let Some(code) = code {
                         let evt = if s.contains("/trakt") {
                             "trakt-oauth-code"
@@ -329,7 +339,7 @@ pub fn run() {
                         } else {
                             continue;
                         };
-                        let _ = handle.emit(evt, code);
+                        let _ = handle.emit(evt, json!({ "code": code, "state": state }));
                     }
                 }
             });
@@ -375,7 +385,7 @@ pub fn run() {
             player_set_episodes,
             player_clear_episodes,
             get_oauth_client_id,
-            get_nuvio_config,
+            nuvio_request,
             trakt_device_start,
             trakt_device_poll,
             trakt_oauth_exchange,

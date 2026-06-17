@@ -1,11 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { platformFetch } from './httpClient';
-
-let config: Promise<[string, string]> | null = null;
-function nuvioConfig(): Promise<[string, string]> {
-  if (!config) config = invoke<[string, string]>('get_nuvio_config');
-  return config;
-}
 
 export interface NuvioSession {
   access_token: string;
@@ -104,42 +97,39 @@ export interface NuvioCollectionRow {
   updated_at: string;
 }
 
-async function headers(token?: string): Promise<Record<string, string>> {
-  const [, key] = await nuvioConfig();
-  const h: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'apikey': key,
-  };
-  if (token) h['Authorization'] = `Bearer ${token}`;
-  return h;
+async function rawNuvioRequest(
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+  token?: string,
+): Promise<[number, string]> {
+  return invoke<[number, string]>('nuvio_request', {
+    method,
+    path,
+    body: body !== undefined ? JSON.stringify(body) : null,
+    token: token ?? null,
+  });
+}
+
+async function nuvioRequest<T>(
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+  token?: string,
+): Promise<T> {
+  const [status, text] = await rawNuvioRequest(method, path, body, token);
+  if (status < 200 || status >= 300) {
+    throw new Error(`Nuvio API ${status}: ${text}`);
+  }
+  return text ? (JSON.parse(text) as T) : (null as T);
 }
 
 async function post<T>(path: string, body: unknown, token?: string): Promise<T> {
-  const [base] = await nuvioConfig();
-  const res = await platformFetch(`${base}${path}`, {
-    method: 'POST',
-    headers: await headers(token),
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Nuvio API ${res.status}: ${text}`);
-  }
-  const text = await res.text();
-  return text ? JSON.parse(text) : (null as T);
+  return nuvioRequest<T>('POST', path, body, token);
 }
 
 async function get<T>(path: string, token: string): Promise<T> {
-  const [base] = await nuvioConfig();
-  const res = await platformFetch(`${base}${path}`, {
-    method: 'GET',
-    headers: await headers(token),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Nuvio API ${res.status}: ${text}`);
-  }
-  return res.json() as Promise<T>;
+  return nuvioRequest<T>('GET', path, undefined, token);
 }
 
 export async function nuvioSignUp(email: string, password: string): Promise<NuvioSession> {
@@ -155,11 +145,7 @@ export async function nuvioRefreshToken(refresh_token: string): Promise<NuvioSes
 }
 
 export async function nuvioSignOut(token: string): Promise<void> {
-  const [base] = await nuvioConfig();
-  await platformFetch(`${base}/auth/v1/logout`, {
-    method: 'POST',
-    headers: await headers(token),
-  });
+  await rawNuvioRequest('POST', '/auth/v1/logout', undefined, token);
 }
 
 export async function nuvioGetUser(token: string): Promise<{ id: string; email: string }> {
@@ -344,14 +330,11 @@ export async function nuvioPushCollections(
 }
 
 export async function nuvioListAvatars(): Promise<NuvioAvatar[]> {
-  const [base, key] = await nuvioConfig();
-  const res = await platformFetch(`${base}/rest/v1/rpc/get_avatar_catalog`, {
-    method: 'POST',
-    headers: { 'apikey': key, 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-  if (!res.ok) return [];
-  return res.json() as Promise<NuvioAvatar[]>;
+  try {
+    return await nuvioRequest<NuvioAvatar[]>('POST', '/rest/v1/rpc/get_avatar_catalog', {});
+  } catch {
+    return [];
+  }
 }
 
 export async function nuvioGetSyncOverview(token: string): Promise<unknown> {
@@ -359,10 +342,6 @@ export async function nuvioGetSyncOverview(token: string): Promise<unknown> {
 }
 
 export async function nuvioHealthCheck(): Promise<{ status: string; database: string; latency_ms: number }> {
-  const [base, key] = await nuvioConfig();
-  const res = await platformFetch(`${base}/functions/v1/health-check`, {
-    method: 'GET',
-    headers: { 'apikey': key },
-  });
-  return res.json();
+  const [, text] = await rawNuvioRequest('GET', '/functions/v1/health-check');
+  return JSON.parse(text);
 }
