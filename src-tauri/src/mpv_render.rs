@@ -20,6 +20,7 @@ const MPV_RENDER_PARAM_OPENGL_INIT_PARAMS: c_int = 2;
 const MPV_RENDER_PARAM_OPENGL_FBO: c_int = 3;
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 const MPV_RENDER_PARAM_FLIP_Y: c_int = 4;
+const MPV_RENDER_PARAM_ICC_PROFILE: c_int = 6;
 const MPV_RENDER_PARAM_SW_SIZE: c_int = 17;
 const MPV_RENDER_PARAM_SW_FORMAT: c_int = 18;
 const MPV_RENDER_PARAM_SW_STRIDE: c_int = 19;
@@ -48,6 +49,12 @@ struct MpvOpenGlFbo {
     internal_format: c_int,
 }
 
+#[repr(C)]
+struct MpvByteArray {
+    data: *const u8,
+    size: usize,
+}
+
 type MpvCreate = unsafe extern "C" fn() -> *mut MpvHandle;
 type MpvInitialize = unsafe extern "C" fn(*mut MpvHandle) -> c_int;
 type MpvTerminateDestroy = unsafe extern "C" fn(*mut MpvHandle);
@@ -61,6 +68,9 @@ type MpvErrorString = unsafe extern "C" fn(c_int) -> *const c_char;
 type MpvRenderContextCreate =
     unsafe extern "C" fn(*mut *mut MpvRenderContext, *mut MpvHandle, *mut MpvRenderParam) -> c_int;
 type MpvRenderContextRender = unsafe extern "C" fn(*mut MpvRenderContext, *mut MpvRenderParam);
+type MpvRenderContextReportSwap = unsafe extern "C" fn(*mut MpvRenderContext);
+type MpvRenderContextSetParameter =
+    unsafe extern "C" fn(*mut MpvRenderContext, MpvRenderParam) -> c_int;
 type MpvRenderContextFree = unsafe extern "C" fn(*mut MpvRenderContext);
 
 struct MpvApi {
@@ -75,6 +85,8 @@ struct MpvApi {
     mpv_error_string: MpvErrorString,
     mpv_render_context_create: MpvRenderContextCreate,
     mpv_render_context_render: MpvRenderContextRender,
+    mpv_render_context_report_swap: MpvRenderContextReportSwap,
+    mpv_render_context_set_parameter: MpvRenderContextSetParameter,
     mpv_render_context_free: MpvRenderContextFree,
 }
 
@@ -115,6 +127,12 @@ impl MpvApi {
             let mpv_render_context_render = *library
                 .get::<MpvRenderContextRender>(b"mpv_render_context_render\0")
                 .map_err(load_error)?;
+            let mpv_render_context_report_swap = *library
+                .get::<MpvRenderContextReportSwap>(b"mpv_render_context_report_swap\0")
+                .map_err(load_error)?;
+            let mpv_render_context_set_parameter = *library
+                .get::<MpvRenderContextSetParameter>(b"mpv_render_context_set_parameter\0")
+                .map_err(load_error)?;
             let mpv_render_context_free = *library
                 .get::<MpvRenderContextFree>(b"mpv_render_context_free\0")
                 .map_err(load_error)?;
@@ -131,6 +149,8 @@ impl MpvApi {
                 mpv_error_string,
                 mpv_render_context_create,
                 mpv_render_context_render,
+                mpv_render_context_report_swap,
+                mpv_render_context_set_parameter,
                 mpv_render_context_free,
             })
         }
@@ -231,6 +251,9 @@ impl PlayerStatus {
 
 impl MpvRenderer {
     pub fn new() -> Result<Self, String> {
+        // No-op on a stock libmpv; selects the libplacebo backend on our patched one.
+        std::env::set_var("MPV_LIBMPV_RENDER_BACKEND", "gpu-next");
+
         let api = MpvApi::load()?;
         let handle = unsafe { (api.mpv_create)() };
         if handle.is_null() {
@@ -263,11 +286,9 @@ impl MpvRenderer {
         renderer.set_option("hwdec-codecs", "all")?;
 
 
-        // video-sync=audio is the correct mode for the libmpv render API.
-        // display-resample requires MPV to calibrate display timing from render call
-        // intervals, which takes several seconds and holds frames during calibration —
-        // causing a black screen and no audio at stream start.
-        renderer.set_option("video-sync", "audio")?;
+        // Needs the *_player_surface.rs render loops to be real vsync-paced, not
+        // sleep(16ms)-polled -- otherwise mpv's calibration black-screens for seconds.
+        renderer.set_option("video-sync", "display-resample")?;
 
         // Start playback immediately without waiting for the cache to fill.
         // cache-pause-initial=yes (default in many MPV builds) causes MPV to pause
@@ -543,6 +564,33 @@ impl MpvRenderer {
             (self.api.mpv_render_context_render)(self.render_context, params.as_mut_ptr());
         }
         Ok(())
+    }
+
+    /// Call right after the buffer swap completes.
+    pub fn report_swap(&self) {
+        if self.render_context.is_null() {
+            return;
+        }
+        unsafe {
+            (self.api.mpv_render_context_report_swap)(self.render_context);
+        }
+    }
+
+    pub fn set_icc_profile(&self, data: &[u8]) -> Result<(), String> {
+        if self.render_context.is_null() {
+            return Err("render context not created yet".to_string());
+        }
+        let byte_array = MpvByteArray { data: data.as_ptr(), size: data.len() };
+        let param = MpvRenderParam {
+            param_type: MPV_RENDER_PARAM_ICC_PROFILE,
+            data: (&byte_array as *const MpvByteArray) as *mut c_void,
+        };
+        let result = unsafe { (self.api.mpv_render_context_set_parameter)(self.render_context, param) };
+        if result < 0 {
+            Err(format!("failed to set ICC profile: {}", self.api.error_string(result)))
+        } else {
+            Ok(())
+        }
     }
 
     pub fn title(&self) -> Option<String> {

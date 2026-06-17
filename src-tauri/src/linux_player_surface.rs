@@ -220,6 +220,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                     if let Err(e) = r.render_opengl_frame(w, h) {
                         log::warn!("mpv OpenGL render failed: {e}");
                     }
+                    r.report_swap();
                 }
                 glib::Propagation::Stop
             });
@@ -228,7 +229,16 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
 
             let command_app = app_handle.clone();
             let command_gl_area = gl_area.clone();
-            let mut visible = false;
+            // Shared with the GdkFrameClock tick callback below, both on the GTK main thread.
+            let visible = std::rc::Rc::new(std::cell::Cell::new(false));
+            let tick_visible = visible.clone();
+            let tick_gl_area = gl_area.clone();
+            gl_area.add_tick_callback(move |_area, _frame_clock| {
+                if tick_visible.get() {
+                    tick_gl_area.queue_render();
+                }
+                glib::ControlFlow::Continue
+            });
             let mut pending_load: Option<(String, Option<u64>)> = None;
             let mut pending_load_retries: u32 = 0;
             let mut latch_grace_ticks: u32 = 0;
@@ -245,7 +255,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                             *command_app.state::<DesktopState>().eof_next_fired.lock().unwrap() = false;
                             *command_app.state::<DesktopState>().chapters_json.lock().unwrap() = None;
                             command_gl_area.show();
-                            visible = true;
+                            visible.set(true);
                             latch_grace_ticks = 10;
                             chapters_native_loaded = false;
                             pending_load = Some((url, start_at));
@@ -253,7 +263,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                             let _ = command_app.emit("native-player-show", ());
                         }
                         SurfaceCommand::Hide => {
-                            visible = false;
+                            visible.set(false);
                             pending_load = None;
                             pending_load_retries = 0;
                             command_app.state::<DesktopState>().pending_hide
@@ -320,13 +330,13 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                                 let hide_pending = command_app.state::<DesktopState>()
                                     .pending_hide.load(std::sync::atomic::Ordering::Acquire);
                                 if hide_pending {
-                                    visible = false;
+                                    visible.set(false);
                                     command_gl_area.hide();
                                 }
                             }
                             Err(e) => {
                                 pending_load = None;
-                                visible = false;
+                                visible.set(false);
                                 command_gl_area.hide();
                                 log::warn!("native OpenGL player load failed: {e}");
                                 let _ = command_app.emit("native-player-error", e);
@@ -336,7 +346,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                         pending_load_retries += 1;
                         if pending_load_retries > 300 {
                             pending_load = None;
-                            visible = false;
+                            visible.set(false);
                             command_gl_area.hide();
                             let _ = command_app.emit("native-player-error", "player renderer busy".to_string());
                         }
@@ -344,7 +354,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                 }
 
                 // Per-frame tasks while playing
-                if visible {
+                if visible.get() {
                     let in_grace = if latch_grace_ticks > 0 {
                         latch_grace_ticks -= 1;
                         true
@@ -390,7 +400,6 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                     }
 
                     check_player_events(&command_app);
-                    command_gl_area.queue_render();
                 }
 
                 ControlFlow::Continue
@@ -431,7 +440,57 @@ fn prepare_and_load(
         .as_mut()
         .ok_or_else(|| "player renderer is not initialized".to_string())?;
     renderer.prepare_opengl_context()?;
+    if let Some(icc) = query_x11_icc_profile() {
+        if let Err(e) = renderer.set_icc_profile(&icc) {
+            log::warn!("failed to set ICC profile: {e}");
+        }
+    }
     renderer.load(url, start_at)
+}
+
+// X11-only; no equivalent mechanism under Wayland.
+fn query_x11_icc_profile() -> Option<Vec<u8>> {
+    use gdkx11::x11::xlib;
+    use glib::translate::ToGlibPtr;
+    use std::ffi::CString;
+
+    let display = gdk::Display::default()?;
+    let x11_display: gdkx11::X11Display = display.downcast().ok()?;
+    let xdisplay = unsafe {
+        gdkx11::ffi::gdk_x11_display_get_xdisplay(x11_display.to_glib_none().0)
+    };
+    if xdisplay.is_null() {
+        return None;
+    }
+
+    unsafe {
+        let root = xlib::XDefaultRootWindow(xdisplay);
+        let atom_name = CString::new("_ICC_PROFILE").ok()?;
+        let atom = xlib::XInternAtom(xdisplay, atom_name.as_ptr(), 1 /* only_if_exists */);
+        if atom == 0 {
+            return None;
+        }
+
+        let mut actual_type: xlib::Atom = 0;
+        let mut actual_format: i32 = 0;
+        let mut nitems: std::os::raw::c_ulong = 0;
+        let mut bytes_after: std::os::raw::c_ulong = 0;
+        let mut prop: *mut std::os::raw::c_uchar = std::ptr::null_mut();
+        let result = xlib::XGetWindowProperty(
+            xdisplay, root, atom,
+            0, i64::MAX / 4, 0,
+            xlib::AnyPropertyType as std::os::raw::c_ulong,
+            &mut actual_type, &mut actual_format,
+            &mut nitems, &mut bytes_after,
+            &mut prop,
+        );
+        if result != 0 || prop.is_null() || nitems == 0 {
+            return None;
+        }
+        let data = std::slice::from_raw_parts(prop, nitems as usize).to_vec();
+        xlib::XFree(prop as *mut std::os::raw::c_void);
+        Some(data)
+    }
 }
 
 fn check_player_events(app: &AppHandle) {

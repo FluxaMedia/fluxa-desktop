@@ -18,15 +18,42 @@ use windows_sys::Win32::Graphics::Gdi::GetDC;
 use windows_sys::Win32::Graphics::OpenGL::{
     ChoosePixelFormat, SetPixelFormat, SwapBuffers, PIXELFORMATDESCRIPTOR,
     PFD_DOUBLEBUFFER, PFD_DRAW_TO_WINDOW, PFD_SUPPORT_OPENGL, PFD_TYPE_RGBA,
-    wglCreateContext, wglDeleteContext, wglMakeCurrent,
+    wglCreateContext, wglDeleteContext, wglGetProcAddress, wglMakeCurrent,
 };
+use windows_sys::Win32::Graphics::Gdi::HDC;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::UI::ColorSystem::GetICMProfileW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, GetClientRect, RegisterClassExW, SetWindowPos, ShowWindow,
     CS_HREDRAW, CS_OWNDC, CS_VREDRAW, HWND_BOTTOM, SW_HIDE, SW_SHOW, SWP_NOACTIVATE,
     WNDCLASSEXW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
 };
 
+
+unsafe fn enable_vsync() -> bool {
+    let name = b"wglSwapIntervalEXT\0";
+    let Some(proc) = wglGetProcAddress(name.as_ptr()) else {
+        return false;
+    };
+    let set_swap_interval: extern "system" fn(i32) -> i32 = std::mem::transmute(proc);
+    set_swap_interval(1) != FALSE
+}
+
+fn query_icm_profile(hdc: HDC) -> Option<Vec<u8>> {
+    let mut size: u32 = 0;
+    unsafe { GetICMProfileW(hdc, &mut size, std::ptr::null_mut()) };
+    if size == 0 {
+        return None;
+    }
+    let mut buf: Vec<u16> = vec![0; size as usize];
+    let ok = unsafe { GetICMProfileW(hdc, &mut size, buf.as_mut_ptr()) };
+    if ok == FALSE {
+        return None;
+    }
+    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    let path = String::from_utf16_lossy(&buf[..len]);
+    std::fs::read(path).ok()
+}
 
 enum SurfaceCommand {
     Load { url: String, start_at: Option<u64>, total_duration: Option<u64> },
@@ -186,6 +213,10 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             let _ = setup_tx.send(Err("wglMakeCurrent failed".to_string()));
             return;
         }
+        let vsync_enabled = unsafe { enable_vsync() };
+        if !vsync_enabled {
+            log::warn!("WGL_EXT_swap_control unavailable; falling back to timer-paced rendering");
+        }
 
         // mpv renderer init
         {
@@ -212,6 +243,11 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                     }
                     let _ = setup_tx.send(Err(format!("mpv GL context failed: {e}")));
                     return;
+                }
+                if let Some(icc) = query_icm_profile(hdc) {
+                    if let Err(e) = r.set_icc_profile(&icc) {
+                        log::warn!("failed to set ICC profile: {e}");
+                    }
                 }
             }
         }
@@ -305,12 +341,22 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                         let _ = r.render_opengl_frame(nw, nh);
                     }
                 }
+                let swap_start = std::time::Instant::now();
                 unsafe { SwapBuffers(hdc) };
+                if !vsync_enabled || swap_start.elapsed() < Duration::from_millis(4) {
+                    std::thread::sleep(Duration::from_millis(16));
+                }
+                {
+                    let state = app.state::<DesktopState>();
+                    if let Some(r) = state.player_renderer.lock().unwrap().as_ref() {
+                        r.report_swap();
+                    }
+                }
 
                 check_player_events(&app);
+            } else {
+                std::thread::sleep(Duration::from_millis(16));
             }
-
-            std::thread::sleep(Duration::from_millis(16));
         }
     });
 

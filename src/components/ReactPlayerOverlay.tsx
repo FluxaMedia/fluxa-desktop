@@ -32,7 +32,7 @@ import { TrackPopover } from './player/TrackPopover';
 
 type Chapter = { title: string; startMs: number };
 type SkipSegment = { type: string; startTime: number; endTime: number };
-type ActiveSkip = { label: string; endMs: number };
+type ActiveSkip = { label: string; startMs: number; endMs: number };
 type FeedbackFlash = { icon: 'play' | 'pause' | 'seekBack' | 'seekFwd' | 'speed'; label: string };
 
 function fmtTime(s: number): string {
@@ -87,9 +87,10 @@ interface Props {
   onFirstFrame?: () => void;
   initialTitle?: string;
   initialEpisodeTitle?: string;
+  bannerOffset?: number;
 }
 
-export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle }: Props) {
+export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, bannerOffset = 0 }: Props) {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(100);
@@ -107,6 +108,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [episodes, setEpisodes] = useState<EpisodeInfo[]>([]);
   const [showEpisodePanel, setShowEpisodePanel] = useState(false);
   const [activeSkip, setActiveSkip] = useState<ActiveSkip | null>(null);
+  const [skipProgress, setSkipProgress] = useState(0);
   const [showNextEpCard, setShowNextEpCard] = useState(false);
   const [trackPopover, setTrackPopover] = useState<'audio' | 'sub' | 'speed' | null>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
@@ -293,7 +295,11 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       const newSkipKey = seg ? `${seg.type}:${seg.endTime}` : null;
       if (newSkipKey !== activeSkipKeyRef.current) {
         activeSkipKeyRef.current = newSkipKey;
-        setActiveSkip(seg ? { label: skipLabelForType(seg.type), endMs: seg.endTime } : null);
+        setActiveSkip(seg ? { label: skipLabelForType(seg.type), startMs: seg.startTime, endMs: seg.endTime } : null);
+      }
+      if (seg) {
+        const span = seg.endTime - seg.startTime;
+        setSkipProgress(span > 0 ? Math.min(1, Math.max(0, (posMs - seg.startTime) / span)) : 0);
       }
 
       if (dur > 0 && nextEpSubtitle) {
@@ -341,15 +347,19 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   }, [showNextEpCard, autoPlayNextEpisode, nextEpDismissed, autoPlayCountdownSecs]);
 
   useEffect(() => {
-    if (countdown === null || countdown <= 0) {
-      if (countdown === 0) {
-        resetActivity();
-        void emit('native-player-next-episode', null);
-      }
-      return;
+    if (countdown === null) return;
+    const id = setInterval(() => {
+      if (pausedRef.current) return;
+      setCountdown((c) => (c !== null && c > 0 ? c - 1 : c));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [countdown === null]);
+
+  useEffect(() => {
+    if (countdown === 0) {
+      resetActivity();
+      void emit('native-player-next-episode', null);
     }
-    const id = setTimeout(() => setCountdown((c) => (c !== null ? c - 1 : null)), 1000);
-    return () => clearTimeout(id);
   }, [countdown]);
 
   useEffect(() => {
@@ -405,6 +415,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           sendCmd('cycle mute');
           break;
         case 'KeyF':
+        case 'F11':
           e.preventDefault();
           void toggleFullscreen();
           break;
@@ -623,8 +634,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     >
       <style>{`
         @keyframes fluxa-seek-spin { to { transform: rotate(360deg); } }
+        @keyframes fluxa-skip-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .fluxa-ibtn { opacity: 0.8; transition: opacity 0.15s, background 0.12s; }
         .fluxa-ibtn:hover { opacity: 1; background: rgba(255,255,255,0.09) !important; }
+        .fluxa-skip-btn { animation: fluxa-skip-in 0.18s ease-out; transition: background 0.12s, border-color 0.12s; }
+        .fluxa-skip-btn:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.22) !important; }
+        .fluxa-skip-btn:focus-visible { outline: 2px solid rgba(255,255,255,0.4); outline-offset: 2px; }
         .fluxa-cursor-hidden, .fluxa-cursor-hidden * { cursor: none !important; }
       `}</style>
 
@@ -632,7 +647,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 230, background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.5) 45%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
 
       {/* Top bar */}
-      <div style={{ ...opacityStyle, position: 'absolute', top: 0, left: 0, right: 0, zIndex: 3, display: 'flex', alignItems: 'center', padding: '14px 12px', gap: 6 }}>
+      <div style={{ ...opacityStyle, position: 'absolute', top: bannerOffset, left: 0, right: 0, zIndex: 3, display: 'flex', alignItems: 'center', padding: '14px 12px', gap: 6 }}>
         <button
           onClick={(e) => { e.stopPropagation(); resetActivity(); void closePlayer(); }}
           className="fluxa-ibtn"
@@ -704,9 +719,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         <div style={{ position: 'absolute', bottom: 106, right: 22, zIndex: 4 }}>
           <button
             onClick={(e) => { e.stopPropagation(); resetActivity(); sendCmd(`set time-pos ${Math.floor(activeSkip.endMs / 1000)}`); }}
+            className="fluxa-skip-btn"
             style={styles.skipBtn}
           >
+            <SkipForward size={17} />
             {activeSkip.label}
+            <div style={{ position: 'absolute', left: 0, bottom: 0, height: 2, width: `${skipProgress * 100}%`, background: 'rgba(255,255,255,0.4)' }} />
           </button>
         </div>
       )}
@@ -900,15 +918,22 @@ const styles = {
   } as React.CSSProperties,
 
   skipBtn: {
-    background: 'rgba(255,255,255,0.15)',
-    backdropFilter: 'blur(8px)',
-    border: '1px solid rgba(255,255,255,0.3)',
+    appearance: 'none',
+    background: 'rgba(20,22,28,0.92)',
+    boxShadow: 'none',
+    outline: 'none',
+    border: '1px solid rgba(255,255,255,0.14)',
     borderRadius: 8,
     color: '#fff',
-    fontSize: 13,
-    fontWeight: 700,
-    padding: '8px 18px',
+    fontSize: 15,
+    fontWeight: 600,
+    padding: '12px 22px',
     cursor: 'pointer',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    position: 'relative',
+    overflow: 'hidden',
   } as React.CSSProperties,
 } satisfies Record<string, React.CSSProperties>;

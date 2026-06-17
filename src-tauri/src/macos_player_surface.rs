@@ -97,12 +97,65 @@ const NSOpenGLPFADepthSize: u32 = 12;
 const NSOpenGLPFAOpenGLProfile: u32 = 99;
 const NSOpenGLProfileVersionLegacy: u32 = 0x1000;
 
+// NSOpenGLContextParameter.
+const NS_OPENGL_CP_SWAP_INTERVAL: isize = 222;
+
+unsafe fn msg_set_values(obj: Id, vals: *const i32, param: isize) {
+    type Fn = unsafe extern "C" fn(Id, Id, *const i32, isize);
+    let f: Fn = std::mem::transmute(objc_msgSend as unsafe extern "C" fn(_, _, ...) -> _);
+    f(obj, sel("setValues:forParameter:"), vals, param)
+}
+
+unsafe fn enable_vsync(gl_ctx: Id) {
+    let interval: i32 = 1;
+    msg_set_values(gl_ctx, &interval as *const i32, NS_OPENGL_CP_SWAP_INTERVAL);
+}
+
 // Send wrappers
 
 #[derive(Clone)]
 struct SendId(Id);
 unsafe impl Send for SendId {}
 unsafe impl Sync for SendId {}
+
+// ColorSync / CoreGraphics: ICC profile of the main display
+
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGMainDisplayID() -> u32;
+    fn CGDisplayCopyColorSpace(display: u32) -> Id;
+}
+
+#[link(name = "CoreFoundation", kind = "framework")]
+extern "C" {
+    fn CGColorSpaceCopyICCData(space: Id) -> Id; // CFDataRef
+    fn CFDataGetLength(data: Id) -> isize;
+    fn CFDataGetBytePtr(data: Id) -> *const u8;
+    fn CFRelease(obj: Id);
+}
+
+fn query_colorsync_icc_profile() -> Option<Vec<u8>> {
+    unsafe {
+        let space = CGDisplayCopyColorSpace(CGMainDisplayID());
+        if space.is_null() {
+            return None;
+        }
+        let data = CGColorSpaceCopyICCData(space);
+        CFRelease(space);
+        if data.is_null() {
+            return None;
+        }
+        let len = CFDataGetLength(data);
+        let ptr = CFDataGetBytePtr(data);
+        let result = if len > 0 && !ptr.is_null() {
+            Some(std::slice::from_raw_parts(ptr, len as usize).to_vec())
+        } else {
+            None
+        };
+        CFRelease(data);
+        result
+    }
+}
 
 // GCD dispatch helpers
 
@@ -253,6 +306,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
     // Make it current on this thread and init mpv render context.
     unsafe {
         msg0(gl_ctx.0, "makeCurrentContext");
+        enable_vsync(gl_ctx.0);
     }
 
     {
@@ -269,6 +323,11 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
         if let Some(r) = renderer.as_mut() {
             r.prepare_opengl_context()
                 .map_err(|e| format!("mpv GL context failed: {e}"))?;
+            if let Some(icc) = query_colorsync_icc_profile() {
+                if let Err(e) = r.set_icc_profile(&icc) {
+                    log::warn!("failed to set ICC profile: {e}");
+                }
+            }
         }
     }
 
@@ -374,12 +433,22 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                         let _ = r.render_opengl_frame(last_size.0, last_size.1);
                     }
                 }
+                let flush_start = std::time::Instant::now();
                 unsafe { msg0(gl, "flushBuffer") };
+                if flush_start.elapsed() < Duration::from_millis(4) {
+                    std::thread::sleep(Duration::from_millis(16));
+                }
+                {
+                    let state = app.state::<DesktopState>();
+                    if let Some(r) = state.player_renderer.lock().unwrap().as_ref() {
+                        r.report_swap();
+                    }
+                }
 
                 check_player_events(&app);
+            } else {
+                std::thread::sleep(Duration::from_millis(16));
             }
-
-            std::thread::sleep(Duration::from_millis(16));
         }
     });
 

@@ -509,6 +509,7 @@ export default function App() {
           onFirstFrame={notifyFirstFrame}
           initialTitle={playerTitle}
           initialEpisodeTitle={playerEpisodeTitle}
+          bannerOffset={bannerOffset}
         />
       )}
     </div>
