@@ -26,6 +26,43 @@ const MPV_RENDER_PARAM_SW_FORMAT: c_int = 18;
 const MPV_RENDER_PARAM_SW_STRIDE: c_int = 19;
 const MPV_RENDER_PARAM_SW_POINTER: c_int = 20;
 
+const MPV_EVENT_NONE: c_int = 0;
+const MPV_EVENT_LOG_MESSAGE: c_int = 2;
+const MPV_EVENT_END_FILE: c_int = 7;
+const MPV_END_FILE_REASON_EOF: c_int = 0;
+const MPV_END_FILE_REASON_ERROR: c_int = 4;
+
+#[repr(C)]
+struct MpvEvent {
+    event_id: c_int,
+    error: c_int,
+    reply_userdata: u64,
+    data: *mut c_void,
+}
+
+#[repr(C)]
+struct MpvEventEndFile {
+    reason: c_int,
+    error: c_int,
+    playlist_entry_id: i64,
+    playlist_insert_id: c_int,
+    playlist_insert_num_entries: c_int,
+}
+
+#[repr(C)]
+struct MpvEventLogMessage {
+    prefix: *const c_char,
+    level: *const c_char,
+    text: *const c_char,
+    log_level: c_int,
+}
+
+/// A real end-of-file from mpv's event stream, not a polled property
+/// that can be momentarily stale right after `loadfile`.
+pub enum PlayerEvent {
+    EndFile { eof: bool, error: Option<String> },
+}
+
 #[repr(C)]
 struct MpvRenderParam {
     param_type: c_int,
@@ -72,6 +109,8 @@ type MpvRenderContextReportSwap = unsafe extern "C" fn(*mut MpvRenderContext);
 type MpvRenderContextSetParameter =
     unsafe extern "C" fn(*mut MpvRenderContext, MpvRenderParam) -> c_int;
 type MpvRenderContextFree = unsafe extern "C" fn(*mut MpvRenderContext);
+type MpvWaitEvent = unsafe extern "C" fn(*mut MpvHandle, f64) -> *mut MpvEvent;
+type MpvRequestLogMessages = unsafe extern "C" fn(*mut MpvHandle, *const c_char) -> c_int;
 
 struct MpvApi {
     _library: Library,
@@ -88,6 +127,8 @@ struct MpvApi {
     mpv_render_context_report_swap: MpvRenderContextReportSwap,
     mpv_render_context_set_parameter: MpvRenderContextSetParameter,
     mpv_render_context_free: MpvRenderContextFree,
+    mpv_wait_event: MpvWaitEvent,
+    mpv_request_log_messages: MpvRequestLogMessages,
 }
 
 unsafe impl Send for MpvApi {}
@@ -136,6 +177,12 @@ impl MpvApi {
             let mpv_render_context_free = *library
                 .get::<MpvRenderContextFree>(b"mpv_render_context_free\0")
                 .map_err(load_error)?;
+            let mpv_wait_event = *library
+                .get::<MpvWaitEvent>(b"mpv_wait_event\0")
+                .map_err(load_error)?;
+            let mpv_request_log_messages = *library
+                .get::<MpvRequestLogMessages>(b"mpv_request_log_messages\0")
+                .map_err(load_error)?;
 
             Ok(Self {
                 _library: library,
@@ -152,6 +199,8 @@ impl MpvApi {
                 mpv_render_context_report_swap,
                 mpv_render_context_set_parameter,
                 mpv_render_context_free,
+                mpv_wait_event,
+                mpv_request_log_messages,
             })
         }
     }
@@ -173,6 +222,7 @@ pub struct MpvRenderer {
     width: i32,
     height: i32,
     loaded: bool,
+    log_ring: std::collections::VecDeque<String>,
 }
 
 unsafe impl Send for MpvRenderer {}
@@ -268,6 +318,7 @@ impl MpvRenderer {
             width: 0,
             height: 0,
             loaded: false,
+            log_ring: std::collections::VecDeque::new(),
         };
 
         renderer.set_option("terminal", "no")?;
@@ -313,6 +364,11 @@ impl MpvRenderer {
             return Err(format!("mpv_initialize failed: {message}"));
         }
 
+        // Surfaces the real reason a stream failed to open (network/codec/TLS) via
+        // poll_events(), instead of that failure looking like a silent EOF.
+        let level = CString::new("warn").unwrap();
+        unsafe { (renderer.api.mpv_request_log_messages)(renderer.handle, level.as_ptr()) };
+
         Ok(renderer)
     }
 
@@ -331,6 +387,7 @@ impl MpvRenderer {
             width: 0,
             height: 0,
             loaded: false,
+            log_ring: std::collections::VecDeque::new(),
         };
 
         renderer.set_option("terminal", "no")?;
@@ -361,6 +418,7 @@ impl MpvRenderer {
     pub fn load(&mut self, url: &str, start_at: Option<u64>) -> Result<(), String> {
         let escaped = url.replace('\\', "\\\\").replace('"', "\\\"");
         self.loaded = false;
+        self.log_ring.clear();
         // Pass start position as a per-file option directly in the loadfile command.
         // This is the most reliable way to seek on open — no timing dependency.
         if let Some(secs) = start_at.filter(|&s| s > 0) {
@@ -595,6 +653,49 @@ impl MpvRenderer {
 
     pub fn title(&self) -> Option<String> {
         self.get_string_property("media-title")
+    }
+
+    /// Drains mpv's event queue. Use this instead of polling `eof-reached` —
+    /// the property can read stale right after `loadfile`, and doesn't
+    /// distinguish a real end-of-file from the stream simply failing to open.
+    pub fn poll_events(&mut self) -> Vec<PlayerEvent> {
+        let mut events = Vec::new();
+        loop {
+            let raw = unsafe { (self.api.mpv_wait_event)(self.handle, 0.0) };
+            if raw.is_null() {
+                break;
+            }
+            let event = unsafe { &*raw };
+            match event.event_id {
+                MPV_EVENT_NONE => break,
+                MPV_EVENT_LOG_MESSAGE if !event.data.is_null() => {
+                    let msg = unsafe { &*(event.data as *const MpvEventLogMessage) };
+                    let text = unsafe { CStr::from_ptr(msg.text) }.to_string_lossy();
+                    let text = text.trim_end();
+                    if !text.is_empty() {
+                        if self.log_ring.len() >= 20 {
+                            self.log_ring.pop_front();
+                        }
+                        self.log_ring.push_back(text.to_string());
+                    }
+                }
+                MPV_EVENT_END_FILE if !event.data.is_null() => {
+                    let end_file = unsafe { &*(event.data as *const MpvEventEndFile) };
+                    if end_file.reason == MPV_END_FILE_REASON_ERROR {
+                        let mut message = self.api.error_string(end_file.error);
+                        if !self.log_ring.is_empty() {
+                            message.push_str(": ");
+                            message.push_str(&self.log_ring.iter().cloned().collect::<Vec<_>>().join(" / "));
+                        }
+                        events.push(PlayerEvent::EndFile { eof: false, error: Some(message) });
+                    } else if end_file.reason == MPV_END_FILE_REASON_EOF {
+                        events.push(PlayerEvent::EndFile { eof: true, error: None });
+                    }
+                }
+                _ => {}
+            }
+        }
+        events
     }
 
     pub fn status(&self) -> PlayerStatus {

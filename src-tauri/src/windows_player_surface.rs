@@ -369,27 +369,29 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
 
 fn check_player_events(app: &AppHandle) {
     let state = app.state::<DesktopState>();
-    let status = {
-        let renderer = state.player_renderer.lock().unwrap();
-        renderer.as_ref().map(|r| r.status())
+    let events = {
+        let mut renderer = state.player_renderer.lock().unwrap();
+        match renderer.as_mut() {
+            Some(r) => r.poll_events(),
+            None => return,
+        }
     };
-    let Some(status) = status else { return };
-    if !status.eof_reached() {
-        return;
-    }
-    let mut fired = state.eof_next_fired.lock().unwrap();
-    if *fired {
-        return;
-    }
-    *fired = true;
-    drop(fired);
-
-    let next_sub = state.next_ep_subtitle.lock().unwrap().clone();
-    let auto_play = *state.auto_play_next_episode.lock().unwrap();
-    if !next_sub.is_empty() && auto_play {
-        let _ = app.emit("native-player-next-episode", ());
-    } else {
-        let _ = app.emit("native-player-close-requested", ());
+    for event in events {
+        let crate::mpv_render::PlayerEvent::EndFile { eof, error } = event;
+        if let Some(message) = error {
+            let _ = app.emit("native-player-error", message);
+            continue;
+        }
+        if !eof {
+            continue;
+        }
+        let next_sub = state.next_ep_subtitle.lock().unwrap().clone();
+        let auto_play = *state.auto_play_next_episode.lock().unwrap();
+        if !next_sub.is_empty() && auto_play {
+            let _ = app.emit("native-player-next-episode", ());
+        } else {
+            let _ = app.emit("native-player-close-requested", ());
+        }
     }
 }
 
