@@ -25,9 +25,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-          repository: KhooLy/FluxaCore
+          repository: KhooLy/fluxa-core
           path: fluxa-core
-          token: ${{ secrets.FLUXA_CORE_PAT }}
       - name: Link sibling repos
         shell: bash
         run: |
@@ -87,9 +86,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-          repository: KhooLy/FluxaCore
+          repository: KhooLy/fluxa-core
           path: fluxa-core
-          token: ${{ secrets.FLUXA_CORE_PAT }}
       - name: Link sibling repos
         run: ln -sfn "$GITHUB_WORKSPACE/fluxa-core" "$(dirname "$GITHUB_WORKSPACE")/fluxa-core"
 
@@ -146,9 +144,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:
-          repository: KhooLy/FluxaCore
+          repository: KhooLy/fluxa-core
           path: fluxa-core
-          token: ${{ secrets.FLUXA_CORE_PAT }}
       - name: Link sibling repos
         run: ln -sfn "$GITHUB_WORKSPACE/fluxa-core" "$(dirname "$GITHUB_WORKSPACE")/fluxa-core"
 
