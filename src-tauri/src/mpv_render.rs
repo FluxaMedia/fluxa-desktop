@@ -482,8 +482,14 @@ impl MpvRenderer {
             },
         ];
 
-        unsafe {
-            (self.api.mpv_render_context_render)(self.render_context, params.as_mut_ptr());
+        let result = unsafe {
+            (self.api.mpv_render_context_render)(self.render_context, params.as_mut_ptr())
+        };
+        if result < 0 {
+            return Err(format!(
+                "mpv_render_context_render (thumbnail) failed: {}",
+                self.api.error_string(result)
+            ));
         }
 
         for alpha in self.buffer.iter_mut().skip(3).step_by(4) {
