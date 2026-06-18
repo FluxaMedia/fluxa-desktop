@@ -320,6 +320,10 @@ impl MpvRenderer {
         };
 
         renderer.set_option("terminal", "no")?;
+        // log-file writes regardless of terminal=no -- needed to see mpv's own
+        // last action when the process crashes before any Rust log line fires.
+        renderer.set_option("log-file", &std::env::temp_dir().join("fluxa-mpv.log").to_string_lossy())?;
+        renderer.set_option("msg-level", "all=v")?;
         renderer.set_option("config", "no")?;
         renderer.set_option("vo", "libmpv")?;
         renderer.set_option("idle", "yes")?;
