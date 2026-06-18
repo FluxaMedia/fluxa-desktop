@@ -393,7 +393,9 @@ impl MpvRenderer {
 
         renderer.set_option("terminal", "no")?;
         renderer.set_option("config", "no")?;
-        renderer.set_option("vo", "null")?;
+        // vo=null discards all decoded video -- the render API needs vo=libmpv
+        // (like the main player) so frames actually reach render_thumbnail().
+        renderer.set_option("vo", "libmpv")?;
         renderer.set_option("ao", "null")?;
         renderer.set_option("audio", "no")?;
         renderer.set_option("idle", "yes")?;
