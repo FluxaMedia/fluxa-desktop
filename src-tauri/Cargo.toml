@@ -1,6 +1,6 @@
 [package]
 name = "fluxa-desktop"
-version = "0.1.1"
+version = "0.1.7"
 edition = "2021"
 
 [lib]
@@ -74,7 +74,6 @@ tauri-runtime-wry = { path = "patches/tauri-runtime-wry-2.11.2" }
 # safe error/null return instead of aborting the whole app. "abort" would
 # silently defeat that.
 panic = "unwind"
-codegen-units = 1
-lto = true
+lto = "thin"
 strip = true
 opt-level = "s"

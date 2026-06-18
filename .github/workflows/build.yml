@@ -15,10 +15,7 @@ permissions:
   contents: write
 
 jobs:
-  # ═══════════════════════════════════════════════════════════════════════════
-  # WINDOWS
   # libmpv + its MSYS2 runtime deps come prebuilt from KhooLy/mpv.
-  # ═══════════════════════════════════════════════════════════════════════════
   build-windows:
     runs-on: windows-latest
     steps:
@@ -76,10 +73,7 @@ jobs:
           generateReleaseNotes: true
           args: --target x86_64-pc-windows-msvc
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # macOS
   # libmpv comes prebuilt from KhooLy/mpv, already dylibbundler'd.
-  # ═══════════════════════════════════════════════════════════════════════════
   build-macos:
     runs-on: macos-latest
     steps:
@@ -134,10 +128,7 @@ jobs:
           generateReleaseNotes: true
           args: --target universal-apple-darwin
 
-  # ═══════════════════════════════════════════════════════════════════════════
-  # LINUX
   # libmpv comes prebuilt from KhooLy/mpv (built on ubuntu-24.04, must match).
-  # ═══════════════════════════════════════════════════════════════════════════
   build-linux:
     runs-on: ubuntu-24.04
     steps:
@@ -165,10 +156,7 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # apt has no network cache by default, so a slow mirror day makes every
-      # Linux build re-download this whole list from scratch. Caching the
-      # downloaded .debs under $HOME avoids permission issues with the
-      # root-owned /var/cache/apt/archives.
+      # cached under $HOME, not /var/cache/apt/archives, to avoid root-owned dir
       - name: Cache apt packages
         uses: actions/cache@v4
         with:
