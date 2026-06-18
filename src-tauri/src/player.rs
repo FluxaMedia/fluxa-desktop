@@ -424,8 +424,6 @@ pub fn player_command(state: State<DesktopState>, command: String) -> Result<(),
     if command == "stop" {
         *state.eof_next_fired.lock().unwrap() = true;
     }
-    // User-initiated commands (pause, seek, ...) must actually take effect,
-    // unlike the status poll -- block briefly instead of giving up on contention.
     let renderer = state.player_renderer.lock().unwrap();
     renderer
         .as_ref()
@@ -604,8 +602,6 @@ pub fn player_get_seek_thumbnail(state: State<DesktopState>, time_pos: f64) -> R
     if loaded_url_guard.as_deref() != Some(url.as_str()) {
         renderer.load_thumbnail(&url)?;
         *loaded_url_guard = Some(url.clone());
-        // Poll instead of a blind sleep -- most seeks resolve in well under
-        // the old fixed 500ms, and this exits as soon as it's actually ready.
         for _ in 0..50 {
             if renderer.query_property("duration").is_some() {
                 break;

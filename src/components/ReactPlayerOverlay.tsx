@@ -250,15 +250,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       if (!firstFrameFiredRef.current && onFirstFrame) {
         const voReady = status.voConfigured === 'yes';
         const audioPlaying = !voReady && status.coreIdle === 'no' && !isPaused && pos > 0;
-        // video-codec reflects the container's track list, known right after
-        // the file opens -- unlike vo-configured it doesn't wait on decode/
-        // buffering, so it tells us definitively whether a video track exists
-        // at all (1s grace period just avoids a race before mpv parses tracks).
         const noVideoTrack = !status.videoCodec && Date.now() - loadStartedAtRef.current > 1000;
         if (voReady || audioPlaying || noVideoTrack) {
           firstFrameFiredRef.current = true;
-          // mpv stays paused from load() until now, so audio doesn't start
-          // ahead of the picture -- release it the moment the frame is ready.
           sendCmd('set pause no');
           onFirstFrame();
         }

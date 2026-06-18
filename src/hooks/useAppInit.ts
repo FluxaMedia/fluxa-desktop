@@ -70,8 +70,6 @@ const syncTasks: Promise<unknown>[] = [];
         const snap = await getSnapshot();
         const prefs = (await storageRead<Record<string, unknown>>('prefs')) ?? {};
         storedPrefsRef.current = prefs;
-        // SettingsScreen only re-syncs this on its own mount -- sync it here
-        // too so it's correct even if the user never opens Settings this session.
         void invoke('player_set_seek_thumbnail_enabled', { enabled: prefBool(prefs, 'seekThumbnailEnabled', false) });
         setLanguage(typeof prefs.language === 'string' ? prefs.language : null);
         const startPage = prefString({ ...prefs }, 'startPage', 'home') as NavRoute;

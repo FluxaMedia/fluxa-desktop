@@ -321,10 +321,6 @@ impl MpvRenderer {
         };
 
         renderer.set_option("terminal", "no")?;
-        // log-file writes regardless of terminal=no -- needed to see mpv's own
-        // last action when the process crashes before any Rust log line fires.
-        renderer.set_option("log-file", &std::env::temp_dir().join("fluxa-mpv.log").to_string_lossy())?;
-        renderer.set_option("msg-level", "all=v")?;
         renderer.set_option("config", "no")?;
         renderer.set_option("vo", "libmpv")?;
         renderer.set_option("idle", "yes")?;
@@ -393,8 +389,6 @@ impl MpvRenderer {
 
         renderer.set_option("terminal", "no")?;
         renderer.set_option("config", "no")?;
-        // vo=null discards all decoded video -- the render API needs vo=libmpv
-        // (like the main player) so frames actually reach render_thumbnail().
         renderer.set_option("vo", "libmpv")?;
         renderer.set_option("ao", "null")?;
         renderer.set_option("audio", "no")?;
@@ -415,8 +409,6 @@ impl MpvRenderer {
             return Err(format!("mpv_initialize failed: {message}"));
         }
 
-        // vo=libmpv needs a render context to attach to before any loadfile/
-        // seek command runs, or those commands fail outright.
         renderer.create_software_context()?;
 
         Ok(renderer)
@@ -433,8 +425,6 @@ impl MpvRenderer {
         } else {
             self.command_string(&format!("loadfile \"{escaped}\" replace"))?;
         }
-        // Stay paused until the frontend sees the first video frame and
-        // explicitly unpauses, so audio doesn't start ahead of the picture.
         self.command_string("set pause yes")?;
         self.loaded = true;
         Ok(())

@@ -33,9 +33,6 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 
-// tao's transparent:true enables DwmEnableBlurBehindWindow for the whole top-
-// level window, which doesn't composite this child window's raw WGL/GL
-// output at all -- toggle it off while the native surface is visible.
 unsafe fn set_window_blur_behind(hwnd: HWND, enable: bool) {
     let region = if enable { CreateRectRgn(0, 0, -1, -1) } else { 0 };
     let bb = DWM_BLURBEHIND {
@@ -50,10 +47,6 @@ unsafe fn set_window_blur_behind(hwnd: HWND, enable: bool) {
     }
 }
 
-// A bare wglCreateContext() can hand back a context too old for libplacebo's
-// GPU-next renderer. Mirrors mpv's own create_context_wgl_gl3 (context_win.c):
-// GL 3.0 core, with the NVIDIA-known retry that drops the profile request if
-// the first attempt fails.
 unsafe fn create_modern_gl_context(hdc: HDC) -> Option<isize> {
     let name = b"wglCreateContextAttribsARB\0";
     let proc = wglGetProcAddress(name.as_ptr())?;
@@ -167,8 +160,6 @@ enum InstallSlot {
 
 static INSTALL: Mutex<InstallSlot> = Mutex::new(InstallSlot::NotStarted);
 
-// A timed-out caller must not spawn a second install thread — that races the
-// still-running first one over the same mpv render context and segfaults.
 pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
     let mut slot = INSTALL.lock().unwrap();
     let rx = match std::mem::replace(&mut *slot, InstallSlot::NotStarted) {
@@ -183,8 +174,6 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             result_rx
         }
     };
-    // gpu-next's first-time shader/pipeline setup reliably takes just over 5s
-    // on some machines, so give it real margin instead of bailing early.
     match rx.recv_timeout(Duration::from_secs(20)) {
         Ok(result) => {
             *slot = InstallSlot::Done(result.clone());
@@ -257,8 +246,6 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                 class_name.as_ptr(),
                 std::ptr::null(),
                 // No WS_VISIBLE — shown only when player is active.
-                // No WS_CLIPSIBLINGS — that clips our drawing wherever the
-                // WebView2 sibling overlaps, which is the entire window.
                 WS_CHILD | WS_CLIPCHILDREN,
                 0,
                 0,
@@ -393,9 +380,6 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
         let mut last_render_error: Option<String> = None;
 
         loop {
-            // child_hwnd was created on this thread, so this thread owns its
-            // message queue -- without pumping it, the window can't respond
-            // to system/compositor messages (resize, DWM, etc).
             unsafe {
                 let mut msg: MSG = std::mem::zeroed();
                 while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) != 0 {
