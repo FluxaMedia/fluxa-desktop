@@ -18,7 +18,7 @@ use windows_sys::Win32::Foundation::{FALSE, HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::GetDC;
 use windows_sys::Win32::Graphics::OpenGL::{
     ChoosePixelFormat, SetPixelFormat, SwapBuffers, PIXELFORMATDESCRIPTOR,
-    PFD_DOUBLEBUFFER, PFD_DRAW_TO_WINDOW, PFD_SUPPORT_OPENGL, PFD_TYPE_RGBA,
+    PFD_DOUBLEBUFFER, PFD_DRAW_TO_WINDOW, PFD_MAIN_PLANE, PFD_SUPPORT_OPENGL, PFD_TYPE_RGBA,
     wglCreateContext, wglDeleteContext, wglGetProcAddress, wglMakeCurrent,
 };
 use windows_sys::Win32::Graphics::Gdi::HDC;
@@ -32,7 +32,9 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 
 
 // A bare wglCreateContext() can hand back a context too old for libplacebo's
-// GPU-next renderer; upgrade to a real OpenGL 3.3 context where possible.
+// GPU-next renderer. Mirrors mpv's own create_context_wgl_gl3 (context_win.c):
+// GL 3.0 core, with the NVIDIA-known retry that drops the profile request if
+// the first attempt fails.
 unsafe fn create_modern_gl_context(hdc: HDC) -> Option<isize> {
     let name = b"wglCreateContextAttribsARB\0";
     let proc = wglGetProcAddress(name.as_ptr())?;
@@ -41,16 +43,23 @@ unsafe fn create_modern_gl_context(hdc: HDC) -> Option<isize> {
 
     const WGL_CONTEXT_MAJOR_VERSION_ARB: i32 = 0x2091;
     const WGL_CONTEXT_MINOR_VERSION_ARB: i32 = 0x2092;
+    const WGL_CONTEXT_FLAGS_ARB: i32 = 0x2094;
     const WGL_CONTEXT_PROFILE_MASK_ARB: i32 = 0x9126;
-    const WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB: i32 = 0x0002;
+    const WGL_CONTEXT_CORE_PROFILE_BIT_ARB: i32 = 0x0001;
 
-    let attribs = [
+    let mut attribs = [
         WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-        WGL_CONTEXT_MINOR_VERSION_ARB, 3,
-        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 0,
+        WGL_CONTEXT_FLAGS_ARB, 0,
+        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
         0,
     ];
-    let ctx = create(hdc, 0, attribs.as_ptr());
+    let mut ctx = create(hdc, 0, attribs.as_ptr());
+    if ctx == 0 {
+        attribs[6] = 0;
+        attribs[7] = 0;
+        ctx = create(hdc, 0, attribs.as_ptr());
+    }
     if ctx == 0 { None } else { Some(ctx) }
 }
 
@@ -264,10 +273,9 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
         pfd.nVersion = 1;
         pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
         pfd.iPixelType = PFD_TYPE_RGBA;
-        pfd.cColorBits = 32;
+        pfd.cColorBits = 24;
         pfd.cAlphaBits = 8;
-        pfd.cDepthBits = 24;
-        pfd.cStencilBits = 8;
+        pfd.iLayerType = PFD_MAIN_PLANE;
 
         let pf_idx = unsafe { ChoosePixelFormat(hdc, &pfd) };
         if pf_idx == 0 {
@@ -297,7 +305,7 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
         let hglrc = match unsafe { create_modern_gl_context(hdc) } {
             Some(modern) if unsafe { wglMakeCurrent(hdc, modern) } != FALSE => {
                 unsafe { wglDeleteContext(hglrc) };
-                log::info!("player surface: upgraded to a modern OpenGL 3.3 context");
+                log::info!("player surface: upgraded to a modern OpenGL 3.0 context");
                 modern
             }
             Some(modern) => {
