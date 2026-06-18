@@ -28,7 +28,7 @@ use windows_sys::Win32::UI::ColorSystem::GetICMProfileW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, GetClientRect, RegisterClassExW, SetWindowPos, ShowWindow,
     CS_HREDRAW, CS_OWNDC, CS_VREDRAW, HWND_BOTTOM, SW_HIDE, SW_SHOW, SWP_NOACTIVATE,
-    WNDCLASSEXW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
+    WNDCLASSEXW, WS_CHILD, WS_CLIPCHILDREN,
 };
 
 
@@ -256,7 +256,9 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                 class_name.as_ptr(),
                 std::ptr::null(),
                 // No WS_VISIBLE — shown only when player is active.
-                WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+                // No WS_CLIPSIBLINGS — that clips our drawing wherever the
+                // WebView2 sibling overlaps, which is the entire window.
+                WS_CHILD | WS_CLIPCHILDREN,
                 0,
                 0,
                 init_w,
