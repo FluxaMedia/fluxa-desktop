@@ -292,14 +292,15 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
         }
 
         let hglrc = match unsafe { create_modern_gl_context(hdc) } {
-            Some(modern) => {
-                unsafe {
-                    wglMakeCurrent(0 as _, 0 as _);
-                    wglDeleteContext(hglrc);
-                    wglMakeCurrent(hdc, modern);
-                }
+            Some(modern) if unsafe { wglMakeCurrent(hdc, modern) } != FALSE => {
+                unsafe { wglDeleteContext(hglrc) };
                 log::info!("player surface: upgraded to a modern OpenGL 3.3 context");
                 modern
+            }
+            Some(modern) => {
+                log::warn!("player surface: modern GL context created but wglMakeCurrent failed, keeping legacy context");
+                unsafe { wglDeleteContext(modern) };
+                hglrc
             }
             None => {
                 log::warn!("player surface: wglCreateContextAttribsARB unavailable, using legacy GL context");
