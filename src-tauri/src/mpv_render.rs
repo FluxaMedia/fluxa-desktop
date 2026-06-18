@@ -102,7 +102,7 @@ type MpvFree = unsafe extern "C" fn(*mut c_void);
 type MpvErrorString = unsafe extern "C" fn(c_int) -> *const c_char;
 type MpvRenderContextCreate =
     unsafe extern "C" fn(*mut *mut MpvRenderContext, *mut MpvHandle, *mut MpvRenderParam) -> c_int;
-type MpvRenderContextRender = unsafe extern "C" fn(*mut MpvRenderContext, *mut MpvRenderParam);
+type MpvRenderContextRender = unsafe extern "C" fn(*mut MpvRenderContext, *mut MpvRenderParam) -> c_int;
 type MpvRenderContextReportSwap = unsafe extern "C" fn(*mut MpvRenderContext);
 type MpvRenderContextSetParameter =
     unsafe extern "C" fn(*mut MpvRenderContext, MpvRenderParam) -> c_int;
@@ -618,8 +618,14 @@ impl MpvRenderer {
             },
         ];
 
-        unsafe {
-            (self.api.mpv_render_context_render)(self.render_context, params.as_mut_ptr());
+        let result = unsafe {
+            (self.api.mpv_render_context_render)(self.render_context, params.as_mut_ptr())
+        };
+        if result < 0 {
+            return Err(format!(
+                "mpv_render_context_render failed: {}",
+                self.api.error_string(result)
+            ));
         }
         Ok(())
     }

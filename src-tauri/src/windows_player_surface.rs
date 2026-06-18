@@ -360,6 +360,7 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
         // Render + command loop
         let mut visible = false;
         let mut last_size = (init_w, init_h);
+        let mut last_render_error: Option<String> = None;
 
         loop {
             // Drain command channel.
@@ -447,7 +448,14 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                     let state = app.state::<DesktopState>();
                     let mut renderer = state.player_renderer.lock().unwrap();
                     if let Some(r) = renderer.as_mut() {
-                        let _ = r.render_opengl_frame(nw, nh);
+                        if let Err(e) = r.render_opengl_frame(nw, nh) {
+                            if last_render_error.as_deref() != Some(e.as_str()) {
+                                log::error!("player surface: render_opengl_frame failed: {e}");
+                                last_render_error = Some(e);
+                            }
+                        } else {
+                            last_render_error = None;
+                        }
                     }
                 }
                 let swap_start = std::time::Instant::now();
