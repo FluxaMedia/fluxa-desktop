@@ -68,7 +68,6 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "Fluxa Desktop ${{ github.ref_name }}"
           releaseDraft: true
-          generateReleaseNotes: true
           args: --target x86_64-pc-windows-msvc
 
   # libmpv comes prebuilt from KhooLy/mpv, already dylibbundler'd.
@@ -123,7 +122,6 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "Fluxa Desktop ${{ github.ref_name }}"
           releaseDraft: true
-          generateReleaseNotes: true
           args: --target universal-apple-darwin
 
   # libmpv comes prebuilt from KhooLy/mpv (built on ubuntu-24.04, must match).
@@ -203,13 +201,20 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "Fluxa Desktop ${{ github.ref_name }}"
           releaseDraft: true
-          generateReleaseNotes: true
           args: --target x86_64-unknown-linux-gnu
 
   publish-release:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     steps:
-      - run: gh release edit "${{ github.ref_name }}" --draft=false --repo "${{ github.repository }}"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build release notes from commits
+        run: |
+          PREV_TAG="$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || true)"
+          RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
+          git log "$RANGE" --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" > notes.md
+      - run: gh release edit "${{ github.ref_name }}" --draft=false --notes-file notes.md --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
