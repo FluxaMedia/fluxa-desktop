@@ -1106,6 +1106,7 @@ fn load_error(error: libloading::Error) -> String {
 #[cfg(target_os = "windows")]
 fn load_library(path: &str) -> Result<Library, String> {
     use libloading::os::windows::Library as WinLibrary;
+    use std::error::Error as _;
     const LOAD_LIBRARY_SEARCH_DEFAULT_DIRS: u32 = 0x0000_1000;
     const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x0000_0100;
     unsafe {
@@ -1115,7 +1116,10 @@ fn load_library(path: &str) -> Result<Library, String> {
         )
     }
     .map(Library::from)
-    .map_err(|error| error.to_string())
+    .map_err(|error| match error.source() {
+        Some(source) => format!("{error} ({source})"),
+        None => error.to_string(),
+    })
 }
 
 #[cfg(not(target_os = "windows"))]
