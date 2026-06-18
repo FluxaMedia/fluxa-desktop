@@ -31,6 +31,29 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 
+// A bare wglCreateContext() can hand back a context too old for libplacebo's
+// GPU-next renderer; upgrade to a real OpenGL 3.3 context where possible.
+unsafe fn create_modern_gl_context(hdc: HDC) -> Option<isize> {
+    let name = b"wglCreateContextAttribsARB\0";
+    let proc = wglGetProcAddress(name.as_ptr())?;
+    type CreateContextAttribsArb = unsafe extern "system" fn(HDC, isize, *const i32) -> isize;
+    let create: CreateContextAttribsArb = std::mem::transmute(proc);
+
+    const WGL_CONTEXT_MAJOR_VERSION_ARB: i32 = 0x2091;
+    const WGL_CONTEXT_MINOR_VERSION_ARB: i32 = 0x2092;
+    const WGL_CONTEXT_PROFILE_MASK_ARB: i32 = 0x9126;
+    const WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB: i32 = 0x0002;
+
+    let attribs = [
+        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+        WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+        0,
+    ];
+    let ctx = create(hdc, 0, attribs.as_ptr());
+    if ctx == 0 { None } else { Some(ctx) }
+}
+
 unsafe fn enable_vsync() -> bool {
     let name = b"wglSwapIntervalEXT\0";
     let Some(proc) = wglGetProcAddress(name.as_ptr()) else {
@@ -267,6 +290,23 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
             let _ = setup_tx.send(Err("wglMakeCurrent failed".to_string()));
             return;
         }
+
+        let hglrc = match unsafe { create_modern_gl_context(hdc) } {
+            Some(modern) => {
+                unsafe {
+                    wglMakeCurrent(0 as _, 0 as _);
+                    wglDeleteContext(hglrc);
+                    wglMakeCurrent(hdc, modern);
+                }
+                log::info!("player surface: upgraded to a modern OpenGL 3.3 context");
+                modern
+            }
+            None => {
+                log::warn!("player surface: wglCreateContextAttribsARB unavailable, using legacy GL context");
+                hglrc
+            }
+        };
+
         let vsync_enabled = unsafe { enable_vsync() };
         if !vsync_enabled {
             log::warn!("WGL_EXT_swap_control unavailable; falling back to timer-paced rendering");
