@@ -4,7 +4,7 @@ import { dispatchAction, getSnapshot, initEngine, storageRead } from '../core/en
 import { getActiveProfileId, loadProfiles } from '../core/profiles';
 import { pumpEffects, syncExternalIntegrationNow } from '../core/effectRunner';
 import { setLanguage } from '../i18n';
-import { prefString } from '../core/appPrefs';
+import { prefBool, prefString } from '../core/appPrefs';
 import { startUpdateCheck, type UpdateState } from '../components/UpdateModal';
 import type { AppState, UserProfile } from '../core/types';
 import type { NavRoute } from '../components/NavSidebar';
@@ -70,6 +70,9 @@ const syncTasks: Promise<unknown>[] = [];
         const snap = await getSnapshot();
         const prefs = (await storageRead<Record<string, unknown>>('prefs')) ?? {};
         storedPrefsRef.current = prefs;
+        // SettingsScreen only re-syncs this on its own mount -- sync it here
+        // too so it's correct even if the user never opens Settings this session.
+        void invoke('player_set_seek_thumbnail_enabled', { enabled: prefBool(prefs, 'seekThumbnailEnabled', false) });
         setLanguage(typeof prefs.language === 'string' ? prefs.language : null);
         const startPage = prefString({ ...prefs }, 'startPage', 'home') as NavRoute;
         if (['home', 'search', 'library', 'discover', 'calendar', 'settings'].includes(startPage)) {
