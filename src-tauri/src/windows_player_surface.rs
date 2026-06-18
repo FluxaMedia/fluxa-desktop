@@ -438,6 +438,7 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                 let nh = (r2.bottom - r2.top).max(2);
                 if (nw, nh) != last_size {
                     last_size = (nw, nh);
+                    log::info!("player surface: resizing render surface to {nw}x{nh}");
                     unsafe {
                         SetWindowPos(child_hwnd, HWND_BOTTOM, 0, 0, nw, nh, SWP_NOACTIVATE);
                     }
