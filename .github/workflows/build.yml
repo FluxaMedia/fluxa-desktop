@@ -212,6 +212,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
       - name: Build release notes from commits
         run: |
           PREV_TAG="$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || true)"
