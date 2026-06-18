@@ -477,19 +477,20 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                     }
                 }
 
+                // TEMP DEBUG: clear to solid red instead of mpv render, to
+                // retest whether raw GL shows through now that blur-behind
+                // is disabled while the surface is visible.
+                unsafe {
+                    windows_sys::Win32::Graphics::OpenGL::glClearColor(1.0, 0.0, 0.0, 1.0);
+                    windows_sys::Win32::Graphics::OpenGL::glClear(windows_sys::Win32::Graphics::OpenGL::GL_COLOR_BUFFER_BIT);
+                }
+
                 // Render frame.
                 {
                     let state = app.state::<DesktopState>();
                     let mut renderer = state.player_renderer.lock().unwrap();
-                    if let Some(r) = renderer.as_mut() {
-                        if let Err(e) = r.render_opengl_frame(nw, nh) {
-                            if last_render_error.as_deref() != Some(e.as_str()) {
-                                log::error!("player surface: render_opengl_frame failed: {e}");
-                                last_render_error = Some(e);
-                            }
-                        } else {
-                            last_render_error = None;
-                        }
+                    if let Some(_r) = renderer.as_mut() {
+                        // TEMP DEBUG: mpv render call disabled, see comment above.
                     }
                 }
                 let swap_start = std::time::Instant::now();
