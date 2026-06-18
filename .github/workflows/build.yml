@@ -162,6 +162,7 @@ jobs:
 
       - name: Install system dependencies
         run: |
+          sudo sed -i 's/azure\.archive\.ubuntu\.com/archive.ubuntu.com/g' /etc/apt/sources.list.d/ubuntu.sources
           mkdir -p ~/.apt-cache
           sudo apt-get update
           sudo apt-get -o Dir::Cache::Archives="$HOME/.apt-cache" install -y \
