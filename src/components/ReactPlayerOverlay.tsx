@@ -514,7 +514,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     seekThumbTimerRef.current = setTimeout(() => {
       invoke<string>('player_get_seek_thumbnail', { timePos: time })
         .then((img) => { if (img) setSeekThumbImg(img); })
-        .catch(() => undefined);
+        .catch((err) => console.error('player_get_seek_thumbnail failed', err));
     }, 120);
     return () => {
       if (seekThumbTimerRef.current) clearTimeout(seekThumbTimerRef.current);
