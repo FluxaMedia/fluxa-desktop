@@ -424,8 +424,9 @@ pub fn player_command(state: State<DesktopState>, command: String) -> Result<(),
     if command == "stop" {
         *state.eof_next_fired.lock().unwrap() = true;
     }
-    let renderer = state.player_renderer.try_lock()
-        .map_err(|_| "player renderer busy".to_string())?;
+    // User-initiated commands (pause, seek, ...) must actually take effect,
+    // unlike the status poll -- block briefly instead of giving up on contention.
+    let renderer = state.player_renderer.lock().unwrap();
     renderer
         .as_ref()
         .ok_or_else(|| "player renderer is not initialized".to_string())?
