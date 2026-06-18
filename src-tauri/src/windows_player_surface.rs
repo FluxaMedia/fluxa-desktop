@@ -15,7 +15,8 @@ use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use windows_sys::Win32::Foundation::{FALSE, HWND, RECT};
-use windows_sys::Win32::Graphics::Gdi::GetDC;
+use windows_sys::Win32::Graphics::Dwm::{DwmEnableBlurBehindWindow, DWM_BB_ENABLE, DWM_BB_BLURREGION, DWM_BLURBEHIND};
+use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetDC};
 use windows_sys::Win32::Graphics::OpenGL::{
     ChoosePixelFormat, SetPixelFormat, SwapBuffers, PIXELFORMATDESCRIPTOR,
     PFD_DOUBLEBUFFER, PFD_DRAW_TO_WINDOW, PFD_MAIN_PLANE, PFD_SUPPORT_OPENGL, PFD_TYPE_RGBA,
@@ -30,6 +31,23 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WNDCLASSEXW, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
 };
 
+
+// tao's transparent:true enables DwmEnableBlurBehindWindow for the whole top-
+// level window, which doesn't composite this child window's raw WGL/GL
+// output at all -- toggle it off while the native surface is visible.
+unsafe fn set_window_blur_behind(hwnd: HWND, enable: bool) {
+    let region = if enable { CreateRectRgn(0, 0, -1, -1) } else { 0 };
+    let bb = DWM_BLURBEHIND {
+        dwFlags: if enable { DWM_BB_ENABLE | DWM_BB_BLURREGION } else { DWM_BB_ENABLE },
+        fEnable: if enable { 1 } else { 0 },
+        hRgnBlur: region,
+        fTransitionOnMaximized: 0,
+    };
+    DwmEnableBlurBehindWindow(hwnd, &bb);
+    if region != 0 {
+        DeleteObject(region);
+    }
+}
 
 // A bare wglCreateContext() can hand back a context too old for libplacebo's
 // GPU-next renderer. Mirrors mpv's own create_context_wgl_gl3 (context_win.c):
@@ -377,7 +395,10 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                 match cmd {
                     SurfaceCommand::Load { url, start_at, .. } => {
                         log::info!("player surface: loading url={url} start_at={start_at:?}");
-                        unsafe { ShowWindow(child_hwnd, SW_SHOW) };
+                        unsafe {
+                            set_window_blur_behind(parent_hwnd, false);
+                            ShowWindow(child_hwnd, SW_SHOW);
+                        }
                         unsafe {
                             SetWindowPos(
                                 child_hwnd,
@@ -410,7 +431,10 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                     }
                     SurfaceCommand::Hide => {
                         visible = false;
-                        unsafe { ShowWindow(child_hwnd, SW_HIDE) };
+                        unsafe {
+                            ShowWindow(child_hwnd, SW_HIDE);
+                            set_window_blur_behind(parent_hwnd, true);
+                        }
                         let _ = app.emit("native-player-hide", ());
                         let state = app.state::<DesktopState>();
                         let guard = state.player_renderer.lock().unwrap();

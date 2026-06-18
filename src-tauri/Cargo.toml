@@ -52,6 +52,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.52", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Dwm",
     "Win32_Graphics_Gdi",
     "Win32_Graphics_OpenGL",
     "Win32_System_LibraryLoader",
