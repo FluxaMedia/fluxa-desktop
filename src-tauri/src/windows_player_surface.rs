@@ -388,20 +388,13 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
         let mut visible = false;
         let mut last_size = (init_w, init_h);
         let mut last_render_error: Option<String> = None;
-        // TEMP DEBUG: dump a screenshot a few seconds into playback to check
-        // whether decode itself is black or only the on-screen display is.
-        let mut frames_since_load: u32 = 0;
-        let mut took_debug_screenshot = false;
 
         loop {
             // Drain command channel.
             while let Ok(cmd) = receiver.try_recv() {
                 match cmd {
                     SurfaceCommand::Load { url, start_at, .. } => {
-                        log::info!(
-                            "player surface: loading url={url} start_at={start_at:?} surface_size={}x{}",
-                            last_size.0, last_size.1
-                        );
+                        log::info!("player surface: loading url={url} start_at={start_at:?}");
                         unsafe {
                             set_window_blur_behind(parent_hwnd, false);
                             ShowWindow(child_hwnd, SW_SHOW);
@@ -418,8 +411,6 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                             )
                         };
                         visible = true;
-                        frames_since_load = 0;
-                        took_debug_screenshot = false;
                         let _ = app.emit("native-player-show", ());
                         let state = app.state::<DesktopState>();
                         *state.eof_next_fired.lock().unwrap() = false;
@@ -498,18 +489,6 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                             }
                         } else {
                             last_render_error = None;
-                        }
-                        // TEMP DEBUG: see comment on frames_since_load above.
-                        frames_since_load += 1;
-                        if frames_since_load == 180 && !took_debug_screenshot {
-                            took_debug_screenshot = true;
-                            let path = std::env::temp_dir().join("fluxa_debug_frame.png");
-                            let cmd = format!("screenshot-to-file \"{}\"", path.to_string_lossy().replace('\\', "/"));
-                            if let Err(e) = r.command_string(&cmd) {
-                                log::error!("player surface: debug screenshot failed: {e}");
-                            } else {
-                                log::info!("player surface: debug screenshot written to {}", path.display());
-                            }
                         }
                     }
                 }
