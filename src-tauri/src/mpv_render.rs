@@ -380,7 +380,7 @@ impl MpvRenderer {
             return Err("mpv_create returned null".to_string());
         }
 
-        let renderer = Self {
+        let mut renderer = Self {
             api,
             handle,
             render_context: ptr::null_mut(),
@@ -414,6 +414,10 @@ impl MpvRenderer {
             unsafe { (renderer.api.mpv_terminate_destroy)(renderer.handle) };
             return Err(format!("mpv_initialize failed: {message}"));
         }
+
+        // vo=libmpv needs a render context to attach to before any loadfile/
+        // seek command runs, or those commands fail outright.
+        renderer.create_software_context()?;
 
         Ok(renderer)
     }
