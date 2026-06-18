@@ -604,11 +604,23 @@ pub fn player_get_seek_thumbnail(state: State<DesktopState>, time_pos: f64) -> R
     if loaded_url_guard.as_deref() != Some(url.as_str()) {
         renderer.load_thumbnail(&url)?;
         *loaded_url_guard = Some(url.clone());
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        // Poll instead of a blind sleep -- most seeks resolve in well under
+        // the old fixed 500ms, and this exits as soon as it's actually ready.
+        for _ in 0..50 {
+            if renderer.query_property("duration").is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
     }
 
     renderer.seek_to(time_pos)?;
-    std::thread::sleep(std::time::Duration::from_millis(200));
+    for _ in 0..40 {
+        if renderer.query_property("seeking").as_deref() != Some("yes") {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 
     let pixels = renderer.render_thumbnail(320, 180)?;
     drop(renderer_guard);
