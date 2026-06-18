@@ -1,7 +1,7 @@
 {
   "name": "fluxa-desktop",
   "private": true,
-  "version": "0.1.9",
+  "version": "0.1.10",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,8 @@
     "build": "tsc && vite build",
     "check": "npm run build && cd src-tauri && cargo check",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "bump": "bash scripts/bump-version.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
