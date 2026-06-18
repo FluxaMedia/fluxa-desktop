@@ -275,7 +275,7 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
         pfd.iPixelType = PFD_TYPE_RGBA;
         pfd.cColorBits = 24;
         pfd.cAlphaBits = 8;
-        pfd.iLayerType = PFD_MAIN_PLANE;
+        pfd.iLayerType = PFD_MAIN_PLANE as u8;
 
         let pf_idx = unsafe { ChoosePixelFormat(hdc, &pfd) };
         if pf_idx == 0 {
