@@ -232,7 +232,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   useEffect(() => {
     const interval = setInterval(async () => {
       let status: EmbeddedMpvStatus | null = null;
-      try { status = await invoke<EmbeddedMpvStatus>('player_status'); } catch { return; }
+      try { status = await invoke<EmbeddedMpvStatus>('player_status'); } catch (err) { console.error('player_status failed', err); return; }
       if (!status) return;
 
       const pos = parseFloat(status.timePos ?? '0');
