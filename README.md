@@ -21,17 +21,17 @@ Browse catalogs, track what you watch, and play anything the Stremio addon ecosy
 
 ## What it does
 
-Fluxa connects to any Stremio-compatible addon and turns it into a proper desktop app: a home feed with genre and category browsing, a calendar of upcoming episodes, a library with continue-watching and resume positions, and two-way watch tracking with Trakt, MyAnimeList, and Simkl. Playback runs through `libmpv` with platform-native rendering, including direct torrent/magnet support — no separate addon server, no browser round-trip for OAuth, no telemetry.
+Fluxa connects to any Stremio-compatible addon and turns it into a proper desktop app: a home feed with genre and category browsing, a calendar of upcoming episodes, a library with continue-watching and resume positions, and two-way watch tracking with Trakt, MyAnimeList, and Simkl. Playback runs through `libmpv`, including direct torrent/magnet support, with no telemetry.
 
 ## Features
 
 - **Catalogs & discovery** — home feed, genre/category grids, search across every installed addon, and a calendar of upcoming episodes for what you're following
 - **Library** — watchlist, continue watching with resume position, and custom collections, with import support for existing lists
-- **Watch tracking** — two-way sync with Trakt, MyAnimeList, and Simkl; OAuth is handled locally via deep link (`fluxa://oauth/...`), no hosted redirect server
-- **Playback** — native `libmpv` rendering with a custom render surface per platform (X11 on Linux, native views on macOS/Windows), subtitle and audio track selection, intro/outro skip, and direct torrent/magnet playback
+- **Watch tracking** — two-way sync with Trakt, MyAnimeList, and Simkl
+- **Playback** — subtitle and audio track selection, intro/outro/recap skip, and direct torrent/magnet support
 - **Profiles** — multiple local profiles on one install, each with its own library, addons, and sync accounts
 - **Addons** — install and manage Stremio-compatible addons directly from the app
-- **Auto-update** — in-app update checks and installation via Tauri's updater
+- **Auto-update** — checks for and installs new versions in-app
 
 ## Download
 
