@@ -58,6 +58,7 @@ const DEFAULT_STATE: AppState = {
 };
 
 export default function App() {
+  console.log('HELLO FROM APP MOUNT', Date.now());
   const [state, setState] = useState<AppState>(DEFAULT_STATE);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [activeRoute, setActiveRoute] = useState<NavRoute>('home');
