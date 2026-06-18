@@ -249,7 +249,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       if (!firstFrameFiredRef.current && onFirstFrame) {
         const voReady = status.voConfigured === 'yes';
         const audioPlaying = !voReady && status.coreIdle === 'no' && !isPaused && pos > 0;
-        console.log('player_status debug', { voConfigured: status.voConfigured, coreIdle: status.coreIdle, pause: status.pause, pos, voReady, audioPlaying, hasOnFirstFrame: !!onFirstFrame });
         if (voReady || audioPlaying) {
           firstFrameFiredRef.current = true;
           onFirstFrame();
