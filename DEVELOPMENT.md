@@ -17,9 +17,7 @@ projects-i-made/
 
 We don't link against system libmpv. We use a custom fork (`KhooLy/mpv`, `gpu-next-render-backend` branch) with the gpu-next/libplacebo render backend.
 
-`src-tauri/fetch-libmpv.sh <tag>` downloads a prebuilt release of that fork into `src-tauri/lib/`. `.github/workflows/build.yml` pins the exact tag via `MPV_FORK_TAG` — every CI build fetches that tag, nothing newer.
-
-**Whenever you push a fix to the mpv fork, you must also tag a new release there and bump `MPV_FORK_TAG` in this repo's `build.yml`.** Pushing to the fork's branch alone does nothing for fluxa-desktop's builds — they only ever see tagged releases.
+`src-tauri/fetch-libmpv.sh` downloads the fork's **latest** release into `src-tauri/lib/`. CI always fetches latest too — there's no tag to keep in sync. Pushing a fix to the fork still needs a tagged release there (`fetch-libmpv.sh` only sees tagged releases, not branch pushes), but nothing in this repo needs touching afterward.
 
 ### Local Linux dev
 

@@ -5,9 +5,7 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
-# libmpv comes from KhooLy/mpv -- see that repo's FORK.md.
 env:
-  MPV_FORK_TAG: "v0.41.0-gpu-next.9"
   NODE_VERSION: "22"
   RUST_VERSION: "stable"
 
@@ -48,7 +46,7 @@ jobs:
 
       - name: Fetch libmpv (KhooLy/mpv gpu-next fork)
         shell: bash
-        run: ./src-tauri/fetch-libmpv.sh "${{ env.MPV_FORK_TAG }}"
+        run: ./src-tauri/fetch-libmpv.sh
 
       - name: npm install
         run: npm ci
@@ -103,7 +101,7 @@ jobs:
           workspaces: src-tauri
 
       - name: Fetch libmpv (KhooLy/mpv gpu-next fork)
-        run: ./src-tauri/fetch-libmpv.sh "${{ env.MPV_FORK_TAG }}"
+        run: ./src-tauri/fetch-libmpv.sh
 
       - name: npm install
         run: npm ci
@@ -178,7 +176,7 @@ jobs:
             patchelf
 
       - name: Fetch libmpv (KhooLy/mpv gpu-next fork)
-        run: ./src-tauri/fetch-libmpv.sh "${{ env.MPV_FORK_TAG }}"
+        run: ./src-tauri/fetch-libmpv.sh
 
       - name: Verify libmpv.so is intact
         run: |
