@@ -1107,7 +1107,7 @@ fn load_error(error: libloading::Error) -> String {
 fn load_library(path: &str) -> Result<Library, String> {
     use libloading::os::windows::Library as WinLibrary;
     const LOAD_LIBRARY_SEARCH_DEFAULT_DIRS: u32 = 0x0000_1000;
-    const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x0000_0200;
+    const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x0000_0100;
     unsafe {
         WinLibrary::load_with_flags(
             path,
