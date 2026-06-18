@@ -101,9 +101,13 @@ export default function App() {
     let cancelled = false;
 
     listen('native-player-show', () => {
+      console.log('native-player-show event received');
       setNativePlayerActive(true);
       document.documentElement.setAttribute('data-native-player-active', 'true');
-    }).then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); }).catch(() => undefined);
+    }).then((fn) => {
+      console.log('native-player-show listener registered');
+      if (cancelled) fn(); else unlisteners.push(fn);
+    }).catch((err) => console.error('native-player-show listen() failed', err));
 
     listen('native-player-hide', () => {
       setNativePlayerActive(false);
