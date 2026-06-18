@@ -265,6 +265,7 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
         pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
         pfd.iPixelType = PFD_TYPE_RGBA;
         pfd.cColorBits = 32;
+        pfd.cAlphaBits = 8;
         pfd.cDepthBits = 24;
         pfd.cStencilBits = 8;
 
