@@ -57,8 +57,6 @@ struct MpvEventLogMessage {
     log_level: c_int,
 }
 
-/// A real end-of-file from mpv's event stream, not a polled property
-/// that can be momentarily stale right after `loadfile`.
 pub enum PlayerEvent {
     EndFile { eof: bool, error: Option<String> },
 }
@@ -136,7 +134,7 @@ unsafe impl Send for MpvApi {}
 impl MpvApi {
     fn load() -> Result<Self, String> {
         let lib_path = find_libmpv_path();
-        let library = unsafe { Library::new(&lib_path) }
+        let library = load_library(&lib_path)
             .map_err(|error| format!("failed to load libmpv from '{lib_path}': {error}"))?;
 
         unsafe {
@@ -364,8 +362,6 @@ impl MpvRenderer {
             return Err(format!("mpv_initialize failed: {message}"));
         }
 
-        // Surfaces the real reason a stream failed to open (network/codec/TLS) via
-        // poll_events(), instead of that failure looking like a silent EOF.
         let level = CString::new("warn").unwrap();
         unsafe { (renderer.api.mpv_request_log_messages)(renderer.handle, level.as_ptr()) };
 
@@ -655,9 +651,6 @@ impl MpvRenderer {
         self.get_string_property("media-title")
     }
 
-    /// Drains mpv's event queue. Use this instead of polling `eof-reached` —
-    /// the property can read stale right after `loadfile`, and doesn't
-    /// distinguish a real end-of-file from the stream simply failing to open.
     pub fn poll_events(&mut self) -> Vec<PlayerEvent> {
         let mut events = Vec::new();
         loop {
@@ -1108,6 +1101,26 @@ impl Drop for MpvRenderer {
 
 fn load_error(error: libloading::Error) -> String {
     error.to_string()
+}
+
+#[cfg(target_os = "windows")]
+fn load_library(path: &str) -> Result<Library, String> {
+    use libloading::os::windows::Library as WinLibrary;
+    const LOAD_LIBRARY_SEARCH_DEFAULT_DIRS: u32 = 0x0000_1000;
+    const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x0000_0200;
+    unsafe {
+        WinLibrary::load_with_flags(
+            path,
+            LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR,
+        )
+    }
+    .map(Library::from)
+    .map_err(|error| error.to_string())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn load_library(path: &str) -> Result<Library, String> {
+    unsafe { Library::new(path) }.map_err(|error| error.to_string())
 }
 
 pub(crate) fn find_libmpv_path() -> String {
