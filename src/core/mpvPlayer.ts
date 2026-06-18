@@ -29,6 +29,7 @@ export type EmbeddedMpvStatus = {
   coreIdle?: string | null;
   eofReached?: string | null;
   voConfigured?: string | null;
+  videoCodec?: string | null;
   videoFormat?: string | null;
   width?: string | null;
   height?: string | null;
