@@ -451,6 +451,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         } else {
           const icon = pausedRef.current ? 'play' : 'pause';
           flashFeedback(icon, '');
+          setPaused((prev) => !prev);
           sendCmd('cycle pause');
         }
       }
@@ -614,6 +615,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       centerClickTimerRef.current = null;
       const icon = pausedRef.current ? 'play' : 'pause';
       flashFeedback(icon, '');
+      setPaused((prev) => !prev);
       sendCmd('cycle pause');
     }, 250);
   }, [flashFeedback, resetActivity, showEpisodePanel, toggleFullscreen, trackPopover]);
@@ -834,7 +836,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         {/* Controls row */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px 14px', gap: 0 }}>
           <button
-            onClick={(e) => { e.stopPropagation(); resetActivity(); flashFeedback(paused ? 'play' : 'pause', ''); sendCmd('cycle pause'); }}
+            onClick={(e) => { e.stopPropagation(); resetActivity(); flashFeedback(paused ? 'play' : 'pause', ''); setPaused((prev) => !prev); sendCmd('cycle pause'); }}
             className="fluxa-ibtn"
             style={{ ...styles.iconBtn, width: 48, height: 48 }}
             title={paused ? 'Play' : 'Pause'}
@@ -852,7 +854,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             onMouseEnter={() => { if (volumeHideTimer.current) clearTimeout(volumeHideTimer.current); setShowVolumeSlider(true); }}
             onMouseLeave={() => { volumeHideTimer.current = setTimeout(() => setShowVolumeSlider(false), 200); }}
           >
-            <button onClick={(e) => { e.stopPropagation(); resetActivity(); sendCmd('cycle mute'); }} className="fluxa-ibtn" style={styles.iconBtn} title={muted ? 'Unmute' : 'Mute'}>
+            <button onClick={(e) => { e.stopPropagation(); resetActivity(); setMuted((prev) => !prev); sendCmd('cycle mute'); }} className="fluxa-ibtn" style={styles.iconBtn} title={muted ? 'Unmute' : 'Mute'}>
               <IconVolume muted={muted} level={volumeLevel} />
             </button>
             <div style={{ overflow: 'hidden', width: showVolumeSlider ? 96 : 0, opacity: showVolumeSlider ? 1 : 0, transition: 'width 0.22s ease, opacity 0.18s ease', display: 'flex', alignItems: 'center', paddingRight: showVolumeSlider ? 8 : 0 }}>
