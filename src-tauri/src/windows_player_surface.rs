@@ -10,7 +10,8 @@
 //   • Player controls live in the WebView overlay (transparent background CSS).
 
 use crate::DesktopState;
-use std::sync::{mpsc, OnceLock};
+use std::sync::mpsc::RecvTimeoutError;
+use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use windows_sys::Win32::Foundation::{FALSE, HWND, RECT};
@@ -107,26 +108,72 @@ impl NativePlayerSurface {
     }
 }
 
+enum InstallSlot {
+    NotStarted,
+    InProgress(mpsc::Receiver<Result<NativePlayerSurface, String>>),
+    Done(Result<NativePlayerSurface, String>),
+}
+
+static INSTALL: Mutex<InstallSlot> = Mutex::new(InstallSlot::NotStarted);
+
+// A timed-out caller must not spawn a second install thread — that races the
+// still-running first one over the same mpv render context and segfaults.
 pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
+    let mut slot = INSTALL.lock().unwrap();
+    let rx = match std::mem::replace(&mut *slot, InstallSlot::NotStarted) {
+        InstallSlot::Done(result) => {
+            *slot = InstallSlot::Done(result.clone());
+            return result;
+        }
+        InstallSlot::InProgress(rx) => rx,
+        InstallSlot::NotStarted => {
+            let (result_tx, result_rx) = mpsc::channel();
+            spawn_install_thread(app_handle, result_tx);
+            result_rx
+        }
+    };
+    match rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(result) => {
+            *slot = InstallSlot::Done(result.clone());
+            result
+        }
+        Err(RecvTimeoutError::Timeout) => {
+            *slot = InstallSlot::InProgress(rx);
+            Err("Windows player surface setup timed out".to_string())
+        }
+        Err(RecvTimeoutError::Disconnected) => {
+            Err("Windows player surface install thread exited unexpectedly".to_string())
+        }
+    }
+}
+
+fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<NativePlayerSurface, String>>) {
     let (sender, receiver) = mpsc::channel::<SurfaceCommand>();
-    let (setup_tx, setup_rx) = mpsc::channel::<Result<(), String>>();
 
-    // Get the Tauri window's HWND via raw_window_handle.
-    let window = app_handle
-        .get_webview_window("main")
-        .ok_or_else(|| "main window not found".to_string())?;
-
-    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    let parent_hwnd: HWND = match window
-        .window_handle()
-        .map_err(|e| e.to_string())?
-        .as_ref()
-    {
-        RawWindowHandle::Win32(h) => h.hwnd.get() as HWND,
-        _ => return Err("unexpected window handle type on Windows".to_string()),
+    let window = match app_handle.get_webview_window("main") {
+        Some(w) => w,
+        None => {
+            let _ = setup_tx.send(Err("main window not found".to_string()));
+            return;
+        }
     };
 
-    let app = app_handle.clone();
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let parent_hwnd: HWND = match window.window_handle() {
+        Ok(handle) => match handle.as_ref() {
+            RawWindowHandle::Win32(h) => h.hwnd.get() as HWND,
+            _ => {
+                let _ = setup_tx.send(Err("unexpected window handle type on Windows".to_string()));
+                return;
+            }
+        },
+        Err(e) => {
+            let _ = setup_tx.send(Err(e.to_string()));
+            return;
+        }
+    };
+
+    let app = app_handle;
 
     std::thread::spawn(move || {
         log::info!("player surface: install thread starting");
@@ -265,7 +312,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
         }
 
         log::info!("player surface: setup complete, entering render loop");
-        let _ = setup_tx.send(Ok(()));
+        let _ = setup_tx.send(Ok(NativePlayerSurface { sender: sender.clone() }));
 
         // Render + command loop
         let mut visible = false;
@@ -378,12 +425,6 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             }
         }
     });
-
-    setup_rx
-        .recv_timeout(Duration::from_secs(5))
-        .map_err(|_| "Windows player surface setup timed out".to_string())
-        .and_then(|r| r)
-        .map(|()| NativePlayerSurface { sender })
 }
 
 fn check_player_events(app: &AppHandle) {

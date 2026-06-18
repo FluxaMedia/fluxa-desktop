@@ -69,7 +69,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Fluxa Desktop ${{ github.ref_name }}"
-          releaseDraft: false
+          releaseDraft: true
           generateReleaseNotes: true
           args: --target x86_64-pc-windows-msvc
 
@@ -124,7 +124,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Fluxa Desktop ${{ github.ref_name }}"
-          releaseDraft: false
+          releaseDraft: true
           generateReleaseNotes: true
           args: --target universal-apple-darwin
 
@@ -204,6 +204,14 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Fluxa Desktop ${{ github.ref_name }}"
-          releaseDraft: false
+          releaseDraft: true
           generateReleaseNotes: true
           args: --target x86_64-unknown-linux-gnu
+
+  publish-release:
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release edit "${{ github.ref_name }}" --draft=false --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
