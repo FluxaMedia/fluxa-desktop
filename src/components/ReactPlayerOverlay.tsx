@@ -68,11 +68,11 @@ function parseEpisodes(json: string | null | undefined): EpisodeInfo[] {
 
 function skipLabelForType(type: string): string {
   switch (type) {
-    case 'intro': return 'Skip Intro';
-    case 'outro': return 'Skip Outro';
-    case 'recap': return 'Skip Recap';
-    case 'preview': return 'Skip Preview';
-    default: return 'Skip';
+    case 'intro': return t('player.skip_intro');
+    case 'outro': return t('player.skip_outro');
+    case 'recap': return t('player.skip_recap');
+    case 'preview': return t('player.skip_preview');
+    default: return t('player.skip');
   }
 }
 
@@ -833,7 +833,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             onClick={(e) => { e.stopPropagation(); resetActivity(); flashFeedback(paused ? 'play' : 'pause', ''); setPaused((prev) => !prev); sendCmd('cycle pause'); }}
             className="fluxa-ibtn"
             style={{ ...styles.iconBtn, width: 48, height: 48 }}
-            title={paused ? 'Play' : 'Pause'}
+            title={paused ? t('player.play') : t('player.pause')}
           >
             {paused ? <Play size={26} fill="currentColor" strokeWidth={0} /> : <Pause size={26} fill="currentColor" strokeWidth={0} />}
           </button>
@@ -848,7 +848,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             onMouseEnter={() => { if (volumeHideTimer.current) clearTimeout(volumeHideTimer.current); setShowVolumeSlider(true); }}
             onMouseLeave={() => { volumeHideTimer.current = setTimeout(() => setShowVolumeSlider(false), 200); }}
           >
-            <button onClick={(e) => { e.stopPropagation(); resetActivity(); setMuted((prev) => !prev); sendCmd('cycle mute'); }} className="fluxa-ibtn" style={styles.iconBtn} title={muted ? 'Unmute' : 'Mute'}>
+            <button onClick={(e) => { e.stopPropagation(); resetActivity(); setMuted((prev) => !prev); sendCmd('cycle mute'); }} className="fluxa-ibtn" style={styles.iconBtn} title={muted ? t('player.unmute') : t('player.mute')}>
               <IconVolume muted={muted} level={volumeLevel} />
             </button>
             <div style={{ overflow: 'hidden', width: showVolumeSlider ? 96 : 0, opacity: showVolumeSlider ? 1 : 0, transition: 'width 0.22s ease, opacity 0.18s ease', display: 'flex', alignItems: 'center', paddingRight: showVolumeSlider ? 8 : 0 }}>
@@ -868,7 +868,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           <div style={{ flex: 1 }} />
 
           {nextEpSubtitle && (
-            <button onClick={(e) => { e.stopPropagation(); resetActivity(); void emit('native-player-next-episode', null); }} className="fluxa-ibtn" style={styles.iconBtn} title={`Next: ${nextEpSubtitle}`}>
+            <button onClick={(e) => { e.stopPropagation(); resetActivity(); void emit('native-player-next-episode', null); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.next_label', nextEpSubtitle)}>
               <SkipForward size={22} />
             </button>
           )}
@@ -894,7 +894,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           <button onClick={(e) => { e.stopPropagation(); void openTrackPopover('audio'); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.audio')}>
             <AudioLines size={22} />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); void openTrackPopover('speed'); }} className="fluxa-ibtn" style={styles.iconBtn} title={`Speed: ${playbackSpeed === 1 ? 'Normal' : `${playbackSpeed}×`}`}>
+          <button onClick={(e) => { e.stopPropagation(); void openTrackPopover('speed'); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.speed_label', playbackSpeed === 1 ? t('player.normal') : `${playbackSpeed}×`)}>
             <Gauge size={22} />
           </button>
           <button onClick={(e) => { e.stopPropagation(); resetActivity(); void toggleFullscreen(); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.fullscreen')}>
