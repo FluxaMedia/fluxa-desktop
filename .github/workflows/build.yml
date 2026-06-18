@@ -214,7 +214,12 @@ jobs:
         run: |
           PREV_TAG="$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || true)"
           RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
-          git log "$RANGE" --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))" > notes.md
+          REPO_URL="https://github.com/${{ github.repository }}"
+          : > notes.md
+          git log "$RANGE" --pretty=format:"%h%x09%s" | while IFS=$'\t' read -r hash subject; do
+            clean="$(sed -E 's/^[a-zA-Z]+(\([^)]*\))?: //; s/^(.)/\U\1/' <<< "$subject")"
+            echo "- $clean ([$hash]($REPO_URL/commit/$hash))" >> notes.md
+          done
       - run: gh release edit "${{ github.ref_name }}" --draft=false --notes-file notes.md --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
