@@ -26,9 +26,10 @@ use windows_sys::Win32::Graphics::Gdi::HDC;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::ColorSystem::GetICMProfileW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, GetClientRect, RegisterClassExW, SetWindowPos, ShowWindow,
-    CS_HREDRAW, CS_OWNDC, CS_VREDRAW, HWND_BOTTOM, SW_HIDE, SW_SHOW, SWP_NOACTIVATE,
-    WNDCLASSEXW, WS_CHILD, WS_CLIPCHILDREN,
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetClientRect, PeekMessageW,
+    RegisterClassExW, SetWindowPos, ShowWindow, TranslateMessage,
+    CS_HREDRAW, CS_OWNDC, CS_VREDRAW, HWND_BOTTOM, MSG, PM_REMOVE, SW_HIDE, SW_SHOW,
+    SWP_NOACTIVATE, WNDCLASSEXW, WS_CHILD, WS_CLIPCHILDREN,
 };
 
 
@@ -392,6 +393,17 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
         let mut last_render_error: Option<String> = None;
 
         loop {
+            // child_hwnd was created on this thread, so this thread owns its
+            // message queue -- without pumping it, the window can't respond
+            // to system/compositor messages (resize, DWM, etc).
+            unsafe {
+                let mut msg: MSG = std::mem::zeroed();
+                while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) != 0 {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
+
             // Drain command channel.
             while let Ok(cmd) = receiver.try_recv() {
                 match cmd {
