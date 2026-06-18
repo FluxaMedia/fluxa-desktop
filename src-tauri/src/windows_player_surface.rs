@@ -155,7 +155,9 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             result_rx
         }
     };
-    match rx.recv_timeout(Duration::from_secs(5)) {
+    // gpu-next's first-time shader/pipeline setup reliably takes just over 5s
+    // on some machines, so give it real margin instead of bailing early.
+    match rx.recv_timeout(Duration::from_secs(20)) {
         Ok(result) => {
             *slot = InstallSlot::Done(result.clone());
             result
