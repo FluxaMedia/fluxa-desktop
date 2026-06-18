@@ -149,6 +149,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const controlsVisibleRef = useRef(true);
   const episodePanelOpenRef = useRef(false);
   const firstFrameFiredRef = useRef(false);
+  const loadStartedAtRef = useRef(Date.now());
   const isFullscreenRef = useRef(false);
   const activeSkipKeyRef = useRef<string | null>(null);
 
@@ -249,8 +250,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       if (!firstFrameFiredRef.current && onFirstFrame) {
         const voReady = status.voConfigured === 'yes';
         const audioPlaying = !voReady && status.coreIdle === 'no' && !isPaused && pos > 0;
-        if (voReady || audioPlaying) {
+        // Safety net for video-less streams: vo-configured never arrives, so
+        // don't leave playback paused forever waiting for a frame that won't come.
+        const timedOut = Date.now() - loadStartedAtRef.current > 4000;
+        if (voReady || audioPlaying || timedOut) {
           firstFrameFiredRef.current = true;
+          // mpv stays paused from load() until now, so audio doesn't start
+          // ahead of the picture -- release it the moment the frame is ready.
+          sendCmd('set pause no');
           onFirstFrame();
         }
       }

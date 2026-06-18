@@ -426,7 +426,9 @@ impl MpvRenderer {
         } else {
             self.command_string(&format!("loadfile \"{escaped}\" replace"))?;
         }
-        self.command_string("set pause no")?;
+        // Stay paused until the frontend sees the first video frame and
+        // explicitly unpauses, so audio doesn't start ahead of the picture.
+        self.command_string("set pause yes")?;
         self.loaded = true;
         Ok(())
     }
