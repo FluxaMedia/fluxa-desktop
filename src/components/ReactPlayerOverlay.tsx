@@ -153,24 +153,26 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const isFullscreenRef = useRef(false);
   const activeSkipKeyRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    const win = getCurrentWindow();
-    win.isFullscreen().then((fs) => { isFullscreenRef.current = fs; }).catch(() => {});
-    let unlisten: (() => void) | null = null;
-    win.listen('tauri://resize', () => {
-      win.isFullscreen().then((fs) => { isFullscreenRef.current = fs; }).catch(() => {});
-    }).then((u) => { unlisten = u; }).catch(() => {});
-    return () => { unlisten?.(); };
-  }, []);
-
   const resetActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
     if (!controlsVisibleRef.current) {
       controlsVisibleRef.current = true;
       setControlsVisible(true);
       if (overlayRef.current) overlayRef.current.classList.remove('fluxa-cursor-hidden');
+      getCurrentWindow().setCursorVisible(true).catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    const win = getCurrentWindow();
+    win.isFullscreen().then((fs) => { isFullscreenRef.current = fs; }).catch(() => {});
+    let unlisten: (() => void) | null = null;
+    win.listen('tauri://resize', () => {
+      win.isFullscreen().then((fs) => { isFullscreenRef.current = fs; }).catch(() => {});
+      resetActivity();
+    }).then((u) => { unlisten = u; }).catch(() => {});
+    return () => { unlisten?.(); };
+  }, [resetActivity]);
 
   const toggleFullscreen = useCallback(async () => {
     const next = !isFullscreenRef.current;
@@ -290,6 +292,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           controlsVisibleRef.current = false;
           setControlsVisible(false);
           if (overlayRef.current) overlayRef.current.classList.add('fluxa-cursor-hidden');
+          getCurrentWindow().setCursorVisible(false).catch(() => {});
         }
       }
 
@@ -458,6 +461,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       window.removeEventListener('keyup', onKeyUp);
     };
   }, [closePlayer, flashFeedback, resetActivity, showEpisodePanel, startSeekOverlay, toggleFullscreen, trackPopover]);
+
+  useEffect(() => {
+    return () => {
+      getCurrentWindow().setCursorVisible(true).catch(() => {});
+    };
+  }, []);
 
   useEffect(() => {
     const onMove = () => resetActivity();
