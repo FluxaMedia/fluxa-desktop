@@ -260,7 +260,8 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                             chapters_native_loaded = false;
                             pending_load = Some((url, start_at));
                             pending_load_retries = 0;
-                            let _ = command_app.emit("native-player-show", ());
+                            let emit_result = command_app.emit("native-player-show", ());
+                            log::info!("linux_player_surface: emitted native-player-show, result={emit_result:?}");
                         }
                         SurfaceCommand::Hide => {
                             visible.set(false);

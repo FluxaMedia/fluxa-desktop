@@ -5,6 +5,11 @@ import { GlobalSearchBar } from './components/GlobalSearchBar';
 import { PlayerLoadingOverlay } from './components/PlayerLoadingOverlay';
 import { ReactPlayerOverlay } from './components/ReactPlayerOverlay';
 import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
+
+function debugLog(msg: string) {
+  void invoke('debug_log', { msg }).catch(() => {});
+}
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { UpdateModal, startUpdateCheck } from './components/UpdateModal';
 import { HomeScreen } from './screens/HomeScreen';
@@ -100,12 +105,15 @@ export default function App() {
     const unlisteners: Array<() => void> = [];
     let cancelled = false;
 
+    debugLog('App: registering native-player-show/hide listeners');
     listen('native-player-show', () => {
+      debugLog('App: received native-player-show');
       setNativePlayerActive(true);
       document.documentElement.setAttribute('data-native-player-active', 'true');
-    }).then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); }).catch(() => undefined);
+    }).then((fn) => { debugLog('App: native-player-show listener registered'); if (cancelled) fn(); else unlisteners.push(fn); }).catch((err) => debugLog(`App: native-player-show listen() failed ${String(err)}`));
 
     listen('native-player-hide', () => {
+      debugLog('App: received native-player-hide');
       setNativePlayerActive(false);
       document.documentElement.removeAttribute('data-native-player-active');
     }).then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); }).catch(() => undefined);
