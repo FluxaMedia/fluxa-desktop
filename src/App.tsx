@@ -512,13 +512,15 @@ export default function App() {
         />
       )}
       {nativePlayerActive && (
-        <ReactPlayerOverlay
-          closePlayer={closePlayer}
-          onFirstFrame={notifyFirstFrame}
-          initialTitle={playerTitle}
-          initialEpisodeTitle={playerEpisodeTitle}
-          bannerOffset={bannerOffset}
-        />
+        <ErrorBoundary>
+          <ReactPlayerOverlay
+            closePlayer={closePlayer}
+            onFirstFrame={notifyFirstFrame}
+            initialTitle={playerTitle}
+            initialEpisodeTitle={playerEpisodeTitle}
+            bannerOffset={bannerOffset}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );
