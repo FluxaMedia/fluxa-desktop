@@ -1166,6 +1166,19 @@ pub(crate) fn find_libmpv_path() -> String {
         if let Some(exe_dir) = exe_path.parent() {
             search_dirs.push(exe_dir.to_path_buf());
             search_dirs.push(exe_dir.join("lib"));
+
+            #[cfg(target_os = "linux")]
+            if let Some(prefix_dir) = exe_dir.parent() {
+                let lib_dir = prefix_dir.join("lib");
+                if let Ok(entries) = std::fs::read_dir(&lib_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_dir() {
+                            search_dirs.push(path.join("lib"));
+                        }
+                    }
+                }
+            }
         }
     }
 
