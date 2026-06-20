@@ -194,6 +194,11 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             webview_widget.set_valign(gtk::Align::Fill);
             parent_box.pack_start(&video_overlay, true, true, 0);
             parent_box.show_all();
+            webview_widget.show();
+            webview_widget.queue_resize();
+            webview_widget.queue_draw();
+            video_overlay.queue_resize();
+            video_overlay.queue_draw();
             // gl_area stays hidden (no_show_all) until the first Load command.
 
             // Render callback: called by GTK when gl_area.queue_render() is invoked.
