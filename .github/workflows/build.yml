@@ -210,7 +210,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          APPIMAGE="$(find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage -maxdepth 1 -iname '*.AppImage' | head -n1)"
+          APPIMAGE="$(realpath "$(find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage -maxdepth 1 -iname '*.AppImage' | head -n1)")"
           chmod +x "$APPIMAGE"
           WORKDIR="$(mktemp -d)"
           (cd "$WORKDIR" && "$APPIMAGE" --appimage-extract >/dev/null)
