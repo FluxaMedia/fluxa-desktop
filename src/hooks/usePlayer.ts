@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { dispatchAction, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream } from '../core/engine';
+
+function debugLog(msg: string) {
+  void invoke('debug_log', { msg }).catch(() => {});
+}
 import {
   embeddedMpvAddSubtitle,
   embeddedMpvApplyPreferences,
@@ -113,8 +118,14 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
       void (async () => {
         if (isCancelled()) return;
         if (!mpvInitializedRef.current) {
-          await initEmbeddedMpv();
-          if (!isCancelled()) mpvInitializedRef.current = true;
+          try {
+            debugLog('showPlayerLoading:initEmbeddedMpv start');
+            await initEmbeddedMpv();
+            debugLog('showPlayerLoading:initEmbeddedMpv ok');
+            if (!isCancelled()) mpvInitializedRef.current = true;
+          } catch (err) {
+            debugLog(`showPlayerLoading:initEmbeddedMpv FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
+          }
         }
       })();
       return Promise.resolve();
@@ -322,6 +333,8 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
     resumeAtSeconds?: number,
     totalDurationSeconds?: number,
   ) => {
+    debugLog('handlePlay:start');
+    try {
     const generation = ++playGenerationRef.current;
     const isCancelled = () => generation !== playGenerationRef.current;
     prefetchedNextEpRef.current = null;
@@ -338,17 +351,20 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
     const effectiveTotalDuration = totalDurationSeconds
       ?? (meta?.id ? (stateRef.current.library.lastWrite?.progress as Record<string, import('../core/types').LibraryItem> | undefined)?.[meta.id]?.duration : undefined);
 
+    debugLog('handlePlay:resolving next episode');
     const nextEp = episode
       ? (await coreResolveNextEpisode(JSON.stringify(meta?.videos ?? []), episode.season ?? 0, episode.episode ?? episode.number ?? 0, Date.now(), false)) as Video | null
       : null;
     playingNextEpisodeRef.current = nextEp;
 
+    debugLog('handlePlay:preparing plan');
     const playbackPlan = await corePlaybackPreparePlan({
       stream,
       meta,
       episode,
       preferredPlayer: prefString(appPrefs(stateRef.current), 'preferredPlayer', 'mpv'),
     }) as PlaybackPreparePlan | null;
+    debugLog(`handlePlay:plan ready mode=${playbackPlan?.mode} url=${(playbackPlan?.url ?? stream.playableUrl ?? stream.url)?.slice(0, 80)}`);
     if (isCancelled()) return;
 
     const url = playbackPlan?.url ?? stream.playableUrl ?? stream.url;
@@ -397,18 +413,25 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
 
     if (playbackPlan?.mode === 'torrent') {
       try {
+        debugLog('handlePlay:starting torrent stream');
         const localUrl = await startTorrentStream(JSON.stringify(stream), title.contentTitle, appPrefs(stateRef.current));
+        debugLog(`handlePlay:torrent stream started localUrl=${localUrl?.slice(0, 80)}`);
         if (isCancelled()) return;
         await playInEmbeddedMpv(generation, localUrl, title, true, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration);
-      } catch {
+        debugLog('handlePlay:playInEmbeddedMpv (torrent) resolved');
+      } catch (err) {
+        debugLog(`handlePlay:torrent path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
         if (!isCancelled()) await abortPlayerLoading();
         alert(t('player.playback_error') || 'Playback failed');
         return;
       }
     } else {
       try {
+        debugLog('handlePlay:calling playInEmbeddedMpv');
         await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration);
-      } catch {
+        debugLog('handlePlay:playInEmbeddedMpv resolved');
+      } catch (err) {
+        debugLog(`handlePlay:direct path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
         if (!isCancelled()) await abortPlayerLoading();
         alert(t('player.playback_error') || 'Playback failed');
         return;
@@ -481,6 +504,11 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
         }
       } catch {}
     })();
+    } catch (err) {
+      debugLog(`handlePlay:FATAL ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
+      await abortPlayerLoading();
+      alert(t('player.playback_error') || 'Playback failed');
+    }
   }, [stateRef, showPlayerLoading, abortPlayerLoading, playInEmbeddedMpv]);
 
   usePlayerNativeEvents({

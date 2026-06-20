@@ -238,13 +238,21 @@ fn language_list(values: &[Option<&str>]) -> String {
 
 #[tauri::command]
 pub fn player_init(app: AppHandle, state: State<DesktopState>) -> Result<(), String> {
+    log::info!("player_init: start");
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     let _ = ensure_native_player_surface(&app, &state);
 
     let mut renderer = state.player_renderer.lock().unwrap();
     if renderer.is_none() {
-        *renderer = Some(mpv_render::MpvRenderer::new()?);
+        match mpv_render::MpvRenderer::new() {
+            Ok(r) => *renderer = Some(r),
+            Err(error) => {
+                log::error!("player_init: MpvRenderer::new failed: {error}");
+                return Err(error);
+            }
+        }
     }
+    log::info!("player_init: ok");
     Ok(())
 }
 
