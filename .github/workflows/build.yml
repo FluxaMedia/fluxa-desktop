@@ -205,6 +205,31 @@ jobs:
           releaseDraft: true
           args: --target x86_64-unknown-linux-gnu
 
+      - name: Strip bundled GTK/WebKit2GTK from the AppImage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          APPIMAGE="$(find src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage -maxdepth 1 -iname '*.AppImage' | head -n1)"
+          chmod +x "$APPIMAGE"
+          WORKDIR="$(mktemp -d)"
+          (cd "$WORKDIR" && "$APPIMAGE" --appimage-extract >/dev/null)
+          find "$WORKDIR/squashfs-root/usr/lib" -maxdepth 1 -iname '*.so*' -delete
+          rm -rf "$WORKDIR/squashfs-root/usr/lib/x86_64-linux-gnu"
+
+          PLUGIN="$HOME/.cache/tauri/linuxdeploy-plugin-appimage.AppImage"
+          if [ ! -f "$PLUGIN" ]; then
+            curl -fL -o "$PLUGIN" "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage"
+            chmod +x "$PLUGIN"
+          fi
+
+          STRIPPED="$WORKDIR/$(basename "$APPIMAGE")"
+          OUTPUT="$STRIPPED" "$PLUGIN" --appdir="$WORKDIR/squashfs-root"
+          mv "$STRIPPED" "$APPIMAGE"
+          rm -rf "$WORKDIR"
+
+          gh release upload "${{ github.ref_name }}" "$APPIMAGE" --clobber
+
   publish-release:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
