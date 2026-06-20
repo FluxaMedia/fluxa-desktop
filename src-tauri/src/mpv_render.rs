@@ -325,7 +325,9 @@ impl MpvRenderer {
         renderer.set_option("vo", "libmpv")?;
         renderer.set_option("idle", "yes")?;
         renderer.set_option("keep-open", "yes")?;
-        renderer.set_option("osc", "no")?;
+        if let Err(error) = renderer.set_option("osc", "no") {
+            log::warn!("set_option(osc, no) failed (mpv build without lua/OSC?): {error}");
+        }
         renderer.set_option("osd-level", "0")?;
         renderer.set_option("osd-bar", "no")?;
         renderer.set_option("input-default-bindings", "yes")?;
@@ -393,7 +395,9 @@ impl MpvRenderer {
         renderer.set_option("ao", "null")?;
         renderer.set_option("audio", "no")?;
         renderer.set_option("idle", "yes")?;
-        renderer.set_option("osc", "no")?;
+        if let Err(error) = renderer.set_option("osc", "no") {
+            log::warn!("set_option(osc, no) failed (mpv build without lua/OSC?): {error}");
+        }
         renderer.set_option("osd-level", "0")?;
         renderer.set_option("hr-seek", "yes")?;
         renderer.set_option("pause", "yes")?;
