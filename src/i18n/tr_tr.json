@@ -974,7 +974,7 @@
   "common.delete": "Sil",
   "common.refresh": "Yenile",
   "settings.automatic_updates": "Otomatik Güncellemeler",
-  "settings.automatic_updates_desc": "Uygulama güncellemelerini otomatik olarak indir ve yükle",
+  "settings.automatic_updates_desc": "Güncellemeleri otomatik kontrol et ve bildir",
   "settings.detail_season_posters_on_hero_desc": "Detay ekranındaki hero bölümünde sezon posterlerini göster",
   "downloads.storage_summary": "%s dosya · %s",
   "settings.downloads_empty_desc": "Henüz tamamlanmış indirme bulunmuyor",

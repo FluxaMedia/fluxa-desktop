@@ -974,7 +974,7 @@
   "common.delete": "Delete",
   "common.refresh": "Refresh",
   "settings.automatic_updates": "Automatic Updates",
-  "settings.automatic_updates_desc": "Automatically download and install app updates",
+  "settings.automatic_updates_desc": "Automatically check for updates and notify you",
   "settings.detail_season_posters_on_hero_desc": "Show season posters in the hero area on the detail screen",
   "downloads.storage_summary": "%s files · %s",
   "settings.downloads_empty_desc": "No completed downloads yet",

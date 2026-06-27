@@ -112,11 +112,13 @@ const syncTasks: Promise<unknown>[] = [];
         void syncExternalOnStartup(startupProfile);
       }
 
-      setTimeout(() => {
-        void startUpdateCheck((s) => {
-          if (s.phase === 'available' || s.phase === 'error') setUpdateModalState(s);
-        });
-      }, 5000);
+      if (prefBool(storedPrefsRef.current, 'automaticUpdates', true)) {
+        setTimeout(() => {
+          void startUpdateCheck((s) => {
+            if (s.phase === 'available' || s.phase === 'error') setUpdateModalState(s);
+          });
+        }, 5000);
+      }
     })();
   }, []);
 
