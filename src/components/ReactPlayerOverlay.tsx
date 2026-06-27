@@ -2,18 +2,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { currentMonitor, getCurrentWindow } from '@tauri-apps/api/window';
+import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import {
   AudioLines,
+  Camera,
   Captions,
   Cast,
   ChevronLeft,
   Fullscreen,
   GalleryVerticalEnd,
   Gauge,
+  Minimize2,
   Pause,
   PictureInPicture2,
   Play,
+  Repeat,
   RotateCcw,
   RotateCw,
   SkipForward,
@@ -21,6 +25,7 @@ import {
   Volume2,
   VolumeOff,
 } from 'lucide-react';
+import { setSuppressWindowGeometrySave } from '../core/windowGeometry';
 import type { EmbeddedMpvStatus } from '../core/mpvPlayer';
 import { playerGetPlaybackInfo, playerGetTrackOptions } from '../core/mpvPlayer';
 import type { PlayerTrackOption } from '../core/mpvPlayer';
@@ -29,11 +34,15 @@ import { NextEpCard } from './player/NextEpCard';
 import { EpisodePanel, epLabel } from './player/EpisodePanel';
 import type { EpisodeInfo } from './player/EpisodePanel';
 import { TrackPopover } from './player/TrackPopover';
+import { CastPopover } from './player/CastPopover';
+import { setIdleDiscordPresence, updateDiscordPresence } from '../core/discordPresence';
+import { castDisconnect, castPlay, castPause, castSeek, castSetVolume, discoverCastDevices, proxyMediaUrl, resolveCastMediaUrl, startCasting } from '../core/cast';
+import type { CastDevice } from '../core/cast';
 
 type Chapter = { title: string; startMs: number };
 type SkipSegment = { type: string; startTime: number; endTime: number };
 type ActiveSkip = { label: string; startMs: number; endMs: number };
-type FeedbackFlash = { icon: 'play' | 'pause' | 'seekBack' | 'seekFwd' | 'speed'; label: string };
+type FeedbackFlash = { icon: 'play' | 'pause' | 'seekBack' | 'seekFwd' | 'speed' | 'abLoop' | 'screenshot' | 'subDelay'; label: string };
 
 function fmtTime(s: number): string {
   if (!isFinite(s) || s < 0) return '0:00';
@@ -87,10 +96,13 @@ interface Props {
   onFirstFrame?: () => void;
   initialTitle?: string;
   initialEpisodeTitle?: string;
+  initialPosterUrl?: string;
+  initialSubtitleUrl?: string;
+  initialStreamHeaders?: Record<string, string>;
   bannerOffset?: number;
 }
 
-export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, bannerOffset = 0 }: Props) {
+export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, initialPosterUrl, initialSubtitleUrl, initialStreamHeaders, bannerOffset = 0 }: Props) {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(100);
@@ -111,6 +123,18 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [skipProgress, setSkipProgress] = useState(0);
   const [showNextEpCard, setShowNextEpCard] = useState(false);
   const [trackPopover, setTrackPopover] = useState<'audio' | 'sub' | 'speed' | null>(null);
+  const [miniPlayerActive, setMiniPlayerActive] = useState(false);
+  const miniPlayerActiveRef = useRef(false);
+  const preMiniPlayerSizeRef = useRef<PhysicalSize | null>(null);
+  const preMiniPlayerPosRef = useRef<PhysicalPosition | null>(null);
+  const [castPopoverOpen, setCastPopoverOpen] = useState(false);
+  const [castDevices, setCastDevices] = useState<CastDevice[]>([]);
+  const [castDiscovering, setCastDiscovering] = useState(false);
+  const [activeCastDeviceId, setActiveCastDeviceId] = useState<string | null>(null);
+  const activeCastDeviceIdRef = useRef<string | null>(null);
+  const [activeCastDeviceName, setActiveCastDeviceName] = useState('');
+  const [castPaused, setCastPaused] = useState(false);
+  const [abLoopStage, setAbLoopStage] = useState<'none' | 'a' | 'ab'>('none');
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [audioTracks, setAudioTracks] = useState<PlayerTrackOption[]>([]);
   const [subTracks, setSubTracks] = useState<PlayerTrackOption[]>([]);
@@ -122,6 +146,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const volumeHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showSeekOverlay, setShowSeekOverlay] = useState(false);
   const seekOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const seekFillRef = useRef<HTMLDivElement>(null);
   const seekBufferRef = useRef<HTMLDivElement>(null);
@@ -130,6 +155,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const durationRef = useRef<HTMLSpanElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const segFillRefs = useRef<(HTMLDivElement | null)[]>([]);
   const segBufRefs = useRef<(HTMLDivElement | null)[]>([]);
   const chapterSegmentsRef = useRef<Array<{ start: number; end: number }> | null>(null);
@@ -152,6 +178,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const loadStartedAtRef = useRef(Date.now());
   const isFullscreenRef = useRef(false);
   const activeSkipKeyRef = useRef<string | null>(null);
+  const discordPresenceKeyRef = useRef<string | null>(null);
+  const discordPresenceSentAtRef = useRef(0);
 
   const resetActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -180,6 +208,44 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     await getCurrentWindow().setFullscreen(next);
   }, []);
 
+  const toggleMiniPlayer = useCallback(async () => {
+    const win = getCurrentWindow();
+    if (!miniPlayerActive) {
+      if (isFullscreenRef.current) {
+        isFullscreenRef.current = false;
+        await win.setFullscreen(false);
+      }
+      try {
+        preMiniPlayerSizeRef.current = await win.outerSize();
+        preMiniPlayerPosRef.current = await win.outerPosition();
+      } catch { /* ignore */ }
+      setSuppressWindowGeometrySave(true);
+      const width = 420;
+      const height = 236;
+      try {
+        const monitor = await currentMonitor();
+        if (monitor) {
+          const margin = 24;
+          await win.setPosition(new PhysicalPosition(
+            monitor.position.x + monitor.size.width - width - margin,
+            monitor.position.y + monitor.size.height - height - margin,
+          ));
+        }
+      } catch { /* ignore */ }
+      await win.setSize(new PhysicalSize(width, height));
+      await win.setAlwaysOnTop(true);
+      setMiniPlayerActive(true);
+    } else {
+      await win.setAlwaysOnTop(false);
+      try {
+        if (preMiniPlayerSizeRef.current) await win.setSize(preMiniPlayerSizeRef.current);
+        if (preMiniPlayerPosRef.current) await win.setPosition(preMiniPlayerPosRef.current);
+      } catch { /* ignore */ }
+      setSuppressWindowGeometrySave(false);
+      setMiniPlayerActive(false);
+    }
+  }, [miniPlayerActive]);
+
   const flashFeedback = useCallback((icon: FeedbackFlash['icon'], label: string) => {
     setFeedback({ icon, label });
     if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
@@ -196,7 +262,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     const tt = fraction * durRef.current;
     lastSeekAtRef.current = Date.now();
     startSeekOverlay();
-    sendCmd(`set time-pos ${Math.floor(tt)}`);
+    if (activeCastDeviceIdRef.current) castSeek(tt);
+    else sendCmd(`set time-pos ${Math.floor(tt)}`);
   }, [startSeekOverlay]);
 
   const fractionFromSeekbarEvent = useCallback((clientX: number): number => {
@@ -248,6 +315,20 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       posRef.current = pos;
       durRef.current = dur;
       pausedRef.current = isPaused;
+
+      const presenceKey = `${title}|${episodeTitle}|${isPaused}`;
+      const presenceDue = Date.now() - discordPresenceSentAtRef.current > 25000;
+      if (title && (presenceKey !== discordPresenceKeyRef.current || presenceDue)) {
+        discordPresenceKeyRef.current = presenceKey;
+        discordPresenceSentAtRef.current = Date.now();
+        updateDiscordPresence({
+          title,
+          detail: episodeTitle || undefined,
+          paused: isPaused,
+          startUnixSecs: isPaused ? undefined : Math.floor(Date.now() / 1000 - pos),
+          posterUrl: initialPosterUrl,
+        });
+      }
 
       if (!firstFrameFiredRef.current && onFirstFrame) {
         const voReady = status.voConfigured === 'yes';
@@ -314,10 +395,34 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       } else {
         setShowNextEpCard(false);
       }
-    }, 250);
+    }, 500);
 
     return () => clearInterval(interval);
-  }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills]);
+  }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl]);
+
+  useEffect(() => {
+    return () => setIdleDiscordPresence();
+  }, []);
+
+  useEffect(() => {
+    miniPlayerActiveRef.current = miniPlayerActive;
+  }, [miniPlayerActive]);
+
+  useEffect(() => {
+    return () => {
+      if (!miniPlayerActiveRef.current) return;
+      const win = getCurrentWindow();
+      setSuppressWindowGeometrySave(false);
+      void win.setAlwaysOnTop(false).catch(() => undefined);
+      if (preMiniPlayerSizeRef.current) void win.setSize(preMiniPlayerSizeRef.current).catch(() => undefined);
+      if (preMiniPlayerPosRef.current) void win.setPosition(preMiniPlayerPosRef.current).catch(() => undefined);
+    };
+  }, []);
+
+  useEffect(() => {
+    activeCastDeviceIdRef.current = activeCastDeviceId;
+    return () => { if (activeCastDeviceId) castDisconnect(); };
+  }, [activeCastDeviceId]);
 
   useEffect(() => {
     const poll = async () => {
@@ -374,6 +479,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       if (cancelled) return;
       setTitle(ev.payload.title ?? '');
       setEpisodeTitle(ev.payload.episodeTitle ?? '');
+      setAbLoopStage('none');
     }).catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
@@ -420,6 +526,16 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           e.preventDefault();
           sendCmd('cycle mute');
           break;
+        case 'KeyZ':
+          e.preventDefault();
+          flashFeedback('subDelay', t('player.subtitle_delay_earlier'));
+          sendCmd('add sub-delay -0.100');
+          break;
+        case 'KeyX':
+          e.preventDefault();
+          flashFeedback('subDelay', t('player.subtitle_delay_later'));
+          sendCmd('add sub-delay 0.100');
+          break;
         case 'KeyF':
         case 'F11':
           e.preventDefault();
@@ -427,6 +543,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           break;
         case 'Escape':
           e.preventDefault();
+          if (contextMenu) { setContextMenu(null); return; }
           if (showEpisodePanel) { setShowEpisodePanel(false); episodePanelOpenRef.current = false; return; }
           if (trackPopover) { setTrackPopover(null); return; }
           void (async () => {
@@ -460,13 +577,28 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [closePlayer, flashFeedback, resetActivity, showEpisodePanel, startSeekOverlay, toggleFullscreen, trackPopover]);
+  }, [closePlayer, contextMenu, flashFeedback, resetActivity, showEpisodePanel, startSeekOverlay, toggleFullscreen, trackPopover]);
 
   useEffect(() => {
     return () => {
       getCurrentWindow().setCursorVisible(true).catch(() => {});
     };
   }, []);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onMouseDown = (e: MouseEvent) => {
+      if (contextMenuRef.current?.contains(e.target as Node)) return;
+      close();
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('blur', close);
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('blur', close);
+    };
+  }, [contextMenu]);
 
   useEffect(() => {
     const onMove = () => resetActivity();
@@ -577,6 +709,73 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     setTrackPopover(null);
   }, []);
 
+  const openCastPopover = useCallback(async () => {
+    resetActivity();
+    if (castPopoverOpen) { setCastPopoverOpen(false); return; }
+    setCastPopoverOpen(true);
+    setCastDiscovering(true);
+    setCastDevices(await discoverCastDevices());
+    setCastDiscovering(false);
+  }, [castPopoverOpen, resetActivity]);
+
+  const selectCastDevice = useCallback(async (device: CastDevice) => {
+    let status: EmbeddedMpvStatus | null = null;
+    try { status = await invoke<EmbeddedMpvStatus>('player_status'); } catch { /* ignore */ }
+    const streamUrl = status?.path;
+    if (!streamUrl) { setCastPopoverOpen(false); return; }
+    const mediaUrl = initialStreamHeaders && Object.keys(initialStreamHeaders).length > 0
+      ? await proxyMediaUrl(streamUrl, initialStreamHeaders)
+      : await resolveCastMediaUrl(streamUrl);
+    try {
+      await startCasting(device, mediaUrl, title || episodeTitle || 'Fluxa', initialSubtitleUrl);
+      setActiveCastDeviceId(device.id);
+      setActiveCastDeviceName(device.name);
+      setCastPaused(false);
+      sendCmd('set pause yes');
+    } catch { /* device unreachable */ }
+    setCastPopoverOpen(false);
+  }, [title, episodeTitle, initialSubtitleUrl, initialStreamHeaders]);
+
+  const disconnectCast = useCallback(() => {
+    castDisconnect();
+    setActiveCastDeviceId(null);
+    setActiveCastDeviceName('');
+    setCastPopoverOpen(false);
+  }, []);
+
+  const toggleCastPause = useCallback(() => {
+    if (castPaused) { castPlay(); setCastPaused(false); }
+    else { castPause(); setCastPaused(true); }
+  }, [castPaused]);
+
+  const cycleAbLoop = useCallback(() => {
+    resetActivity();
+    if (abLoopStage === 'none') {
+      sendCmd(`set ab-loop-a ${posRef.current.toFixed(3)}`);
+      setAbLoopStage('a');
+      flashFeedback('abLoop', t('player.ab_loop_a_set'));
+    } else if (abLoopStage === 'a') {
+      sendCmd(`set ab-loop-b ${posRef.current.toFixed(3)}`);
+      setAbLoopStage('ab');
+      flashFeedback('abLoop', t('player.ab_loop_active'));
+    } else {
+      sendCmd('set ab-loop-a no');
+      sendCmd('set ab-loop-b no');
+      setAbLoopStage('none');
+      flashFeedback('abLoop', t('player.ab_loop_cleared'));
+    }
+  }, [abLoopStage, resetActivity, flashFeedback]);
+
+  const takeScreenshot = useCallback(async () => {
+    resetActivity();
+    try {
+      await invoke<string>('player_screenshot', { suggestedName: title || 'fluxa' });
+      flashFeedback('screenshot', t('player.screenshot_saved'));
+    } catch {
+      flashFeedback('screenshot', t('player.screenshot_failed'));
+    }
+  }, [resetActivity, flashFeedback, title]);
+
   const centerClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const centerHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const centerHoldActiveRef = useRef(false);
@@ -641,10 +840,50 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
   const seekHovered = seekPreview !== null;
 
+  if (miniPlayerActive) {
+    return (
+      <div
+        ref={overlayRef}
+        onMouseMove={resetActivity}
+        style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'transparent' }}
+      >
+        <div
+          style={{ ...opacityStyle, position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '8px 10px', background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)' }}
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); resetActivity(); flashFeedback(paused ? 'play' : 'pause', ''); setPaused((prev) => !prev); sendCmd('cycle pause'); }}
+            className="fluxa-ibtn"
+            style={styles.iconBtn}
+            title={paused ? t('player.play') : t('player.pause')}
+          >
+            {paused ? <Play size={16} fill="currentColor" strokeWidth={0} /> : <Pause size={16} fill="currentColor" strokeWidth={0} />}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); resetActivity(); void toggleMiniPlayer(); }}
+            className="fluxa-ibtn"
+            style={styles.iconBtn}
+            title={t('player.restore_window')}
+          >
+            <Minimize2 size={16} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); void closePlayer(); }}
+            className="fluxa-ibtn"
+            style={styles.iconBtn}
+            title={t('player.back')}
+          >
+            <ChevronLeft size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={overlayRef}
       style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', flexDirection: 'column', background: 'transparent' }}
+      onContextMenu={(e) => { e.preventDefault(); resetActivity(); setContextMenu({ x: e.clientX, y: e.clientY }); }}
     >
       <style>{`
         @keyframes fluxa-seek-spin { to { transform: rotate(360deg); } }
@@ -688,21 +927,30 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
               )}
             </div>
           )}
+          {activeCastDeviceId && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <Cast size={11} style={{ color: 'var(--primary-accent-color)' }} />
+              <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{t('player.casting_to', activeCastDeviceName)}</span>
+            </div>
+          )}
         </div>
-        <button onClick={(e) => { e.stopPropagation(); resetActivity(); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.cast')}>
+        {activeCastDeviceId && (
+          <button onClick={(e) => { e.stopPropagation(); resetActivity(); toggleCastPause(); }} className="fluxa-ibtn" style={styles.iconBtn} title={castPaused ? t('player.play') : t('player.pause')}>
+            {castPaused ? <Play size={18} /> : <Pause size={18} />}
+          </button>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); void openCastPopover(); }}
+          className="fluxa-ibtn"
+          style={{ ...styles.iconBtn, color: activeCastDeviceId ? 'var(--primary-accent-color)' : undefined }}
+          title={t('player.cast')}
+        >
           <Cast size={20} />
         </button>
         <button
-          onClick={async (e) => {
-            e.stopPropagation();
-            resetActivity();
-            try { await (document as unknown as Record<string, unknown>).pictureInPictureElement
-              ? (document as unknown as { exitPictureInPicture: () => Promise<void> }).exitPictureInPicture()
-              : await (document.querySelector('video') as HTMLVideoElement & { requestPictureInPicture: () => Promise<void> })?.requestPictureInPicture?.();
-            } catch { /* not supported */ }
-          }}
+          onClick={(e) => { e.stopPropagation(); resetActivity(); void toggleMiniPlayer(); }}
           className="fluxa-ibtn"
-          style={styles.iconBtn}
+          style={{ ...styles.iconBtn, color: miniPlayerActive ? 'var(--primary-accent-color)' : undefined }}
           title={t('player.picture_in_picture')}
         >
           <PictureInPicture2 size={20} />
@@ -719,6 +967,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           {feedback.icon === 'seekBack' && <RotateCcw size={20} />}
           {feedback.icon === 'seekFwd' && <RotateCw size={20} />}
           {feedback.icon === 'speed' && <Gauge size={20} />}
+          {feedback.icon === 'abLoop' && <Repeat size={20} />}
+          {feedback.icon === 'screenshot' && <Camera size={20} />}
+          {feedback.icon === 'subDelay' && <Captions size={20} />}
           {feedback.label && <span>{feedback.label}</span>}
         </div>
       )}
@@ -773,6 +1024,53 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           onSelectTrack={selectTrack}
           onDisableSubs={disableSubs}
         />
+      )}
+
+      {castPopoverOpen && (
+        <CastPopover
+          devices={castDevices}
+          discovering={castDiscovering}
+          activeDeviceId={activeCastDeviceId}
+          showEpisodePanel={showEpisodePanel}
+          onSelectDevice={(device) => void selectCastDevice(device)}
+          onDisconnect={disconnectCast}
+        />
+      )}
+
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            background: 'rgba(18,22,30,0.97)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 10,
+            padding: '6px 0',
+            minWidth: 180,
+            zIndex: 20,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            onClick={() => { cycleAbLoop(); setContextMenu(null); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: abLoopStage !== 'none' ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <Repeat size={15} />
+            {abLoopStage === 'none' ? t('player.ab_loop') : abLoopStage === 'a' ? t('player.ab_loop_a_set') : t('player.ab_loop_active')}
+          </button>
+          <button
+            onClick={() => { void takeScreenshot(); setContextMenu(null); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <Camera size={15} />
+            {t('player.screenshot')}
+          </button>
+        </div>
       )}
 
       {/* Bottom controls */}
@@ -864,7 +1162,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
               <VolumeBar
                 value={muted ? 0 : volumeLevel}
                 max={130}
-                onChange={(v) => { resetActivity(); sendCmd(`set volume ${v}`); if (muted && v > 0) sendCmd('set mute no'); }}
+                onChange={(v) => {
+                  resetActivity();
+                  if (activeCastDeviceIdRef.current) { castSetVolume(v / 100); return; }
+                  sendCmd(`set volume ${v}`);
+                  if (muted && v > 0) sendCmd('set mute no');
+                }}
               />
             </div>
           </div>

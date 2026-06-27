@@ -1,21 +1,35 @@
 use fluxa_core::FluxaCore;
+mod airplay;
+mod artwork;
+mod cast;
+mod cast_proxy;
+mod chromecast;
+mod discord_presence;
+mod downloads;
 #[cfg(target_os = "linux")]
 mod linux_player_surface;
-#[cfg(target_os = "windows")]
-mod windows_player_surface;
 #[cfg(target_os = "macos")]
 mod macos_player_surface;
 mod mpv_render;
-mod artwork;
-mod downloads;
 mod net_guard;
 mod oauth;
 mod player;
+mod roku;
 mod storage;
+#[cfg(target_os = "windows")]
+mod windows_egl;
+#[cfg(target_os = "windows")]
+mod windows_player_surface;
 
+use airplay::*;
+use cast::*;
+use cast_proxy::*;
+use chromecast::*;
+use discord_presence::*;
 use downloads::*;
 use oauth::*;
 use player::*;
+use roku::*;
 use storage::*;
 
 use serde_json::{json, Value};
@@ -56,6 +70,7 @@ pub struct DesktopState {
     pub thumbnail_renderer: Mutex<Option<mpv_render::MpvRenderer>>,
     pub thumbnail_loaded_url: Mutex<Option<String>>,
     pub pending_hide: AtomicBool,
+    pub downloads: downloads::DownloadsState,
 }
 
 impl Default for DesktopState {
@@ -84,6 +99,7 @@ impl Default for DesktopState {
             thumbnail_renderer: Mutex::new(None),
             thumbnail_loaded_url: Mutex::new(None),
             pending_hide: AtomicBool::new(false),
+            downloads: downloads::DownloadsState::default(),
         }
     }
 }
@@ -142,19 +158,12 @@ fn core_invoke(method: String, args_json: String) -> String {
     fluxa_core::ffi::core_invoke(&method, &args_json)
 }
 
-#[tauri::command]
-fn start_torrent_stream(
-    state: State<DesktopState>,
+fn start_torrent_stream_inner(
+    data_dir: std::path::PathBuf,
     stream_json: String,
     title: Option<String>,
     preferences: Option<Value>,
 ) -> Result<String, String> {
-    let data_dir = state
-        .data_dir
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or_else(|| "app data dir is not ready".to_string())?;
     let cache_dir = data_dir.join("torrent-cache");
     let server_json = fluxa_streaming_engine::start_torrent_server(&cache_dir.to_string_lossy(), 0)
         .ok_or_else(|| "failed to start torrent server".to_string())?;
@@ -166,12 +175,12 @@ fn start_torrent_stream(
         .ok_or_else(|| "torrent server did not return url".to_string())?;
     apply_torrent_preferences(base_url, preferences.as_ref());
 
-    let stream: Value = serde_json::from_str(&stream_json)
-        .map_err(|e| format!("invalid stream json: {e}"))?;
+    let stream: Value =
+        serde_json::from_str(&stream_json).map_err(|e| format!("invalid stream json: {e}"))?;
     let playback_json = FluxaCore::stream_playback_info_json(&stream_json)
         .ok_or_else(|| "stream playback info could not be resolved".to_string())?;
-    let playback: Value = serde_json::from_str(&playback_json)
-        .map_err(|e| format!("invalid playback info: {e}"))?;
+    let playback: Value =
+        serde_json::from_str(&playback_json).map_err(|e| format!("invalid playback info: {e}"))?;
     let link = playback
         .get("playableUrl")
         .and_then(Value::as_str)
@@ -215,6 +224,26 @@ fn start_torrent_stream(
         .and_then(Value::as_str)
         .map(str::to_string)
         .ok_or_else(|| "torrent runtime did not return streamUrl".to_string())
+}
+
+#[tauri::command]
+async fn start_torrent_stream(
+    state: State<'_, DesktopState>,
+    stream_json: String,
+    title: Option<String>,
+    preferences: Option<Value>,
+) -> Result<String, String> {
+    let data_dir = state
+        .data_dir
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "app data dir is not ready".to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        start_torrent_stream_inner(data_dir, stream_json, title, preferences)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -269,13 +298,6 @@ fn get_data_dir(state: State<DesktopState>) -> Option<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    #[cfg(target_os = "linux")]
-    {
-        std::env::remove_var("WAYLAND_DISPLAY");
-        std::env::remove_var("MOZ_ENABLE_WAYLAND");
-        std::env::set_var("GDK_BACKEND", "x11");
-    }
-
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
@@ -284,7 +306,9 @@ pub fn run() {
         .plugin(tauri_plugin_libmpv::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             for arg in &args {
-                if !arg.starts_with("fluxa://") { continue; }
+                if !arg.starts_with("fluxa://") {
+                    continue;
+                }
                 let query = arg.split('?').nth(1);
                 let code = query
                     .and_then(|q| q.split('&').find(|p| p.starts_with("code=")))
@@ -293,10 +317,15 @@ pub fn run() {
                     .and_then(|q| q.split('&').find(|p| p.starts_with("state=")))
                     .map(|p| p.trim_start_matches("state=").to_string());
                 if let Some(code) = code {
-                    let evt = if arg.contains("/trakt") { "trakt-oauth-code" }
-                        else if arg.contains("/mal") { "mal-oauth-code" }
-                        else if arg.contains("/simkl") { "simkl-oauth-code" }
-                        else { continue };
+                    let evt = if arg.contains("/trakt") {
+                        "trakt-oauth-code"
+                    } else if arg.contains("/mal") {
+                        "mal-oauth-code"
+                    } else if arg.contains("/simkl") {
+                        "simkl-oauth-code"
+                    } else {
+                        continue;
+                    };
                     let _ = app.emit(evt, json!({ "code": code, "state": state }));
                 }
             }
@@ -305,7 +334,9 @@ pub fn run() {
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Debug)
                 .targets([
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: None }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: None,
+                    }),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
                 ])
                 .build(),
@@ -315,6 +346,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
         .manage(DesktopState::default())
+        .manage(discord_presence::DiscordPresenceState::default())
+        .manage(cast::CastState::default())
+        .manage(chromecast::ChromecastState::default())
+        .manage(airplay::AirplayState::default())
+        .manage(roku::RokuState::default())
+        .manage(cast_proxy::CastProxyState::default())
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -370,6 +407,7 @@ pub fn run() {
             stop_torrent_stream,
             player_init,
             player_apply_preferences,
+            player_set_http_headers,
             player_load,
             player_render_frame,
             player_command,
@@ -387,6 +425,7 @@ pub fn run() {
             player_track_options,
             player_set_seek_thumbnail_enabled,
             player_get_seek_thumbnail,
+            player_screenshot,
             player_set_chapters,
             player_clear_chapters,
             player_set_skip_info,
@@ -404,6 +443,40 @@ pub fn run() {
             set_download_dir,
             list_offline_downloads,
             delete_offline_download,
+            pause_offline_download,
+            resume_offline_download,
+            cancel_offline_download,
+            discord_presence_configure,
+            discord_presence_update,
+            discord_presence_set_idle,
+            discord_presence_clear,
+            cast_discover_devices,
+            cast_resolve_media_url,
+            cast_set_media,
+            cast_play,
+            cast_pause,
+            cast_seek,
+            cast_set_volume,
+            cast_disconnect,
+            chromecast_discover_devices,
+            chromecast_connect,
+            chromecast_play,
+            chromecast_pause,
+            chromecast_seek,
+            chromecast_set_volume,
+            chromecast_disconnect,
+            airplay_discover_devices,
+            airplay_set_media,
+            airplay_play,
+            airplay_pause,
+            airplay_seek,
+            airplay_set_volume,
+            airplay_disconnect,
+            roku_discover_devices,
+            roku_set_media,
+            roku_play_pause,
+            roku_disconnect,
+            cast_proxy_serve,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Fluxa Desktop");

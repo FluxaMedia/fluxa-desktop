@@ -138,6 +138,7 @@ export interface LibraryItem {
   inWatchlist?: boolean;
   nextEpisodeAirDate?: string;
   lastAirDateCheckedAt?: string;
+  statusChangedAt?: string;
 }
 
 export interface AddonDescriptor {
@@ -254,6 +255,7 @@ export interface UserProfile {
   nuvioRefreshToken?: string;
   nuvioTokenExpiresAt?: number;
   nuvioUserId?: string;
+  pinHash?: string;
   nuvioEmail?: string;
   nuvioProfileIndex?: number;
 }
@@ -299,6 +301,8 @@ export interface DetailState {
   selectedAddon?: string | null;
   trailers?: Trailer[];
   similarItems?: Meta[];
+  omdbRatings?: { rottenTomatoes?: string; metascore?: string } | null;
+  fanartArtwork?: { hdLogo?: string; hdBackdrop?: string } | null;
   error?: string | null;
   id?: string;
   type?: string;
@@ -327,11 +331,15 @@ export interface PlayerState {
 
 export interface LibraryStateSlice {
   watchlist?: LibraryItem[];
-  history?: LibraryItem[];
+  continueWatching?: LibraryItem[];
+  dropped?: LibraryItem[];
+  completed?: LibraryItem[];
   isLoading?: boolean;
   lastWrite?: {
     watchlist?: LibraryItem[];
-    history?: LibraryItem[];
+    continueWatching?: LibraryItem[];
+    dropped?: LibraryItem[];
+    completed?: LibraryItem[];
     progress?: Record<string, LibraryItem>;
   };
   lastWriteError?: string | null;

@@ -14,6 +14,9 @@ export interface Prefs {
   tmdbEpisodeImagesEnabled: boolean;
   tmdbLogosBackdropsEnabled: boolean;
   tmdbRatingsEnabled: boolean;
+  rpdbApiKey: string;
+  omdbApiKey: string;
+  fanartApiKey: string;
   accentColorArgb: string;
   amoledMode: boolean;
   animationsEnabled: boolean;
@@ -98,6 +101,7 @@ export interface Prefs {
   subtitleShadow: boolean;
   seekThumbnailEnabled: boolean;
   p2pEnabled: boolean;
+  discordRichPresenceEnabled: boolean;
 }
 
 export interface TraktTokenResponse {
@@ -211,4 +215,8 @@ export const DEFAULT_PREFS: Prefs = {
   subtitleShadow: false,
   seekThumbnailEnabled: false,
   p2pEnabled: true,
+  discordRichPresenceEnabled: true,
+  rpdbApiKey: '',
+  omdbApiKey: '',
+  fanartApiKey: '',
 };

@@ -55,7 +55,13 @@ unsafe fn msg2_id_id(obj: Id, sel_name: &str, a: Id, b: Id) -> Id {
 unsafe fn msg3_positioned(obj: Id, sub: Id, order: isize, rel: Id) -> Id {
     type Fn = unsafe extern "C" fn(Id, Id, Id, isize, Id) -> Id;
     let f: Fn = std::mem::transmute(objc_msgSend as unsafe extern "C" fn(_, _, ...) -> _);
-    f(obj, sel("addSubview:positioned:relativeTo:"), sub, order, rel)
+    f(
+        obj,
+        sel("addSubview:positioned:relativeTo:"),
+        sub,
+        order,
+        rel,
+    )
 }
 
 // NSRect passed BY VALUE to initWithFrame: and setFrame: — no stret needed.
@@ -173,10 +179,11 @@ fn libdispatch() -> *mut c_void {
 
 unsafe fn gcd_main_queue() -> *mut c_void {
     let lib = libdispatch();
-    if lib.is_null() { return std::ptr::null_mut(); }
-    let f: unsafe extern "C" fn() -> *mut c_void = std::mem::transmute(
-        libc::dlsym(lib, b"dispatch_get_main_queue\0".as_ptr() as _),
-    );
+    if lib.is_null() {
+        return std::ptr::null_mut();
+    }
+    let f: unsafe extern "C" fn() -> *mut c_void =
+        std::mem::transmute(libc::dlsym(lib, b"dispatch_get_main_queue\0".as_ptr() as _));
     f()
 }
 
@@ -186,7 +193,9 @@ unsafe fn gcd_async_f(
     work: unsafe extern "C" fn(*mut c_void),
 ) {
     let lib = libdispatch();
-    if lib.is_null() { return; }
+    if lib.is_null() {
+        return;
+    }
     let f: unsafe extern "C" fn(*mut c_void, *mut c_void, unsafe extern "C" fn(*mut c_void)) =
         std::mem::transmute(libc::dlsym(lib, b"dispatch_async_f\0".as_ptr() as _));
     f(queue, ctx, work);
@@ -195,10 +204,20 @@ unsafe fn gcd_async_f(
 // Surface commands
 
 enum SurfaceCommand {
-    Load { url: String, start_at: Option<u64>, total_duration: Option<u64> },
+    Load {
+        url: String,
+        start_at: Option<u64>,
+        total_duration: Option<u64>,
+    },
     Hide,
-    ShowLoading { title: String, episode_title: Option<String> },
-    SetTitle { title: String, episode_title: Option<String> },
+    ShowLoading {
+        title: String,
+        episode_title: Option<String>,
+    },
+    SetTitle {
+        title: String,
+        episode_title: Option<String>,
+    },
     SetArtwork {
         title: String,
         episode_title: Option<String>,
@@ -213,17 +232,34 @@ pub struct NativePlayerSurface {
 }
 
 impl NativePlayerSurface {
-    pub fn load(&self, url: String, start_at: Option<u64>, total_duration: Option<u64>) -> Result<(), String> {
+    pub fn load(
+        &self,
+        url: String,
+        start_at: Option<u64>,
+        total_duration: Option<u64>,
+    ) -> Result<(), String> {
         self.sender
-            .send(SurfaceCommand::Load { url, start_at, total_duration })
+            .send(SurfaceCommand::Load {
+                url,
+                start_at,
+                total_duration,
+            })
             .map_err(|e| format!("surface unavailable: {e}"))
     }
-    pub fn hide(&self) { let _ = self.sender.send(SurfaceCommand::Hide); }
+    pub fn hide(&self) {
+        let _ = self.sender.send(SurfaceCommand::Hide);
+    }
     pub fn show_loading(&self, title: String, episode_title: Option<String>) {
-        let _ = self.sender.send(SurfaceCommand::ShowLoading { title, episode_title });
+        let _ = self.sender.send(SurfaceCommand::ShowLoading {
+            title,
+            episode_title,
+        });
     }
     pub fn set_title(&self, title: String, episode_title: Option<String>) {
-        let _ = self.sender.send(SurfaceCommand::SetTitle { title, episode_title });
+        let _ = self.sender.send(SurfaceCommand::SetTitle {
+            title,
+            episode_title,
+        });
     }
     pub fn set_artwork(
         &self,
@@ -233,7 +269,10 @@ impl NativePlayerSurface {
         logo: Option<(Vec<u8>, i32, i32)>,
     ) {
         let _ = self.sender.send(SurfaceCommand::SetArtwork {
-            title, episode_title, background, logo,
+            title,
+            episode_title,
+            background,
+            logo,
         });
     }
 }
@@ -249,17 +288,15 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
         .ok_or_else(|| "main window not found".to_string())?;
 
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    let ns_view: Id = match window
-        .window_handle()
-        .map_err(|e| e.to_string())?
-        .as_ref()
-    {
+    let ns_view: Id = match window.window_handle().map_err(|e| e.to_string())?.as_ref() {
         RawWindowHandle::AppKit(h) => h.ns_view.as_ptr() as Id,
         _ => return Err("unexpected window handle type on macOS".to_string()),
     };
 
     // Get the initial window size via Tauri (avoids NSRect stret).
-    let init_size = window.inner_size().unwrap_or(tauri::PhysicalSize::new(1280, 720));
+    let init_size = window
+        .inner_size()
+        .unwrap_or(tauri::PhysicalSize::new(1280, 720));
     let init_w = init_size.width.max(2) as i32;
     let init_h = init_size.height.max(2) as i32;
 
@@ -275,11 +312,8 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
 
     extern "C" fn create_on_main(ctx: *mut c_void) {
         unsafe {
-            let (parent, w, h, tx_addr) =
-                *Box::from_raw(ctx as *mut (SendId, f64, f64, usize));
-            let tx = Box::from_raw(
-                tx_addr as *mut mpsc::Sender<Result<SendId, String>>,
-            );
+            let (parent, w, h, tx_addr) = *Box::from_raw(ctx as *mut (SendId, f64, f64, usize));
+            let tx = Box::from_raw(tx_addr as *mut mpsc::Sender<Result<SendId, String>>);
             let result = create_render_subview(parent, w, h);
             let _ = tx.send(result);
         }
@@ -379,23 +413,27 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                             let _ = r.command_string("stop");
                         }
                     }
-                    SurfaceCommand::ShowLoading { title, episode_title } => {
+                    SurfaceCommand::ShowLoading {
+                        title,
+                        episode_title,
+                    } => {
                         let _ = app.emit(
                             "native-player-title",
                             serde_json::json!({ "title": title, "episodeTitle": episode_title }),
                         );
                     }
-                    SurfaceCommand::SetTitle { title, episode_title } => {
+                    SurfaceCommand::SetTitle {
+                        title,
+                        episode_title,
+                    } => {
                         let _ = app.emit(
                             "native-player-title",
                             serde_json::json!({ "title": title, "episodeTitle": episode_title }),
                         );
                     }
                     SurfaceCommand::SetArtwork { title, .. } => {
-                        let _ = app.emit(
-                            "native-player-title",
-                            serde_json::json!({ "title": title }),
-                        );
+                        let _ =
+                            app.emit("native-player-title", serde_json::json!({ "title": title }));
                     }
                 }
             }
@@ -469,7 +507,10 @@ unsafe fn create_render_subview(parent: SendId, w: f64, h: f64) -> Result<SendId
 
     let frame = NSRect {
         origin: NSPoint { x: 0.0, y: 0.0 },
-        size: NSSize { width: w, height: h },
+        size: NSSize {
+            width: w,
+            height: h,
+        },
     };
     let alloc: Id = msg0(ns_view_cls, "alloc");
     let view: Id = msg_init_with_frame(alloc, frame);
@@ -493,9 +534,12 @@ unsafe fn create_gl_context(render_view: SendId) -> Result<SendId, String> {
     let attribs: [u32; 9] = [
         NSOpenGLPFADoubleBuffer,
         NSOpenGLPFAAccelerated,
-        NSOpenGLPFAColorSize, 32,
-        NSOpenGLPFADepthSize, 24,
-        NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersionLegacy,
+        NSOpenGLPFAColorSize,
+        32,
+        NSOpenGLPFADepthSize,
+        24,
+        NSOpenGLPFAOpenGLProfile,
+        NSOpenGLProfileVersionLegacy,
         0,
     ];
 
@@ -503,9 +547,8 @@ unsafe fn create_gl_context(render_view: SendId) -> Result<SendId, String> {
     let pf_alloc: Id = msg0(pf_cls, "alloc");
     // initWithAttributes: takes a pointer arg, not a struct.
     type InitAttrFn = unsafe extern "C" fn(Id, Id, *const u32) -> Id;
-    let init_attr: InitAttrFn = std::mem::transmute(
-        objc_msgSend as unsafe extern "C" fn(_, _, ...) -> _,
-    );
+    let init_attr: InitAttrFn =
+        std::mem::transmute(objc_msgSend as unsafe extern "C" fn(_, _, ...) -> _);
     let pf: Id = init_attr(pf_alloc, sel("initWithAttributes:"), attribs.as_ptr());
     if pf.is_null() {
         return Err("NSOpenGLPixelFormat init failed (try legacy profile)".to_string());
@@ -538,9 +581,13 @@ fn check_player_events(app: &AppHandle) {
         renderer.as_ref().map(|r| r.status())
     };
     let Some(status) = status else { return };
-    if !status.eof_reached() { return; }
+    if !status.eof_reached() {
+        return;
+    }
     let mut fired = state.eof_next_fired.lock().unwrap();
-    if *fired { return; }
+    if *fired {
+        return;
+    }
     *fired = true;
     drop(fired);
 
@@ -566,11 +613,7 @@ pub fn scale_artwork_cover(
     Some((rgba.into_raw(), target_w as i32, target_h as i32))
 }
 
-pub fn scale_artwork_fit(
-    bytes: Vec<u8>,
-    max_w: u32,
-    max_h: u32,
-) -> Option<(Vec<u8>, i32, i32)> {
+pub fn scale_artwork_fit(bytes: Vec<u8>, max_w: u32, max_h: u32) -> Option<(Vec<u8>, i32, i32)> {
     let img = image::load_from_memory(&bytes).ok()?;
     let resized = img.resize(max_w, max_h, image::imageops::FilterType::Triangle);
     let (rw, rh) = (resized.width(), resized.height());

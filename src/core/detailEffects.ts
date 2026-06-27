@@ -182,14 +182,59 @@ export async function fetchSeasonEpisodes(payload: Record<string, unknown>): Pro
   return values.find((value) => (value as { episodes?: unknown[] })?.episodes?.length) ?? { episodes: [] };
 }
 
+interface OmdbRatings {
+  rottenTomatoes?: string;
+  metascore?: string;
+}
+
+async function fetchOmdbRatings(id: string, apiKey: string): Promise<OmdbRatings | null> {
+  if (!apiKey) return null;
+  const imdbId = id.split(':')[0];
+  if (!/^tt\d+$/i.test(imdbId)) return null;
+  const response = await tryFetchJson(`https://www.omdbapi.com/?i=${encodeURIComponent(imdbId)}&apikey=${apiKey}`) as {
+    Ratings?: { Source?: string; Value?: string }[];
+    Metascore?: string;
+  } | null;
+  if (!response) return null;
+  const rottenTomatoes = response.Ratings?.find((r) => r.Source === 'Rotten Tomatoes')?.Value;
+  const metascore = response.Metascore && response.Metascore !== 'N/A' ? response.Metascore : undefined;
+  if (!rottenTomatoes && !metascore) return null;
+  return { rottenTomatoes, metascore };
+}
+
+interface FanartArtwork {
+  hdLogo?: string;
+  hdBackdrop?: string;
+}
+
+async function fetchFanartArtwork(
+  { contentType, id, language, apiKey }: TmdbRequest,
+  fanartApiKey: string,
+): Promise<FanartArtwork | null> {
+  if (!fanartApiKey || !apiKey || contentType === 'series') return null;
+  const tmdbId = await resolveTmdbId({ contentType, id, language, apiKey });
+  if (!tmdbId) return null;
+  const response = await tryFetchJson(`https://webservice.fanart.tv/v3/movies/${tmdbId}?api_key=${fanartApiKey}`) as {
+    hdmovielogo?: { url?: string }[];
+    moviebackground?: { url?: string }[];
+  } | null;
+  if (!response) return null;
+  const hdLogo = response.hdmovielogo?.[0]?.url;
+  const hdBackdrop = response.moviebackground?.[0]?.url;
+  if (!hdLogo && !hdBackdrop) return null;
+  return { hdLogo, hdBackdrop };
+}
+
 export async function fetchDetailSecondary(payload: Record<string, unknown>): Promise<unknown> {
   const prefs = { ...DEFAULT_APP_PREFS, ...(await loadPrefs()) };
   const contentType = String(payload.contentType ?? payload.type ?? 'movie');
   const id = String(payload.id ?? '');
   const language = prefString(prefs, 'language', String(payload.language ?? 'en'));
   const apiKey = prefString(prefs, 'tmdbApiKey');
+  const omdbApiKey = prefString(prefs, 'omdbApiKey');
+  const fanartApiKey = prefString(prefs, 'fanartApiKey');
 
-  const [similarItems, trailers] = await Promise.all([
+  const [similarItems, trailers, omdbRatings, fanartArtwork] = await Promise.all([
     fetchTmdbSimilarItems({
       contentType,
       id,
@@ -201,12 +246,16 @@ export async function fetchDetailSecondary(payload: Record<string, unknown>): Pr
     prefBool(prefs, 'tmdbTrailersEnabled', true)
       ? fetchTmdbTrailers({ contentType, id, language, apiKey })
       : Promise.resolve([]),
+    fetchOmdbRatings(id, omdbApiKey),
+    fetchFanartArtwork({ contentType, id, language, apiKey }, fanartApiKey),
   ]);
 
   return {
     watchedVideoIds: [],
     similarItems,
     trailers,
+    omdbRatings,
+    fanartArtwork,
   };
 }
 

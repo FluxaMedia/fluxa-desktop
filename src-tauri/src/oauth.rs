@@ -142,7 +142,9 @@ pub async fn trakt_oauth_exchange(code: String) -> Result<String, String> {
     let status = res.status();
     let text = res.text().await.map_err(|e| e.to_string())?;
     if !status.is_success() {
-        return Err(format!("Trakt token exchange failed: HTTP {status}: {text}"));
+        return Err(format!(
+            "Trakt token exchange failed: HTTP {status}: {text}"
+        ));
     }
     Ok(text)
 }
@@ -196,7 +198,9 @@ pub async fn simkl_oauth_exchange(code: String) -> Result<String, String> {
     let status = response.status();
     let text = response.text().await.map_err(|e| e.to_string())?;
     if !status.is_success() {
-        return Err(format!("SIMKL token exchange failed: HTTP {status}: {text}"));
+        return Err(format!(
+            "SIMKL token exchange failed: HTTP {status}: {text}"
+        ));
     }
     Ok(text)
 }

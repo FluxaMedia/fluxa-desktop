@@ -41,17 +41,22 @@ export function traktScrobbleOnClose(
   })().catch(() => undefined);
 }
 
+const SIMKL_SCROBBLE_STOP_PROGRESS_PERCENT = 80;
+
 export function simklScrobbleOnClose(
   profile: UserProfile | null,
   meta: Meta | null,
   episode: Video | null,
   timePosSec: number,
   durationSec: number,
+  onTokenRevoked?: (profile: UserProfile) => void,
 ): void {
   if (!profile?.simklAccessToken || !meta) return;
 
   const isEpisode = meta.type === 'series' && !!episode;
   const token = profile.simklAccessToken;
+  const progressPercent = durationSec > 0 ? (timePosSec / durationSec) * 100 : 0;
+  const action = progressPercent >= SIMKL_SCROBBLE_STOP_PROGRESS_PERCENT ? 'stop' : 'pause';
 
   void (async () => {
     const parsed = await coreParseVideoId(meta.id);
@@ -110,10 +115,13 @@ export function simklScrobbleOnClose(
     );
     if (!body) return;
 
-    await tauriFetch(`https://api.simkl.com/scrobble/stop?${simklQuery}`, {
+    const res = await tauriFetch(`https://api.simkl.com/scrobble/${action}?${simklQuery}`, {
       method: 'POST',
       headers: authHeaders,
       body: JSON.stringify(body),
     });
+    if (res.status === 401 && onTokenRevoked) {
+      onTokenRevoked({ ...profile, simklAccessToken: undefined, simklRefreshToken: undefined });
+    }
   })().catch(() => undefined);
 }

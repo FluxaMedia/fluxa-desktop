@@ -35,7 +35,7 @@ Fluxa connects to any Stremio-compatible addon and turns it into a proper deskto
 
 ## Download
 
-Grab the latest build from [Releases](https://github.com/KhooLy/fluxa-desktop/releases/latest).
+Grab the latest build from [Releases](https://github.com/FluxaMedia/fluxa-desktop/releases/latest).
 
 | Platform | Package |
 | --- | --- |
@@ -48,7 +48,7 @@ Grab the latest build from [Releases](https://github.com/KhooLy/fluxa-desktop/re
 ## Building from source
 
 ```bash
-git clone https://github.com/KhooLy/fluxa-desktop.git
+git clone https://github.com/FluxaMedia/fluxa-desktop.git
 cd fluxa-desktop
 npm install
 npm run tauri dev
@@ -82,13 +82,13 @@ npm run check   # typecheck + cargo check
 - [fluxa-core](https://github.com/KhooLy/fluxa-core) — the shared Rust library powering both
 
 <!-- MARKDOWN LINKS -->
-[contributors-shield]: https://img.shields.io/github/contributors/KhooLy/fluxa-desktop.svg?style=for-the-badge
-[contributors-url]: https://github.com/KhooLy/fluxa-desktop/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/KhooLy/fluxa-desktop.svg?style=for-the-badge
-[forks-url]: https://github.com/KhooLy/fluxa-desktop/network/members
-[stars-shield]: https://img.shields.io/github/stars/KhooLy/fluxa-desktop.svg?style=for-the-badge
-[stars-url]: https://github.com/KhooLy/fluxa-desktop/stargazers
-[releases-shield]: https://img.shields.io/github/v/release/KhooLy/fluxa-desktop.svg?style=for-the-badge
-[releases-url]: https://github.com/KhooLy/fluxa-desktop/releases/latest
-[license-shield]: https://img.shields.io/github/license/KhooLy/fluxa-desktop.svg?style=for-the-badge
-[license-url]: https://github.com/KhooLy/fluxa-desktop/blob/master/LICENSE
+[contributors-shield]: https://img.shields.io/github/contributors/FluxaMedia/fluxa-desktop.svg?style=for-the-badge
+[contributors-url]: https://github.com/FluxaMedia/fluxa-desktop/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/FluxaMedia/fluxa-desktop.svg?style=for-the-badge
+[forks-url]: https://github.com/FluxaMedia/fluxa-desktop/network/members
+[stars-shield]: https://img.shields.io/github/stars/FluxaMedia/fluxa-desktop.svg?style=for-the-badge
+[stars-url]: https://github.com/FluxaMedia/fluxa-desktop/stargazers
+[releases-shield]: https://img.shields.io/github/v/release/FluxaMedia/fluxa-desktop.svg?style=for-the-badge
+[releases-url]: https://github.com/FluxaMedia/fluxa-desktop/releases/latest
+[license-shield]: https://img.shields.io/github/license/FluxaMedia/fluxa-desktop.svg?style=for-the-badge
+[license-url]: https://github.com/FluxaMedia/fluxa-desktop/blob/master/LICENSE

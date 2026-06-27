@@ -15,6 +15,7 @@ export type AppActionType =
   | 'searchRequested'
   | 'settingsChanged'
   | 'syncExternalIntegration'
+  | 'toggleLibraryStatusRequested'
   | 'toggleWatchlistRequested';
 
 export interface AppAction<TPayload extends Record<string, unknown> = Record<string, unknown>> {

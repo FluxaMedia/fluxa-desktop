@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AvatarPreview } from '../screens/ProfileForm';
+import { PinPrompt } from './PinPrompt';
 import type { UserProfile } from '../core/types';
 import { t } from '../i18n';
 
@@ -7,13 +8,14 @@ interface Props {
   profile: UserProfile;
   allProfiles: UserProfile[];
   onSwitchProfile: () => void;
-  onSwitchToProfile: (p: UserProfile) => void;
+  onSwitchToProfile: (p: UserProfile) => void | Promise<void>;
   onOpenSettings: () => void;
   onEditProfile: () => void;
 }
 
 export function ProfileChip({ profile, allProfiles, onSwitchProfile, onSwitchToProfile, onOpenSettings, onEditProfile }: Props) {
   const [open, setOpen] = useState(false);
+  const [pinProfile, setPinProfile] = useState<UserProfile | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,7 +79,9 @@ export function ProfileChip({ profile, allProfiles, onSwitchProfile, onSwitchToP
                 profile={p}
                 active={p.id === profile.id}
                 onClick={() => {
-                  if (p.id !== profile.id) onSwitchToProfile(p);
+                  if (p.id !== profile.id) {
+                    if (p.pinHash) { setPinProfile(p); } else { onSwitchToProfile(p); }
+                  }
                   close();
                 }}
               />
@@ -99,6 +103,18 @@ export function ProfileChip({ profile, allProfiles, onSwitchProfile, onSwitchToP
             />
           </div>
         </div>
+      )}
+
+      {pinProfile && (
+        <PinPrompt
+          profile={pinProfile}
+          onCancel={() => setPinProfile(null)}
+          onSuccess={() => {
+            const target = pinProfile;
+            setPinProfile(null);
+            onSwitchToProfile(target);
+          }}
+        />
       )}
     </div>
   );

@@ -21,6 +21,10 @@ const MPV_RENDER_PARAM_OPENGL_FBO: c_int = 3;
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 const MPV_RENDER_PARAM_FLIP_Y: c_int = 4;
 const MPV_RENDER_PARAM_ICC_PROFILE: c_int = 6;
+#[cfg(target_os = "linux")]
+const MPV_RENDER_PARAM_X11_DISPLAY: c_int = 8;
+#[cfg(target_os = "linux")]
+const MPV_RENDER_PARAM_WL_DISPLAY: c_int = 9;
 const MPV_RENDER_PARAM_SW_SIZE: c_int = 17;
 const MPV_RENDER_PARAM_SW_FORMAT: c_int = 18;
 const MPV_RENDER_PARAM_SW_STRIDE: c_int = 19;
@@ -102,7 +106,8 @@ type MpvFree = unsafe extern "C" fn(*mut c_void);
 type MpvErrorString = unsafe extern "C" fn(c_int) -> *const c_char;
 type MpvRenderContextCreate =
     unsafe extern "C" fn(*mut *mut MpvRenderContext, *mut MpvHandle, *mut MpvRenderParam) -> c_int;
-type MpvRenderContextRender = unsafe extern "C" fn(*mut MpvRenderContext, *mut MpvRenderParam) -> c_int;
+type MpvRenderContextRender =
+    unsafe extern "C" fn(*mut MpvRenderContext, *mut MpvRenderParam) -> c_int;
 type MpvRenderContextReportSwap = unsafe extern "C" fn(*mut MpvRenderContext);
 type MpvRenderContextSetParameter =
     unsafe extern "C" fn(*mut MpvRenderContext, MpvRenderParam) -> c_int;
@@ -336,7 +341,6 @@ impl MpvRenderer {
         // and falls back to software decode silently if none is available.
         renderer.set_option("hwdec", "auto-safe")?;
         renderer.set_option("hwdec-codecs", "all")?;
-
 
         // Needs the *_player_surface.rs render loops to be real vsync-paced, not
         // sleep(16ms)-polled -- otherwise mpv's calibration black-screens for seconds.
@@ -659,14 +663,21 @@ impl MpvRenderer {
         if self.render_context.is_null() {
             return Err("render context not created yet".to_string());
         }
-        let byte_array = MpvByteArray { data: data.as_ptr(), size: data.len() };
+        let byte_array = MpvByteArray {
+            data: data.as_ptr(),
+            size: data.len(),
+        };
         let param = MpvRenderParam {
             param_type: MPV_RENDER_PARAM_ICC_PROFILE,
             data: (&byte_array as *const MpvByteArray) as *mut c_void,
         };
-        let result = unsafe { (self.api.mpv_render_context_set_parameter)(self.render_context, param) };
+        let result =
+            unsafe { (self.api.mpv_render_context_set_parameter)(self.render_context, param) };
         if result < 0 {
-            Err(format!("failed to set ICC profile: {}", self.api.error_string(result)))
+            Err(format!(
+                "failed to set ICC profile: {}",
+                self.api.error_string(result)
+            ))
         } else {
             Ok(())
         }
@@ -704,11 +715,24 @@ impl MpvRenderer {
                         let mut message = self.api.error_string(end_file.error);
                         if !self.log_ring.is_empty() {
                             message.push_str(": ");
-                            message.push_str(&self.log_ring.iter().cloned().collect::<Vec<_>>().join(" / "));
+                            message.push_str(
+                                &self
+                                    .log_ring
+                                    .iter()
+                                    .cloned()
+                                    .collect::<Vec<_>>()
+                                    .join(" / "),
+                            );
                         }
-                        events.push(PlayerEvent::EndFile { eof: false, error: Some(message) });
+                        events.push(PlayerEvent::EndFile {
+                            eof: false,
+                            error: Some(message),
+                        });
                     } else if end_file.reason == MPV_END_FILE_REASON_EOF {
-                        events.push(PlayerEvent::EndFile { eof: true, error: None });
+                        events.push(PlayerEvent::EndFile {
+                            eof: true,
+                            error: None,
+                        });
                     }
                 }
                 _ => {}
@@ -805,6 +829,18 @@ impl MpvRenderer {
         }
     }
 
+    pub fn set_http_headers(&self, headers: &[(String, String)]) -> Result<(), String> {
+        if headers.is_empty() {
+            return self.set_option("http-header-fields", "");
+        }
+        let joined = headers
+            .iter()
+            .map(|(key, value)| format!("{key}: {value}").replace(',', "\\,"))
+            .collect::<Vec<_>>()
+            .join(",");
+        self.set_option("http-header-fields", &joined)
+    }
+
     pub fn apply_options(&self, options: &[(String, String)]) -> Result<(), String> {
         for (name, value) in options {
             if let Err(error) = self.set_option(name, value) {
@@ -850,7 +886,7 @@ impl MpvRenderer {
             get_proc_address: Some(get_gl_proc_address),
             get_proc_address_ctx: ptr::null_mut(),
         };
-        let mut params = [
+        let mut params = vec![
             MpvRenderParam {
                 param_type: MPV_RENDER_PARAM_API_TYPE,
                 data: api_type.as_ptr() as *mut c_void,
@@ -859,11 +895,25 @@ impl MpvRenderer {
                 param_type: MPV_RENDER_PARAM_OPENGL_INIT_PARAMS,
                 data: (&mut init_params as *mut MpvOpenGlInitParams).cast(),
             },
-            MpvRenderParam {
-                param_type: MPV_RENDER_PARAM_INVALID,
-                data: ptr::null_mut(),
-            },
         ];
+        // Without one of these, mpv's gpu-next libmpv render backend has no way to
+        // open a VADisplay, so VAAPI hwdec silently never initializes (falls back to copy).
+        #[cfg(target_os = "linux")]
+        if let Some(display) = wl_display_ptr() {
+            params.push(MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_WL_DISPLAY,
+                data: display,
+            });
+        } else if let Some(display) = x11_display_ptr() {
+            params.push(MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_X11_DISPLAY,
+                data: display,
+            });
+        }
+        params.push(MpvRenderParam {
+            param_type: MPV_RENDER_PARAM_INVALID,
+            data: ptr::null_mut(),
+        });
         let mut context: *mut MpvRenderContext = ptr::null_mut();
         let result = unsafe {
             (self.api.mpv_render_context_create)(&mut context, self.handle, params.as_mut_ptr())
@@ -981,6 +1031,39 @@ pub fn read_gl_pixels_rgba(w: i32, h: i32) -> Option<Vec<u8>> {
 }
 
 #[cfg(target_os = "linux")]
+fn x11_display_ptr() -> Option<*mut c_void> {
+    use gdk::prelude::*;
+    use glib::translate::ToGlibPtr;
+
+    let display = gdk::Display::default()?;
+    let x11_display: gdkx11::X11Display = display.downcast().ok()?;
+    let xdisplay =
+        unsafe { gdkx11::ffi::gdk_x11_display_get_xdisplay(x11_display.to_glib_none().0) };
+    if xdisplay.is_null() {
+        None
+    } else {
+        Some(xdisplay as *mut c_void)
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn wl_display_ptr() -> Option<*mut c_void> {
+    use gdk::prelude::*;
+    use glib::translate::ToGlibPtr;
+
+    let display = gdk::Display::default()?;
+    let wayland_display: gdkwayland::WaylandDisplay = display.downcast().ok()?;
+    let wl_display = unsafe {
+        gdkwayland::ffi::gdk_wayland_display_get_wl_display(wayland_display.to_glib_none().0)
+    };
+    if wl_display.is_null() {
+        None
+    } else {
+        Some(wl_display as *mut c_void)
+    }
+}
+
+#[cfg(target_os = "linux")]
 fn query_draw_fbo() -> c_int {
     let Ok(name) = CString::new("glGetIntegerv") else {
         return 0;
@@ -1052,38 +1135,13 @@ fn load_linux_gl_proc_fn() -> Option<GlProcFn> {
     None
 }
 
-// Windows OpenGL proc address resolution
+// Windows OpenGL proc address resolution — delegates to the ANGLE/EGL loader in
+// windows_egl.rs, since mpv's D3D11VA hwdec needs an ANGLE-backed GLES context
+// (plain WGL has no D3D11 device for hwdec to attach to).
 
 #[cfg(target_os = "windows")]
-static OPENGL32_HANDLE: OnceLock<isize> = OnceLock::new();
-
-#[cfg(target_os = "windows")]
-unsafe extern "C" fn get_gl_proc_address(_ctx: *mut c_void, name: *const c_char) -> *mut c_void {
-    use windows_sys::Win32::Graphics::OpenGL::wglGetProcAddress;
-    use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
-    if name.is_null() {
-        return ptr::null_mut();
-    }
-    // wglGetProcAddress covers extension functions and core GL >= 1.2 on modern drivers.
-    let proc = wglGetProcAddress(name as *const u8);
-    if let Some(f) = proc {
-        let addr = f as usize;
-        // Drivers return 1/2/3/-1 as error sentinels.
-        if addr > 3 && addr != usize::MAX {
-            return addr as *mut c_void;
-        }
-    }
-    // Fallback to opengl32.dll for core GL 1.1 functions (glViewport, glClear, etc.).
-    let module = *OPENGL32_HANDLE.get_or_init(|| {
-        LoadLibraryA(b"opengl32.dll\0".as_ptr()) as isize
-    });
-    if module == 0 {
-        return ptr::null_mut();
-    }
-    match GetProcAddress(module as _, name as *const u8) {
-        Some(f) => f as *mut c_void,
-        None => ptr::null_mut(),
-    }
+unsafe extern "C" fn get_gl_proc_address(ctx: *mut c_void, name: *const c_char) -> *mut c_void {
+    crate::windows_egl::get_gl_proc_address(ctx, name)
 }
 
 // macOS OpenGL proc address resolution
@@ -1098,12 +1156,11 @@ unsafe extern "C" fn get_gl_proc_address(_ctx: *mut c_void, name: *const c_char)
         return ptr::null_mut();
     }
     let handle_addr = *OPENGL_FW_HANDLE.get_or_init(|| {
-        let path = match std::ffi::CString::new(
-            "/System/Library/Frameworks/OpenGL.framework/OpenGL",
-        ) {
-            Ok(s) => s,
-            Err(_) => return 0usize,
-        };
+        let path =
+            match std::ffi::CString::new("/System/Library/Frameworks/OpenGL.framework/OpenGL") {
+                Ok(s) => s,
+                Err(_) => return 0usize,
+            };
         libc::dlopen(path.as_ptr(), libc::RTLD_LAZY | libc::RTLD_GLOBAL) as usize
     });
     if handle_addr == 0 {

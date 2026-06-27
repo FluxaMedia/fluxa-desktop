@@ -129,7 +129,8 @@ mod tests {
     fn tmp_dir() -> PathBuf {
         static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("fluxa-storage-test-{}-{n}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("fluxa-storage-test-{}-{n}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -140,14 +141,20 @@ mod tests {
         let dir = tmp_dir();
         let encrypted = encrypt(&dir, b"{\"token\":\"secret\"}").unwrap();
         assert!(encrypted.starts_with(MAGIC));
-        assert_eq!(decrypt_or_legacy(&dir, &encrypted).unwrap(), "{\"token\":\"secret\"}");
+        assert_eq!(
+            decrypt_or_legacy(&dir, &encrypted).unwrap(),
+            "{\"token\":\"secret\"}"
+        );
     }
 
     #[test]
     fn falls_back_to_legacy_plaintext_without_magic_prefix() {
         let dir = tmp_dir();
         let legacy = b"{\"token\":\"secret\"}".to_vec();
-        assert_eq!(decrypt_or_legacy(&dir, &legacy).unwrap(), "{\"token\":\"secret\"}");
+        assert_eq!(
+            decrypt_or_legacy(&dir, &legacy).unwrap(),
+            "{\"token\":\"secret\"}"
+        );
     }
 
     #[test]

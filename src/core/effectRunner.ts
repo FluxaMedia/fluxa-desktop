@@ -5,6 +5,7 @@ import { readHomeBootstrap } from './homeEffects';
 import { invalidateCalendarCache } from './libraryEffects';
 import {
   applyLibraryCommand,
+  notifyReleasedEpisodes,
   readCalendarMonth,
   readDetailLocalState,
   readLibraryState,
@@ -12,6 +13,8 @@ import {
   writePlaybackProgress,
   writeSettings,
 } from './libraryEffects';
+import { notify } from './notifications';
+import { t } from '../i18n';
 import { fetchAddonManifest, fetchAddonResource, refreshInstalledAddons } from './addonEffects';
 import { fetchCatalogPage, readDiscoverCatalogFilters, runDiscover, runSearch } from './catalogEffects';
 import {
@@ -207,9 +210,11 @@ export async function executeEffect(
         value = await enqueueOfflineDownload(p);
         break;
 
-      // Platform-only side effects (no-ops on desktop)
-      case 'updateCalendarWidget':
       case 'notifyReleasedEpisodes':
+        void notifyReleasedEpisodes(p);
+        value = {};
+        break;
+      case 'updateCalendarWidget':
         value = {};
         break;
       case 'replaceExternalContinueWatching':
@@ -227,10 +232,14 @@ export async function executeEffect(
 
     return { effectId: effect.id, status: 'ok', value };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (effect.type === 'runExternalSync') {
+      void notify(t('notifications.trakt_sync_failed_title'), message);
+    }
     return {
       effectId: effect.id,
       status: 'err',
-      error: err instanceof Error ? err.message : String(err),
+      error: message,
     };
   }
 }

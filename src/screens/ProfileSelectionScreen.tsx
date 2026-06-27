@@ -5,6 +5,7 @@ import type { UserProfile } from '../core/types';
 import { colors } from '../theme';
 import { t } from '../i18n';
 import { ProfileForm, AvatarPreview } from './ProfileForm';
+import { PinPrompt } from '../components/PinPrompt';
 
 interface Props {
   onProfileSelected: (profile: UserProfile) => void;
@@ -15,12 +16,14 @@ export function ProfileSelectionScreen({ onProfileSelected, onProfilesChanged }:
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [mode, setMode] = useState<'select' | 'create' | 'edit'>('select');
   const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null);
+  const [pinProfile, setPinProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     loadProfiles().then(setProfiles);
   }, []);
 
   const handleSelect = async (profile: UserProfile) => {
+    if (profile.pinHash) { setPinProfile(profile); return; }
     await setActiveProfileId(profile.id);
     onProfileSelected(profile);
   };
@@ -94,6 +97,18 @@ export function ProfileSelectionScreen({ onProfileSelected, onProfilesChanged }:
           />
         )}
       </main>
+
+      {pinProfile && (
+        <PinPrompt
+          profile={pinProfile}
+          onCancel={() => setPinProfile(null)}
+          onSuccess={() => {
+            const profile = pinProfile;
+            setPinProfile(null);
+            void (async () => { await setActiveProfileId(profile.id); onProfileSelected(profile); })();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -17,6 +17,24 @@ import { useSeasonWatched } from '../hooks/useSeasonWatched';
 
 void NAV_RAIL_WIDTH; void TOP_BAR_H;
 
+function useOptimisticToggle(authoritative: boolean): [boolean, () => void] {
+  const [override, setOverride] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (override !== null && override === authoritative) setOverride(null);
+  }, [authoritative, override]);
+
+  useEffect(() => {
+    if (override === null) return;
+    const id = setTimeout(() => setOverride(null), 5000);
+    return () => clearTimeout(id);
+  }, [override]);
+
+  const value = override ?? authoritative;
+  const flip = useCallback(() => setOverride((current) => !(current ?? authoritative)), [authoritative]);
+  return [value, flip];
+}
+
 interface Props {
   meta: Meta;
   state: AppState;
@@ -111,7 +129,9 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
 
   const libRaw = state.library.lastWrite as Record<string, unknown> | undefined;
   const watchlist = (libRaw?.watchlist as LibraryItem[] | undefined) ?? [];
-  const isInWatchlist = watchlist.some((item) => item.id === displayMeta.id);
+  const [isInWatchlist, flipWatchlistOverride] = useOptimisticToggle(watchlist.some((item) => item.id === displayMeta.id));
+  const [isDropped, flipDroppedOverride] = useOptimisticToggle(((libRaw?.dropped as LibraryItem[] | undefined) ?? []).some((item) => item.id === displayMeta.id));
+  const [isCompleted, flipCompletedOverride] = useOptimisticToggle(((libRaw?.completed as LibraryItem[] | undefined) ?? []).some((item) => item.id === displayMeta.id));
   const watchedMap = (libRaw?.watched as Record<string, boolean> | undefined) ?? {};
   const progressMap = (libRaw?.progress as Record<string, ProgressEntry> | undefined) ?? {};
 
@@ -153,6 +173,8 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
     [detail.trailers, displayMeta.trailers],
   );
   const similarItems = detail.similarItems ?? [];
+  const omdbRatings = detail.omdbRatings;
+  const fanartArtwork = detail.fanartArtwork;
   const metaEpisodes = displayMeta.videos ?? [];
   const episodes = useMemo(() => metaEpisodes, [metaEpisodes]);
   const fallbackSeasonNumbers = useMemo(
@@ -379,20 +401,32 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
 
           <>
             <div style={{ marginTop: 28, marginBottom: 8 }}>
-              {displayMeta.logo ? (
-                <img src={displayMeta.logo} alt={displayMeta.name} style={S.logo} onError={() => {}} />
+              {fanartArtwork?.hdLogo || displayMeta.logo ? (
+                <img src={fanartArtwork?.hdLogo || displayMeta.logo} alt={displayMeta.name} style={S.logo} onError={() => {}} />
               ) : (
                 <h1 style={S.titleText}>{displayMeta.name}</h1>
               )}
             </div>
 
-            {(metaLine || displayMeta.imdbRating) && (
+            {(metaLine || displayMeta.imdbRating || omdbRatings) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
                 {metaLine && <span style={S.metaLine}>{metaLine}</span>}
                 {displayMeta.imdbRating && (
                   <span style={{ ...S.imdbBadge }}>
                     <span style={S.imdbLogo}>IMDb</span>
                     <span style={S.imdbRating}>{displayMeta.imdbRating}</span>
+                  </span>
+                )}
+                {omdbRatings?.rottenTomatoes && (
+                  <span style={{ ...S.imdbBadge }}>
+                    <span style={S.imdbLogo}>RT</span>
+                    <span style={S.imdbRating}>{omdbRatings.rottenTomatoes}</span>
+                  </span>
+                )}
+                {omdbRatings?.metascore && (
+                  <span style={{ ...S.imdbBadge }}>
+                    <span style={S.imdbLogo}>Metascore</span>
+                    <span style={S.imdbRating}>{omdbRatings.metascore}</span>
                   </span>
                 )}
               </div>
@@ -474,9 +508,32 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
 
           <button
             style={{ ...S.secondaryBtn, background: isInWatchlist ? 'rgba(255,255,255,0.14)' : 'transparent' }}
-            onClick={() => onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: displayMeta }))}
+            onClick={() => {
+              flipWatchlistOverride();
+              onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: displayMeta }));
+            }}
           >
             {isInWatchlist ? t('detail.in_library') : t('detail.add_to_library')}
+          </button>
+
+          <button
+            style={{ ...S.secondaryBtn, background: isCompleted ? 'rgba(255,255,255,0.14)' : 'transparent' }}
+            onClick={() => {
+              flipCompletedOverride();
+              onDispatch(JSON.stringify({ type: 'toggleLibraryStatusRequested', list: 'completed', item: displayMeta }));
+            }}
+          >
+            {isCompleted ? t('library.unmark_completed') : t('library.mark_completed')}
+          </button>
+
+          <button
+            style={{ ...S.secondaryBtn, background: isDropped ? 'rgba(255,255,255,0.14)' : 'transparent' }}
+            onClick={() => {
+              flipDroppedOverride();
+              onDispatch(JSON.stringify({ type: 'toggleLibraryStatusRequested', list: 'dropped', item: displayMeta }));
+            }}
+          >
+            {isDropped ? t('library.unmark_dropped') : t('library.mark_dropped')}
           </button>
 
           <div style={{ flex: 1 }} />

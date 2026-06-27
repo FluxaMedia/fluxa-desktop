@@ -6,6 +6,12 @@
     "core:default",
     "core:window:allow-set-fullscreen",
     "core:window:allow-is-fullscreen",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-outer-size",
+    "core:window:allow-outer-position",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-current-monitor",
     "shell:allow-open",
     {
       "identifier": "http:default",
@@ -17,6 +23,7 @@
     "libmpv:default",
     "updater:default",
     "process:allow-restart",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    "notification:default"
   ]
 }

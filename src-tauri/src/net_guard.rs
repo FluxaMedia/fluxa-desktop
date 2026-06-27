@@ -8,7 +8,8 @@ fn is_blocked_ip(ip: &IpAddr) -> bool {
                 || v4.is_link_local()
                 || v4.is_unspecified()
                 || v4.is_broadcast()
-                || (v4.octets()[0] == 100 && (64..=127).contains(&v4.octets()[1])) // CGNAT 100.64.0.0/10
+                || (v4.octets()[0] == 100 && (64..=127).contains(&v4.octets()[1]))
+            // CGNAT 100.64.0.0/10
         }
         IpAddr::V6(v6) => {
             v6.is_loopback()
@@ -27,7 +28,9 @@ pub async fn ensure_public_host(url_str: &str) -> Result<(), String> {
         "http" | "https" => {}
         other => return Err(format!("unsupported scheme: {other}")),
     }
-    let host = url.host_str().ok_or_else(|| "url has no host".to_string())?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| "url has no host".to_string())?;
     let port = url.port_or_known_default().unwrap_or(80);
     let mut addrs = tokio::net::lookup_host((host, port))
         .await

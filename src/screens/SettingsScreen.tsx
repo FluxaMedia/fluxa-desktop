@@ -155,12 +155,36 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
   }, [engineAddons]);
 
   const setPref = async <K extends keyof Prefs>(key: K, value: Prefs[K]) => {
-    const planned = await coreApplyPreferenceUpdate({ existing: prefs, key, value });
-    const updated = { ...prefs, ...(planned ?? { [key]: value }) };
-    if (key === 'language') setLanguage(String(updated.language));
-    setPrefs(updated as Prefs);
-    await storageWrite('prefs', updated);
-    onDispatch(JSON.stringify({ type: 'settingsChanged', key, value }));
+    const previous = prefs;
+    const optimistic = { ...prefs, [key]: value } as Prefs;
+    if (key === 'language') setLanguage(String(value));
+    setPrefs(optimistic);
+    try {
+      const planned = await coreApplyPreferenceUpdate({ existing: previous, key, value });
+      const updated = { ...previous, ...(planned ?? { [key]: value }) };
+      if (key === 'language') setLanguage(String(updated.language));
+      setPrefs(updated as Prefs);
+      await storageWrite('prefs', updated);
+      onDispatch(JSON.stringify({ type: 'settingsChanged', key, value }));
+      if (
+        key === 'heroFeedToggles'
+        || key === 'homeFeedToggles'
+        || key === 'topTenFeedToggles'
+        || key === 'heroFeedOrder'
+        || key === 'homeFeedOrder'
+        || key === 'showHeroSection'
+      ) {
+        onDispatch(JSON.stringify({
+          type: 'homeLoadRequested',
+          force: true,
+          language: String(updated.language ?? prefs.language),
+          profile: activeProfile ?? null,
+        }));
+      }
+    } catch (e) {
+      if (key === 'language') setLanguage(String(previous.language));
+      setPrefs(previous);
+    }
   };
 
   const handleInstall = async () => {

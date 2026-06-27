@@ -8,6 +8,7 @@ function debugLog(msg: string) {
 import {
   embeddedMpvAddSubtitle,
   embeddedMpvApplyPreferences,
+  embeddedMpvSetHttpHeaders,
   destroyEmbeddedMpv,
   embeddedMpvLoad,
   embeddedMpvHide,
@@ -38,6 +39,7 @@ import {
 } from '../core/playerUtils';
 import type { PlayerDisplayTitle, PlayerArtwork, PlaybackPreparePlan, PlayerSubtitleSource } from '../core/playerUtils';
 import { traktScrobbleOnClose, simklScrobbleOnClose } from '../core/scrobble';
+import { saveProfile } from '../core/profiles';
 import { resolvePlaybackSubtitles } from '../core/subtitles';
 import { persistLastPlaybackSource } from '../core/libraryStorage';
 import type { AppState, Meta, Video, Stream, AddonDescriptor, UserProfile } from '../core/types';
@@ -54,21 +56,28 @@ interface UsePlayerOptions {
   stateRef: React.MutableRefObject<AppState>;
   activeProfile: UserProfile | null;
   updateState: (s: Partial<AppState>) => void;
+  onProfileUpdated?: (profile: UserProfile) => void;
 }
 
 interface UsePlayerResult {
   playerLoadingOverlay: PlayerLoadingOverlayState | null;
   playerTitle: string | undefined;
   playerEpisodeTitle: string | undefined;
+  playerPosterUrl: string | undefined;
+  playerSubtitleUrl: string | undefined;
+  playerStreamHeaders: Record<string, string> | undefined;
   handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number) => Promise<void>;
   closePlayer: () => Promise<void>;
   notifyFirstFrame: () => void;
 }
 
-export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOptions): UsePlayerResult {
+export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdated }: UsePlayerOptions): UsePlayerResult {
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
   const [playerTitle, setPlayerTitle] = useState<string | undefined>();
   const [playerEpisodeTitle, setPlayerEpisodeTitle] = useState<string | undefined>();
+  const [playerPosterUrl, setPlayerPosterUrl] = useState<string | undefined>();
+  const [playerSubtitleUrl, setPlayerSubtitleUrl] = useState<string | undefined>();
+  const [playerStreamHeaders, setPlayerStreamHeaders] = useState<Record<string, string> | undefined>();
   const [playerUsesTorrent, setPlayerUsesTorrent] = useState(false);
   const [playerLoadingOverlay, setPlayerLoadingOverlay] = useState<PlayerLoadingOverlayState | null>(null);
 
@@ -92,6 +101,9 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
   const abortPlayerLoading = useCallback(async () => {
     setPlayerUrl(null);
     setPlayerTitle(undefined);
+    setPlayerPosterUrl(undefined);
+    setPlayerSubtitleUrl(undefined);
+    setPlayerStreamHeaders(undefined);
     setPlayerUsesTorrent(false);
     setPlayerLoadingOverlay(null);
     inNativePlayerRef.current = false;
@@ -115,19 +127,6 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
         title: title.contentTitle,
         episodeLine: title.episodeLine,
       });
-      void (async () => {
-        if (isCancelled()) return;
-        if (!mpvInitializedRef.current) {
-          try {
-            debugLog('showPlayerLoading:initEmbeddedMpv start');
-            await initEmbeddedMpv();
-            debugLog('showPlayerLoading:initEmbeddedMpv ok');
-            if (!isCancelled()) mpvInitializedRef.current = true;
-          } catch (err) {
-            debugLog(`showPlayerLoading:initEmbeddedMpv FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
-          }
-        }
-      })();
       return Promise.resolve();
     }
 
@@ -143,12 +142,6 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
       if (isCancelled()) return;
       await embeddedMpvShowLoading(title.contentTitle, title.episodeLine);
     })();
-    void ready.then(async () => {
-      if (!mpvInitializedRef.current && !isCancelled()) {
-        await initEmbeddedMpv();
-        mpvInitializedRef.current = true;
-      }
-    }).catch(() => undefined);
     return ready;
   }, []);
 
@@ -161,6 +154,7 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
     artworkPromise: Promise<unknown> | undefined,
     resumeAtSeconds?: number,
     totalDurationSeconds?: number,
+    httpHeaders?: Record<string, string>,
   ) => {
     const isCancelled = () => playGenerationRef.current !== generation;
     if (isCancelled()) return;
@@ -196,9 +190,12 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
       await Promise.race([artworkPromise, new Promise<void>((r) => setTimeout(r, 2000))]);
       if (isCancelled()) return;
     }
+    await embeddedMpvSetHttpHeaders(httpHeaders).catch(() => undefined);
     await embeddedMpvLoad(url, resumeAtSeconds, totalDurationSeconds);
     const subtitles = await subtitlesPromise.catch(() => [] as PlayerSubtitleSource[]);
     if (isCancelled()) return;
+    const castableSubtitle = subtitles.find((s) => /^https?:\/\//i.test(s.url));
+    setPlayerSubtitleUrl(castableSubtitle?.url);
     await Promise.all(
       subtitles.map((subtitle) =>
         embeddedMpvAddSubtitle(subtitle.url, subtitle.label, subtitle.lang).catch(() => undefined),
@@ -216,6 +213,9 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
     const shouldStopTorrent = playerUsesTorrentRef.current;
     setPlayerUrl(null);
     setPlayerTitle(undefined);
+    setPlayerPosterUrl(undefined);
+    setPlayerSubtitleUrl(undefined);
+    setPlayerStreamHeaders(undefined);
     setPlayerUsesTorrent(false);
     setPlayerLoadingOverlay(null);
     inNativePlayerRef.current = false;
@@ -233,7 +233,10 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
         const duration = parseFloat(status.duration ?? '0');
         if (timePos > 30 && duration > 0) {
           traktScrobbleOnClose(activeProfileRef.current, captureMeta, captureEpisode, timePos, duration);
-          simklScrobbleOnClose(activeProfileRef.current, captureMeta, captureEpisode, timePos, duration);
+          simklScrobbleOnClose(activeProfileRef.current, captureMeta, captureEpisode, timePos, duration, (revoked) => {
+            void saveProfile(revoked);
+            onProfileUpdated?.(revoked);
+          });
           try {
             const closePrefs = appPrefs(stateRef.current);
             const watchedThreshold = (Number(prefString(closePrefs, 'watchedThresholdPercent', '90')) || 90) / 100;
@@ -345,6 +348,8 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
 
     const earlyTitle = playerDisplayTitle(meta, episode, stream);
     const earlyArtwork = playerArtwork(meta, episode);
+    setPlayerPosterUrl(earlyArtwork.background ?? meta?.poster);
+    setPlayerStreamHeaders(stream.behaviorHints?.proxyHeaders);
     artworkPrefetchRef.current = prefetchPlayerArtwork(earlyArtwork.background, earlyArtwork.logo).catch(() => undefined);
     let loadingArtworkPromise = showPlayerLoading(generation, earlyTitle, earlyArtwork);
 
@@ -417,7 +422,7 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
         const localUrl = await startTorrentStream(JSON.stringify(stream), title.contentTitle, appPrefs(stateRef.current));
         debugLog(`handlePlay:torrent stream started localUrl=${localUrl?.slice(0, 80)}`);
         if (isCancelled()) return;
-        await playInEmbeddedMpv(generation, localUrl, title, true, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration);
+        await playInEmbeddedMpv(generation, localUrl, title, true, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, undefined);
         debugLog('handlePlay:playInEmbeddedMpv (torrent) resolved');
       } catch (err) {
         debugLog(`handlePlay:torrent path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
@@ -428,7 +433,7 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
     } else {
       try {
         debugLog('handlePlay:calling playInEmbeddedMpv');
-        await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration);
+        await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, stream.behaviorHints?.proxyHeaders);
         debugLog('handlePlay:playInEmbeddedMpv resolved');
       } catch (err) {
         debugLog(`handlePlay:direct path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
@@ -527,5 +532,5 @@ export function usePlayer({ stateRef, activeProfile, updateState }: UsePlayerOpt
     setPlayerLoadingOverlay(null);
   }, []);
 
-  return { playerLoadingOverlay, playerTitle, playerEpisodeTitle, handlePlay, closePlayer, notifyFirstFrame };
+  return { playerLoadingOverlay, playerTitle, playerEpisodeTitle, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame };
 }

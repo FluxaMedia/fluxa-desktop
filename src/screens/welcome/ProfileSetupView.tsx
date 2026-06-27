@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { t } from '../../i18n';
 import { createProfileObject, saveProfile, setActiveProfileId } from '../../core/profiles';
+import type { UserProfile } from '../../core/types';
 import { S } from './styles';
 import { TopBar, Field } from './fields';
 
 interface ProfileSetupViewProps {
   onBack: () => void;
-  onDone: () => void;
+  onDone: (profile: UserProfile) => Promise<void>;
 }
 
 export function ProfileSetupView({ onBack, onDone }: ProfileSetupViewProps) {
@@ -19,7 +20,7 @@ export function ProfileSetupView({ onBack, onDone }: ProfileSetupViewProps) {
     const profile = createProfileObject(name.trim() || t('auth.profile.default_name'), '#FFFFFF');
     await saveProfile(profile);
     await setActiveProfileId(profile.id);
-    onDone();
+    await onDone(profile);
   };
 
   return (

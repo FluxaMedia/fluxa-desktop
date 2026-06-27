@@ -27,10 +27,14 @@ import { useNuvioConnectivity } from './hooks/useNuvioConnectivity';
 import { setActiveProfileId, createProfileObject, saveProfile, loadProfiles } from './core/profiles';
 import { invalidateLibraryKeyCache } from './core/libraryOps';
 import { storageWrite, storageRead } from './core/engine';
+import { watchWindowGeometry } from './core/windowGeometry';
+import { notify } from './core/notifications';
+import { setLanguage, t } from './i18n';
 import { dispatchAction } from './core/engine';
 import { prefetchPlayerArtwork } from './core/mpvPlayer';
 import { pumpEffects } from './core/effectRunner';
 import { appPrefs, prefBool, prefString } from './core/appPrefs';
+import { setRpdbApiKey } from './core/rpdb';
 import { playerArtwork } from './core/playerUtils';
 import { readStoredPlaybackSource } from './core/libraryStorage';
 import { mergeAppState } from './core/mergeState';
@@ -72,6 +76,7 @@ export default function App() {
   const [detailResumeAt, setDetailResumeAt] = useState<number | undefined>(undefined);
   const [discoverInitialGenre, setDiscoverInitialGenre] = useState<string | null>(null);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [searchFocusSignal, setSearchFocusSignal] = useState(0);
   const [nativePlayerActive, setNativePlayerActive] = useState(false);
   const [p2pDialog, setP2PDialog] = useState<{ mode: 'first-time' | 'disabled'; pendingPlay: () => void } | null>(null);
   const storedPrefsRef = useRef<Record<string, unknown>>({});
@@ -121,6 +126,17 @@ export default function App() {
     return () => { cancelled = true; unlisteners.forEach((fn) => fn()); };
   }, []);
 
+  useEffect(() => {
+    const unlisten = listen<{ title?: string; status: string }>('download-progress', (e) => {
+      if (e.payload.status === 'downloaded') {
+        void notify(t('notifications.download_complete_title'), e.payload.title);
+      } else if (e.payload.status === 'failed') {
+        void notify(t('notifications.download_failed_title'), e.payload.title);
+      }
+    });
+    return () => { void unlisten.then((fn) => fn()); };
+  }, []);
+
   const {
     ready,
     profilesChecked,
@@ -134,13 +150,14 @@ export default function App() {
     setWelcomeCompleted,
   } = useAppInit(updateState, setActiveRoute, storedPrefsRef);
 
-  const { playerLoadingOverlay, playerTitle, playerEpisodeTitle, handlePlay, closePlayer, notifyFirstFrame } = usePlayer({
+  const { playerLoadingOverlay, playerTitle, playerEpisodeTitle, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame } = usePlayer({
     stateRef,
     activeProfile,
     updateState,
+    onProfileUpdated: setActiveProfile,
   });
 
-  const { serverDown, justRecovered, dismissed, dismiss } = useNuvioConnectivity(activeProfile);
+  useEffect(() => watchWindowGeometry(), []);
 
   const guardedPlay = useCallback(async (
     stream: Stream,
@@ -188,6 +205,25 @@ export default function App() {
     setDetailMeta(null);
   }, [activeRoute]);
 
+  useEffect(() => {
+    const shortcutRoutes: Record<string, NavRoute> = { '1': 'home', '2': 'library', '3': 'discover', '4': 'calendar', '5': 'settings' };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (nativePlayerActive) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === '/') {
+        e.preventDefault();
+        setSearchFocusSignal((n) => n + 1);
+        return;
+      }
+      const route = shortcutRoutes[e.key];
+      if (route) navigateRoute(route);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [nativePlayerActive, navigateRoute]);
+
   const dispatch = useCallback(async (actionJson: string) => {
     const result = await dispatchAction(actionJson);
     if (!result) return;
@@ -203,6 +239,31 @@ export default function App() {
       await pumpEffects(result.effects, updateStateDeferred).catch(() => undefined);
     }
   }, [updateState, updateStateDeferred]);
+
+  const applyStoredPrefs = useCallback(async () => {
+    const freshPrefs = (await storageRead<Record<string, unknown>>('prefs')) ?? {};
+    storedPrefsRef.current = freshPrefs;
+    setLanguage(typeof freshPrefs.language === 'string' ? freshPrefs.language : null);
+    setRpdbApiKey(prefString(freshPrefs, 'rpdbApiKey', ''));
+    void invoke('discord_presence_configure', { enabled: prefBool(freshPrefs, 'discordRichPresenceEnabled', true) });
+    updateState({ settings: { values: freshPrefs } });
+  }, [updateState]);
+
+  const activeProfileId = activeProfile?.id;
+  const handleNuvioSynced = useCallback(async () => {
+    invalidateLibraryKeyCache();
+    const profiles = await loadProfiles();
+    setAllProfiles(profiles);
+    if (activeProfileId) {
+      const freshActiveProfile = profiles.find((p) => p.id === activeProfileId);
+      if (freshActiveProfile) setActiveProfile(freshActiveProfile);
+    }
+    await applyStoredPrefs();
+    void dispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false }));
+    void dispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
+  }, [activeProfileId, applyStoredPrefs, dispatch, setAllProfiles, setActiveProfile]);
+
+  const { serverDown, justRecovered, dismissed, dismiss } = useNuvioConnectivity(activeProfile, handleNuvioSynced);
 
   const handleNavigateDetail = useCallback((meta: Meta) => {
     setDetailInitialEpisode(null);
@@ -280,8 +341,13 @@ export default function App() {
     return (
       <React.Suspense fallback={null}>
       <WelcomeScreen
-        onGetStarted={async () => {
+        onProfileCreated={async (profile) => {
           await storageWrite('welcome_done', true);
+          const profiles = await loadProfiles();
+          invalidateLibraryKeyCache();
+          setAllProfiles(profiles);
+          setActiveProfile(profile);
+          void dispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false }));
           setWelcomeCompleted(true);
         }}
         onContinueLocal={async () => {
@@ -300,6 +366,7 @@ export default function App() {
           const profiles = await loadProfiles();
           setAllProfiles(profiles);
           setActiveProfile(profile);
+          await applyStoredPrefs();
           await dispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false }));
           void dispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
           setWelcomeCompleted(true);
@@ -389,13 +456,21 @@ export default function App() {
             query={globalSearchQuery}
             onSearch={(query) => { setGlobalSearchQuery(query); navigateRoute('search'); }}
             onBack={leaveSearch}
+            focusSignal={searchFocusSignal}
           />
           <div style={{ pointerEvents: 'auto', flexShrink: 0 }}>
             <ProfileChip
               profile={activeProfile}
               allProfiles={allProfiles}
               onSwitchProfile={() => setActiveProfile(null)}
-              onSwitchToProfile={async (p) => { await setActiveProfileId(p.id); invalidateLibraryKeyCache(); setState(DEFAULT_STATE); setActiveProfile(p); void dispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false })); }}
+              onSwitchToProfile={async (p) => {
+                await setActiveProfileId(p.id);
+                invalidateLibraryKeyCache();
+                setState(DEFAULT_STATE);
+                setActiveProfile(p);
+                void dispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false }));
+                void dispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
+              }}
               onOpenSettings={() => navigateRoute('settings')}
               onEditProfile={() => setEditProfileOpen(true)}
             />
@@ -518,6 +593,9 @@ export default function App() {
             onFirstFrame={notifyFirstFrame}
             initialTitle={playerTitle}
             initialEpisodeTitle={playerEpisodeTitle}
+            initialPosterUrl={playerPosterUrl}
+            initialSubtitleUrl={playerSubtitleUrl}
+            initialStreamHeaders={playerStreamHeaders}
             bannerOffset={bannerOffset}
           />
         </ErrorBoundary>

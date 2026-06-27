@@ -6,9 +6,10 @@ interface Props {
   query: string;
   onSearch: (query: string) => void;
   onBack?: () => void;
+  focusSignal?: number;
 }
 
-export function GlobalSearchBar({ query, onSearch, onBack }: Props) {
+export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -16,6 +17,10 @@ export function GlobalSearchBar({ query, onSearch, onBack }: Props) {
   useEffect(() => {
     setInputValue(query);
   }, [query]);
+
+  useEffect(() => {
+    if (focusSignal) open();
+  }, [focusSignal]);
 
   const open = () => {
     setExpanded(true);

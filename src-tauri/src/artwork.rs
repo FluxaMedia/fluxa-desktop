@@ -24,7 +24,8 @@ pub fn artwork_bg_decoded() -> &'static Mutex<HashMap<String, (Vec<u8>, i32, i32
 }
 
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
-static ARTWORK_LOGO_DECODED: OnceLock<Mutex<HashMap<String, (Vec<u8>, i32, i32)>>> = OnceLock::new();
+static ARTWORK_LOGO_DECODED: OnceLock<Mutex<HashMap<String, (Vec<u8>, i32, i32)>>> =
+    OnceLock::new();
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 pub fn artwork_logo_decoded() -> &'static Mutex<HashMap<String, (Vec<u8>, i32, i32)>> {
     ARTWORK_LOGO_DECODED.get_or_init(|| Mutex::new(HashMap::new()))
@@ -55,7 +56,9 @@ pub async fn fetch_player_artwork_bytes(url: Option<&str>) -> Option<Vec<u8>> {
         }
     }
 
-    crate::net_guard::ensure_public_host(&normalized).await.ok()?;
+    crate::net_guard::ensure_public_host(&normalized)
+        .await
+        .ok()?;
     let response = artwork_http_client().get(&normalized).send().await.ok()?;
     if !response.status().is_success() {
         return None;
@@ -83,7 +86,11 @@ pub async fn fetch_player_artwork_bytes_owned(url: Option<String>) -> Option<Vec
 }
 
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
-pub fn scale_artwork_cover(bytes: Vec<u8>, target_w: u32, target_h: u32) -> Option<(Vec<u8>, i32, i32)> {
+pub fn scale_artwork_cover(
+    bytes: Vec<u8>,
+    target_w: u32,
+    target_h: u32,
+) -> Option<(Vec<u8>, i32, i32)> {
     let img = image::load_from_memory(&bytes).ok()?;
     let filled = img.resize_to_fill(target_w, target_h, image::imageops::FilterType::Triangle);
     let rgba = filled.to_rgba8();

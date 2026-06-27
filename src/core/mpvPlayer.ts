@@ -54,6 +54,10 @@ export async function embeddedMpvApplyPreferences(preferences: Record<string, un
   await invoke('player_apply_preferences', { preferences });
 }
 
+export async function embeddedMpvSetHttpHeaders(headers: Record<string, string> | undefined): Promise<void> {
+  await invoke('player_set_http_headers', { headers: headers ?? {} });
+}
+
 export async function embeddedMpvSetTitle(title?: string, episodeTitle?: string): Promise<void> {
   if (!title) return;
   await invoke('player_set_title', { title, episodeTitle });

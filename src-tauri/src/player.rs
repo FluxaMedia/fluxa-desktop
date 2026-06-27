@@ -1,6 +1,5 @@
 use crate::artwork::{
-    artwork_bg_decoded, artwork_logo_decoded,
-    fetch_player_artwork_bytes_owned, normalize_url,
+    artwork_bg_decoded, artwork_logo_decoded, fetch_player_artwork_bytes_owned, normalize_url,
     scale_artwork_cover, scale_artwork_fit,
 };
 use crate::mpv_render;
@@ -8,14 +7,15 @@ use crate::DesktopState;
 use fluxa_core::FluxaCore;
 use serde_json::{json, Value};
 use std::sync::atomic::Ordering;
-use tauri::{AppHandle, State};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[cfg(target_os = "linux")]
 use crate::linux_player_surface;
-#[cfg(target_os = "windows")]
-use crate::windows_player_surface;
 #[cfg(target_os = "macos")]
 use crate::macos_player_surface;
+#[cfg(target_os = "windows")]
+use crate::windows_player_surface;
 
 #[cfg(target_os = "linux")]
 pub fn ensure_native_player_surface(
@@ -236,22 +236,80 @@ fn language_list(values: &[Option<&str>]) -> String {
         .join(",")
 }
 
-#[tauri::command]
-pub fn player_init(app: AppHandle, state: State<DesktopState>) -> Result<(), String> {
-    log::info!("player_init: start");
-    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
-    let _ = ensure_native_player_surface(&app, &state);
-
-    let mut renderer = state.player_renderer.lock().unwrap();
-    if renderer.is_none() {
-        match mpv_render::MpvRenderer::new() {
-            Ok(r) => *renderer = Some(r),
-            Err(error) => {
-                log::error!("player_init: MpvRenderer::new failed: {error}");
-                return Err(error);
+fn with_renderer_retry<T, F>(
+    state: &DesktopState,
+    attempts: usize,
+    f: F,
+) -> Result<Option<T>, String>
+where
+    F: Fn(&mpv_render::MpvRenderer) -> Result<T, String>,
+{
+    for _ in 0..attempts {
+        if let Ok(guard) = state.player_renderer.try_lock() {
+            if let Some(renderer) = guard.as_ref() {
+                return f(renderer).map(Some);
             }
+            return Ok(None);
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    Err("player renderer busy".to_string())
+}
+
+#[tauri::command]
+pub async fn player_init(app: AppHandle, state: State<'_, DesktopState>) -> Result<(), String> {
+    log::info!("player_init: start");
+    state.pending_hide.store(false, Ordering::Release);
+
+    #[cfg(target_os = "windows")]
+    {
+        let app_clone = app.clone();
+        let native_ready = tauri::async_runtime::spawn_blocking(move || {
+            let state = app_clone.state::<DesktopState>();
+            ensure_native_player_surface(&app_clone, &state).is_some()
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+        if native_ready {
+            log::info!("player_init: ok (Windows native surface)");
+            return Ok(());
+        }
+        return Err("Windows native player surface is unavailable; check bundled mpv/ANGLE DLLs and GPU driver support".to_string());
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        let app_clone = app.clone();
+        let native_ready = tauri::async_runtime::spawn_blocking(move || {
+            let state = app_clone.state::<DesktopState>();
+            ensure_native_player_surface(&app_clone, &state).is_some()
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+        if native_ready {
+            log::info!("player_init: ok (native surface)");
+            return Ok(());
         }
     }
+
+    let app_for_headless = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app_for_headless.state::<DesktopState>();
+        let mut renderer = state.player_renderer.lock().unwrap();
+        if renderer.is_none() {
+            match mpv_render::MpvRenderer::new() {
+                Ok(r) => *renderer = Some(r),
+                Err(error) => {
+                    log::error!("player_init: MpvRenderer::new failed: {error}");
+                    return Err(error);
+                }
+            }
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
     log::info!("player_init: ok");
     Ok(())
 }
@@ -267,12 +325,22 @@ pub fn player_load(
     log::info!("player_load: url={url} start_at={start_at:?} total_duration={total_duration:?}");
     *state.thumb_url.lock().unwrap() = Some(url.clone());
 
-    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
         if let Some(surface) = ensure_native_player_surface(&app, &state) {
             return surface.load(url, start_at, total_duration);
         }
-        log::warn!("player_load: no native player surface available, falling back to headless renderer");
+        return Err("Windows native player surface is unavailable; check bundled mpv/ANGLE DLLs and GPU driver support".to_string());
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        if let Some(surface) = ensure_native_player_surface(&app, &state) {
+            return surface.load(url, start_at, total_duration);
+        }
+        log::warn!(
+            "player_load: no native player surface available, falling back to headless renderer"
+        );
     }
 
     let _ = app;
@@ -287,6 +355,23 @@ pub fn player_load(
 }
 
 #[tauri::command]
+pub fn player_set_http_headers(
+    state: State<DesktopState>,
+    headers: std::collections::HashMap<String, String>,
+) -> Result<(), String> {
+    if headers.is_empty() {
+        return Ok(());
+    }
+    let header_list = headers.into_iter().collect::<Vec<_>>();
+    match with_renderer_retry(&state, 80, |renderer| {
+        renderer.set_http_headers(&header_list)
+    }) {
+        Ok(Some(())) => Ok(()),
+        Ok(None) | Err(_) => Ok(()),
+    }
+}
+
+#[tauri::command]
 pub fn player_apply_preferences(
     state: State<DesktopState>,
     preferences: serde_json::Value,
@@ -295,13 +380,10 @@ pub fn player_apply_preferences(
     if options.is_empty() {
         return Ok(());
     }
-    state
-        .player_renderer
-        .lock()
-        .unwrap()
-        .as_ref()
-        .ok_or_else(|| "player renderer is not initialized".to_string())?
-        .apply_options(&options)
+    match with_renderer_retry(&state, 80, |renderer| renderer.apply_options(&options)) {
+        Ok(Some(())) => Ok(()),
+        Ok(None) | Err(_) => Ok(()),
+    }
 }
 
 #[tauri::command]
@@ -322,20 +404,39 @@ pub async fn player_set_loading_artwork(
 ) -> Result<(), String> {
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     let (background_scaled, logo_scaled) = {
-        let bg_cached = background_url.as_deref()
-            .and_then(|u| artwork_bg_decoded().lock().ok()?.get(&normalize_url(u)).cloned());
-        let logo_cached = logo_url.as_deref()
-            .and_then(|u| artwork_logo_decoded().lock().ok()?.get(&normalize_url(u)).cloned());
+        let bg_cached = background_url.as_deref().and_then(|u| {
+            artwork_bg_decoded()
+                .lock()
+                .ok()?
+                .get(&normalize_url(u))
+                .cloned()
+        });
+        let logo_cached = logo_url.as_deref().and_then(|u| {
+            artwork_logo_decoded()
+                .lock()
+                .ok()?
+                .get(&normalize_url(u))
+                .cloned()
+        });
 
         let bg_ready = bg_cached.is_some() || background_url.is_none();
         let logo_ready = logo_cached.is_some() || logo_url.is_none();
         if bg_ready && logo_ready {
             (bg_cached, logo_cached)
         } else {
-            let bg_fetch = if bg_cached.is_none() { background_url.clone() } else { None };
-            let logo_fetch = if logo_cached.is_none() { logo_url.clone() } else { None };
+            let bg_fetch = if bg_cached.is_none() {
+                background_url.clone()
+            } else {
+                None
+            };
+            let logo_fetch = if logo_cached.is_none() {
+                logo_url.clone()
+            } else {
+                None
+            };
             let bg_handle = tauri::async_runtime::spawn(fetch_player_artwork_bytes_owned(bg_fetch));
-            let logo_handle = tauri::async_runtime::spawn(fetch_player_artwork_bytes_owned(logo_fetch));
+            let logo_handle =
+                tauri::async_runtime::spawn(fetch_player_artwork_bytes_owned(logo_fetch));
             let background_bytes = bg_handle.await.unwrap_or(None);
             let logo_bytes = logo_handle.await.unwrap_or(None);
 
@@ -357,7 +458,9 @@ pub async fn player_set_loading_artwork(
             for _ in 0..6 {
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
                 surface = state.native_player_surface.lock().unwrap().clone();
-                if surface.is_some() { break; }
+                if surface.is_some() {
+                    break;
+                }
             }
         }
         if let Some(surface) = surface {
@@ -405,13 +508,13 @@ pub fn player_add_subtitle(
     title: Option<String>,
     language: Option<String>,
 ) -> Result<(), String> {
-    state
-        .player_renderer
-        .lock()
-        .unwrap()
-        .as_ref()
-        .ok_or_else(|| "player renderer is not initialized".to_string())?
-        .add_subtitle(&url, title.as_deref(), language.as_deref())
+    match with_renderer_retry(&state, 80, |renderer| {
+        renderer.add_subtitle(&url, title.as_deref(), language.as_deref())
+    }) {
+        Ok(Some(())) => Ok(()),
+        Ok(None) => Err("player renderer is not initialized".to_string()),
+        Err(e) => Err(e),
+    }
 }
 
 #[tauri::command]
@@ -432,11 +535,55 @@ pub fn player_command(state: State<DesktopState>, command: String) -> Result<(),
     if command == "stop" {
         *state.eof_next_fired.lock().unwrap() = true;
     }
+    match with_renderer_retry(&state, 60, |renderer| renderer.command_string(&command)) {
+        Ok(Some(())) => Ok(()),
+        Ok(None) => Err("player renderer is not initialized".to_string()),
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub fn player_screenshot(
+    state: State<DesktopState>,
+    suggested_name: String,
+) -> Result<String, String> {
+    let base_dir = state
+        .download_dir
+        .lock()
+        .unwrap()
+        .clone()
+        .or_else(|| state.data_dir.lock().unwrap().clone())
+        .ok_or_else(|| "no writable directory available".to_string())?;
+    let screenshots_dir = base_dir.join("Screenshots");
+    std::fs::create_dir_all(&screenshots_dir).map_err(|e| e.to_string())?;
+
+    let safe_name: String = suggested_name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let path = screenshots_dir.join(format!("{safe_name}_{timestamp}.png"));
+    let path_str = path
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+
     let renderer = state.player_renderer.lock().unwrap();
     renderer
         .as_ref()
         .ok_or_else(|| "player renderer is not initialized".to_string())?
-        .command_string(&command)
+        .command_string(&format!("screenshot-to-file \"{path_str}\" video"))?;
+
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -447,11 +594,14 @@ pub fn player_show_loading(
     episode_title: Option<String>,
 ) {
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
-    {
-        if let Some(surface) = ensure_native_player_surface(&app, &state) {
-            surface.show_loading(title, episode_title);
-        }
+    if let Some(surface) = state.native_player_surface.lock().unwrap().as_ref() {
+        surface.show_loading(title, episode_title);
+        return;
     }
+    let _ = app.emit(
+        "native-player-title",
+        serde_json::json!({ "title": title, "episodeTitle": episode_title }),
+    );
 }
 
 #[tauri::command]
@@ -500,7 +650,10 @@ pub fn player_get_playback_info(state: State<DesktopState>) -> serde_json::Value
 }
 
 #[tauri::command]
-pub fn player_track_options(state: State<DesktopState>, track_type: String) -> Vec<mpv_render::PlayerTrackOption> {
+pub fn player_track_options(
+    state: State<DesktopState>,
+    track_type: String,
+) -> Vec<mpv_render::PlayerTrackOption> {
     state
         .player_renderer
         .try_lock()
@@ -591,13 +744,21 @@ pub fn player_set_seek_thumbnail_enabled(state: State<DesktopState>, enabled: bo
 }
 
 #[tauri::command]
-pub fn player_get_seek_thumbnail(state: State<DesktopState>, time_pos: f64) -> Result<String, String> {
+pub fn player_get_seek_thumbnail(
+    state: State<DesktopState>,
+    time_pos: f64,
+) -> Result<String, String> {
     use base64::{engine::general_purpose, Engine as _};
 
     if !*state.seek_thumbnail_enabled.lock().unwrap() {
         return Ok(String::new());
     }
-    let url = state.thumb_url.lock().unwrap().clone().ok_or_else(|| "no url".to_string())?;
+    let url = state
+        .thumb_url
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "no url".to_string())?;
 
     let mut renderer_guard = state.thumbnail_renderer.lock().unwrap();
     let mut loaded_url_guard = state.thumbnail_loaded_url.lock().unwrap();
@@ -634,8 +795,14 @@ pub fn player_get_seek_thumbnail(state: State<DesktopState>, time_pos: f64) -> R
         .ok_or_else(|| "frame buffer mismatch".to_string())?;
     let rgb = image::DynamicImage::ImageRgba8(img).to_rgb8();
     let mut jpeg: Vec<u8> = Vec::new();
-    rgb.write_to(&mut std::io::Cursor::new(&mut jpeg), image::ImageFormat::Jpeg)
-        .map_err(|e| e.to_string())?;
+    rgb.write_to(
+        &mut std::io::Cursor::new(&mut jpeg),
+        image::ImageFormat::Jpeg,
+    )
+    .map_err(|e| e.to_string())?;
 
-    Ok(format!("data:image/jpeg;base64,{}", general_purpose::STANDARD.encode(&jpeg)))
+    Ok(format!(
+        "data:image/jpeg;base64,{}",
+        general_purpose::STANDARD.encode(&jpeg)
+    ))
 }

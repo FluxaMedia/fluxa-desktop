@@ -54,6 +54,16 @@ export async function deleteProfile(id: string): Promise<UserProfile[]> {
   return profiles;
 }
 
+export async function hashPin(pin: string): Promise<string> {
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
+  return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function verifyPin(profile: UserProfile, pin: string): Promise<boolean> {
+  if (!profile.pinHash) return true;
+  return (await hashPin(pin)) === profile.pinHash;
+}
+
 export function profileInitials(profile: UserProfile): string {
   const name = profile.name ?? profile.email ?? '?';
   return name

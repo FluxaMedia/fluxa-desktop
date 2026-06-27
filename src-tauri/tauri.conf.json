@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": ["deb", "rpm", "appimage", "nsis", "dmg"],
+    "createUpdaterArtifacts": true,
     "windows": {
       "nsis": {
         "installMode": "both"
@@ -41,7 +42,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkwMTE2RTg4MzgwRTJDRjcKUldUM0xBNDRpRzRSa0dobkJZZlN5LzdWWi9GR1h2UTVqMXV5cHBGS1JZYmJiTXZ6NCtmU1BIb1MK",
       "endpoints": [
-        "https://github.com/KhooLy/fluxa-desktop/releases/latest/download/latest.json"
+        "https://github.com/FluxaMedia/fluxa-desktop/releases/latest/download/latest.json"
       ]
     },
     "deep-link": {

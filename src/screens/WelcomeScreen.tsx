@@ -8,7 +8,7 @@ import { ProfileSetupView } from './welcome/ProfileSetupView';
 import { S } from './welcome/styles';
 
 interface Props {
-  onGetStarted: () => void;
+  onProfileCreated: (profile: UserProfile) => Promise<void>;
   onContinueLocal: () => Promise<void>;
   onNuvioLogin: (profile: UserProfile) => void;
 }
@@ -16,7 +16,7 @@ interface Props {
 type View = 'welcome' | 'auth' | 'nuvio' | 'nuvio-import' | 'profile-setup';
 type AuthTab = 'login' | 'signup';
 
-export function WelcomeScreen({ onGetStarted, onContinueLocal, onNuvioLogin }: Props) {
+export function WelcomeScreen({ onProfileCreated, onContinueLocal, onNuvioLogin }: Props) {
   const [view, setView] = useState<View>('welcome');
   const [tab, setTab] = useState<AuthTab>('login');
   const [localLoading, setLocalLoading] = useState(false);
@@ -33,7 +33,7 @@ export function WelcomeScreen({ onGetStarted, onContinueLocal, onNuvioLogin }: P
         tab={tab}
         onTabChange={setTab}
         onBack={() => setView('welcome')}
-        onSubmit={onGetStarted}
+        onSubmit={() => setView('profile-setup')}
         onNuvioClick={() => setView('nuvio')}
         onContinueLocal={handleContinueLocal}
         localLoading={localLoading}
@@ -65,7 +65,7 @@ export function WelcomeScreen({ onGetStarted, onContinueLocal, onNuvioLogin }: P
     return (
       <ProfileSetupView
         onBack={() => setView('auth')}
-        onDone={onGetStarted}
+        onDone={onProfileCreated}
       />
     );
   }

@@ -1,42 +1,48 @@
-// Windows native player surface — libmpv OpenGL render API via WGL.
+// Windows native player surface — libmpv OpenGL render API via ANGLE/EGL.
 //
 // Architecture mirrors linux_player_surface.rs:
 //   • A child HWND (CS_OWNDC, no message loop needed) is created inside the
 //     Tauri window and placed at HWND_BOTTOM so it sits behind WebView2.
-//   • A dedicated render thread owns the WGL context and calls
-//     mpv_render_context_render every 16 ms, then SwapBuffers.
+//   • A dedicated render thread owns the ANGLE/EGL context (see windows_egl.rs)
+//     and calls mpv_render_context_render every 16 ms, then eglSwapBuffers.
 //   • A status-polling loop detects EOF / errors and emits Tauri events so
 //     the frontend can act identically to the Linux code path.
 //   • Player controls live in the WebView overlay (transparent background CSS).
 
+use crate::windows_egl::{self, EglContext};
 use crate::DesktopState;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use windows_sys::Win32::Foundation::{FALSE, HWND, RECT};
-use windows_sys::Win32::Graphics::Dwm::{DwmEnableBlurBehindWindow, DWM_BB_ENABLE, DWM_BB_BLURREGION, DWM_BLURBEHIND};
-use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetDC};
-use windows_sys::Win32::Graphics::OpenGL::{
-    ChoosePixelFormat, SetPixelFormat, SwapBuffers, PIXELFORMATDESCRIPTOR,
-    PFD_DOUBLEBUFFER, PFD_DRAW_TO_WINDOW, PFD_MAIN_PLANE, PFD_SUPPORT_OPENGL, PFD_TYPE_RGBA,
-    wglCreateContext, wglDeleteContext, wglGetProcAddress, wglMakeCurrent,
+use windows_sys::Win32::Graphics::Dwm::{
+    DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND,
 };
 use windows_sys::Win32::Graphics::Gdi::HDC;
+use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetDC};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::ColorSystem::GetICMProfileW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetClientRect, PeekMessageW,
-    RegisterClassExW, SetWindowPos, ShowWindow, TranslateMessage,
-    CS_HREDRAW, CS_OWNDC, CS_VREDRAW, HWND_BOTTOM, MSG, PM_REMOVE, SW_HIDE, SW_SHOW,
-    SWP_NOACTIVATE, WNDCLASSEXW, WS_CHILD, WS_CLIPCHILDREN,
+    RegisterClassExW, SetWindowPos, ShowWindow, TranslateMessage, CS_HREDRAW, CS_OWNDC, CS_VREDRAW,
+    HWND_BOTTOM, MSG, PM_REMOVE, SWP_NOACTIVATE, SW_HIDE, SW_SHOW, WNDCLASSEXW, WS_CHILD,
+    WS_CLIPCHILDREN,
 };
 
-
 unsafe fn set_window_blur_behind(hwnd: HWND, enable: bool) {
-    let region = if enable { CreateRectRgn(0, 0, -1, -1) } else { 0 };
+    let region = if enable {
+        CreateRectRgn(0, 0, -1, -1)
+    } else {
+        0
+    };
     let bb = DWM_BLURBEHIND {
-        dwFlags: if enable { DWM_BB_ENABLE | DWM_BB_BLURREGION } else { DWM_BB_ENABLE },
+        dwFlags: if enable {
+            DWM_BB_ENABLE | DWM_BB_BLURREGION
+        } else {
+            DWM_BB_ENABLE
+        },
         fEnable: if enable { 1 } else { 0 },
         hRgnBlur: region,
         fTransitionOnMaximized: 0,
@@ -47,41 +53,17 @@ unsafe fn set_window_blur_behind(hwnd: HWND, enable: bool) {
     }
 }
 
-unsafe fn create_modern_gl_context(hdc: HDC) -> Option<isize> {
-    let name = b"wglCreateContextAttribsARB\0";
-    let proc = wglGetProcAddress(name.as_ptr())?;
-    type CreateContextAttribsArb = unsafe extern "system" fn(HDC, isize, *const i32) -> isize;
-    let create: CreateContextAttribsArb = std::mem::transmute(proc);
-
-    const WGL_CONTEXT_MAJOR_VERSION_ARB: i32 = 0x2091;
-    const WGL_CONTEXT_MINOR_VERSION_ARB: i32 = 0x2092;
-    const WGL_CONTEXT_FLAGS_ARB: i32 = 0x2094;
-    const WGL_CONTEXT_PROFILE_MASK_ARB: i32 = 0x9126;
-    const WGL_CONTEXT_CORE_PROFILE_BIT_ARB: i32 = 0x0001;
-
-    let mut attribs = [
-        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-        WGL_CONTEXT_MINOR_VERSION_ARB, 0,
-        WGL_CONTEXT_FLAGS_ARB, 0,
-        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-        0,
-    ];
-    let mut ctx = create(hdc, 0, attribs.as_ptr());
-    if ctx == 0 {
-        attribs[6] = 0;
-        attribs[7] = 0;
-        ctx = create(hdc, 0, attribs.as_ptr());
-    }
-    if ctx == 0 { None } else { Some(ctx) }
+fn schedule_parent_blur(app: &AppHandle, parent_hwnd: HWND, enable: bool) {
+    let app = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        unsafe { set_window_blur_behind(parent_hwnd, enable) };
+    });
 }
 
-unsafe fn enable_vsync() -> bool {
-    let name = b"wglSwapIntervalEXT\0";
-    let Some(proc) = wglGetProcAddress(name.as_ptr()) else {
-        return false;
-    };
-    let set_swap_interval: extern "system" fn(i32) -> i32 = std::mem::transmute(proc);
-    set_swap_interval(1) != FALSE
+fn main_window_client_size(app: &AppHandle) -> Option<(i32, i32)> {
+    app.get_webview_window("main")
+        .and_then(|w| w.inner_size().ok())
+        .map(|s| (s.width.max(2) as i32, s.height.max(2) as i32))
 }
 
 fn query_icm_profile(hdc: HDC) -> Option<Vec<u8>> {
@@ -101,10 +83,20 @@ fn query_icm_profile(hdc: HDC) -> Option<Vec<u8>> {
 }
 
 enum SurfaceCommand {
-    Load { url: String, start_at: Option<u64>, total_duration: Option<u64> },
+    Load {
+        url: String,
+        start_at: Option<u64>,
+        total_duration: Option<u64>,
+    },
     Hide,
-    ShowLoading { title: String, episode_title: Option<String> },
-    SetTitle { title: String, episode_title: Option<String> },
+    ShowLoading {
+        title: String,
+        episode_title: Option<String>,
+    },
+    SetTitle {
+        title: String,
+        episode_title: Option<String>,
+    },
     SetArtwork {
         title: String,
         episode_title: Option<String>,
@@ -119,22 +111,34 @@ pub struct NativePlayerSurface {
 }
 
 impl NativePlayerSurface {
-    pub fn load(&self, url: String, start_at: Option<u64>, total_duration: Option<u64>) -> Result<(), String> {
+    pub fn load(
+        &self,
+        url: String,
+        start_at: Option<u64>,
+        total_duration: Option<u64>,
+    ) -> Result<(), String> {
         self.sender
-            .send(SurfaceCommand::Load { url, start_at, total_duration })
+            .send(SurfaceCommand::Load {
+                url,
+                start_at,
+                total_duration,
+            })
             .map_err(|e| format!("surface unavailable: {e}"))
     }
     pub fn hide(&self) {
         let _ = self.sender.send(SurfaceCommand::Hide);
     }
     pub fn show_loading(&self, title: String, episode_title: Option<String>) {
-        let _ = self
-            .sender
-            .send(SurfaceCommand::ShowLoading { title, episode_title });
+        let _ = self.sender.send(SurfaceCommand::ShowLoading {
+            title,
+            episode_title,
+        });
     }
     pub fn set_title(&self, title: String, episode_title: Option<String>) {
-        let _ = self.sender
-            .send(SurfaceCommand::SetTitle { title, episode_title });
+        let _ = self.sender.send(SurfaceCommand::SetTitle {
+            title,
+            episode_title,
+        });
     }
     pub fn set_artwork(
         &self,
@@ -160,6 +164,10 @@ enum InstallSlot {
 
 static INSTALL: Mutex<InstallSlot> = Mutex::new(InstallSlot::NotStarted);
 
+fn reset_install_slot() {
+    *INSTALL.lock().unwrap() = InstallSlot::NotStarted;
+}
+
 pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
     let mut slot = INSTALL.lock().unwrap();
     let rx = match std::mem::replace(&mut *slot, InstallSlot::NotStarted) {
@@ -176,7 +184,10 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
     };
     match rx.recv_timeout(Duration::from_secs(20)) {
         Ok(result) => {
-            *slot = InstallSlot::Done(result.clone());
+            *slot = match &result {
+                Ok(_) => InstallSlot::Done(result.clone()),
+                Err(_) => InstallSlot::NotStarted,
+            };
             result
         }
         Err(RecvTimeoutError::Timeout) => {
@@ -184,12 +195,16 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             Err("Windows player surface setup timed out".to_string())
         }
         Err(RecvTimeoutError::Disconnected) => {
+            *slot = InstallSlot::NotStarted;
             Err("Windows player surface install thread exited unexpectedly".to_string())
         }
     }
 }
 
-fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<NativePlayerSurface, String>>) {
+fn spawn_install_thread(
+    app_handle: AppHandle,
+    setup_tx: mpsc::Sender<Result<NativePlayerSurface, String>>,
+) {
     let (sender, receiver) = mpsc::channel::<SurfaceCommand>();
 
     let window = match app_handle.get_webview_window("main") {
@@ -265,71 +280,34 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
 
         // Place the child window behind WebView2 in Z-order.
         unsafe {
-            SetWindowPos(child_hwnd, HWND_BOTTOM, 0, 0, init_w, init_h, SWP_NOACTIVATE);
+            SetWindowPos(
+                child_hwnd,
+                HWND_BOTTOM,
+                0,
+                0,
+                init_w,
+                init_h,
+                SWP_NOACTIVATE,
+            );
         }
 
-        // WGL context setup
-        let hdc = unsafe { GetDC(child_hwnd) };
-        if hdc == 0 {
-            log::error!("player surface: GetDC failed");
-            let _ = setup_tx.send(Err("GetDC failed".to_string()));
-            return;
-        }
-
-        let mut pfd: PIXELFORMATDESCRIPTOR = unsafe { std::mem::zeroed() };
-        pfd.nSize = std::mem::size_of::<PIXELFORMATDESCRIPTOR>() as u16;
-        pfd.nVersion = 1;
-        pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-        pfd.iPixelType = PFD_TYPE_RGBA;
-        pfd.cColorBits = 24;
-        pfd.cAlphaBits = 8;
-        pfd.iLayerType = PFD_MAIN_PLANE as u8;
-
-        let pf_idx = unsafe { ChoosePixelFormat(hdc, &pfd) };
-        if pf_idx == 0 {
-            log::error!("player surface: ChoosePixelFormat failed");
-            let _ = setup_tx.send(Err("ChoosePixelFormat failed".to_string()));
-            return;
-        }
-        if unsafe { SetPixelFormat(hdc, pf_idx, &pfd) } == FALSE {
-            log::error!("player surface: SetPixelFormat failed");
-            let _ = setup_tx.send(Err("SetPixelFormat failed".to_string()));
-            return;
-        }
-
-        let hglrc = unsafe { wglCreateContext(hdc) };
-        if hglrc == 0 {
-            log::error!("player surface: wglCreateContext failed");
-            let _ = setup_tx.send(Err("wglCreateContext failed".to_string()));
-            return;
-        }
-        if unsafe { wglMakeCurrent(hdc, hglrc) } == FALSE {
-            log::error!("player surface: wglMakeCurrent failed");
-            unsafe { wglDeleteContext(hglrc) };
-            let _ = setup_tx.send(Err("wglMakeCurrent failed".to_string()));
-            return;
-        }
-
-        let hglrc = match unsafe { create_modern_gl_context(hdc) } {
-            Some(modern) if unsafe { wglMakeCurrent(hdc, modern) } != FALSE => {
-                unsafe { wglDeleteContext(hglrc) };
-                log::info!("player surface: upgraded to a modern OpenGL 3.0 context");
-                modern
-            }
-            Some(modern) => {
-                log::warn!("player surface: modern GL context created but wglMakeCurrent failed, keeping legacy context");
-                unsafe { wglDeleteContext(modern) };
-                hglrc
-            }
-            None => {
-                log::warn!("player surface: wglCreateContextAttribsARB unavailable, using legacy GL context");
-                hglrc
+        // ANGLE/EGL context setup (GLES-over-D3D11) — gives mpv's D3D11VA hwdec a
+        // device to attach to, which plain WGL never can.
+        let egl: EglContext = match windows_egl::create_window_context(child_hwnd) {
+            Ok(ctx) => ctx,
+            Err(e) => {
+                log::error!("player surface: ANGLE/EGL context creation failed: {e}");
+                let _ = setup_tx.send(Err(format!("ANGLE/EGL context creation failed: {e}")));
+                return;
             }
         };
 
-        let vsync_enabled = unsafe { enable_vsync() };
+        // Kept around only for GetICMProfileW; not used for GL anymore.
+        let hdc = unsafe { GetDC(child_hwnd) };
+
+        let vsync_enabled = egl.set_swap_interval(1);
         if !vsync_enabled {
-            log::warn!("WGL_EXT_swap_control unavailable; falling back to timer-paced rendering");
+            log::warn!("eglSwapInterval unavailable; falling back to timer-paced rendering");
         }
 
         // mpv renderer init
@@ -344,10 +322,6 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                     }
                     Err(e) => {
                         log::error!("player surface: MpvRenderer::new() failed: {e}");
-                        unsafe {
-                            wglMakeCurrent(0 as _, 0 as _);
-                            wglDeleteContext(hglrc);
-                        }
                         let _ = setup_tx.send(Err(format!("mpv init failed: {e}")));
                         return;
                     }
@@ -356,28 +330,29 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
             if let Some(r) = renderer.as_mut() {
                 if let Err(e) = r.prepare_opengl_context() {
                     log::error!("player surface: prepare_opengl_context() failed: {e}");
-                    unsafe {
-                        wglMakeCurrent(0 as _, 0 as _);
-                        wglDeleteContext(hglrc);
-                    }
                     let _ = setup_tx.send(Err(format!("mpv GL context failed: {e}")));
                     return;
                 }
-                if let Some(icc) = query_icm_profile(hdc) {
-                    if let Err(e) = r.set_icc_profile(&icc) {
-                        log::warn!("failed to set ICC profile: {e}");
+                if hdc != 0 {
+                    if let Some(icc) = query_icm_profile(hdc) {
+                        if let Err(e) = r.set_icc_profile(&icc) {
+                            log::warn!("failed to set ICC profile: {e}");
+                        }
                     }
                 }
             }
         }
 
         log::info!("player surface: setup complete, entering render loop");
-        let _ = setup_tx.send(Ok(NativePlayerSurface { sender: sender.clone() }));
+        let _ = setup_tx.send(Ok(NativePlayerSurface {
+            sender: sender.clone(),
+        }));
 
         // Render + command loop
         let mut visible = false;
         let mut last_size = (init_w, init_h);
         let mut last_render_error: Option<String> = None;
+        let mut consecutive_render_errors = 0u32;
 
         loop {
             unsafe {
@@ -393,8 +368,8 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                 match cmd {
                     SurfaceCommand::Load { url, start_at, .. } => {
                         log::info!("player surface: loading url={url} start_at={start_at:?}");
+                        schedule_parent_blur(&app, parent_hwnd, false);
                         unsafe {
-                            set_window_blur_behind(parent_hwnd, false);
                             ShowWindow(child_hwnd, SW_SHOW);
                         }
                         unsafe {
@@ -424,15 +399,17 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                                 log::info!("player surface: load() command accepted by mpv");
                             }
                         } else {
-                            log::error!("player surface: Load command received but renderer is None");
+                            log::error!(
+                                "player surface: Load command received but renderer is None"
+                            );
                         }
                     }
                     SurfaceCommand::Hide => {
                         visible = false;
                         unsafe {
                             ShowWindow(child_hwnd, SW_HIDE);
-                            set_window_blur_behind(parent_hwnd, true);
                         }
+                        schedule_parent_blur(&app, parent_hwnd, true);
                         let _ = app.emit("native-player-hide", ());
                         let state = app.state::<DesktopState>();
                         let guard = state.player_renderer.lock().unwrap();
@@ -440,7 +417,10 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                             let _ = r.command_string("stop");
                         }
                     }
-                    SurfaceCommand::ShowLoading { title, episode_title } => {
+                    SurfaceCommand::ShowLoading {
+                        title,
+                        episode_title,
+                    } => {
                         // The WebView overlay renders the loading screen; just push the
                         // title so it can show instantly before the file URL is resolved.
                         let _ = app.emit(
@@ -448,7 +428,10 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                             serde_json::json!({ "title": title, "episodeTitle": episode_title }),
                         );
                     }
-                    SurfaceCommand::SetTitle { title, episode_title } => {
+                    SurfaceCommand::SetTitle {
+                        title,
+                        episode_title,
+                    } => {
                         // Emit to the WebView overlay so it can update its UI.
                         let _ = app.emit(
                             "native-player-title",
@@ -456,17 +439,20 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                         );
                     }
                     SurfaceCommand::SetArtwork { title, .. } => {
-                        let _ = app.emit("native-player-title", serde_json::json!({ "title": title }));
+                        let _ =
+                            app.emit("native-player-title", serde_json::json!({ "title": title }));
                     }
                 }
             }
 
             if visible {
-                // Keep child window sized to the Tauri window's client area.
-                let mut r2: RECT = unsafe { std::mem::zeroed() };
-                unsafe { GetClientRect(parent_hwnd, &mut r2) };
-                let nw = (r2.right - r2.left).max(2);
-                let nh = (r2.bottom - r2.top).max(2);
+                let state = app.state::<DesktopState>();
+                if state.pending_hide.load(Ordering::Acquire) {
+                    std::thread::sleep(Duration::from_millis(16));
+                    continue;
+                }
+
+                let (nw, nh) = main_window_client_size(&app).unwrap_or(last_size);
                 if (nw, nh) != last_size {
                     last_size = (nw, nh);
                     log::info!("player surface: resizing render surface to {nw}x{nh}");
@@ -475,31 +461,47 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
                     }
                 }
 
-                // Render frame.
+                egl.poll_resize();
                 {
-                    let state = app.state::<DesktopState>();
-                    let mut renderer = state.player_renderer.lock().unwrap();
+                    let Ok(mut renderer) = state.player_renderer.try_lock() else {
+                        std::thread::sleep(Duration::from_millis(16));
+                        continue;
+                    };
                     if let Some(r) = renderer.as_mut() {
                         if let Err(e) = r.render_opengl_frame(nw, nh) {
+                            consecutive_render_errors = consecutive_render_errors.saturating_add(1);
                             if last_render_error.as_deref() != Some(e.as_str()) {
                                 log::error!("player surface: render_opengl_frame failed: {e}");
-                                last_render_error = Some(e);
+                                last_render_error = Some(e.clone());
+                            }
+                            if consecutive_render_errors >= 30 {
+                                log::error!("player surface: too many render failures; retiring Windows native surface");
+                                visible = false;
+                                unsafe { ShowWindow(child_hwnd, SW_HIDE) };
+                                let _ = app.emit(
+                                    "native-player-error",
+                                    format!("Windows player render failed repeatedly: {e}"),
+                                );
+                                let state = app.state::<DesktopState>();
+                                *state.native_player_surface.lock().unwrap() = None;
+                                reset_install_slot();
+                                let _ = r.command_string("stop");
                             }
                         } else {
                             last_render_error = None;
+                            consecutive_render_errors = 0;
                         }
                     }
                 }
                 let swap_start = std::time::Instant::now();
-                unsafe { SwapBuffers(hdc) };
+                egl.swap_buffers();
                 if !vsync_enabled || swap_start.elapsed() < Duration::from_millis(4) {
                     std::thread::sleep(Duration::from_millis(16));
                 }
-                {
-                    let state = app.state::<DesktopState>();
-                    if let Some(r) = state.player_renderer.lock().unwrap().as_ref() {
+                if let Ok(renderer) = state.player_renderer.try_lock() {
+                    if let Some(r) = renderer.as_ref() {
                         r.report_swap();
-                    };
+                    }
                 }
 
                 check_player_events(&app);
@@ -513,7 +515,9 @@ fn spawn_install_thread(app_handle: AppHandle, setup_tx: mpsc::Sender<Result<Nat
 fn check_player_events(app: &AppHandle) {
     let state = app.state::<DesktopState>();
     let events = {
-        let mut renderer = state.player_renderer.lock().unwrap();
+        let Ok(mut renderer) = state.player_renderer.try_lock() else {
+            return;
+        };
         match renderer.as_mut() {
             Some(r) => r.poll_events(),
             None => return,
@@ -545,7 +549,11 @@ fn check_player_events(app: &AppHandle) {
 // Image scaling helpers — mirrors the Linux versions so artwork decoding works
 // on Windows too.
 
-pub fn scale_artwork_cover(bytes: Vec<u8>, target_w: u32, target_h: u32) -> Option<(Vec<u8>, i32, i32)> {
+pub fn scale_artwork_cover(
+    bytes: Vec<u8>,
+    target_w: u32,
+    target_h: u32,
+) -> Option<(Vec<u8>, i32, i32)> {
     let img = image::load_from_memory(&bytes).ok()?;
     let filled = img.resize_to_fill(target_w, target_h, image::imageops::FilterType::Triangle);
     let rgba = filled.to_rgba8();

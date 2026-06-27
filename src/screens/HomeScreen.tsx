@@ -44,7 +44,6 @@ async function loadFolderItems(folderCategory: HomeCategory): Promise<Meta[]> {
 
 export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, isActive }: Props) {
   const home = state.home;
-  const shelvesScrollRef = React.useRef<HTMLDivElement>(null);
   const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[] } | null>(null);
   const [folderLoading, setFolderLoading] = useState(false);
 
@@ -107,11 +106,6 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     [onDispatch],
   );
 
-  const scrollShelvesFromHero = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (Math.abs(event.deltaY) <= 0) return;
-    shelvesScrollRef.current?.scrollBy({ top: event.deltaY, left: 0 });
-  };
-
   const cwSettingsValues = state.settings?.values as Record<string, unknown> | undefined;
   const cwLayout = String(cwSettingsValues?.resolvedContinueWatchingLayout ?? cwSettingsValues?.continueWatchingLayout ?? 'horizontal');
   const cwArtwork = String(cwSettingsValues?.continueWatchingArtwork ?? 'episode');
@@ -150,59 +144,52 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   return (
     <div style={styles.screen}>
       {billboard && showHero && (
-        <div style={styles.heroLayer} onWheel={scrollShelvesFromHero}>
-          <HeroSection
-            meta={billboard}
-            slides={heroSlides}
-            preferSeasonPosters={prefBool(prefs, 'homeSeasonPostersOnHero', true)}
-            onPlay={onPlay}
-            onDetails={onNavigateDetail}
-            onAddToWatchlist={handleAddToWatchlist}
-            isActive={isActive}
-          />
-        </div>
+        <HeroSection
+          meta={billboard}
+          slides={heroSlides}
+          preferSeasonPosters={prefBool(prefs, 'homeSeasonPostersOnHero', true)}
+          onPlay={onPlay}
+          onDetails={onNavigateDetail}
+          onAddToWatchlist={handleAddToWatchlist}
+          isActive={isActive}
+        />
       )}
 
-      <div ref={shelvesScrollRef} style={styles.shelvesScroll}>
-        {billboard && showHero && <div style={styles.heroSpacer} />}
-
-        <div style={styles.shelves}>
-          <div style={styles.shelfFade} />
-          {showContinueWatching && continueWatching.length > 0 && (
-            <ContinueWatchingRow
-              items={continueWatching}
-              cwLayout={cwLayout}
-              artworkPreference={cwArtwork}
-              remainingFormat={cwRemainingFormat}
-              progressDirection={cwProgressDirection}
-              onItemClick={onResume}
-              onDispatch={onDispatch}
+      <div style={styles.shelves}>
+        {showContinueWatching && continueWatching.length > 0 && (
+          <ContinueWatchingRow
+            items={continueWatching}
+            cwLayout={cwLayout}
+            artworkPreference={cwArtwork}
+            remainingFormat={cwRemainingFormat}
+            progressDirection={cwProgressDirection}
+            onItemClick={onResume}
+            onDispatch={onDispatch}
+          />
+        )}
+        {categories.map((cat) =>
+          cat.type === 'collection' ? (
+            <CollectionShelfRow
+              key={cat.id}
+              title={cat.name}
+              folders={cat.items}
+              onFolderClick={handleFolderTileClick}
+              addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
             />
-          )}
-          {categories.map((cat) =>
-            cat.type === 'collection' ? (
-              <CollectionShelfRow
-                key={cat.id}
-                title={cat.name}
-                folders={cat.items}
-                onFolderClick={handleFolderTileClick}
-                addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
-              />
-            ) : (
-              <ShelfRow
-                key={cat.id}
-                title={formatCatalogTitle(cat.name, cat.type)}
-                items={cat.items}
-                onItemClick={onNavigateDetail}
-                onViewAll={handleViewAll}
-                isLoading={cat.items.length === 0 && !!home.isLoading}
-                posterPrefs={posterPrefs}
-                topTenEnabled={topTenFeedKeys.has(cat.id)}
-                addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
-              />
-            )
-          )}
-        </div>
+          ) : (
+            <ShelfRow
+              key={cat.id}
+              title={formatCatalogTitle(cat.name, cat.type)}
+              items={cat.items}
+              onItemClick={onNavigateDetail}
+              onViewAll={handleViewAll}
+              isLoading={cat.items.length === 0 && !!home.isLoading}
+              posterPrefs={posterPrefs}
+              topTenEnabled={topTenFeedKeys.has(cat.id)}
+              addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
+            />
+          )
+        )}
       </div>
     </div>
   );
@@ -265,55 +252,21 @@ function EmptyHome() {
   );
 }
 
+const HOME_HERO_HEIGHT = 'clamp(600px, 65vh, 860px)';
+
 const styles: Record<string, React.CSSProperties> = {
   screen: {
-    position: 'relative',
-    background: '#040508',
     height: '100%',
-    overflow: 'hidden',
-  },
-  heroLayer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1,
-  },
-  shelvesScroll: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
     overflowY: 'auto',
     overflowX: 'hidden',
-    zIndex: 2,
+    background: '#040508',
     scrollbarWidth: 'none',
-    pointerEvents: 'none',
-    willChange: 'scroll-position',
-  },
-  heroSpacer: {
-    height: 'clamp(600px, 65vh, 860px)',
-    pointerEvents: 'none',
+    ['--hero-height' as string]: HOME_HERO_HEIGHT,
   },
   shelves: {
-    position: 'relative',
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 80,
-    background: 'linear-gradient(to bottom, rgba(4,5,8,0.00) 0px, rgba(4,5,8,0.26) 96px, rgba(4,5,8,0.78) 220px, #040508 390px)',
-    pointerEvents: 'auto',
-  },
-  shelfFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: -380,
-    height: 860,
-    background: 'linear-gradient(to bottom, rgba(4,5,8,0.00) 0%, rgba(4,5,8,0.08) 18%, rgba(4,5,8,0.42) 42%, rgba(4,5,8,0.82) 66%, #040508 90%, #040508 100%)',
-    maskImage: 'linear-gradient(to right, black 0%, black 50%, rgba(0,0,0,0.88) 76%, rgba(0,0,0,0.78) 100%)',
-    WebkitMaskImage: 'linear-gradient(to right, black 0%, black 50%, rgba(0,0,0,0.88) 76%, rgba(0,0,0,0.78) 100%)',
-    pointerEvents: 'none',
-    zIndex: 0,
+    background: '#040508',
   },
   empty: {
     height: '100%',

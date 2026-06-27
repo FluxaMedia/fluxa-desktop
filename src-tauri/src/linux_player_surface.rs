@@ -22,7 +22,6 @@ struct Chapter {
     start_ms: i64,
 }
 
-
 fn read_mpv_chapters(renderer: &crate::mpv_render::MpvRenderer) -> Vec<Chapter> {
     let count: usize = renderer
         .query_property("chapters")
@@ -40,7 +39,10 @@ fn read_mpv_chapters(renderer: &crate::mpv_render::MpvRenderer) -> Vec<Chapter> 
                 .query_property(&format!("chapter-list/{i}/time"))
                 .and_then(|s| s.trim().parse().ok())
                 .unwrap_or(0.0);
-            Some(Chapter { title, start_ms: (start_secs * 1000.0).round() as i64 })
+            Some(Chapter {
+                title,
+                start_ms: (start_secs * 1000.0).round() as i64,
+            })
         })
         .collect()
 }
@@ -58,16 +60,23 @@ fn classify_chapter_skip_type(title: &str) -> Option<&'static str> {
     match t.as_str() {
         "op" | "opening" | "intro" | "introduction" | "op sequence" | "mixed-intro"
         | "opening sequence" | "opening theme" => return Some("intro"),
-        "ed" | "ending" | "outro" | "credits" | "end credits" | "closing"
-        | "ending theme" | "ending sequence" => return Some("outro"),
+        "ed" | "ending" | "outro" | "credits" | "end credits" | "closing" | "ending theme"
+        | "ending sequence" => return Some("outro"),
         "recap" | "previously" | "previously on" | "cold open" => return Some("recap"),
         _ => {}
     }
-    if t.starts_with("op ") || t.starts_with("opening ") || t.contains("intro") || t.contains("opening") {
+    if t.starts_with("op ")
+        || t.starts_with("opening ")
+        || t.contains("intro")
+        || t.contains("opening")
+    {
         return Some("intro");
     }
-    if t.starts_with("ed ") || t.starts_with("ending ") || t.contains("ending")
-        || t.contains("outro") || t.contains("credits")
+    if t.starts_with("ed ")
+        || t.starts_with("ending ")
+        || t.contains("ending")
+        || t.contains("outro")
+        || t.contains("credits")
     {
         return Some("outro");
     }
@@ -100,11 +109,23 @@ fn derive_skip_segments_from_chapters(chapters: &[Chapter]) -> Vec<serde_json::V
 // Surface commands
 
 enum SurfaceCommand {
-    Load { url: String, start_at: Option<u64> },
+    Load {
+        url: String,
+        start_at: Option<u64>,
+    },
     Hide,
-    ShowLoading { title: String, episode_title: Option<String> },
-    SetTitle { title: String, episode_title: Option<String> },
-    SetArtwork { title: String, episode_title: Option<String> },
+    ShowLoading {
+        title: String,
+        episode_title: Option<String>,
+    },
+    SetTitle {
+        title: String,
+        episode_title: Option<String>,
+    },
+    SetArtwork {
+        title: String,
+        episode_title: Option<String>,
+    },
 }
 
 #[derive(Clone)]
@@ -113,7 +134,12 @@ pub struct NativePlayerSurface {
 }
 
 impl NativePlayerSurface {
-    pub fn load(&self, url: String, start_at: Option<u64>, _total_duration: Option<u64>) -> Result<(), String> {
+    pub fn load(
+        &self,
+        url: String,
+        start_at: Option<u64>,
+        _total_duration: Option<u64>,
+    ) -> Result<(), String> {
         self.sender
             .send(SurfaceCommand::Load { url, start_at })
             .map_err(|e| format!("native player surface is not available: {e}"))
@@ -124,11 +150,17 @@ impl NativePlayerSurface {
     }
 
     pub fn show_loading(&self, title: String, episode_title: Option<String>) {
-        let _ = self.sender.send(SurfaceCommand::ShowLoading { title, episode_title });
+        let _ = self.sender.send(SurfaceCommand::ShowLoading {
+            title,
+            episode_title,
+        });
     }
 
     pub fn set_title(&self, title: String, episode_title: Option<String>) {
-        let _ = self.sender.send(SurfaceCommand::SetTitle { title, episode_title });
+        let _ = self.sender.send(SurfaceCommand::SetTitle {
+            title,
+            episode_title,
+        });
     }
 
     pub fn set_artwork(
@@ -138,7 +170,10 @@ impl NativePlayerSurface {
         _background: Option<(Vec<u8>, i32, i32)>,
         _logo: Option<(Vec<u8>, i32, i32)>,
     ) {
-        let _ = self.sender.send(SurfaceCommand::SetArtwork { title, episode_title });
+        let _ = self.sender.send(SurfaceCommand::SetArtwork {
+            title,
+            episode_title,
+        });
     }
 }
 
@@ -437,7 +472,9 @@ fn prepare_and_load(
     }
 
     let state = app_handle.state::<DesktopState>();
-    let mut renderer = state.player_renderer.try_lock()
+    let mut renderer = state
+        .player_renderer
+        .try_lock()
         .map_err(|_| "player renderer busy — load deferred".to_string())?;
     if renderer.is_none() {
         *renderer = Some(crate::mpv_render::MpvRenderer::new()?);
@@ -462,9 +499,8 @@ fn query_x11_icc_profile() -> Option<Vec<u8>> {
 
     let display = gdk::Display::default()?;
     let x11_display: gdkx11::X11Display = display.downcast().ok()?;
-    let xdisplay = unsafe {
-        gdkx11::ffi::gdk_x11_display_get_xdisplay(x11_display.to_glib_none().0)
-    };
+    let xdisplay =
+        unsafe { gdkx11::ffi::gdk_x11_display_get_xdisplay(x11_display.to_glib_none().0) };
     if xdisplay.is_null() {
         return None;
     }
@@ -483,11 +519,17 @@ fn query_x11_icc_profile() -> Option<Vec<u8>> {
         let mut bytes_after: std::os::raw::c_ulong = 0;
         let mut prop: *mut std::os::raw::c_uchar = std::ptr::null_mut();
         let result = xlib::XGetWindowProperty(
-            xdisplay, root, atom,
-            0, i64::MAX / 4, 0,
+            xdisplay,
+            root,
+            atom,
+            0,
+            i64::MAX / 4,
+            0,
             xlib::AnyPropertyType as std::os::raw::c_ulong,
-            &mut actual_type, &mut actual_format,
-            &mut nitems, &mut bytes_after,
+            &mut actual_type,
+            &mut actual_format,
+            &mut nitems,
+            &mut bytes_after,
             &mut prop,
         );
         if result != 0 || prop.is_null() || nitems == 0 {
@@ -502,8 +544,11 @@ fn query_x11_icc_profile() -> Option<Vec<u8>> {
 fn check_player_events(app: &AppHandle) {
     let state = app.state::<DesktopState>();
     let eof = {
-        let Ok(renderer) = state.player_renderer.try_lock() else { return };
-        renderer.as_ref()
+        let Ok(renderer) = state.player_renderer.try_lock() else {
+            return;
+        };
+        renderer
+            .as_ref()
             .map(|r| r.query_property("eof-reached").as_deref() == Some("yes"))
             .unwrap_or(false)
     };

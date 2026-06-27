@@ -48,6 +48,25 @@ jobs:
         shell: bash
         run: ./src-tauri/fetch-libmpv.sh
 
+      # ANGLE (libEGL.dll/libGLESv2.dll) backs mpv's OpenGL render API with a
+      # real D3D11 device on Windows. Without it, D3D11VA hwdec has nothing to
+      # attach to and decode silently falls back to software on every vendor.
+      - name: Cache vcpkg ANGLE build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.VCPKG_INSTALLATION_ROOT }}\installed
+            ${{ env.VCPKG_INSTALLATION_ROOT }}\packages
+          key: vcpkg-angle-x64-windows-v1
+
+      - name: Build ANGLE via vcpkg
+        shell: bash
+        run: |
+          "$VCPKG_INSTALLATION_ROOT/vcpkg" install angle:x64-windows
+          mkdir -p src-tauri/lib
+          cp "$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/libEGL.dll" src-tauri/lib/
+          cp "$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/libGLESv2.dll" src-tauri/lib/
+
       - name: npm install
         run: npm ci
 

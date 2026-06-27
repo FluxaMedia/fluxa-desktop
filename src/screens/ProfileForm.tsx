@@ -3,6 +3,7 @@ import { Camera, ImagePlus } from 'lucide-react';
 import {
   PROFILE_COLORS,
   createProfileObject,
+  hashPin,
   saveProfile,
   setActiveProfileId,
 } from '../core/profiles';
@@ -103,6 +104,8 @@ export function ProfileForm({
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(existing?.avatarUrl);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pin, setPin] = useState('');
+  const [removePin, setRemovePin] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -130,7 +133,8 @@ export function ProfileForm({
       const base: UserProfile = existing
         ? { ...existing, name: name.trim(), color, avatarUrl }
         : createProfileObject(name, color);
-      const profile: UserProfile = { ...base, name: name.trim(), color, avatarUrl };
+      const pinHash = removePin ? undefined : pin.trim().length === 4 ? await hashPin(pin.trim()) : base.pinHash;
+      const profile: UserProfile = { ...base, name: name.trim(), color, avatarUrl, pinHash };
       const updated = await saveProfile(profile);
       if (!existing) {
         await setActiveProfileId(profile.id);
@@ -153,7 +157,8 @@ export function ProfileForm({
     avatarUrl,
   };
 
-  const canSave = Boolean(name.trim()) && !duplicateName && !busy;
+  const pinValid = pin.length === 0 || pin.length === 4;
+  const canSave = Boolean(name.trim()) && !duplicateName && !busy && pinValid;
 
   return (
     <section style={S.formShell}>
@@ -189,6 +194,26 @@ export function ProfileForm({
           <ImagePlus size={16} />
           {t('profiles.choose_image')}
         </button>
+
+        <div>
+          <label style={S.fieldLabel} htmlFor="profile-pin">{t('profiles.pin_lock')}</label>
+          <input
+            id="profile-pin"
+            value={pin}
+            onChange={(e) => { setPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setRemovePin(false); }}
+            placeholder={existing?.pinHash && !removePin ? t('profiles.pin_set_placeholder') : t('profiles.pin_placeholder')}
+            inputMode="numeric"
+            maxLength={4}
+            style={S.input}
+          />
+          {!pinValid && <p style={S.fieldNote}>{t('profiles.pin_invalid')}</p>}
+          {existing?.pinHash && !removePin && (
+            <button style={S.clearImageBtn} onClick={() => { setRemovePin(true); setPin(''); }}>
+              {t('profiles.remove_pin')}
+            </button>
+          )}
+          {removePin && <p style={S.fieldNote}>{t('profiles.pin_will_be_removed')}</p>}
+        </div>
 
         <div style={S.actions}>
           <button onClick={onCancel} style={S.btnSecondary}>{t('common.cancel')}</button>

@@ -10,7 +10,7 @@ import { CategoryGridScreen } from './CategoryGridScreen';
 import { CollectionEditorScreen } from './CollectionEditorScreen';
 import { CollectionsTab } from '../components/library/CollectionsTab';
 
-type Tab = 'watchlist' | 'history' | 'collections';
+type Tab = 'watchlist' | 'watching' | 'completed' | 'dropped' | 'collections';
 
 const NAV_RAIL_WIDTH = 104;
 const PX = 58;
@@ -44,7 +44,17 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   }, []);
 
   const watchlist = (library.lastWrite?.watchlist ?? library.watchlist ?? []) as LibraryItem[];
-  const history = (library.lastWrite?.history ?? library.history ?? []) as LibraryItem[];
+  const watching = (library.lastWrite?.continueWatching ?? library.continueWatching ?? []) as LibraryItem[];
+  const rawCompleted = (library.lastWrite?.completed ?? library.completed ?? []) as LibraryItem[];
+  const rawDropped = (library.lastWrite?.dropped ?? library.dropped ?? []) as LibraryItem[];
+  const completed = useMemo(
+    () => [...rawCompleted].sort((a, b) => (b.statusChangedAt ?? '').localeCompare(a.statusChangedAt ?? '')),
+    [rawCompleted]
+  );
+  const dropped = useMemo(
+    () => [...rawDropped].sort((a, b) => (b.statusChangedAt ?? '').localeCompare(a.statusChangedAt ?? '')),
+    [rawDropped]
+  );
   const posterPrefs = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
   const prefs = useMemo(() => appPrefs(state), [state.settings?.values]);
   const accent = prefString(prefs, 'accentColorArgb', '#FFFFFF');
@@ -126,7 +136,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     );
   }
 
-  const items = tab === 'watchlist' ? watchlist : history;
+  const items = tab === 'watchlist' ? watchlist : tab === 'watching' ? watching : tab === 'completed' ? completed : tab === 'dropped' ? dropped : [];
 
   return (
     <div style={styles.screen}>
@@ -144,10 +154,16 @@ export const LibraryScreen = React.memo(function LibraryScreen({
 
       <div style={styles.tabRow}>
         <TabChip active={tab === 'watchlist'} onClick={() => setTab('watchlist')}>
-          {t('auto.my_list')}{watchlist.length > 0 ? ` (${watchlist.length})` : ''}
+          {t('library.plan_to_watch')}{watchlist.length > 0 ? ` (${watchlist.length})` : ''}
         </TabChip>
-        <TabChip active={tab === 'history'} onClick={() => setTab('history')}>
-          {t('auto.continue_watching')}{history.length > 0 ? ` (${history.length})` : ''}
+        <TabChip active={tab === 'watching'} onClick={() => setTab('watching')}>
+          {t('library.watching')}{watching.length > 0 ? ` (${watching.length})` : ''}
+        </TabChip>
+        <TabChip active={tab === 'completed'} onClick={() => setTab('completed')}>
+          {t('library.completed')}{completed.length > 0 ? ` (${completed.length})` : ''}
+        </TabChip>
+        <TabChip active={tab === 'dropped'} onClick={() => setTab('dropped')}>
+          {t('library.dropped')}{dropped.length > 0 ? ` (${dropped.length})` : ''}
         </TabChip>
         <TabChip active={tab === 'collections'} onClick={() => setTab('collections')}>
           {t('auto.new_collection').replace('New ', '')}{collections.length > 0 ? ` (${collections.length})` : ''}
@@ -169,10 +185,16 @@ export const LibraryScreen = React.memo(function LibraryScreen({
       ) : items.length === 0 ? (
         <div style={styles.empty}>
           <p style={styles.emptyTitle}>
-            {tab === 'watchlist' ? t('library.your_list_empty') : t('library.nothing_to_continue')}
+            {tab === 'watchlist' ? t('library.your_list_empty')
+              : tab === 'watching' ? t('library.nothing_to_continue')
+              : tab === 'completed' ? t('library.nothing_completed')
+              : t('library.nothing_dropped')}
           </p>
           <p style={styles.emptyHint}>
-            {tab === 'watchlist' ? t('library.add_titles_hint') : t('library.start_watching_hint')}
+            {tab === 'watchlist' ? t('library.add_titles_hint')
+              : tab === 'watching' ? t('library.start_watching_hint')
+              : tab === 'completed' ? t('library.completed_hint')
+              : t('library.dropped_hint')}
           </p>
         </div>
       ) : (
@@ -186,7 +208,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
               radius={posterPrefs.radius}
               layout={posterPrefs.layout}
               hideTitle={posterPrefs.hideTitles}
-              onClick={(m) => onNavigateDetail(m)}
+              onClick={onNavigateDetail}
             />
           ))}
         </div>

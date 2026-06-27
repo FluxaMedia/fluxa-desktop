@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { nuvioHealthCheck, nuvioPushWatchProgress, nuvioPushLibrary, nuvioPushWatchHistory } from '../core/nuvioApi';
 import { loadLibrary } from '../core/libraryOps';
+import { importNuvioProfileData } from '../core/nuvioSync';
 import type { UserProfile } from '../core/types';
 
 async function pushLocalToNuvio(profile: UserProfile): Promise<void> {
@@ -60,7 +61,7 @@ async function pushLocalToNuvio(profile: UserProfile): Promise<void> {
   ]);
 }
 
-export function useNuvioConnectivity(activeProfile: UserProfile | null) {
+export function useNuvioConnectivity(activeProfile: UserProfile | null, onSynced?: () => void | Promise<void>) {
   const [serverDown, setServerDown] = useState(false);
   const [justRecovered, setJustRecovered] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -75,6 +76,7 @@ export function useNuvioConnectivity(activeProfile: UserProfile | null) {
     const profile = activeProfile!;
     let cancelled = false;
     let isCurrentlyDown = false;
+    let pulledRemote = false;
     let timer: ReturnType<typeof setTimeout>;
 
     const run = async () => {
@@ -99,7 +101,17 @@ export function useNuvioConnectivity(activeProfile: UserProfile | null) {
         setJustRecovered(true);
         setDismissed(false);
         setTimeout(() => { if (!cancelled) setJustRecovered(false); }, 2000);
-        void pushLocalToNuvio(profile).catch(() => undefined);
+        void (async () => {
+          await importNuvioProfileData(profile).catch(() => undefined);
+          await pushLocalToNuvio(profile).catch(() => undefined);
+          await onSynced?.();
+        })();
+      } else if (!down && !pulledRemote) {
+        pulledRemote = true;
+        void (async () => {
+          await importNuvioProfileData(profile).catch(() => undefined);
+          await onSynced?.();
+        })();
       }
 
       timer = setTimeout(run, isCurrentlyDown ? 30_000 : 60_000);
@@ -111,7 +123,7 @@ export function useNuvioConnectivity(activeProfile: UserProfile | null) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [activeProfile?.nuvioAccessToken, activeProfile?.id]);
+  }, [activeProfile?.nuvioAccessToken, activeProfile?.id, onSynced]);
 
   const dismiss = useCallback(() => setDismissed(true), []);
 

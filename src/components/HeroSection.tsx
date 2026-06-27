@@ -160,7 +160,7 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
 
         {awards && <p style={styles.awards}>{awards}</p>}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24, alignSelf: 'flex-start' }}>
+        <div style={styles.actions}>
           <button style={styles.watchBtn} onClick={() => onPlay?.(activeMeta)}>
             <Play size={13} fill="currentColor" />
             {t('common.play')}
@@ -284,7 +284,7 @@ const styles: Record<string, React.CSSProperties> = {
   hero: {
     position: 'relative',
     width: '100%',
-    height: 'clamp(600px, 65vh, 860px)' as unknown as number,
+    height: 'var(--hero-height, clamp(600px, 65vh, 860px))' as unknown as number,
     overflow: 'hidden',
     flexShrink: 0,
     background: '#040508',
@@ -467,6 +467,13 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: 480,
     fontWeight: 500,
     textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 24,
+    alignSelf: 'flex-start',
   },
   watchBtn: {
     display: 'inline-flex',

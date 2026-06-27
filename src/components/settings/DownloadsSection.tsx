@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { t } from '../../i18n';
 import { ChoiceTile, InputTile, SettingsSection, streamSourceOptions } from './SettingsUI';
@@ -9,9 +10,21 @@ import type { Prefs } from './settingsTypes';
 interface OfflineDownloadItem {
   id: string;
   videoFileName: string;
-  path: string;
-  sizeBytes: number;
+  path?: string;
+  sizeBytes?: number;
+  title?: string;
+  downloadedBytes?: number;
+  totalBytes?: number;
   status: string;
+  error?: string;
+}
+
+interface DownloadProgressEvent {
+  id: string;
+  downloadedBytes: number;
+  totalBytes: number | null;
+  status: string;
+  error: string | null;
 }
 
 function formatBytes(bytes: number): string {
@@ -29,9 +42,52 @@ function TrashIcon() {
   );
 }
 
-function DownloadItemRow({ item, onDelete }: { item: OfflineDownloadItem; onDelete: () => void }) {
+function PauseIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zm8 0h4v14h-4z" /></svg>;
+}
+
+function ResumeIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>;
+}
+
+function ActionBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      style={{
+        background: hovered ? 'rgba(255,255,255,0.10)' : 'transparent',
+        border: 'none',
+        color: hovered ? '#FFFFFF' : 'rgba(255,255,255,0.45)',
+        cursor: 'pointer',
+        padding: 7,
+        borderRadius: 7,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        transition: 'background 0.12s, color 0.12s',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={onClick}
+      aria-label={title}
+      title={title}
+    >
+      {children}
+    </button>
+  );
+}
+
+function DownloadItemRow({ item, onDelete, onPause, onResume }: {
+  item: OfflineDownloadItem;
+  onDelete: () => void;
+  onPause: () => void;
+  onResume: () => void;
+}) {
   const [hovered, setHovered] = useState(false);
   const [deleteHovered, setDeleteHovered] = useState(false);
+  const inProgress = item.status === 'downloading' || item.status === 'paused' || item.status === 'failed';
+  const progressPct = item.totalBytes ? Math.min(100, Math.round(((item.downloadedBytes ?? 0) / item.totalBytes) * 100)) : null;
 
   return (
     <div
@@ -51,10 +107,32 @@ function DownloadItemRow({ item, onDelete }: { item: OfflineDownloadItem; onDele
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ ...styles.rowTitle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {item.videoFileName}
+          {item.title ?? item.videoFileName}
         </p>
-        <p style={styles.rowSubtitle}>{formatBytes(item.sizeBytes)}</p>
+        {inProgress ? (
+          <>
+            <p style={styles.rowSubtitle}>
+              {item.status === 'failed'
+                ? t('downloads.status_failed')
+                : item.status === 'paused'
+                ? t('downloads.status_paused')
+                : t('downloads.status_downloading', progressPct ?? 0)}
+              {item.totalBytes ? ` · ${formatBytes(item.downloadedBytes ?? 0)} / ${formatBytes(item.totalBytes)}` : ''}
+            </p>
+            <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.08)', marginTop: 6, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${progressPct ?? 0}%`, background: 'rgba(255,255,255,0.5)', transition: 'width 0.2s' }} />
+            </div>
+          </>
+        ) : (
+          <p style={styles.rowSubtitle}>{formatBytes(item.sizeBytes ?? 0)}</p>
+        )}
       </div>
+      {item.status === 'downloading' && (
+        <ActionBtn onClick={onPause} title={t('downloads.pause')}><PauseIcon /></ActionBtn>
+      )}
+      {(item.status === 'paused' || item.status === 'failed') && (
+        <ActionBtn onClick={onResume} title={t('downloads.resume')}><ResumeIcon /></ActionBtn>
+      )}
       <button
         style={{
           background: deleteHovered ? 'rgba(255,80,80,0.12)' : 'transparent',
@@ -68,7 +146,7 @@ function DownloadItemRow({ item, onDelete }: { item: OfflineDownloadItem; onDele
           justifyContent: 'center',
           flexShrink: 0,
           transition: 'background 0.12s, color 0.12s',
-          opacity: hovered ? 1 : 0,
+          opacity: hovered || inProgress ? 1 : 0,
         }}
         onMouseEnter={() => setDeleteHovered(true)}
         onMouseLeave={() => setDeleteHovered(false)}
@@ -225,14 +303,43 @@ export function DownloadsSection({ prefs, setPref }: { prefs: Prefs; setPref: <K
 
   useEffect(() => { refreshDownloads(); }, []);
 
+  useEffect(() => {
+    const unlisten = listen<DownloadProgressEvent>('download-progress', (e) => {
+      setDownloads((prev) => {
+        const idx = prev.findIndex((d) => d.id === e.payload.id);
+        if (idx < 0) return prev;
+        const next = [...prev];
+        next[idx] = {
+          ...next[idx],
+          status: e.payload.status,
+          downloadedBytes: e.payload.downloadedBytes,
+          totalBytes: e.payload.totalBytes ?? next[idx].totalBytes,
+          error: e.payload.error ?? undefined,
+        };
+        return next;
+      });
+      if (e.payload.status === 'downloaded') refreshDownloads();
+    });
+    return () => { void unlisten.then((fn) => fn()); };
+  }, []);
+
   const handleDelete = async (item: OfflineDownloadItem) => {
     try {
+      await invoke('cancel_offline_download', { id: item.id });
       await invoke('delete_offline_download', { fileName: item.videoFileName });
       refreshDownloads();
     } catch { /* ignore */ }
   };
 
-  const totalSize = downloads.reduce((acc, d) => acc + d.sizeBytes, 0);
+  const handlePause = async (item: OfflineDownloadItem) => {
+    try { await invoke('pause_offline_download', { id: item.id }); } catch { /* ignore */ }
+  };
+
+  const handleResume = async (item: OfflineDownloadItem) => {
+    try { await invoke('resume_offline_download', { id: item.id }); refreshDownloads(); } catch { /* ignore */ }
+  };
+
+  const totalSize = downloads.reduce((acc, d) => acc + (d.sizeBytes ?? 0), 0);
 
   return (
     <>
@@ -287,7 +394,13 @@ export function DownloadsSection({ prefs, setPref }: { prefs: Prefs; setPref: <K
             </div>
           ) : (
             downloads.map((item) => (
-              <DownloadItemRow key={item.id} item={item} onDelete={() => void handleDelete(item)} />
+              <DownloadItemRow
+                key={item.id}
+                item={item}
+                onDelete={() => void handleDelete(item)}
+                onPause={() => void handlePause(item)}
+                onResume={() => void handleResume(item)}
+              />
             ))
           )}
         </div>

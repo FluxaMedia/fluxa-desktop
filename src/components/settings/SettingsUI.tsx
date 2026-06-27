@@ -458,6 +458,7 @@ export function InputTile({
   placeholder,
   multiline,
   onChange,
+  status,
 }: {
   title: string;
   subtitle: string;
@@ -465,6 +466,7 @@ export function InputTile({
   placeholder?: string;
   multiline?: boolean;
   onChange: (v: string) => void;
+  status?: React.ReactNode;
 }) {
   const inputStyle: React.CSSProperties = {
     width: '100%',
@@ -494,6 +496,7 @@ export function InputTile({
       ) : (
         <input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
       )}
+      {status}
     </div>
   );
 }

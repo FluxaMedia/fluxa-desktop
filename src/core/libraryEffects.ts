@@ -12,6 +12,8 @@ import {
 import { buildContinueWatching, loadActiveProfile, loadAddons, loadLibrary, saveLibrary } from './libraryOps';
 import { pushMarkWatchedExternal, pushWatchlistExternal } from './externalSync';
 import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
+import { notify } from './notifications';
+import { t } from '../i18n';
 import type { LibraryItem } from './types';
 
 const calendarCache = new Map<string, unknown>();
@@ -68,10 +70,59 @@ export async function refreshWatchlistAirDates(): Promise<void> {
   invalidateCalendarCache();
 }
 
+const NOTIFIED_EPISODES_KEY = 'notified_released_episode_ids';
+const NOTIFIED_EPISODES_LIMIT = 500;
+
+export async function notifyReleasedEpisodes(payload: Record<string, unknown>): Promise<void> {
+  const items = (payload.items as Array<Record<string, unknown>> | undefined) ?? [];
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const dueItems = items.filter((item) => (item.dateIso as string | undefined)?.slice(0, 10) === todayIso);
+  if (dueItems.length === 0) return;
+
+  const notifiedIds = new Set((await storageRead<string[]>(NOTIFIED_EPISODES_KEY)) ?? []);
+  const freshItems = dueItems.filter((item) => item.id && !notifiedIds.has(item.id as string));
+  if (freshItems.length === 0) return;
+
+  for (const item of freshItems) {
+    const body = (item.episodeTitle as string | undefined) ?? (item.subtitle as string | undefined);
+    void notify(t('notifications.new_episode_title', item.title as string), body);
+    notifiedIds.add(item.id as string);
+  }
+  const trimmed = [...notifiedIds].slice(-NOTIFIED_EPISODES_LIMIT);
+  await storageWrite(NOTIFIED_EPISODES_KEY, trimmed);
+}
+
 export async function applyLibraryCommand(payload: Record<string, unknown>): Promise<unknown> {
   const lib = await loadLibrary();
-  const command = payload.command as { type: string; item?: unknown; watched?: boolean; videoIds?: string[] } | undefined;
+  const command = payload.command as { type: string; item?: unknown; list?: string; watched?: boolean; videoIds?: string[] } | undefined;
   if (!command) return lib;
+
+  if (command.type === 'toggleLibraryStatus' && command.item && (command.list === 'dropped' || command.list === 'completed')) {
+    const item = command.item as LibraryItem;
+    const list = lib[command.list] as LibraryItem[] | undefined ?? [];
+    const idx = list.findIndex((i) => i.id === item.id);
+    const plan = await coreWatchlistTogglePlan({
+      item: command.item,
+      isCurrentlyInWatchlist: idx >= 0,
+      profileId: payload.profileId,
+    }) as { command?: 'add' | 'remove' } | null;
+    const nextCommand = plan?.command ?? (idx >= 0 ? 'remove' : 'add');
+    const stampedItem = { ...item, statusChangedAt: new Date().toISOString() };
+    lib[command.list] = nextCommand === 'remove' ? list.filter((_, i) => i !== idx) : [stampedItem, ...list];
+    if (nextCommand === 'add') {
+      const watchlist = (lib.watchlist as LibraryItem[] | undefined) ?? [];
+      lib.watchlist = watchlist.filter((i) => i.id !== item.id);
+      const otherList = command.list === 'dropped' ? 'completed' : 'dropped';
+      lib[otherList] = ((lib[otherList] as LibraryItem[] | undefined) ?? []).filter((i) => i.id !== item.id);
+      const progressMap = (lib.progress as Record<string, unknown> | undefined) ?? {};
+      delete progressMap[item.id];
+      lib.progress = progressMap;
+      lib.continueWatching = await buildContinueWatching(progressMap);
+    }
+    await saveLibrary(lib);
+    invalidateCalendarCache();
+    return lib;
+  }
 
   if (command.type === 'toggleWatchlist' && command.item) {
     const item = command.item as { id: string };
@@ -87,6 +138,8 @@ export async function applyLibraryCommand(payload: Record<string, unknown>): Pro
       lib.watchlist = watchlist.filter((_, i) => i !== idx);
     } else {
       lib.watchlist = [command.item as LibraryItem, ...watchlist];
+      lib.dropped = ((lib.dropped as LibraryItem[] | undefined) ?? []).filter((i) => i.id !== item.id);
+      lib.completed = ((lib.completed as LibraryItem[] | undefined) ?? []).filter((i) => i.id !== item.id);
     }
     // Fire-and-forget push to external services
     void loadActiveProfile().then((profile) =>

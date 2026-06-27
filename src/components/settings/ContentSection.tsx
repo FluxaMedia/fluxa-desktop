@@ -58,11 +58,13 @@ function FeedToggleList({
 
   const toggleFeed = async (key: string, enabled: boolean) => {
     let next: string[] | null = null;
+    const toggleBase = selected.length === 0 ? effective : selected;
     if (maxEnabled) {
-      next = await coreToggleMetadataFeedLimited(selected, availableKeys, key, maxEnabled);
+      next = await coreToggleMetadataFeedLimited(toggleBase, availableKeys, key, maxEnabled);
     } else {
-      const base = await coreEffectiveMetadataFeedSelection(selected, availableKeys);
-      const effectiveSelection = base ?? effective;
+      const effectiveSelection = selected.length === 0
+        ? effective
+        : ((await coreEffectiveMetadataFeedSelection(selected, availableKeys)) ?? effective);
       next = enabled
         ? [...new Set([...effectiveSelection, key])].filter((value) => availableKeys.includes(value))
         : effectiveSelection.filter((value) => value !== key);

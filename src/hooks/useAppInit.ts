@@ -5,6 +5,8 @@ import { getActiveProfileId, loadProfiles } from '../core/profiles';
 import { pumpEffects, syncExternalIntegrationNow } from '../core/effectRunner';
 import { setLanguage } from '../i18n';
 import { prefBool, prefString } from '../core/appPrefs';
+import { setRpdbApiKey } from '../core/rpdb';
+import { restoreWindowGeometry } from '../core/windowGeometry';
 import { startUpdateCheck, type UpdateState } from '../components/UpdateModal';
 import type { AppState, UserProfile } from '../core/types';
 import type { NavRoute } from '../components/NavSidebar';
@@ -66,11 +68,14 @@ const syncTasks: Promise<unknown>[] = [];
   useEffect(() => {
     (async () => {
       try {
+        void restoreWindowGeometry();
         await initEngine('{}');
         const snap = await getSnapshot();
         const prefs = (await storageRead<Record<string, unknown>>('prefs')) ?? {};
         storedPrefsRef.current = prefs;
         void invoke('player_set_seek_thumbnail_enabled', { enabled: prefBool(prefs, 'seekThumbnailEnabled', false) });
+        void invoke('discord_presence_configure', { enabled: prefBool(prefs, 'discordRichPresenceEnabled', true) });
+        setRpdbApiKey(prefString(prefs, 'rpdbApiKey', ''));
         setLanguage(typeof prefs.language === 'string' ? prefs.language : null);
         const startPage = prefString({ ...prefs }, 'startPage', 'home') as NavRoute;
         if (['home', 'search', 'library', 'discover', 'calendar', 'settings'].includes(startPage)) {

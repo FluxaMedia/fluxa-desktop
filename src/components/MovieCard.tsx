@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { t } from '../i18n';
 import type { Meta } from '../core/types';
 import type { PosterPrefs } from '../core/posterPrefs';
+import { rpdbPosterUrl } from '../core/rpdb';
 
 interface Props {
   meta: Meta;
@@ -29,6 +30,7 @@ export const MovieCard = React.memo(function MovieCard({
   const [hovered, setHovered] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [rpdbFailed, setRpdbFailed] = useState(false);
 
   const anyMeta = meta as unknown as Record<string, unknown>;
   const isWatched = anyMeta.watched === true || anyMeta.notWatched === false;
@@ -109,47 +111,58 @@ export const MovieCard = React.memo(function MovieCard({
         }}
       >
         {/* Poster image */}
-        {(layout === 'horizontal' ? meta.background || meta.poster : meta.poster || meta.background) && !imgError ? (
-          <img
-            src={(layout === 'horizontal' ? meta.background || meta.poster : meta.poster || meta.background) ?? ''}
-            alt={meta.name}
-            loading="lazy"
-            decoding="async"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: 'block',
-              opacity: imgLoaded ? 1 : 0,
-              transition: 'opacity 0.2s ease',
-            }}
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div
-            style={{
-              width: '100%',
-              height: '100%',
-              background: '#12161D',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {addonIcon ? (
+        {(() => {
+          const basePosterSrc = layout === 'horizontal' ? meta.background || meta.poster : meta.poster || meta.background;
+          const rpdbSrc = layout !== 'horizontal' ? rpdbPosterUrl(meta) : undefined;
+          const posterSrc = rpdbSrc && !rpdbFailed ? rpdbSrc : basePosterSrc;
+          if (posterSrc && !imgError) {
+            return (
               <img
-                src={addonIcon}
-                alt=""
-                style={{ width: '48%', height: '48%', objectFit: 'contain', opacity: 0.35 }}
+                src={posterSrc}
+                alt={meta.name}
+                loading="lazy"
+                decoding="async"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                  opacity: imgLoaded ? 1 : 0,
+                  transition: 'opacity 0.2s ease',
+                }}
+                onLoad={() => setImgLoaded(true)}
+                onError={() => {
+                  if (posterSrc === rpdbSrc) setRpdbFailed(true);
+                  else setImgError(true);
+                }}
               />
-            ) : (
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 32, fontWeight: 900 }}>
-                {meta.name.slice(0, 2).toUpperCase()}
-              </span>
-            )}
-          </div>
-        )}
+            );
+          }
+          return (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                background: '#12161D',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {addonIcon ? (
+                <img
+                  src={addonIcon}
+                  alt=""
+                  style={{ width: '48%', height: '48%', objectFit: 'contain', opacity: 0.35 }}
+                />
+              ) : (
+                <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 32, fontWeight: 900 }}>
+                  {meta.name.slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {hovered && (
           <div
