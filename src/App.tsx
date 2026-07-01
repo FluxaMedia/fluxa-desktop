@@ -324,7 +324,7 @@ export default function App() {
   const accentColor = prefString(prefs, 'accentColorArgb', '#FFFFFF');
   const rootStyle = React.useMemo(() => ({
     ...appStyles.root,
-    background: nativePlayerActive ? 'transparent' : (prefBool(prefs, 'amoledMode') ? '#000000' : '#040508'),
+    background: nativePlayerActive ? 'transparent' : '#040508',
     ['--primary-accent-color' as string]: accentColor,
     ['--primary-accent-foreground-color' as string]: accentForegroundColor(accentColor),
   } as React.CSSProperties), [nativePlayerActive, prefs, accentColor]);
@@ -411,6 +411,7 @@ export default function App() {
     navBarPosition === 'right' ||
     (navBarPosition === 'top' && navItemsAlign === 'end')
   );
+
   return (
     <div
       style={rootStyle}

@@ -23,6 +23,12 @@ export function AppearanceSection({ prefs, setPref }: { prefs: Prefs; setPref: <
         />
       </SettingsSection>
       <SettingsSection title={t('auto.interface_3c5ec842')} subtitle={t('auto.language_theme_startup')}>
+        <ToggleTile
+          title={t('settings.gif_autoplay')}
+          subtitle={t('settings.gif_autoplay_desc')}
+          checked={prefs.gifAutoplayEnabled}
+          onToggle={(v) => setPref('gifAutoplayEnabled', v)}
+        />
         <ChoiceTile
           title={t('appearance.sidebar_layout')}
           subtitle={t('appearance.sidebar_layout_desc')}
@@ -56,7 +62,6 @@ export function AppearanceSection({ prefs, setPref }: { prefs: Prefs; setPref: <
           selected={prefs.navItemsAlign}
           onSelect={(v) => setPref('navItemsAlign', v)}
         />
-        <ToggleTile title={t('settings.amoled')} subtitle={t('auto.makes_the_background_and_bottom_bar_pure_bla')} checked={prefs.amoledMode} onToggle={(v) => setPref('amoledMode', v)} />
       </SettingsSection>
       <SettingsSection title={t('auto.posters')} subtitle={t('auto.poster_width')}>
         <ChoiceTile

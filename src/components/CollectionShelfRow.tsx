@@ -1,25 +1,44 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { Meta } from '../core/types';
 import { t } from '../i18n';
 
 const ROW_PADDING_LEFT = 32;
 
-export function CollectionShelfRow({
+const SCROLL_GAP = 12;
+const BUFFER = 3;
+
+function cardWidth(folder: Meta): number {
+  const shape = ((folder as unknown as Record<string, unknown>).reason as string | undefined ?? 'poster').toLowerCase();
+  if (shape === 'wide' || shape === 'landscape') return 280;
+  if (shape === 'square') return 150;
+  return 156;
+}
+
+export const CollectionShelfRow = React.memo(function CollectionShelfRow({
   title,
   folders,
   onFolderClick,
   addonIcon,
+  gifAutoplayEnabled = true,
 }: {
   title: string;
   folders: Meta[];
   onFolderClick: (f: Meta) => void;
   addonIcon?: string;
+  gifAutoplayEnabled?: boolean;
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(true);
+  const [scrollLeft, setScrollLeft] = React.useState(0);
+  const [containerWidth, setContainerWidth] = React.useState(() => window.innerWidth);
   const [hoveredId, setHoveredId] = React.useState<string | null>(null);
   const hoveredIdRef = React.useRef<string | null>(null);
+
+  const slotWidth = useMemo(
+    () => (folders.length > 0 ? cardWidth(folders[0]) + SCROLL_GAP : 168),
+    [folders],
+  );
 
   const updateArrows = React.useCallback(() => {
     const el = scrollRef.current;
@@ -33,11 +52,21 @@ export function CollectionShelfRow({
     if (!el) return;
     updateArrows();
     el.addEventListener('scroll', updateArrows, { passive: true });
-    return () => el.removeEventListener('scroll', updateArrows);
+    const ro = new ResizeObserver(() => {
+      if (el) setContainerWidth(el.clientWidth);
+    });
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', updateArrows);
+      ro.disconnect();
+    };
   }, [updateArrows, folders.length]);
 
   const handleScroll = React.useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
     updateArrows();
+    setScrollLeft(el.scrollLeft);
     hoveredIdRef.current = null;
     setHoveredId(null);
   }, [updateArrows]);
@@ -51,6 +80,18 @@ export function CollectionShelfRow({
   const scroll = (dir: 'left' | 'right') => {
     scrollRef.current?.scrollBy({ left: dir === 'right' ? 660 : -660, behavior: 'smooth' });
   };
+
+  const startIdx = Math.max(0, Math.floor(scrollLeft / slotWidth) - BUFFER);
+  const endIdx = Math.min(folders.length - 1, Math.ceil((scrollLeft + containerWidth) / slotWidth) + BUFFER);
+
+  const visibleFolders = useMemo(
+    () => folders.slice(startIdx, endIdx + 1),
+    [folders, startIdx, endIdx],
+  );
+
+  const beforeWidth = startIdx > 0 ? startIdx * slotWidth - SCROLL_GAP : 0;
+  const afterCount = folders.length - endIdx - 1;
+  const afterWidth = afterCount > 0 ? afterCount * slotWidth - SCROLL_GAP : 0;
 
   return (
     <div style={collStyles.section}>
@@ -73,12 +114,9 @@ export function CollectionShelfRow({
           </button>
         </div>
       </div>
-      <div
-        ref={scrollRef}
-        style={collStyles.scroll}
-        onScroll={handleScroll}
-      >
-        {folders.map((folder) => (
+      <div ref={scrollRef} style={collStyles.scroll} onScroll={handleScroll}>
+        {beforeWidth > 0 && <div style={{ width: beforeWidth, flexShrink: 0 }} />}
+        {visibleFolders.map((folder) => (
           <FolderTileCard
             key={folder.id}
             folder={folder}
@@ -86,58 +124,56 @@ export function CollectionShelfRow({
             onClick={onFolderClick}
             onHoverChange={handleTileHover}
             addonIcon={addonIcon}
+            gifAutoplayEnabled={gifAutoplayEnabled}
           />
         ))}
+        {afterWidth > 0 && <div style={{ width: afterWidth, flexShrink: 0 }} />}
       </div>
     </div>
   );
-}
+});
 
-function FolderTileCard({
+const FolderTileCard = React.memo(function FolderTileCard({
   folder,
   isHovered,
   onClick,
   onHoverChange,
   addonIcon,
+  gifAutoplayEnabled,
 }: {
   folder: Meta;
   isHovered: boolean;
   onClick: (f: Meta) => void;
   onHoverChange: (fid: string | null) => void;
   addonIcon?: string;
+  gifAutoplayEnabled: boolean;
 }) {
-  const [imgError, setImgError] = React.useState(false);
-  const [isVisible, setIsVisible] = React.useState(false);
-  const cardRef = React.useRef<HTMLDivElement>(null);
+  const [staticImgError, setStaticImgError] = React.useState(false);
+  const [gifError, setGifError] = React.useState(false);
 
-  const shape = ((folder as unknown as Record<string,unknown>).reason as string | undefined ?? 'poster').toLowerCase();
+  const shape = ((folder as unknown as Record<string, unknown>).reason as string | undefined ?? 'poster').toLowerCase();
   const isWide = shape === 'wide' || shape === 'landscape';
   const isSquare = shape === 'square';
+  const w = cardWidth(folder);
 
   const imgStyle: React.CSSProperties = isWide
-    ? { width: 280, minWidth: 280, height: 158 }
+    ? { width: w, minWidth: w, height: 158 }
     : isSquare
-    ? { width: 150, minWidth: 150, height: 150 }
-    : { width: 156, minWidth: 156, height: 234 };
+    ? { width: w, minWidth: w, height: 150 }
+    : { width: w, minWidth: w, height: 234 };
+
+  const staticUrl = folder.poster ?? folder.background;
+  const shouldShowGif = !!folder.focusGifUrl && !gifError && (gifAutoplayEnabled || isHovered);
+  const displayUrl = shouldShowGif ? folder.focusGifUrl : staticUrl;
+  const displayFailed = displayUrl === staticUrl && staticImgError;
 
   React.useEffect(() => {
-    const el = cardRef.current;
-    if (!el || !folder.focusGifUrl) return;
-    const observer = new IntersectionObserver(
-      (entries) => { setIsVisible(entries[0]?.isIntersecting ?? false); },
-      { threshold: 0.2 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [folder.focusGifUrl]);
-
-  const staticImg = folder.poster ?? folder.background;
-  const gifUrl = folder.focusGifUrl;
-  const displayUrl = gifUrl && isVisible ? gifUrl : staticImg;
+    setStaticImgError(false);
+    setGifError(false);
+  }, [folder.id, folder.poster, folder.background, folder.focusGifUrl]);
 
   return (
     <div
-      ref={cardRef}
       role="button"
       tabIndex={0}
       style={{ ...collStyles.tileWrapper, width: imgStyle.width, minWidth: imgStyle.minWidth }}
@@ -152,7 +188,7 @@ function FolderTileCard({
         boxShadow: isHovered ? '0 0 0 2px var(--primary-accent-color, rgba(255,255,255,0.44))' : 'none',
         transform: isHovered ? 'translateY(-2px) scale(1.02)' : 'none',
       }}>
-        {displayUrl && !imgError ? (
+        {displayUrl && !displayFailed ? (
           <img
             key={displayUrl}
             src={displayUrl}
@@ -160,7 +196,10 @@ function FolderTileCard({
             loading="lazy"
             decoding="async"
             style={collStyles.img}
-            onError={() => setImgError(true)}
+            onError={() => {
+              if (displayUrl === folder.focusGifUrl) setGifError(true);
+              else setStaticImgError(true);
+            }}
           />
         ) : (
           <div style={collStyles.namePlaceholder}>
@@ -175,7 +214,7 @@ function FolderTileCard({
       <p style={collStyles.folderName}>{folder.name}</p>
     </div>
   );
-}
+});
 
 const headerStyles: Record<string, React.CSSProperties> = {
   header: {
@@ -214,6 +253,7 @@ const collStyles: Record<string, React.CSSProperties> = {
     zIndex: 1,
     paddingTop: 8,
     marginBottom: 4,
+    contain: 'layout style',
   },
   scroll: {
     display: 'flex',
@@ -224,6 +264,7 @@ const collStyles: Record<string, React.CSSProperties> = {
     paddingBottom: 16,
     paddingTop: 4,
     scrollbarWidth: 'none',
+    willChange: 'transform',
   },
   tileWrapper: {
     display: 'flex',

@@ -30,6 +30,11 @@ const FALLBACK_GENRES = [
 const SCROLL_HOVER_IDLE_MS = 180;
 
 let lastDiscoverFetch: { contentType: string; sortBy: string; genre: string | null } | null = null;
+const discoverResultsCache = new Map<string, Meta[]>();
+
+function cacheKey(contentType: string, sortBy: string, genre: string | null): string {
+  return `${contentType}|${sortBy}|${genre ?? ''}`;
+}
 
 export function warmDiscoverCache(contentType: string, sortBy: string, genre: string | null) {
   lastDiscoverFetch = { contentType, sortBy, genre };
@@ -45,7 +50,9 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
   const isGridScrollingRef = useRef(false);
   const scrollIdleTimerRef = useRef<number | null>(null);
   const hoveredMetaRef = useRef<Meta | null>(null);
-  const staleResultsRef = useRef<Meta[]>([]);
+  const key = cacheKey(contentType, sortBy, genre);
+  const cachedResults = discoverResultsCache.get(key) ?? null;
+  const staleResultsRef = useRef<Meta[]>(cachedResults ?? []);
   const [streamingItems, setStreamingItems] = useState<Meta[]>([]);
   const streamingAccRef = useRef<Meta[]>([]);
   const streamingFlushTimerRef = useRef<number | null>(null);
@@ -58,17 +65,20 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
     ?.options ?? FALLBACK_GENRES;
 
   useEffect(() => {
-    const hasData = (discover.results?.length ?? 0) > 0;
+    const cached = discoverResultsCache.get(cacheKey(contentType, sortBy, genre));
     const sameParams = lastDiscoverFetch?.contentType === contentType
       && lastDiscoverFetch?.sortBy === sortBy
       && lastDiscoverFetch?.genre === genre;
-    if (hasData && sameParams) return;
+    if (cached && sameParams) return;
     lastDiscoverFetch = { contentType, sortBy, genre };
     onDispatch(JSON.stringify({ type: 'discoverRequested', contentType, sortBy, genre, language: getLanguage() }));
   }, [contentType, sortBy, genre]);
 
   const results = useMemo(() => (discover.results ?? []) as Meta[], [discover.results]);
-  if (results.length > 0) staleResultsRef.current = results;
+  if (results.length > 0) {
+    staleResultsRef.current = results;
+    discoverResultsCache.set(key, results);
+  }
 
   useEffect(() => {
     if (!discover.isLoading) {
@@ -103,7 +113,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
 
   const displayResults = discover.isLoading
     ? (streamingItems.length > 0 ? streamingItems : staleResultsRef.current)
-    : (results.length > 0 ? results : staleResultsRef.current);
+    : (results.length > 0 ? results : (cachedResults ?? staleResultsRef.current));
 
   const handleGridScroll = useCallback(() => {
     isGridScrollingRef.current = true;

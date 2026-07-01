@@ -2,7 +2,14 @@ use serde_json::json;
 
 const TRAKT_CLIENT_ID: &str = env!("FLUXA_TRAKT_CLIENT_ID");
 const TRAKT_CLIENT_SECRET: &str = env!("FLUXA_TRAKT_CLIENT_SECRET");
-pub const MAL_CLIENT_ID: &str = env!("FLUXA_MAL_CLIENT_ID");
+const ANILIST_CLIENT_ID: &str = match option_env!("FLUXA_ANILIST_CLIENT_ID") {
+    Some(value) => value,
+    None => "",
+};
+const ANILIST_CLIENT_SECRET: &str = match option_env!("FLUXA_ANILIST_CLIENT_SECRET") {
+    Some(value) => value,
+    None => "",
+};
 pub const SIMKL_CLIENT_ID: &str = env!("FLUXA_SIMKL_CLIENT_ID");
 const SIMKL_CLIENT_SECRET: &str = env!("FLUXA_SIMKL_CLIENT_SECRET");
 const NUVIO_SUPABASE_URL: &str = env!("FLUXA_NUVIO_SUPABASE_URL");
@@ -25,6 +32,7 @@ pub async fn nuvio_request(
     let mut req = match method.as_str() {
         "GET" => client.get(&url),
         "POST" => client.post(&url),
+        "DELETE" => client.delete(&url),
         other => return Err(format!("unsupported method: {other}")),
     };
     req = req
@@ -59,36 +67,11 @@ fn trakt_client() -> Result<reqwest::Client, String> {
         .map_err(|e| e.to_string())
 }
 
-fn url_encode(s: &str) -> String {
-    let mut encoded = String::new();
-    for byte in s.as_bytes() {
-        match *byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                encoded.push(*byte as char);
-            }
-            b => {
-                encoded.push('%');
-                encoded.push(
-                    char::from_digit((b >> 4) as u32, 16)
-                        .unwrap()
-                        .to_ascii_uppercase(),
-                );
-                encoded.push(
-                    char::from_digit((b & 0xf) as u32, 16)
-                        .unwrap()
-                        .to_ascii_uppercase(),
-                );
-            }
-        }
-    }
-    encoded
-}
-
 #[tauri::command]
 pub fn get_oauth_client_id(service: &str) -> &'static str {
     match service {
         "trakt" => TRAKT_CLIENT_ID,
-        "mal" => MAL_CLIENT_ID,
+        "anilist" => ANILIST_CLIENT_ID,
         "simkl" => SIMKL_CLIENT_ID,
         _ => "",
     }
@@ -150,28 +133,62 @@ pub async fn trakt_oauth_exchange(code: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn mal_oauth_exchange(code: String, code_verifier: String) -> Result<String, String> {
-    let body = format!(
-        "client_id={}&grant_type=authorization_code&code={}&redirect_uri={}&code_verifier={}",
-        url_encode(MAL_CLIENT_ID),
-        url_encode(&code),
-        url_encode("fluxa://oauth/mal"),
-        url_encode(&code_verifier),
-    );
+pub async fn anilist_oauth_exchange(code: String) -> Result<String, String> {
+    if ANILIST_CLIENT_ID.is_empty() || ANILIST_CLIENT_SECRET.is_empty() {
+        return Err("AniList OAuth client is not configured".to_string());
+    }
     let response = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .build()
         .map_err(|e| e.to_string())?
-        .post("https://myanimelist.net/v1/oauth2/token")
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body)
+        .post("https://anilist.co/api/v2/oauth/token")
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "grant_type": "authorization_code",
+            "client_id": ANILIST_CLIENT_ID,
+            "client_secret": ANILIST_CLIENT_SECRET,
+            "redirect_uri": "fluxa://oauth/anilist",
+            "code": code,
+        }))
         .send()
         .await
         .map_err(|e| e.to_string())?;
     let status = response.status();
     let text = response.text().await.map_err(|e| e.to_string())?;
     if !status.is_success() {
-        return Err(format!("MAL token exchange failed: HTTP {status}: {text}"));
+        return Err(format!(
+            "AniList token exchange failed: HTTP {status}: {text}"
+        ));
+    }
+    Ok(text)
+}
+
+#[tauri::command]
+pub async fn anilist_oauth_refresh(refresh_token: String) -> Result<String, String> {
+    if ANILIST_CLIENT_ID.is_empty() || ANILIST_CLIENT_SECRET.is_empty() {
+        return Err("AniList OAuth client is not configured".to_string());
+    }
+    let response = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| e.to_string())?
+        .post("https://anilist.co/api/v2/oauth/token")
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "grant_type": "refresh_token",
+            "client_id": ANILIST_CLIENT_ID,
+            "client_secret": ANILIST_CLIENT_SECRET,
+            "refresh_token": refresh_token,
+        }))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status = response.status();
+    let text = response.text().await.map_err(|e| e.to_string())?;
+    if !status.is_success() {
+        return Err(format!(
+            "AniList token refresh failed: HTTP {status}: {text}"
+        ));
     }
     Ok(text)
 }

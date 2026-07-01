@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { nuvioHealthCheck, nuvioPushWatchProgress, nuvioPushLibrary, nuvioPushWatchHistory } from '../core/nuvioApi';
 import { loadLibrary } from '../core/libraryOps';
-import { importNuvioProfileData } from '../core/nuvioSync';
+import { freshNuvioProfile, importNuvioProfileData } from '../core/nuvioSync';
 import type { UserProfile } from '../core/types';
 
 async function pushLocalToNuvio(profile: UserProfile): Promise<void> {
-  const token = profile.nuvioAccessToken!;
-  const profileIdx = profile.nuvioProfileIndex ?? 1;
+  const freshProfile = await freshNuvioProfile(profile).catch(() => profile);
+  const token = freshProfile.nuvioAccessToken!;
+  const profileIdx = freshProfile.nuvioProfileIndex ?? 1;
   const lib = await loadLibrary();
 
   const progressMap = (lib.progress as Record<string, Record<string, unknown>> | undefined) ?? {};

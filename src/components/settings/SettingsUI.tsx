@@ -578,6 +578,7 @@ export function SyncServiceRow({
   onClick,
   destructive = false,
   busy = false,
+  expanded,
 }: {
   icon: React.ReactNode;
   title: string;
@@ -586,6 +587,7 @@ export function SyncServiceRow({
   onClick?: () => void;
   destructive?: boolean;
   busy?: boolean;
+  expanded?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
@@ -620,8 +622,11 @@ export function SyncServiceRow({
         )}
       </div>
       {onClick && (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(255,255,255,0.22)">
-          <path d="m9 18 6-6-6-6v12z" />
+        <svg
+          width="18" height="18" viewBox="0 0 24 24" fill="rgba(255,255,255,0.22)"
+          style={expanded === undefined ? undefined : { transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.14s' }}
+        >
+          <path d={expanded === undefined ? 'm9 18 6-6-6-6v12z' : 'M7 10l5 5 5-5z'} />
         </svg>
       )}
     </div>
@@ -629,86 +634,101 @@ export function SyncServiceRow({
 }
 
 export function SyncServicePopover({
-  logoSrc,
   serviceName,
   meta,
   busy,
+  statusLabel,
+  statusColor,
+  syncLabel,
   onSyncNow,
   onDisconnect,
   onClose,
 }: {
-  logoSrc: string;
   serviceName: string;
   meta: SyncMeta | null;
   busy: boolean;
+  statusLabel?: string;
+  statusColor?: string;
+  syncLabel?: string;
   onSyncNow: () => void;
   onDisconnect: () => void;
   onClose: () => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    const handlePointer = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', handlePointer);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handlePointer);
+      window.removeEventListener('keydown', handleKey);
+    };
   }, [onClose]);
 
   const isOutOfSync = !meta || Date.now() - meta.lastSyncAt > 6 * 60 * 60 * 1000;
+  const effectiveStatus = statusLabel ?? `${isOutOfSync ? t('settings.out_of_sync') : t('settings.synced')}${meta ? ` · ${timeAgo(meta.lastSyncAt)}` : ''}`;
+  const effectiveStatusColor = statusColor ?? (isOutOfSync ? '#FF9500' : '#54D17A');
+  const counts = [
+    meta && meta.continueWatchingCount > 0 ? `${meta.continueWatchingCount} ${t('auto.continue_watching')}` : null,
+    meta && meta.watchlistCount > 0 ? `${meta.watchlistCount} ${t('settings.watchlist')}` : null,
+  ].filter(Boolean).join(' · ');
+
   return (
-    <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={onClose} />
-      <div style={{
-        position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 200,
-        background: '#1C1C1E', border: '1px solid rgba(255,255,255,0.12)',
-        borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
-        overflow: 'hidden',
-      }}>
-        <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <img src={logoSrc} alt={serviceName} style={{ width: 26, height: 26, objectFit: 'contain' }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ color: '#fff', fontSize: 14, fontWeight: 600, margin: 0, fontFamily: FONT }}>{serviceName}</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-              <span style={{ width: 5, height: 5, borderRadius: '50%', background: isOutOfSync ? '#FF9500' : '#54D17A', flexShrink: 0 }} />
-              <span style={{ color: isOutOfSync ? '#FF9500' : '#54D17A', fontSize: 11, fontFamily: FONT, fontWeight: 500 }}>
-                {isOutOfSync ? 'Out of Sync' : 'Synced'}
-                {meta ? ` · ${timeAgo(meta.lastSyncAt)}` : ''}
-              </span>
-            </div>
-          </div>
+    <div ref={ref} style={{ ...styles.dropdownMenu, top: 'calc(100% + 5px)', padding: 0, zIndex: 30 }}>
+      <div style={{ padding: '11px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: effectiveStatusColor, flexShrink: 0 }} />
+          <span style={{ color: effectiveStatusColor, fontSize: 12, fontWeight: 500, fontFamily: FONT }}>{effectiveStatus}</span>
         </div>
-        {meta && (meta.continueWatchingCount > 0 || meta.watchlistCount > 0) && (
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: 20 }}>
-            {meta.continueWatchingCount > 0 && (
-              <div>
-                <p style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0, fontFamily: FONT, letterSpacing: '-0.02em' }}>{meta.continueWatchingCount}</p>
-                <p style={{ color: 'rgba(255,255,255,0.40)', fontSize: 11, margin: '2px 0 0', fontFamily: FONT }}>Continue Watching</p>
-              </div>
-            )}
-            {meta.watchlistCount > 0 && (
-              <div>
-                <p style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0, fontFamily: FONT, letterSpacing: '-0.02em' }}>{meta.watchlistCount}</p>
-                <p style={{ color: 'rgba(255,255,255,0.40)', fontSize: 11, margin: '2px 0 0', fontFamily: FONT }}>Watchlist</p>
-              </div>
-            )}
-          </div>
-        )}
-        <div style={{ padding: '10px 12px', display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => { onSyncNow(); onClose(); }}
-            disabled={busy}
-            style={{ flex: 1, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', color: '#fff', fontSize: 13, fontWeight: 500, fontFamily: FONT, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}
-          >
-            {busy ? '…' : 'Sync Now'}
-          </button>
-          <button
-            onClick={() => { onDisconnect(); onClose(); }}
-            style={{ flex: 1, height: 36, borderRadius: 8, background: 'rgba(255,80,80,0.07)', border: '1px solid rgba(255,80,80,0.18)', color: '#FF5A5A', fontSize: 13, fontWeight: 500, fontFamily: FONT, cursor: 'pointer' }}
-          >
-            Disconnect
-          </button>
-        </div>
+        {counts && <p style={{ ...styles.rowSubtitle, marginTop: 4 }}>{counts}</p>}
       </div>
-    </>
+      <PopoverActionButton
+        label={busy ? '…' : syncLabel ?? t('settings.sync_now')}
+        onClick={() => { onSyncNow(); onClose(); }}
+        disabled={busy}
+      />
+      <PopoverActionButton
+        label={t('auto.disconnect')}
+        onClick={() => { onDisconnect(); onClose(); }}
+        color="#FF5A5A"
+      />
+    </div>
+  );
+}
+
+function PopoverActionButton({
+  label,
+  onClick,
+  disabled = false,
+  color = 'rgba(255,255,255,0.85)',
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  color?: string;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        ...styles.dropdownItem,
+        justifyContent: 'flex-start',
+        color,
+        background: hovered && !disabled ? 'rgba(255,255,255,0.06)' : 'transparent',
+        cursor: disabled ? 'default' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

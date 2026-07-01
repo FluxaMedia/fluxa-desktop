@@ -246,9 +246,9 @@ export interface UserProfile {
   traktAccessToken?: string;
   traktRefreshToken?: string;
   traktTokenExpiresAt?: number;
-  malAccessToken?: string;
-  malRefreshToken?: string;
-  malTokenExpiresAt?: number;
+  anilistAccessToken?: string;
+  anilistRefreshToken?: string;
+  anilistTokenExpiresAt?: number;
   simklAccessToken?: string;
   simklRefreshToken?: string;
   nuvioAccessToken?: string;

@@ -101,7 +101,7 @@ const NSOpenGLPFAAccelerated: u32 = 73;
 const NSOpenGLPFAColorSize: u32 = 8;
 const NSOpenGLPFADepthSize: u32 = 12;
 const NSOpenGLPFAOpenGLProfile: u32 = 99;
-const NSOpenGLProfileVersionLegacy: u32 = 0x1000;
+const NSOpenGLProfileVersion3_2Core: u32 = 0x3200;
 
 // NSOpenGLContextParameter.
 const NS_OPENGL_CP_SWAP_INTERVAL: isize = 222;
@@ -299,13 +299,15 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
         .unwrap_or(tauri::PhysicalSize::new(1280, 720));
     let init_w = init_size.width.max(2) as i32;
     let init_h = init_size.height.max(2) as i32;
+    let scale = window.scale_factor().unwrap_or(1.0).max(1.0);
 
     // Create the render subview on the main thread, collect result.
+    // NSView frames are in points; inner_size() is physical pixels.
     let (view_tx, view_rx) = mpsc::channel::<Result<SendId, String>>();
     let ctx_struct = Box::new((
         SendId(ns_view),
-        init_w as f64,
-        init_h as f64,
+        init_w as f64 / scale,
+        init_h as f64 / scale,
         Box::into_raw(Box::new(view_tx)) as usize,
     ));
     let ctx_ptr = Box::into_raw(ctx_struct) as *mut c_void;
@@ -442,6 +444,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                 // Track window size changes via Tauri.
                 if let Some(win) = app.get_webview_window("main") {
                     if let Ok(sz) = win.inner_size() {
+                        let scale = win.scale_factor().unwrap_or(1.0).max(1.0);
                         let nw = (sz.width as i32).max(2);
                         let nh = (sz.height as i32).max(2);
                         if (nw, nh) != last_size {
@@ -452,8 +455,8 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                                     NSRect {
                                         origin: NSPoint { x: 0.0, y: 0.0 },
                                         size: NSSize {
-                                            width: nw as f64,
-                                            height: nh as f64,
+                                            width: nw as f64 / scale,
+                                            height: nh as f64 / scale,
                                         },
                                     },
                                 );
@@ -520,9 +523,10 @@ unsafe fn create_render_subview(parent: SendId, w: f64, h: f64) -> Result<SendId
 
     // wantsLayer = YES allows us to control z-ordering.
     msg1_bool(view, "setWantsLayer:", 1);
+    msg1_bool(view, "setWantsBestResolutionOpenGLSurface:", 1);
 
-    // Insert at back (NSWindowBelow = 1), relative to nil = behind everything.
-    msg3_positioned(parent.0, view, 1, std::ptr::null_mut());
+    // Insert at back (NSWindowBelow = -1), relative to nil = behind everything.
+    msg3_positioned(parent.0, view, -1, std::ptr::null_mut());
 
     // Hidden until playback starts.
     msg1_bool(view, "setHidden:", 1);
@@ -539,7 +543,7 @@ unsafe fn create_gl_context(render_view: SendId) -> Result<SendId, String> {
         NSOpenGLPFADepthSize,
         24,
         NSOpenGLPFAOpenGLProfile,
-        NSOpenGLProfileVersionLegacy,
+        NSOpenGLProfileVersion3_2Core,
         0,
     ];
 
@@ -551,7 +555,7 @@ unsafe fn create_gl_context(render_view: SendId) -> Result<SendId, String> {
         std::mem::transmute(objc_msgSend as unsafe extern "C" fn(_, _, ...) -> _);
     let pf: Id = init_attr(pf_alloc, sel("initWithAttributes:"), attribs.as_ptr());
     if pf.is_null() {
-        return Err("NSOpenGLPixelFormat init failed (try legacy profile)".to_string());
+        return Err("NSOpenGLPixelFormat init failed (3.2 core profile)".to_string());
     }
 
     let ctx_cls = cls("NSOpenGLContext");
@@ -576,11 +580,20 @@ unsafe fn create_gl_context(render_view: SendId) -> Result<SendId, String> {
 
 fn check_player_events(app: &AppHandle) {
     let state = app.state::<DesktopState>();
-    let status = {
-        let renderer = state.player_renderer.lock().unwrap();
-        renderer.as_ref().map(|r| r.status())
+    let (events, status) = {
+        let mut renderer = state.player_renderer.lock().unwrap();
+        match renderer.as_mut() {
+            Some(r) => (r.poll_events(), r.status()),
+            None => return,
+        }
     };
-    let Some(status) = status else { return };
+    for event in events {
+        let crate::mpv_render::PlayerEvent::EndFile { eof: _, error } = event;
+        if let Some(message) = error {
+            log::error!("macos player surface: stream failed to play: {message}");
+            let _ = app.emit("native-player-error", message);
+        }
+    }
     if !status.eof_reached() {
         return;
     }

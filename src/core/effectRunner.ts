@@ -1,7 +1,7 @@
-import { completeEffect, dispatchAction, enqueueOfflineDownload } from './engine';
+import { completeEffect, coreMergeContinueWatchingLists, dispatchAction, enqueueOfflineDownload } from './engine';
 import { startTorrentStream, stopTorrentStream } from './mpvPlayer';
-import { loadLibrary, loadPrefs, saveLibrary, buildContinueWatching } from './libraryOps';
-import { readHomeBootstrap } from './homeEffects';
+import { loadActiveProfile, loadAddons, loadLibrary, loadPrefs, saveLibrary, buildContinueWatching } from './libraryOps';
+import { readHomeBootstrap, refreshReleasedContinueWatching } from './homeEffects';
 import { invalidateCalendarCache } from './libraryEffects';
 import {
   applyLibraryCommand,
@@ -28,9 +28,12 @@ import { exchangeAuthCode, refreshAuthToken, runAuthFlow } from './authEffects';
 import {
   dropExternalPlaybackProgress,
   enqueueTraktScrobble,
+  pushMarkWatchedExternal,
   replaceExternalContinueWatching,
   syncExternalIntegrationNow,
+  type WatchProgressInfo,
 } from './externalSync';
+import { fetchVideosForSeries } from './fetchPlanning';
 import { fetchIntroSegments, fetchSubtitles, resolveIntroImdbId, type IntroSegmentResult } from './introEffects';
 import type { AppState, Effect, EffectResult } from './types';
 
@@ -57,6 +60,39 @@ async function startTorrentFromEffect(payload: Record<string, unknown>): Promise
   return { url };
 }
 
+function episodeOrderKey(ep: { season?: number; episode?: number; number?: number }): number {
+  return (Number(ep.season ?? 1) * 10000) + Number(ep.episode ?? ep.number ?? 0);
+}
+
+async function deriveNextProgressFromLastWatched(metaObj: Record<string, unknown>): Promise<WatchProgressInfo | undefined> {
+  const id = metaObj.id as string | undefined;
+  if (!id || metaObj.type !== 'series') return undefined;
+  const currentSeason = metaObj.lastEpisodeSeason as number | undefined;
+  const currentEpisode = metaObj.lastEpisodeNumber as number | undefined;
+  if (currentSeason == null || currentEpisode == null) return undefined;
+  const currentOrder = episodeOrderKey({ season: currentSeason, episode: currentEpisode });
+  const videos = await fetchVideosForSeries(id, await loadAddons());
+  const now = Date.now();
+  const next = videos
+    .filter((ep) => {
+      if (episodeOrderKey(ep) <= currentOrder) return false;
+      if (ep.released && new Date(ep.released).getTime() > now) return false;
+      return true;
+    })
+    .sort((a, b) => episodeOrderKey(a) - episodeOrderKey(b))[0];
+  if (!next?.id) return undefined;
+  return {
+    contentId: id,
+    contentType: 'series',
+    videoId: next.id,
+    positionSeconds: 1,
+    durationSeconds: 99999,
+    lastWatched: Date.now(),
+    season: next.season,
+    episode: next.episode ?? next.number,
+  };
+}
+
 export async function executeEffect(
   effect: Effect,
   onStateUpdate?: (state: Partial<AppState>) => void,
@@ -69,6 +105,49 @@ export async function executeEffect(
       case 'readHomeBootstrap':
         value = await readHomeBootstrap(p);
         break;
+
+      case 'refreshContinueWatching': {
+        const lib = await loadLibrary();
+        const addons = await loadAddons();
+        const localCW = (lib.continueWatching as Record<string, unknown>[] | undefined) ?? [];
+        const externalCW = (lib.externalContinueWatching as Record<string, unknown>[] | undefined) ?? [];
+        const progressMap = (lib.progress as Record<string, unknown> | undefined) ?? {};
+        const mergedCWRaw = await coreMergeContinueWatchingLists(
+          JSON.stringify(localCW),
+          JSON.stringify(externalCW),
+          JSON.stringify(progressMap),
+        );
+        const mergedCW = (mergedCWRaw ?? []) as Record<string, unknown>[];
+        const lastWatched = (lib.lastWatchedEpisodes as Record<string, unknown> | undefined) ?? {};
+        const mergedIds = new Set(mergedCW.map((item) => String(item.id ?? item._id ?? '')));
+        const lastWatchedItems = Object.entries(lastWatched)
+          .filter(([id]) => !mergedIds.has(id))
+          .map(([id, entry]) => {
+            const e = entry as Record<string, unknown>;
+            const meta = (e.meta as Record<string, unknown> | undefined) ?? {};
+            return {
+              id,
+              _id: id,
+              type: 'series',
+              name: meta.name,
+              poster: meta.poster,
+              background: meta.background,
+              lastVideoId: e.lastVideoId,
+              lastEpisodeSeason: e.lastEpisodeSeason,
+              lastEpisodeNumber: e.lastEpisodeNumber,
+              timeOffset: 1,
+              duration: 99999,
+              savedAt: e.savedAt,
+            };
+          });
+        const continueWatching = await refreshReleasedContinueWatching(
+          [...mergedCW, ...lastWatchedItems],
+          lib as Record<string, unknown>,
+          addons,
+        );
+        value = { continueWatching };
+        break;
+      }
 
       case 'readLibraryState':
         value = await readLibraryState();
@@ -97,7 +176,9 @@ export async function executeEffect(
         break;
       case 'clearPlaybackProgress': {
         const lib = await loadLibrary();
-        const id = ((p.meta as Record<string, unknown>) ?? {}).id as string | undefined;
+        const metaObj = (p.meta as Record<string, unknown>) ?? {};
+        const id = metaObj.id as string | undefined;
+        const preserveLastWatched = Boolean(metaObj._preserveLastWatched);
         if (id) {
           const progressMap = (lib.progress as Record<string, unknown> | undefined) ?? {};
           delete progressMap[id];
@@ -106,19 +187,55 @@ export async function executeEffect(
           const extCW = (lib.externalContinueWatching as Record<string, unknown>[] | undefined) ?? [];
           const droppedExternal = extCW.find((item) => item.id === id);
           lib.externalContinueWatching = extCW.filter((item) => item.id !== id);
-          // Also clean lastWatchedEpisodes so the badge computer doesn't recreate a phantom entry
           const lastWatched = (lib.lastWatchedEpisodes as Record<string, unknown> | undefined) ?? {};
-          delete lastWatched[id];
-          lib.lastWatchedEpisodes = lastWatched;
+          if (preserveLastWatched) {
+            if (metaObj.lastVideoId != null) {
+              lastWatched[id] = {
+                meta: {
+                  id,
+                  type: metaObj.type ?? 'series',
+                  name: metaObj.name,
+                  poster: metaObj.poster,
+                  background: metaObj.background,
+                },
+                lastVideoId: metaObj.lastVideoId,
+                lastEpisodeSeason: metaObj.lastEpisodeSeason,
+                lastEpisodeNumber: metaObj.lastEpisodeNumber,
+                lastEpisodeName: metaObj.lastEpisodeName,
+                lastEpisodeThumbnail: metaObj.lastEpisodeThumbnail,
+                savedAt: new Date().toISOString(),
+              };
+              lib.lastWatchedEpisodes = lastWatched;
+            }
+          } else {
+            delete lastWatched[id];
+            lib.lastWatchedEpisodes = lastWatched;
+          }
           await saveLibrary(lib);
           invalidateCalendarCache();
-          // Fire-and-forget: remove progress on the external service too
+          if (preserveLastWatched && metaObj.lastVideoId != null) {
+            const profile = await loadActiveProfile();
+            const nextProgress = await deriveNextProgressFromLastWatched(metaObj);
+            await pushMarkWatchedExternal(
+              [String(metaObj.lastVideoId)],
+              true,
+              metaObj,
+              profile,
+              {
+                contentId: id,
+                contentType: String(metaObj.type ?? 'series'),
+                season: metaObj.lastEpisodeSeason as number | undefined,
+                episode: metaObj.lastEpisodeNumber as number | undefined,
+                title: String(metaObj.name ?? ''),
+              },
+              nextProgress,
+            ).catch(() => undefined);
+          }
           if (droppedExternal) {
             void dropExternalPlaybackProgress(droppedExternal);
           }
         }
-        // Return droppedId so the engine can remove it from home.continueWatching in state
-        value = id ? { droppedId: id } : {};
+        value = (id && !preserveLastWatched) ? { droppedId: id } : {};
         break;
       }
       case 'writeSettings':

@@ -46,7 +46,7 @@ export async function discoverCatalogOptions(addons: AddonDescriptor[], selected
   return ((await coreDiscoverCatalogOptions(addons, selectedType)) ?? []) as DiscoverCatalogOption[];
 }
 
-async function refreshReleasedContinueWatching(
+export async function refreshReleasedContinueWatching(
   items: Record<string, unknown>[],
   library: Record<string, unknown>,
   addons: AddonDescriptor[],

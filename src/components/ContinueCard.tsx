@@ -30,6 +30,7 @@ export function ContinueCard({
   remainingFormat,
   progressDirection,
   dismissing,
+  pending,
   onClick,
   onMarkWatched,
   onDrop,
@@ -42,6 +43,7 @@ export function ContinueCard({
   remainingFormat: string;
   progressDirection: string;
   dismissing: boolean;
+  pending?: boolean;
   onClick: (m: Meta) => void;
   onMarkWatched: (m: Meta) => void;
   onDrop: (m: Meta) => void;
@@ -89,18 +91,19 @@ export function ContinueCard({
       tabIndex={0}
       style={{
         ...(isHorizontal ? cwStyles.landscapeCard : cwStyles.posterCard),
-        opacity: dismissing ? 0 : 1,
+        opacity: (dismissing || pending) ? 0 : 1,
         transform: dismissing ? 'translateX(-12px)' : hovered ? 'translateY(-2px)' : 'translateY(0)',
-        transition: dismissing ? 'opacity 0.22s ease, transform 0.22s ease' : 'transform 0.16s ease',
-        boxShadow: hovered && !dismissing ? '0 0 0 2px rgba(255,255,255,0.44)' : 'none',
+        transition: dismissing ? 'opacity 0.22s ease, transform 0.22s ease' : 'opacity 0.22s ease, transform 0.16s ease',
+        boxShadow: hovered && !dismissing && !pending ? '0 0 0 2px rgba(255,255,255,0.44)' : 'none',
+        pointerEvents: (dismissing || pending) ? 'none' : undefined,
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
-      onClick={() => !dismissing && onClick(meta)}
+      onClick={() => !dismissing && !pending && onClick(meta)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!dismissing) onClick(meta); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!dismissing && !pending) onClick(meta); }
       }}
       onTransitionEnd={(e) => {
         if (dismissing && e.propertyName === 'opacity') onDismissAnimationEnd(meta);
@@ -129,7 +132,7 @@ export function ContinueCard({
           </div>
         )}
 
-        {hovered && !dismissing && (
+        {hovered && !dismissing && !pending && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(35,35,35,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="white" style={{ marginLeft: 3 }}><path d="M8 5v14l11-7z" /></svg>
@@ -143,7 +146,7 @@ export function ContinueCard({
           <p style={cwStyles.name}>{meta.name}</p>
           <p style={cwStyles.episodeName}>{episodeLine ?? (meta.type === 'series' ? t('auto.up_next') : '')}</p>
         </div>
-        {hovered && !dismissing && (
+        {hovered && !dismissing && !pending && (
           <div style={cwStyles.hoverActions} onClick={(e) => e.stopPropagation()}>
             <button
               type="button"

@@ -6,9 +6,6 @@ import { t } from '../i18n';
 
 const ROW_PADDING_LEFT = 32;
 
-// Module-level so it survives this row unmounting when you navigate away from Home and
-// remounting when you come back — without this, every Home revisit re-fetched artwork/
-// episode-line fields for the whole row from scratch even when nothing had changed.
 let lastCardFieldsKey: string | null = null;
 let lastCardFields: Map<string, { artwork: string | null; episodeLine: string }> = new Map();
 
@@ -35,6 +32,32 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
   const [canScrollRight, setCanScrollRight] = React.useState(false);
   const [dismissingIds, setDismissingIds] = React.useState<Set<string>>(new Set());
   const [dismissedIds, setDismissedIds] = React.useState<Set<string>>(new Set());
+  const [pendingIds, setPendingIds] = React.useState<Set<string>>(new Set());
+  const markWatchedVideoIds = React.useRef<Map<string, string | null>>(new Map());
+
+  React.useEffect(() => {
+    if (markWatchedVideoIds.current.size === 0) return;
+    const toReveal: string[] = [];
+    const toDismiss: string[] = [];
+    for (const [id, prevId] of markWatchedVideoIds.current.entries()) {
+      const cur = items.find((m) => m.id === id);
+      const curId = (cur as unknown as { lastVideoId?: string | null } | undefined)?.lastVideoId ?? null;
+      if (cur && curId !== prevId) {
+        toReveal.push(id);
+      } else {
+        toDismiss.push(id);
+      }
+      markWatchedVideoIds.current.delete(id);
+    }
+    if (toReveal.length > 0) {
+      setPendingIds((prev) => { const n = new Set(prev); for (const id of toReveal) n.delete(id); return n; });
+      setDismissingIds((prev) => { const n = new Set(prev); for (const id of toReveal) n.delete(id); return n; });
+    }
+    if (toDismiss.length > 0) {
+      setPendingIds((prev) => { const n = new Set(prev); for (const id of toDismiss) n.delete(id); return n; });
+      setDismissedIds((prev) => { const n = new Set(prev); for (const id of toDismiss) n.add(id); return n; });
+    }
+  }, [items]);
 
   const updateArrows = React.useCallback(() => {
     const el = scrollRef.current;
@@ -61,7 +84,13 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
   );
 
   const [cardFields, setCardFields] = React.useState(lastCardFields);
-  const cardFieldsKey = `${artworkPreference}|${isHorizontal}|${visibleItems.map((m) => m.id).join(',')}`;
+  const cardFieldsKey = React.useMemo(
+    () => `${artworkPreference}|${isHorizontal}|${visibleItems.map((m) => {
+      const vid = (m as unknown as { lastVideoId?: string }).lastVideoId ?? '';
+      return `${m.id}:${vid}`;
+    }).join(',')}`,
+    [artworkPreference, isHorizontal, visibleItems],
+  );
   React.useEffect(() => {
     if (cardFieldsKey === lastCardFieldsKey) {
       setCardFields(lastCardFields);
@@ -114,12 +143,20 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
             remainingFormat={remainingFormat}
             progressDirection={progressDirection}
             dismissing={dismissingIds.has(meta.id)}
+            pending={pendingIds.has(meta.id)}
             onClick={onItemClick}
-            onMarkWatched={(item) => startDismiss(item, () => void markContinueWatchingItemWatched(item, onDispatch))}
+            onMarkWatched={(item) => {
+              markWatchedVideoIds.current.set(item.id, (item as unknown as { lastVideoId?: string | null }).lastVideoId ?? null);
+              startDismiss(item, () => void markContinueWatchingItemWatched(item, onDispatch));
+            }}
             onDrop={(item) => startDismiss(item, () => void dropContinueWatchingItem(item, onDispatch))}
             onDismissAnimationEnd={(item) => {
-              setDismissedIds((prev) => new Set([...prev, item.id]));
               setDismissingIds((prev) => { const n = new Set(prev); n.delete(item.id); return n; });
+              if (markWatchedVideoIds.current.has(item.id)) {
+                setPendingIds((prev) => { const n = new Set(prev); n.add(item.id); return n; });
+              } else {
+                setDismissedIds((prev) => new Set([...prev, item.id]));
+              }
             }}
           />
         ))}
@@ -135,7 +172,8 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
   return prev.items.every((item, i) => {
     const pi = item as unknown as Record<string, unknown>;
     const ni = next.items[i] as unknown as Record<string, unknown>;
-    return pi.id === ni.id && pi.timeOffset === ni.timeOffset && pi.duration === ni.duration;
+    return pi.id === ni.id && pi.timeOffset === ni.timeOffset && pi.duration === ni.duration
+      && pi.lastVideoId === ni.lastVideoId;
   });
 });
 

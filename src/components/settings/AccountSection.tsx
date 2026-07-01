@@ -8,6 +8,7 @@ import { t } from '../../i18n';
 import { isTraktConnected, profileColor, saveProfile } from '../../core/profiles';
 import { AvatarPreview } from '../../screens/ProfileForm';
 import { syncExternalIntegrationNow } from '../../core/effectRunner';
+import { refreshAnimeTrackingProfile } from '../../core/animeExternalSync';
 import { SettingsSection, SyncServicePopover, SyncServiceRow } from './SettingsUI';
 import type { Prefs, SyncMeta, TraktTokenResponse } from './settingsTypes';
 
@@ -25,6 +26,8 @@ interface OAuthCodePayload {
   code: string;
   state: string | null;
 }
+
+type OAuthService = 'trakt' | 'anilist' | 'simkl';
 
 export function AccountSection({
   prefs,
@@ -45,29 +48,66 @@ export function AccountSection({
   const [traktError, setTraktError] = useState<string | null>(null);
   const [traktPopoverOpen, setTraktPopoverOpen] = useState(false);
   const [traktSyncMeta, setTraktSyncMeta] = useState<SyncMeta | null>(null);
-  const [malBusy, setMalBusy] = useState(false);
-  const [malError, setMalError] = useState<string | null>(null);
-  const malVerifierRef = useRef<string | null>(null);
   const traktStateRef = useRef<string | null>(null);
-  const malStateRef = useRef<string | null>(null);
+  const anilistStateRef = useRef<string | null>(null);
   const simklStateRef = useRef<string | null>(null);
+  const [anilistBusy, setAnilistBusy] = useState(false);
+  const [anilistError, setAnilistError] = useState<string | null>(null);
+  const [anilistPopoverOpen, setAnilistPopoverOpen] = useState(false);
+  const [anilistSyncMeta, setAnilistSyncMeta] = useState<SyncMeta | null>(null);
   const [simklBusy, setSimklBusy] = useState(false);
   const [simklError, setSimklError] = useState<string | null>(null);
   const [simklPopoverOpen, setSimklPopoverOpen] = useState(false);
   const [simklSyncMeta, setSimklSyncMeta] = useState<SyncMeta | null>(null);
+  const [authUrls, setAuthUrls] = useState<Partial<Record<OAuthService, string>>>({});
 
   useEffect(() => {
     storageRead<SyncMeta>('trakt_sync_meta').then((m) => { if (m) setTraktSyncMeta(m); });
+    storageRead<SyncMeta>('anilist_sync_meta').then((m) => { if (m) setAnilistSyncMeta(m); });
     storageRead<SyncMeta>('simkl_sync_meta').then((m) => { if (m) setSimklSyncMeta(m); });
   }, []);
 
   const traktConnected = isTraktConnected(activeProfile);
-  const malConnected = Boolean(activeProfile?.malAccessToken);
+  const anilistConnected = Boolean(activeProfile?.anilistAccessToken);
   const simklConnected = Boolean(activeProfile?.simklAccessToken);
 
   useEffect(() => { if (traktConnected) setTraktBusy(false); }, [traktConnected]);
-  useEffect(() => { if (malConnected) setMalBusy(false); }, [malConnected]);
+  useEffect(() => { if (anilistConnected) setAnilistBusy(false); }, [anilistConnected]);
   useEffect(() => { if (simklConnected) setSimklBusy(false); }, [simklConnected]);
+
+  const setAuthUrl = (service: OAuthService, url?: string) => {
+    setAuthUrls((current) => ({ ...current, [service]: url }));
+  };
+
+  const copyAuthUrl = async (service: OAuthService) => {
+    const url = authUrls[service];
+    if (!url) return;
+    await navigator.clipboard.writeText(url).catch(() => undefined);
+  };
+
+  const renderOAuthFallback = (service: OAuthService) => {
+    const url = authUrls[service];
+    if (!url) return null;
+    return (
+      <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', gap: 8, alignItems: 'center' }}>
+        <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 12, margin: 0, flex: 1, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>
+          {t('settings.oauth_waiting_browser')}
+        </p>
+        <button
+          onClick={() => void shellOpen(url)}
+          style={{ height: 28, borderRadius: 7, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+        >
+          {t('settings.oauth_reopen')}
+        </button>
+        <button
+          onClick={() => void copyAuthUrl(service)}
+          style={{ height: 28, borderRadius: 7, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+        >
+          {t('settings.oauth_copy_link')}
+        </button>
+      </div>
+    );
+  };
 
   const handleTraktConnect = async () => {
     if (!activeProfile || traktBusy) return;
@@ -78,16 +118,19 @@ export function AccountSection({
       const state = generateCodeVerifier();
       traktStateRef.current = state;
       const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${traktClientId}&redirect_uri=${encodeURIComponent('fluxa://oauth/trakt')}&state=${state}`;
+      setAuthUrl('trakt', authUrl);
       await shellOpen(authUrl);
 
       const unlisten = await listen<OAuthCodePayload>('trakt-oauth-code', async (event) => {
         unlisten();
         if (event.payload.state !== traktStateRef.current) {
           setTraktError(t('settings.oauth_state_mismatch'));
+          setAuthUrl('trakt');
           setTraktBusy(false);
           return;
         }
         traktStateRef.current = null;
+        setAuthUrl('trakt');
         try {
           const tokenJson = await invoke<string>('trakt_oauth_exchange', { code: event.payload.code });
           const tokens = JSON.parse(tokenJson) as TraktTokenResponse;
@@ -102,6 +145,7 @@ export function AccountSection({
       });
     } catch (err) {
       setTraktError(err instanceof Error ? err.message : String(err));
+      setAuthUrl('trakt');
       setTraktBusy(false);
     }
   };
@@ -113,60 +157,66 @@ export function AccountSection({
     onProfileUpdated(updated);
   };
 
-  const handleMalConnect = async () => {
-    if (!activeProfile || malBusy) return;
-    setMalBusy(true);
-    setMalError(null);
+  const handleAnilistConnect = async () => {
+    if (!activeProfile || anilistBusy) return;
+    setAnilistBusy(true);
+    setAnilistError(null);
     try {
-      const malClientId = await invoke<string>('get_oauth_client_id', { service: 'mal' });
-      if (!malClientId) {
-        setMalError('FLUXA_MAL_CLIENT_ID ortam değişkeni ayarlanmamış.');
-        setMalBusy(false);
+      const anilistClientId = await invoke<string>('get_oauth_client_id', { service: 'anilist' });
+      if (!anilistClientId) {
+        setAnilistError('FLUXA_ANILIST_CLIENT_ID is not set.');
+        setAnilistBusy(false);
         return;
       }
-      const verifier = generateCodeVerifier();
-      malVerifierRef.current = verifier;
       const state = generateCodeVerifier();
-      malStateRef.current = state;
-      const authUrl = `https://myanimelist.net/v1/oauth2/authorize?response_type=code&client_id=${malClientId}&redirect_uri=${encodeURIComponent('fluxa://oauth/mal')}&code_challenge=${verifier}&code_challenge_method=plain&state=${state}`;
+      anilistStateRef.current = state;
+      const authUrl = `https://anilist.co/api/v2/oauth/authorize?response_type=code&client_id=${anilistClientId}&redirect_uri=${encodeURIComponent('fluxa://oauth/anilist')}&state=${state}`;
+      setAuthUrl('anilist', authUrl);
       await shellOpen(authUrl);
 
-      const unlisten = await listen<OAuthCodePayload>('mal-oauth-code', async (event) => {
+      const unlisten = await listen<OAuthCodePayload>('anilist-oauth-code', async (event) => {
         unlisten();
-        const storedVerifier = malVerifierRef.current;
-        if (!storedVerifier) { setMalBusy(false); return; }
-        if (event.payload.state !== malStateRef.current) {
-          setMalError(t('settings.oauth_state_mismatch'));
-          setMalBusy(false);
+        if (event.payload.state !== anilistStateRef.current) {
+          setAnilistError(t('settings.oauth_state_mismatch'));
+          setAuthUrl('anilist');
+          setAnilistBusy(false);
           return;
         }
-        malStateRef.current = null;
+        anilistStateRef.current = null;
+        setAuthUrl('anilist');
         try {
-          const tokenJson = await invoke<string>('mal_oauth_exchange', { code: event.payload.code, codeVerifier: storedVerifier });
+          const tokenJson = await invoke<string>('anilist_oauth_exchange', { code: event.payload.code });
           const tokens = JSON.parse(tokenJson) as { access_token: string; refresh_token?: string; expires_in?: number };
           const updated: UserProfile = {
             ...activeProfile,
-            malAccessToken: tokens.access_token,
-            malRefreshToken: tokens.refresh_token,
-            malTokenExpiresAt: tokens.expires_in ? Math.floor(Date.now() / 1000) + tokens.expires_in : undefined,
+            anilistAccessToken: tokens.access_token,
+            anilistRefreshToken: tokens.refresh_token,
+            anilistTokenExpiresAt: tokens.expires_in ? Math.floor(Date.now() / 1000) + tokens.expires_in : undefined,
           };
           await saveProfile(updated);
           onProfileUpdated(updated);
         } catch (err) {
-          setMalError(err instanceof Error ? err.message : String(err));
+          setAnilistError(err instanceof Error ? err.message : String(err));
         } finally {
-          setMalBusy(false);
+          setAnilistBusy(false);
         }
       });
     } catch (err) {
-      setMalError(err instanceof Error ? err.message : String(err));
-      setMalBusy(false);
+      setAnilistError(err instanceof Error ? err.message : String(err));
+      setAuthUrl('anilist');
+      setAnilistBusy(false);
     }
   };
 
-  const handleMalDisconnect = async () => {
+  const handleAnilistDisconnect = async () => {
     if (!activeProfile) return;
-    const updated: UserProfile = { ...activeProfile, malAccessToken: undefined, malRefreshToken: undefined, malTokenExpiresAt: undefined };
+    setAnilistPopoverOpen(false);
+    const updated: UserProfile = {
+      ...activeProfile,
+      anilistAccessToken: undefined,
+      anilistRefreshToken: undefined,
+      anilistTokenExpiresAt: undefined,
+    };
     await saveProfile(updated);
     onProfileUpdated(updated);
   };
@@ -185,16 +235,19 @@ export function AccountSection({
       const state = generateCodeVerifier();
       simklStateRef.current = state;
       const authUrl = `https://simkl.com/oauth/authorize?response_type=code&client_id=${simklClientId}&redirect_uri=${encodeURIComponent('fluxa://oauth/simkl')}&state=${state}`;
+      setAuthUrl('simkl', authUrl);
       await shellOpen(authUrl);
 
       const unlisten = await listen<OAuthCodePayload>('simkl-oauth-code', async (event) => {
         unlisten();
         if (event.payload.state !== simklStateRef.current) {
           setSimklError(t('settings.oauth_state_mismatch'));
+          setAuthUrl('simkl');
           setSimklBusy(false);
           return;
         }
         simklStateRef.current = null;
+        setAuthUrl('simkl');
         try {
           const tokenJson = await invoke<string>('simkl_oauth_exchange', { code: event.payload.code });
           const tokens = JSON.parse(tokenJson) as { access_token: string; refresh_token?: string };
@@ -209,6 +262,7 @@ export function AccountSection({
       });
     } catch (err) {
       setSimklError(err instanceof Error ? err.message : String(err));
+      setAuthUrl('simkl');
       setSimklBusy(false);
     }
   };
@@ -277,6 +331,34 @@ export function AccountSection({
     onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: prefs.language }));
   };
 
+  const handleAnilistSyncNow = async () => {
+    if (!activeProfile?.anilistAccessToken) return;
+    setAnilistBusy(true);
+    setAnilistError(null);
+    try {
+      const updated = await refreshAnimeTrackingProfile(activeProfile);
+      if (updated !== activeProfile) onProfileUpdated(updated);
+      const result = await syncExternalIntegrationNow({
+        provider: 'anilist',
+        profile: updated,
+        token: updated.anilistAccessToken,
+      }) as { synced?: boolean; error?: string; continueWatchingCount?: number; watchlistCount?: number };
+      if (!result.synced) {
+        setAnilistError(result.error ?? 'AniList sync failed');
+        return;
+      }
+      const meta: SyncMeta = { lastSyncAt: Date.now(), continueWatchingCount: result.continueWatchingCount ?? 0, watchlistCount: result.watchlistCount ?? 0 };
+      setAnilistSyncMeta(meta);
+      await storageWrite('anilist_sync_meta', meta);
+    } catch (error) {
+      setAnilistError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setAnilistBusy(false);
+    }
+    onDispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
+    onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: prefs.language }));
+  };
+
   return (
     <>
       {activeProfile && (
@@ -301,6 +383,7 @@ export function AccountSection({
             busy={traktBusy}
           />
         )}
+        {!traktConnected && renderOAuthFallback('trakt')}
         {traktError && (
           <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
             <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {traktError}</p>
@@ -315,10 +398,10 @@ export function AccountSection({
               valueColor="#54D17A"
               onClick={() => setTraktPopoverOpen((o) => !o)}
               busy={traktBusy}
+              expanded={traktPopoverOpen}
             />
             {traktPopoverOpen && (
               <SyncServicePopover
-                logoSrc="/trakt.svg"
                 serviceName="Trakt.tv"
                 meta={traktSyncMeta}
                 busy={traktBusy}
@@ -330,29 +413,47 @@ export function AccountSection({
           </div>
         )}
 
-        {/* MAL */}
-        {!malConnected && (
+        {/* AniList */}
+        {!anilistConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(42,133,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/mal.svg" alt="MAL" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
-            title="MyAnimeList"
-            value={malBusy ? t('trakt.device.waiting') : t('auto.connect_myanimelist_account') || 'Connect MyAnimeList Account'}
-            onClick={() => void handleMalConnect()}
-            busy={malBusy}
+            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(2,169,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/anilist.svg" alt="AniList" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+            title="AniList"
+            value={anilistBusy ? t('trakt.device.waiting') : t('auto.connect_anilist_account')}
+            onClick={() => void handleAnilistConnect()}
+            busy={anilistBusy}
           />
         )}
-        {malError && (
+        {!anilistConnected && renderOAuthFallback('anilist')}
+        {anilistError && (
           <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
-            <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {malError}</p>
+            <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {anilistError}</p>
           </div>
         )}
-        {malConnected && (
-          <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(42,133,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/mal.svg" alt="MAL" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
-            title="MyAnimeList"
-            value={t('trakt.device.connected')}
-            valueColor="#54D17A"
-            onClick={() => void handleMalDisconnect()}
-          />
+        {anilistConnected && (
+          <div style={{ position: 'relative' }}>
+            <SyncServiceRow
+              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(2,169,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/anilist.svg" alt="AniList" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+              title="AniList"
+              value={anilistBusy ? t('trakt.device.syncing') : t('settings.anime_tracking_enabled')}
+              valueColor="#54D17A"
+              onClick={() => setAnilistPopoverOpen((o) => !o)}
+              busy={anilistBusy}
+              expanded={anilistPopoverOpen}
+            />
+            {anilistPopoverOpen && (
+              <SyncServicePopover
+                serviceName="AniList"
+                meta={anilistSyncMeta}
+                busy={anilistBusy}
+                statusLabel={anilistSyncMeta ? `${t('settings.anime_tracking_enabled')} · ${new Date(anilistSyncMeta.lastSyncAt).toLocaleString()}` : t('settings.anime_tracking_enabled')}
+                statusColor="#54D17A"
+                syncLabel={t('settings.sync_now')}
+                onSyncNow={() => void handleAnilistSyncNow()}
+                onDisconnect={() => void handleAnilistDisconnect()}
+                onClose={() => setAnilistPopoverOpen(false)}
+              />
+            )}
+          </div>
         )}
 
         {/* Simkl */}
@@ -360,11 +461,12 @@ export function AccountSection({
           <SyncServiceRow
             icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.svg" alt="Simkl" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
             title="Simkl"
-            value={simklBusy ? t('trakt.device.waiting') : 'Connect Simkl Account'}
+            value={simklBusy ? t('trakt.device.waiting') : t('auto.connect_simkl_account')}
             onClick={() => void handleSimklConnect()}
             busy={simklBusy}
           />
         )}
+        {!simklConnected && renderOAuthFallback('simkl')}
         {simklError && (
           <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
             <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {simklError}</p>
@@ -379,10 +481,10 @@ export function AccountSection({
               valueColor="#54D17A"
               onClick={() => setSimklPopoverOpen((o) => !o)}
               busy={simklBusy}
+              expanded={simklPopoverOpen}
             />
             {simklPopoverOpen && (
               <SyncServicePopover
-                logoSrc="/simkl.svg"
                 serviceName="Simkl"
                 meta={simklSyncMeta}
                 busy={simklBusy}

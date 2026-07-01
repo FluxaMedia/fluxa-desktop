@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { t } from '../i18n';
 import type { Meta } from '../core/types';
 
@@ -14,15 +14,28 @@ export function DiscoverDetailPanel({
   const [imgErr, setImgErr] = useState(false);
   const bgUrl = !imgErr ? (meta.background ?? meta.poster) : null;
 
-  const cast = (meta.links ?? [])
-    .filter((l) => l.category.toLowerCase().includes('cast') || l.category.toLowerCase() === 'actor')
-    .map((l) => l.name)
-    .slice(0, 4);
+  const cast = useMemo(
+    () =>
+      (meta.links ?? [])
+        .filter((l) => l.category.toLowerCase().includes('cast') || l.category.toLowerCase() === 'actor')
+        .map((l) => l.name)
+        .slice(0, 4),
+    [meta.links],
+  );
 
-  const directors = (meta.links ?? [])
-    .filter((l) => l.category.toLowerCase().includes('director'))
-    .map((l) => l.name)
-    .slice(0, 2);
+  const directors = useMemo(
+    () =>
+      (meta.links ?? [])
+        .filter((l) => l.category.toLowerCase().includes('director'))
+        .map((l) => l.name)
+        .slice(0, 2),
+    [meta.links],
+  );
+
+  const handleToggleWatchlist = useCallback(
+    () => onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: meta })),
+    [onDispatch, meta],
+  );
 
   return (
     <div style={DP.wrap}>
@@ -87,7 +100,7 @@ export function DiscoverDetailPanel({
           <PanelIconBtn
             title={t('discover.add_to_list')}
             icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13H13v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>}
-            onClick={() => onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: meta }))}
+            onClick={handleToggleWatchlist}
           />
           <PanelIconBtn
             title={t('detail.mark_watched')}

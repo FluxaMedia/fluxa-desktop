@@ -10,7 +10,7 @@ import {
   storageWrite,
 } from './engine';
 import { buildContinueWatching, loadActiveProfile, loadAddons, loadLibrary, saveLibrary } from './libraryOps';
-import { pushMarkWatchedExternal, pushWatchlistExternal } from './externalSync';
+import { pushLibraryStatusExternal, pushMarkWatchedExternal, pushWatchlistExternal, type WatchedEpisodeInfo, type WatchProgressInfo } from './externalSync';
 import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
 import { notify } from './notifications';
 import { t } from '../i18n';
@@ -73,6 +73,41 @@ export async function refreshWatchlistAirDates(): Promise<void> {
 const NOTIFIED_EPISODES_KEY = 'notified_released_episode_ids';
 const NOTIFIED_EPISODES_LIMIT = 500;
 
+function episodeOrderKey(ep: { season?: number; episode?: number; number?: number }): number {
+  return (Number(ep.season ?? 1) * 10000) + Number(ep.episode ?? ep.number ?? 0);
+}
+
+async function deriveNextProgressInfo(
+  seriesId: string | undefined,
+  contentType: string,
+  watchedEpisodes: Array<{ season?: number; episode?: number; number?: number }>,
+): Promise<WatchProgressInfo | undefined> {
+  if (!seriesId || watchedEpisodes.length === 0) return undefined;
+  const lastWatchedOrder = Math.max(...watchedEpisodes.map(episodeOrderKey));
+  if (!Number.isFinite(lastWatchedOrder)) return undefined;
+  const addons = await loadAddons();
+  const videos = await fetchVideosForSeries(seriesId, addons);
+  const now = Date.now();
+  const next = videos
+    .filter((ep) => {
+      if (episodeOrderKey(ep) <= lastWatchedOrder) return false;
+      if (ep.released && new Date(ep.released).getTime() > now) return false;
+      return true;
+    })
+    .sort((a, b) => episodeOrderKey(a) - episodeOrderKey(b))[0];
+  if (!next?.id) return undefined;
+  return {
+    contentId: seriesId,
+    contentType,
+    videoId: next.id,
+    positionSeconds: 1,
+    durationSeconds: 99999,
+    lastWatched: Date.now(),
+    season: next.season,
+    episode: next.episode ?? next.number,
+  };
+}
+
 export async function notifyReleasedEpisodes(payload: Record<string, unknown>): Promise<void> {
   const items = (payload.items as Array<Record<string, unknown>> | undefined) ?? [];
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -94,7 +129,16 @@ export async function notifyReleasedEpisodes(payload: Record<string, unknown>): 
 
 export async function applyLibraryCommand(payload: Record<string, unknown>): Promise<unknown> {
   const lib = await loadLibrary();
-  const command = payload.command as { type: string; item?: unknown; list?: string; watched?: boolean; videoIds?: string[] } | undefined;
+  const command = payload.command as {
+    type: string;
+    item?: unknown;
+    meta?: unknown;
+    list?: string;
+    watched?: boolean;
+    videoIds?: string[];
+    episodes?: Array<{ id?: string; name?: string; title?: string; season?: number; episode?: number; number?: number }>;
+    seriesId?: string;
+  } | undefined;
   if (!command) return lib;
 
   if (command.type === 'toggleLibraryStatus' && command.item && (command.list === 'dropped' || command.list === 'completed')) {
@@ -119,6 +163,9 @@ export async function applyLibraryCommand(payload: Record<string, unknown>): Pro
       lib.progress = progressMap;
       lib.continueWatching = await buildContinueWatching(progressMap);
     }
+    void loadActiveProfile().then((profile) =>
+      pushLibraryStatusExternal(command.item as Record<string, unknown>, command.list!, nextCommand, profile)
+    );
     await saveLibrary(lib);
     invalidateCalendarCache();
     return lib;
@@ -154,19 +201,60 @@ export async function applyLibraryCommand(payload: Record<string, unknown>): Pro
     }
     lib.watched = watched;
 
+    const seriesId = command.seriesId;
+    const progressBeforeUpdate = seriesId
+      ? ((lib.progress as Record<string, unknown> | undefined) ?? {})[seriesId] as Record<string, unknown> | undefined
+      : undefined;
+    const itemMeta = (command.item as Record<string, unknown> | undefined)
+      ?? (command.meta as Record<string, unknown> | undefined);
+    const contentType = String(itemMeta?.type ?? (progressBeforeUpdate?.meta as Record<string, unknown> | undefined)?.type ?? 'series');
+    const episodeInfos: WatchedEpisodeInfo[] = seriesId
+      ? (command.episodes ?? [])
+        .map((ep, index) => ({
+          contentId: seriesId,
+          contentType,
+          season: ep.season,
+          episode: ep.episode ?? ep.number,
+          title: ep.name ?? ep.title ?? String(command.videoIds?.[index] ?? ''),
+        }))
+        .filter((ep) => ep.season != null && ep.episode != null)
+      : [];
+    const progressEpisodeInfo: WatchedEpisodeInfo | undefined = progressBeforeUpdate && seriesId ? {
+      contentId: seriesId,
+      contentType: String((progressBeforeUpdate.meta as Record<string, unknown> | undefined)?.type ?? 'series'),
+      season: progressBeforeUpdate.lastEpisodeSeason as number | undefined,
+      episode: progressBeforeUpdate.lastEpisodeNumber as number | undefined,
+      title: String((progressBeforeUpdate.meta as Record<string, unknown> | undefined)?.name ?? ''),
+    } : undefined;
+
     if (command.watched !== false) {
       const updatedLib = await coreLibraryApplyMarkWatched(JSON.stringify(lib), JSON.stringify(command.videoIds));
       if (updatedLib) Object.assign(lib, updatedLib);
     }
-    // Fire-and-forget push to external services
-    void loadActiveProfile().then((profile) =>
+    const progressAfterUpdate = seriesId
+      ? ((lib.progress as Record<string, unknown> | undefined) ?? {})[seriesId] as Record<string, unknown> | undefined
+      : undefined;
+    const progressMeta = progressAfterUpdate?.meta as Record<string, unknown> | undefined;
+    const progressInfo: WatchProgressInfo | undefined = progressAfterUpdate && seriesId && progressAfterUpdate.lastVideoId ? {
+      contentId: seriesId,
+      contentType: String(progressMeta?.type ?? contentType),
+      videoId: String(progressAfterUpdate.lastVideoId),
+      positionSeconds: Number(progressAfterUpdate.timeOffset ?? 0),
+      durationSeconds: Number(progressAfterUpdate.duration ?? 0),
+      lastWatched: progressAfterUpdate.savedAt ? new Date(String(progressAfterUpdate.savedAt)).getTime() : Date.now(),
+      season: progressAfterUpdate.lastEpisodeSeason as number | undefined,
+      episode: progressAfterUpdate.lastEpisodeNumber as number | undefined,
+    } : await deriveNextProgressInfo(seriesId, contentType, command.episodes ?? []);
+    await loadActiveProfile().then((profile) =>
       pushMarkWatchedExternal(
         command.videoIds as string[],
         command.watched !== false,
-        command.item as Record<string, unknown> | undefined,
+        itemMeta,
         profile,
+        episodeInfos.length > 0 ? episodeInfos : progressEpisodeInfo,
+        progressInfo,
       )
-    );
+    ).catch(() => undefined);
   }
 
   await saveLibrary(lib);

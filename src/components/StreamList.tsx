@@ -34,7 +34,7 @@ export function StreamList({ streams, isLoading, onPlay }: Props) {
       <p style={styles.sectionTitle}>{t('auto.sources')}</p>
       <div style={styles.list}>
         {streams.map((stream, idx) => (
-          <StreamRow key={idx} stream={stream} onPlay={onPlay} />
+          <StreamRow key={stream.url ?? stream.infoHash ?? idx} stream={stream} onPlay={onPlay} />
         ))}
       </div>
     </div>

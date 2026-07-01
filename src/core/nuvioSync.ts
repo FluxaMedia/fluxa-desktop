@@ -1,4 +1,5 @@
 import {
+  nuvioRefreshToken,
   nuvioPullAddons,
   nuvioPullCollections,
   nuvioPullLibrary,
@@ -13,11 +14,28 @@ import { platformFetch } from './httpClient';
 import { buildContinueWatching } from './libraryOps';
 import { storageRead, storageWrite } from './engine';
 import type { UserProfile } from './types';
+import { saveProfile } from './profiles';
 
 export type NuvioImportStep = 'addons' | 'library' | 'progress' | 'history' | 'collections' | 'settings';
 
 export interface NuvioImportReport {
   errors: Partial<Record<NuvioImportStep, string>>;
+}
+
+export async function freshNuvioProfile(profile: UserProfile): Promise<UserProfile> {
+  if (!profile.nuvioRefreshToken) return profile;
+  const expiresAt = profile.nuvioTokenExpiresAt ?? 0;
+  if (profile.nuvioAccessToken && expiresAt > Math.floor(Date.now() / 1000) + 60) return profile;
+  const session = await nuvioRefreshToken(profile.nuvioRefreshToken);
+  const updated: UserProfile = {
+    ...profile,
+    nuvioAccessToken: session.access_token,
+    nuvioRefreshToken: session.refresh_token ?? profile.nuvioRefreshToken,
+    nuvioTokenExpiresAt: Math.floor(Date.now() / 1000) + (session.expires_in ?? 3600),
+    nuvioUserId: session.user?.id ?? profile.nuvioUserId,
+  };
+  await saveProfile(updated);
+  return updated;
 }
 
 function safeIdPart(value: string): string {
@@ -129,8 +147,9 @@ export async function importNuvioProfileData(
   profile: UserProfile,
   onStep?: (step: NuvioImportStep, ok: boolean, error?: string) => void,
 ): Promise<NuvioImportReport> {
-  const token = profile.nuvioAccessToken;
-  const profileIdx = profile.nuvioProfileIndex ?? 1;
+  const freshProfile = await freshNuvioProfile(profile).catch(() => profile);
+  const token = freshProfile.nuvioAccessToken;
+  const profileIdx = freshProfile.nuvioProfileIndex ?? 1;
   if (!token) return { errors: { library: 'Missing Nuvio token' } };
 
   const suffix = profileStorageSuffix(profile);
@@ -145,6 +164,7 @@ export async function importNuvioProfileData(
     watched: { ...((existingLib.watched as Record<string, boolean> | undefined) ?? {}) },
   };
   const errors: Partial<Record<NuvioImportStep, string>> = {};
+  const activeRemoteProgressIds = new Set<string>();
 
   let addonList: NuvioAddon[] = [];
   let manifestIdByUrl = new Map<string, string>();
@@ -222,15 +242,17 @@ export async function importNuvioProfileData(
                 addonMetaMap.set(e.content_id, data.meta);
                 break;
               }
-            } catch {
-              // try next addon
-            }
+            } catch {}
           }
         })
       );
     }
 
     for (const entry of sorted) {
+      const progressRatio = entry.duration > 0 ? entry.position / entry.duration : 0;
+      const isResolvedUpNext = entry.duration <= 0
+        ? entry.position <= 1000
+        : progressRatio < 0.005 || progressRatio >= 0.995;
       const libItem = libraryByContentId.get(entry.content_id);
       const addonMeta = addonMetaMap.get(entry.content_id);
       const ep = entry.season != null && entry.episode != null
@@ -251,8 +273,16 @@ export async function importNuvioProfileData(
         lastEpisodeNumber: entry.episode ?? undefined,
         lastEpisodeName: ep?.title ?? ep?.name ?? undefined,
         lastEpisodeThumbnail: ep?.thumbnail ?? undefined,
+        ...(isResolvedUpNext ? {
+          continueWatchingBadge: 'upNext',
+          continueWatchingEpisodeResolved: true,
+        } : {}),
         savedAt: new Date(entry.last_watched).toISOString(),
       };
+      activeRemoteProgressIds.add(entry.video_id);
+      if (entry.season != null && entry.episode != null) {
+        activeRemoteProgressIds.add(`${entry.content_id}:${entry.season}:${entry.episode}`);
+      }
     }
     libDoc.progress = progressMap;
     libDoc.continueWatching = await buildContinueWatching(progressMap);
@@ -272,11 +302,37 @@ export async function importNuvioProfileData(
         watched[`${item.content_id}:${item.season}:${item.episode}`] = true;
       }
     }
+    for (const id of activeRemoteProgressIds) {
+      delete watched[id];
+    }
     libDoc.watched = watched;
     onStep?.('history', true);
   } catch (err) {
     errors.history = err instanceof Error ? err.message : String(err);
     onStep?.('history', false, errors.history);
+  }
+
+  {
+    const finalWatched = (libDoc.watched as Record<string, boolean> | undefined) ?? {};
+    const finalProgress = (libDoc.progress as Record<string, unknown> | undefined) ?? {};
+    let dirty = false;
+    for (const [contentId, entry] of Object.entries(finalProgress)) {
+      const e = entry as Record<string, unknown>;
+      const lastVideoId = e.lastVideoId as string | undefined;
+      const season = e.lastEpisodeSeason as number | undefined;
+      const episode = e.lastEpisodeNumber as number | undefined;
+      const isWatched =
+        (lastVideoId != null && finalWatched[lastVideoId]) ||
+        (season != null && episode != null && finalWatched[`${contentId}:${season}:${episode}`]);
+      if (isWatched) {
+        delete finalProgress[contentId];
+        dirty = true;
+      }
+    }
+    if (dirty) {
+      libDoc.progress = finalProgress;
+      libDoc.continueWatching = await buildContinueWatching(finalProgress);
+    }
   }
 
   await storageWrite(libKey, libDoc);

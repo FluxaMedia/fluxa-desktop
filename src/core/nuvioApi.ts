@@ -98,7 +98,7 @@ export interface NuvioCollectionRow {
 }
 
 async function rawNuvioRequest(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'DELETE',
   path: string,
   body?: unknown,
   token?: string,
@@ -112,7 +112,7 @@ async function rawNuvioRequest(
 }
 
 async function nuvioRequest<T>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'DELETE',
   path: string,
   body?: unknown,
   token?: string,
@@ -256,6 +256,22 @@ export async function nuvioPushWatchProgress(
   }>,
 ): Promise<void> {
   return post('/rest/v1/rpc/sync_push_watch_progress', { p_profile_id: profileId, p_entries: entries }, token);
+}
+
+export async function nuvioDeleteWatchProgress(
+  token: string,
+  profileId: number,
+  contentId: string,
+  season?: number,
+  episode?: number,
+): Promise<void> {
+  const params = new URLSearchParams({
+    profile_id: `eq.${profileId}`,
+    content_id: `eq.${contentId}`,
+  });
+  if (season != null) params.set('season', `eq.${season}`);
+  if (episode != null) params.set('episode', `eq.${episode}`);
+  await nuvioRequest<void>('DELETE', `/rest/v1/watch_progress?${params.toString()}`, undefined, token);
 }
 
 export async function nuvioPullWatchHistory(

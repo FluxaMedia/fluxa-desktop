@@ -218,7 +218,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       try {
         preMiniPlayerSizeRef.current = await win.outerSize();
         preMiniPlayerPosRef.current = await win.outerPosition();
-      } catch { /* ignore */ }
+      } catch {}
       setSuppressWindowGeometrySave(true);
       const width = 420;
       const height = 236;
@@ -231,7 +231,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             monitor.position.y + monitor.size.height - height - margin,
           ));
         }
-      } catch { /* ignore */ }
+      } catch {}
       await win.setSize(new PhysicalSize(width, height));
       await win.setAlwaysOnTop(true);
       setMiniPlayerActive(true);
@@ -240,7 +240,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       try {
         if (preMiniPlayerSizeRef.current) await win.setSize(preMiniPlayerSizeRef.current);
         if (preMiniPlayerPosRef.current) await win.setPosition(preMiniPlayerPosRef.current);
-      } catch { /* ignore */ }
+      } catch {}
       setSuppressWindowGeometrySave(false);
       setMiniPlayerActive(false);
     }
@@ -437,7 +437,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         setAutoPlayNextEpisode(info.autoPlayNextEpisode ?? false);
         setAutoPlayCountdownSecs(info.autoPlayCountdownSecs ?? 7);
         setEpisodes(parseEpisodes(info.episodesJson));
-      } catch { /* renderer may not be ready yet */ }
+      } catch {}
     };
     poll();
     const interval = setInterval(poll, 2000);
@@ -685,8 +685,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const openTrackPopover = useCallback(async (type: 'audio' | 'sub' | 'speed') => {
     resetActivity();
     if (trackPopover === type) { setTrackPopover(null); return; }
-    if (type === 'audio') { try { setAudioTracks(await playerGetTrackOptions('audio')); } catch { /* ignore */ } }
-    else if (type === 'sub') { try { setSubTracks(await playerGetTrackOptions('sub')); } catch { /* ignore */ } }
+    if (type === 'audio') { try { setAudioTracks(await playerGetTrackOptions('audio')); } catch {} }
+    else if (type === 'sub') { try { setSubTracks(await playerGetTrackOptions('sub')); } catch {} }
     setTrackPopover(type);
   }, [trackPopover, resetActivity]);
 
@@ -720,7 +720,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
   const selectCastDevice = useCallback(async (device: CastDevice) => {
     let status: EmbeddedMpvStatus | null = null;
-    try { status = await invoke<EmbeddedMpvStatus>('player_status'); } catch { /* ignore */ }
+    try { status = await invoke<EmbeddedMpvStatus>('player_status'); } catch {}
     const streamUrl = status?.path;
     if (!streamUrl) { setCastPopoverOpen(false); return; }
     const mediaUrl = initialStreamHeaders && Object.keys(initialStreamHeaders).length > 0
@@ -732,7 +732,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       setActiveCastDeviceName(device.name);
       setCastPaused(false);
       sendCmd('set pause yes');
-    } catch { /* device unreachable */ }
+    } catch {}
     setCastPopoverOpen(false);
   }, [title, episodeTitle, initialSubtitleUrl, initialStreamHeaders]);
 
@@ -899,7 +899,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 140, background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 230, background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.5) 45%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
 
-      {/* Top bar */}
       <div style={{ ...opacityStyle, position: 'absolute', top: bannerOffset, left: 0, right: 0, zIndex: 3, display: 'flex', alignItems: 'center', padding: '14px 12px', gap: 6 }}>
         <button
           onClick={(e) => { e.stopPropagation(); resetActivity(); void closePlayer(); }}
@@ -957,7 +956,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         </button>
       </div>
 
-      {/* Center */}
       <div style={{ flex: 1, cursor: 'default' }} onMouseDown={onCenterMouseDown} onMouseUp={releaseCenterHold} onMouseLeave={releaseCenterHold} onClick={onCenterClick} />
 
       {feedback && (
@@ -1073,7 +1071,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         </div>
       )}
 
-      {/* Bottom controls */}
       <div
         style={{
           ...opacityStyle,
@@ -1084,7 +1081,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           overflow: 'visible',
         }}
       >
-        {/* Seekbar */}
         <div
           ref={seekbarRef}
           style={{ position: 'relative', width: '100%', height: 36, cursor: 'pointer', overflow: 'visible', display: 'flex', alignItems: 'center' }}
@@ -1134,7 +1130,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           )}
         </div>
 
-        {/* Controls row */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px 14px', gap: 0 }}>
           <button
             onClick={(e) => { e.stopPropagation(); resetActivity(); flashFeedback(paused ? 'play' : 'pause', ''); setPaused((prev) => !prev); sendCmd('cycle pause'); }}

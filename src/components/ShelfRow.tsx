@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MovieCard } from './MovieCard';
 import type { Meta } from '../core/types';
@@ -6,6 +6,7 @@ import type { PosterPrefs } from '../core/posterPrefs';
 
 const ROW_PADDING_LEFT = 32;
 const MAX_ROW_ITEMS = 32;
+const SKELETON_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 interface Props {
   title: string;
@@ -41,7 +42,10 @@ export const ShelfRow = React.memo(function ShelfRow({
   const radius = posterPrefs?.radius ?? 12;
   const layout = posterPrefs?.layout ?? 'vertical';
   const hideTitle = posterPrefs?.hideTitles ?? false;
-  const visibleItems = items.length > MAX_ROW_ITEMS ? items.slice(0, MAX_ROW_ITEMS) : items;
+  const visibleItems = useMemo(
+    () => (items.length > MAX_ROW_ITEMS ? items.slice(0, MAX_ROW_ITEMS) : items),
+    [items],
+  );
 
   const checkScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -87,7 +91,7 @@ export const ShelfRow = React.memo(function ShelfRow({
         )}
         <div ref={scrollRef} style={styles.scroll}>
           {isLoading
-            ? Array.from({ length: 10 }).map((_, i) => (
+            ? SKELETON_INDICES.map((i) => (
                 <SkeletonCard key={i} width={width} height={height} radius={radius} delay={i * 0.06} />
               ))
             : visibleItems.map((meta, idx) => (
@@ -209,6 +213,7 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 1,
     paddingTop: 8,
     marginBottom: 8,
+    contain: 'layout style',
   },
   header: {
     display: 'flex',
@@ -253,5 +258,6 @@ const styles: Record<string, React.CSSProperties> = {
     paddingTop: 8,
     scrollbarWidth: 'none',
     msOverflowStyle: 'none',
+    willChange: 'transform',
   },
 };

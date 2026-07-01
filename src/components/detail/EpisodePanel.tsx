@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Circle } from 'lucide-react';
 import { t } from '../../i18n';
 import { EP, S, spinnerStyle } from './detailStyles';
@@ -249,13 +249,17 @@ export function EpisodePanel({
   const hasPrev = seasonIndex > 0;
   const hasNext = seasonIndex < seasons.length - 1;
 
-  const filtered = epSearch
-    ? episodes.filter((ep) =>
-        (ep.title ?? ep.name ?? `Episode ${ep.episode ?? ep.number ?? ''}`)
-          .toLowerCase()
-          .includes(epSearch.toLowerCase()),
-      )
-    : episodes;
+  const filtered = useMemo(
+    () =>
+      epSearch
+        ? episodes.filter((ep) =>
+            (ep.title ?? ep.name ?? `Episode ${ep.episode ?? ep.number ?? ''}`)
+              .toLowerCase()
+              .includes(epSearch.toLowerCase()),
+          )
+        : episodes,
+    [epSearch, episodes],
+  );
 
   const metaProgress = progressMap[metaId];
 

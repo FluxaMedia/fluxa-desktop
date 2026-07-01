@@ -1,6 +1,6 @@
 import type { LibraryItem, Meta } from './types';
 import { coreContinueWatchingCardFields } from './engine';
-import { t } from '../i18n';
+import { t, getLanguage } from '../i18n';
 
 // Batched for a whole Continue Watching row — one IPC round trip for the whole list
 // instead of each card fetching its own artwork + episode line independently.
@@ -70,7 +70,15 @@ export async function markContinueWatchingItemWatched(
       thumbnail: item.lastEpisodeThumbnail ?? meta.background ?? meta.poster,
     }] : [],
   })));
-  await dropContinueWatchingItem(meta, onDispatch);
+  if (meta.type === 'series') {
+    await Promise.resolve(onDispatch(JSON.stringify({
+      type: 'clearPlaybackProgressRequested',
+      meta: { ...meta, _preserveLastWatched: true },
+    })));
+    void onDispatch(JSON.stringify({ type: 'refreshContinueWatchingRequested', language: getLanguage() }));
+  } else {
+    await dropContinueWatchingItem(meta, onDispatch);
+  }
 }
 
 export async function dropContinueWatchingItem(

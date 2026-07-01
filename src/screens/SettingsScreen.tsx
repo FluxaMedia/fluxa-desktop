@@ -317,7 +317,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
         {tab === 'general' && <GeneralSection prefs={prefs} setPref={setPref} />}
         {tab === 'appearance' && <AppearanceSection prefs={prefs} setPref={setPref} />}
         {tab === 'playback' && <PlaybackSection prefs={prefs} setPref={setPref} />}
-        {tab === 'content' && <ContentSection prefs={prefs} setPref={setPref} installedAddons={installedAddons} />}
+        {tab === 'content' && <ContentSection prefs={prefs} setPref={setPref} installedAddons={installedAddons} disabledAddonKeys={disabledAddonKeys} />}
         {tab === 'addons' && (
           <AddonsSection
             prefs={prefs}

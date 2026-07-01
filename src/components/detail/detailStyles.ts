@@ -77,7 +77,7 @@ export const EP: Record<string, React.CSSProperties> = {
   epMetaRight: { display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 },
   epDesc: { color: 'rgba(255,255,255,0.48)', fontSize: 12, lineHeight: '17px', margin: 0, fontFamily: 'sans-serif', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' },
   empty: { padding: '24px 14px', color: 'rgba(255,255,255,0.35)', fontSize: 13, fontFamily: 'sans-serif' },
-  inlineSources: { flex: 1, overflowY: 'auto', padding: '13px 16px 24px', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' },
+  inlineSources: { flex: 1, overflowY: 'auto', padding: '13px 16px 24px', background: '#000000', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' },
   backToEpisodesBtn: { display: 'inline-flex', alignItems: 'center', gap: 7, height: 34, padding: '0 11px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.06)', color: '#FFFFFF', fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'sans-serif', marginBottom: 14 },
   sourceHeader: { paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 12 },
   sourceKicker: { color: 'rgba(255,255,255,0.42)', fontSize: 11, fontWeight: 900, margin: '0 0 5px', textTransform: 'uppercase', letterSpacing: '0.7px', fontFamily: 'sans-serif' },
@@ -88,10 +88,10 @@ export const EP: Record<string, React.CSSProperties> = {
 };
 
 export const SS: Record<string, React.CSSProperties> = {
-  screen: { position: 'relative', width: '100%', height: '100%', background: '#090909', overflow: 'hidden' },
+  screen: { position: 'relative', width: '100%', height: '100%', background: '#000000', overflow: 'hidden' },
   hero: { position: 'absolute', top: 0, left: 0, right: 0, height: 300, overflow: 'hidden', opacity: 0.86 },
   heroImg: { width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' },
-  heroFade: { position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(9,9,9,0.12) 0%, rgba(9,9,9,0.72) 56%, #090909 100%)' },
+  heroFade: { position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.72) 56%, #000000 100%)' },
   backBtn: { position: 'fixed', top: TOP_BAR_H + 16, left: NAV_RAIL_WIDTH + 16, width: 44, height: 44, zIndex: 10, border: 'none', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(12px)' },
   content: { position: 'relative', zIndex: 1, height: '100%', overflowY: 'auto', padding: `${TOP_BAR_H + 80}px 58px 42px ${NAV_RAIL_WIDTH + 58}px` },
   header: { maxWidth: 760, paddingTop: 74, paddingBottom: 22 },
@@ -160,6 +160,6 @@ export const MS: Record<string, React.CSSProperties> = {
   detailsSectionTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: 700, margin: '0 0 14px', fontFamily: 'sans-serif' },
   detailsText: { color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: '22px', margin: 0, fontFamily: 'sans-serif' },
   overlayBackdrop: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.74)', backdropFilter: 'blur(8px)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 },
-  overlaySheet: { background: '#15161E', borderRadius: 16, border: '1px solid rgba(255,255,255,0.1)', width: '100%', maxWidth: 560, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.7)' },
+  overlaySheet: { background: '#000000', borderRadius: 16, border: '1px solid rgba(255,255,255,0.1)', width: '100%', maxWidth: 560, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.7)' },
   overlayCloseBtn: { width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: 'none', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, flexShrink: 0 },
 };

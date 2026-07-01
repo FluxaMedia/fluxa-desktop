@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MovieCard } from '../components/MovieCard';
 import { posterPrefsFromState, type PosterPrefs } from '../core/posterPrefs';
@@ -42,15 +42,22 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
     onQueryChange(t(genreKey));
   };
 
-  const categories = ((search.categories ?? []) as HomeCategory[])
-    .map((category) => ({
-      ...category,
-      items: typeFilter
-        ? category.items.filter((meta) => meta.type === typeFilter)
-        : category.items,
-    }))
-    .filter((category) => category.items.length > 0);
-  const resultCount = categories.reduce((sum, category) => sum + category.items.length, 0);
+  const categories = useMemo(
+    () =>
+      ((search.categories ?? []) as HomeCategory[])
+        .map((category) => ({
+          ...category,
+          items: typeFilter
+            ? category.items.filter((meta) => meta.type === typeFilter)
+            : category.items,
+        }))
+        .filter((category) => category.items.length > 0),
+    [search.categories, typeFilter],
+  );
+  const resultCount = useMemo(
+    () => categories.reduce((sum, category) => sum + category.items.length, 0),
+    [categories],
+  );
 
   return (
     <div style={styles.screen}>

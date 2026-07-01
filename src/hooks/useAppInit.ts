@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { dispatchAction, getSnapshot, initEngine, storageRead } from '../core/engine';
 import { getActiveProfileId, loadProfiles } from '../core/profiles';
 import { pumpEffects, syncExternalIntegrationNow } from '../core/effectRunner';
+import { importNuvioProfileData } from '../core/nuvioSync';
 import { setLanguage } from '../i18n';
 import { prefBool, prefString } from '../core/appPrefs';
 import { setRpdbApiKey } from '../core/rpdb';
@@ -38,7 +39,10 @@ export function useAppInit(
 
   const syncExternalOnStartup = useCallback(async (profile: UserProfile) => {
     try {
-const syncTasks: Promise<unknown>[] = [];
+      const syncTasks: Promise<unknown>[] = [];
+      if (profile.nuvioAccessToken) {
+        syncTasks.push(importNuvioProfileData(profile).catch(() => undefined));
+      }
       if (profile.traktAccessToken) {
         const traktClientId = await invoke<string>('get_oauth_client_id', { service: 'trakt' }).catch(() => '');
         syncTasks.push(syncExternalIntegrationNow({
@@ -59,8 +63,18 @@ const syncTasks: Promise<unknown>[] = [];
       }
       if (syncTasks.length > 0) {
         await Promise.all(syncTasks);
+        const addonsResult = await dispatchAction(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false }));
+        if (addonsResult) {
+          updateState(addonsResult.state);
+          if (addonsResult.effects.length > 0) await pumpEffects(addonsResult.effects, updateState);
+        }
         const libResult = await dispatchAction(JSON.stringify({ type: 'libraryHydrateRequested' }));
         if (libResult) updateState(libResult.state);
+        const cwResult = await dispatchAction(JSON.stringify({ type: 'refreshContinueWatchingRequested' }));
+        if (cwResult) {
+          updateState(cwResult.state);
+          if (cwResult.effects.length > 0) await pumpEffects(cwResult.effects, updateState);
+        }
       }
     } catch {}
   }, [updateState]);

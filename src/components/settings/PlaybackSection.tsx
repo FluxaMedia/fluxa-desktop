@@ -47,6 +47,30 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
         checked={prefs.p2pEnabled}
         onToggle={(v) => setPref('p2pEnabled', v)}
       />
+      <ChoiceTile
+        title={t('settings.anime_upscaling')}
+        subtitle={t('settings.anime_upscaling_desc')}
+        options={[
+          { value: 'auto', label: t('settings.auto') },
+          { value: 'off', label: t('settings.off') },
+          { value: 'anime4k_s', label: t('settings.anime4k_s') },
+          { value: 'anime4k_m', label: t('settings.anime4k_m') },
+          { value: 'anime4k_l', label: t('settings.anime4k_l') },
+        ]}
+        selected={prefs.animeUpscalingMode}
+        onSelect={(v) => setPref('animeUpscalingMode', v)}
+      />
+      <ChoiceTile
+        title={t('settings.frame_interpolation')}
+        subtitle={t('settings.frame_interpolation_desc')}
+        options={[
+          { value: 'off', label: t('settings.off') },
+          { value: 'display_resample', label: t('settings.frame_interpolation_display_resample') },
+          { value: 'smooth', label: t('settings.frame_interpolation_smooth') },
+        ]}
+        selected={prefs.frameInterpolationMode}
+        onSelect={(v) => setPref('frameInterpolationMode', v)}
+      />
       {true && (
         <>
         <InputTile

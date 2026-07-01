@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { coreBuildMetadataFeedOptions, coreEffectiveMetadataFeedSelection, coreToggleMetadataFeedLimited } from '../../core/engine';
 import type { AddonDescriptor } from '../../core/types';
+import { addonKey } from '../../core/addons';
 import { t } from '../../i18n';
 import { InfoTile, SettingsSection, StorageIcon, ToggleTile, isFeedEnabled } from './SettingsUI';
 import type { Prefs } from './settingsTypes';
@@ -123,16 +124,19 @@ export function ContentSection({
   prefs,
   setPref,
   installedAddons,
+  disabledAddonKeys = [],
 }: {
   prefs: Prefs;
   setPref: <K extends keyof Prefs>(k: K, v: Prefs[K]) => void;
   installedAddons: AddonDescriptor[];
+  disabledAddonKeys?: string[];
 }) {
   const [feeds, setFeeds] = useState<{ key: string; label: string }[]>([]);
+  const activeAddons = installedAddons.filter((a) => !disabledAddonKeys.includes(addonKey(a)));
 
   useEffect(() => {
     let cancelled = false;
-    coreBuildMetadataFeedOptions(installedAddons).then((items) => {
+    coreBuildMetadataFeedOptions(activeAddons).then((items) => {
       if (cancelled) return;
       const next = ((items ?? []) as Array<{ key?: unknown; label?: unknown }>)
         .map((item) => ({
@@ -143,7 +147,7 @@ export function ContentSection({
       setFeeds(next);
     });
     return () => { cancelled = true; };
-  }, [installedAddons]);
+  }, [installedAddons, disabledAddonKeys]);
 
   return (
     <>

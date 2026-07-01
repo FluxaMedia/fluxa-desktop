@@ -18,8 +18,8 @@ export interface Prefs {
   omdbApiKey: string;
   fanartApiKey: string;
   accentColorArgb: string;
-  amoledMode: boolean;
   animationsEnabled: boolean;
+  gifAutoplayEnabled: boolean;
   cardCornerPreset: string;
   navLayout: string;
   navBarPosition: string;
@@ -45,7 +45,8 @@ export interface Prefs {
   topTenFeedToggles: string[];
   preferredPlayer: string;
   mpvCustomOptions: string;
-  animeUseMpv: boolean;
+  animeUpscalingMode: string;
+  frameInterpolationMode: string;
   streamSourceSelectionMode: string;
   streamSourceRegexPattern: string;
   autoPlayNextEpisode: boolean;
@@ -132,8 +133,8 @@ export const DEFAULT_PREFS: Prefs = {
   tmdbLogosBackdropsEnabled: true,
   tmdbRatingsEnabled: true,
   accentColorArgb: '#FFFFFF',
-  amoledMode: false,
   animationsEnabled: true,
+  gifAutoplayEnabled: true,
   navLayout: 'sidebar',
   navBarPosition: 'left',
   navItemsAlign: 'center',
@@ -159,7 +160,8 @@ export const DEFAULT_PREFS: Prefs = {
   topTenFeedToggles: [],
   preferredPlayer: 'mpv',
   mpvCustomOptions: '',
-  animeUseMpv: false,
+  animeUpscalingMode: 'auto',
+  frameInterpolationMode: 'off',
   streamSourceSelectionMode: 'manual',
   streamSourceRegexPattern: '',
   autoPlayNextEpisode: true,

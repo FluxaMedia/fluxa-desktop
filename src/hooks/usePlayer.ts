@@ -42,6 +42,7 @@ import { traktScrobbleOnClose, simklScrobbleOnClose } from '../core/scrobble';
 import { saveProfile } from '../core/profiles';
 import { resolvePlaybackSubtitles } from '../core/subtitles';
 import { persistLastPlaybackSource } from '../core/libraryStorage';
+import { detectAnimePlayback } from '../core/animeDetection';
 import type { AppState, Meta, Video, Stream, AddonDescriptor, UserProfile } from '../core/types';
 import { usePlayerNativeEvents } from './usePlayerNativeEvents';
 
@@ -155,6 +156,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     resumeAtSeconds?: number,
     totalDurationSeconds?: number,
     httpHeaders?: Record<string, string>,
+    isAnimePlayback?: boolean,
   ) => {
     const isCancelled = () => playGenerationRef.current !== generation;
     if (isCancelled()) return;
@@ -167,7 +169,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     }
     if (isCancelled()) return;
     const prefs = appPrefs(stateRef.current);
-    await embeddedMpvApplyPreferences({ ...prefs, isTorrentPlayback: usesTorrent }).catch(() => undefined);
+    await embeddedMpvApplyPreferences({ ...prefs, isTorrentPlayback: usesTorrent, isAnimePlayback: !!isAnimePlayback }).catch(() => undefined);
     await embeddedMpvSetTitle(title?.contentTitle, title?.episodeLine).catch(() => undefined);
     if (isCancelled()) return;
     if (!inNativePlayerRef.current) {
@@ -415,6 +417,8 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     void playerClearChapters();
     const episodeList = meta?.videos ?? [];
     void playerSetEpisodes(JSON.stringify(episodeList));
+    const animeDetection = detectAnimePlayback(meta, episode, stream, stateRef.current.addons.installed ?? []);
+    debugLog(`handlePlay:anime detection confidence=${animeDetection.confidence} isAnime=${animeDetection.isAnime} reasons=${animeDetection.reasons.join(', ')}`);
 
     if (playbackPlan?.mode === 'torrent') {
       try {
@@ -422,7 +426,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         const localUrl = await startTorrentStream(JSON.stringify(stream), title.contentTitle, appPrefs(stateRef.current));
         debugLog(`handlePlay:torrent stream started localUrl=${localUrl?.slice(0, 80)}`);
         if (isCancelled()) return;
-        await playInEmbeddedMpv(generation, localUrl, title, true, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, undefined);
+        await playInEmbeddedMpv(generation, localUrl, title, true, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, undefined, animeDetection.isAnime);
         debugLog('handlePlay:playInEmbeddedMpv (torrent) resolved');
       } catch (err) {
         debugLog(`handlePlay:torrent path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
@@ -433,7 +437,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     } else {
       try {
         debugLog('handlePlay:calling playInEmbeddedMpv');
-        await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, stream.behaviorHints?.proxyHeaders);
+        await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, stream.behaviorHints?.proxyHeaders, animeDetection.isAnime);
         debugLog('handlePlay:playInEmbeddedMpv resolved');
       } catch (err) {
         debugLog(`handlePlay:direct path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);

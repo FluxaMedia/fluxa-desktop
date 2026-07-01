@@ -102,7 +102,6 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     <div style={styles.hero}>
       {bgUrl && (
         <img
-          key={activeMeta.id || activeMeta.name}
           src={bgUrl}
           alt=""
           decoding="async"
@@ -288,6 +287,7 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     flexShrink: 0,
     background: '#040508',
+    willChange: 'transform',
   },
   backdrop: {
     position: 'absolute',

@@ -8,6 +8,7 @@ use fluxa_core::FluxaCore;
 use serde_json::{json, Value};
 use std::sync::atomic::Ordering;
 use std::time::Duration;
+use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[cfg(target_os = "linux")]
@@ -77,7 +78,10 @@ pub fn ensure_native_player_surface(
     }
 }
 
-fn mpv_options_from_preferences(preferences: &serde_json::Value) -> Vec<(String, String)> {
+fn mpv_options_from_preferences(
+    app: Option<&AppHandle>,
+    preferences: &serde_json::Value,
+) -> Vec<(String, String)> {
     let mut options = Vec::new();
     let get = |key: &str| preferences.get(key).and_then(|v| v.as_str());
 
@@ -117,6 +121,16 @@ fn mpv_options_from_preferences(preferences: &serde_json::Value) -> Vec<(String,
             format!("{:.2}", (size / 100.0).clamp(0.5, 2.0)),
         ));
     }
+    push_anime_upscaling_options(
+        &mut options,
+        app,
+        get("animeUpscalingMode"),
+        preferences
+            .get("isAnimePlayback")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+    );
+    push_frame_interpolation_options(&mut options, get("frameInterpolationMode"));
     let sub_text_opacity = get("subtitleTextOpacity")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(1.0)
@@ -207,6 +221,70 @@ fn mpv_options_from_preferences(preferences: &serde_json::Value) -> Vec<(String,
     }
 
     options
+}
+
+fn push_anime_upscaling_options(
+    options: &mut Vec<(String, String)>,
+    app: Option<&AppHandle>,
+    mode: Option<&str>,
+    is_anime_playback: bool,
+) {
+    options.push(("glsl-shaders".to_string(), String::new()));
+
+    let shader_name = match mode.unwrap_or("off") {
+        "auto" if is_anime_playback => "Anime4K_Upscale_CNN_x2_M.glsl",
+        "anime4k_s" => "Anime4K_Upscale_CNN_x2_S.glsl",
+        "anime4k_m" => "Anime4K_Upscale_CNN_x2_M.glsl",
+        "anime4k_l" => "Anime4K_Upscale_CNN_x2_L.glsl",
+        _ => return,
+    };
+    let Some(shader_path) = resolve_shader_path(app, shader_name) else {
+        log::warn!("Anime4K shader '{shader_name}' was not found");
+        return;
+    };
+
+    options.push(("scale".to_string(), "ewa_lanczossharp".to_string()));
+    options.push(("cscale".to_string(), "ewa_lanczossoft".to_string()));
+    options.push(("dscale".to_string(), "mitchell".to_string()));
+    options.push(("correct-downscaling".to_string(), "yes".to_string()));
+    options.push(("linear-downscaling".to_string(), "yes".to_string()));
+    options.push(("glsl-shaders".to_string(), shader_path));
+}
+
+fn resolve_shader_path(app: Option<&AppHandle>, shader_name: &str) -> Option<String> {
+    let resource_path = format!("assets/mpv-shaders/anime4k/{shader_name}");
+    if let Some(app) = app {
+        if let Ok(path) = app.path().resolve(&resource_path, BaseDirectory::Resource) {
+            if path.exists() {
+                return Some(path.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&resource_path);
+    if dev_path.exists() {
+        return Some(dev_path.to_string_lossy().into_owned());
+    }
+    None
+}
+
+fn push_frame_interpolation_options(options: &mut Vec<(String, String)>, mode: Option<&str>) {
+    match mode.unwrap_or("off") {
+        "display_resample" => {
+            options.push(("video-sync".to_string(), "display-resample".to_string()));
+            options.push(("interpolation".to_string(), "yes".to_string()));
+            options.push(("tscale".to_string(), "oversample".to_string()));
+        }
+        "smooth" => {
+            options.push(("video-sync".to_string(), "display-resample".to_string()));
+            options.push(("interpolation".to_string(), "yes".to_string()));
+            options.push(("tscale".to_string(), "mitchell".to_string()));
+            options.push(("tscale-clamp".to_string(), "0.0".to_string()));
+        }
+        _ => {
+            options.push(("interpolation".to_string(), "no".to_string()));
+        }
+    }
 }
 
 fn css_hex_with_alpha_to_mpv_color(value: &str, opacity: f64) -> Option<String> {
@@ -373,10 +451,11 @@ pub fn player_set_http_headers(
 
 #[tauri::command]
 pub fn player_apply_preferences(
+    app: AppHandle,
     state: State<DesktopState>,
     preferences: serde_json::Value,
 ) -> Result<(), String> {
-    let options = mpv_options_from_preferences(&preferences);
+    let options = mpv_options_from_preferences(Some(&app), &preferences);
     if options.is_empty() {
         return Ok(());
     }

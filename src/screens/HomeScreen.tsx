@@ -67,7 +67,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     }
   }, []);
 
-  const continueWatching = (home.continueWatching ?? []) as Meta[];
+  const continueWatching = useMemo(() => (home.continueWatching ?? []) as Meta[], [home.continueWatching]);
   const categories = useMemo(() => home.categories ?? [], [home.categories]);
   const contentCategories = useMemo(
     () => categories.filter((c) => c.type !== 'collection' && c.type !== 'collection_folder'),
@@ -92,6 +92,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   }, [state.addons.installed]);
   const showHero = prefBool(prefs, 'showHeroSection', true);
   const showContinueWatching = prefBool(prefs, 'continueWatchingEnabled', true);
+  const gifAutoplayEnabled = prefBool(prefs, 'gifAutoplayEnabled', true);
   const topTenFeedKeys = useMemo(() => {
     const raw = prefs.topTenFeedToggles;
     return new Set<string>(Array.isArray(raw) ? (raw as string[]) : []);
@@ -123,7 +124,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   if (folderLoading) {
     return (
       <div style={{ ...styles.screen, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600 }}>Loading...</div>
+        <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600 }}>{t('auto.loading')}</div>
       </div>
     );
   }
@@ -175,6 +176,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
               folders={cat.items}
               onFolderClick={handleFolderTileClick}
               addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
+              gifAutoplayEnabled={gifAutoplayEnabled}
             />
           ) : (
             <ShelfRow
@@ -291,4 +293,3 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
   },
 };
-

@@ -251,8 +251,9 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                 if area.error().is_some() {
                     return glib::Propagation::Stop;
                 }
-                let w = area.allocated_width().max(2);
-                let h = area.allocated_height().max(2);
+                let scale = area.scale_factor().max(1);
+                let w = area.allocated_width().max(2) * scale;
+                let h = area.allocated_height().max(2) * scale;
                 let Ok(mut renderer) = state.player_renderer.try_lock() else {
                     return glib::Propagation::Stop;
                 };
@@ -543,15 +544,24 @@ fn query_x11_icc_profile() -> Option<Vec<u8>> {
 
 fn check_player_events(app: &AppHandle) {
     let state = app.state::<DesktopState>();
-    let eof = {
-        let Ok(renderer) = state.player_renderer.try_lock() else {
+    let (events, eof) = {
+        let Ok(mut renderer) = state.player_renderer.try_lock() else {
             return;
         };
-        renderer
-            .as_ref()
-            .map(|r| r.query_property("eof-reached").as_deref() == Some("yes"))
-            .unwrap_or(false)
+        let Some(r) = renderer.as_mut() else {
+            return;
+        };
+        let events = r.poll_events();
+        let eof = r.query_property("eof-reached").as_deref() == Some("yes");
+        (events, eof)
     };
+    for event in events {
+        let crate::mpv_render::PlayerEvent::EndFile { eof: _, error } = event;
+        if let Some(message) = error {
+            log::error!("linux player surface: stream failed to play: {message}");
+            let _ = app.emit("native-player-error", message);
+        }
+    }
     if !eof {
         let mut fired = state.eof_next_fired.lock().unwrap();
         if *fired {

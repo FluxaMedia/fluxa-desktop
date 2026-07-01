@@ -305,9 +305,6 @@ impl PlayerStatus {
 
 impl MpvRenderer {
     pub fn new() -> Result<Self, String> {
-        // No-op on a stock libmpv; selects the libplacebo backend on our patched one.
-        std::env::set_var("MPV_LIBMPV_RENDER_BACKEND", "gpu-next");
-
         let api = MpvApi::load()?;
         let handle = unsafe { (api.mpv_create)() };
         if handle.is_null() {
