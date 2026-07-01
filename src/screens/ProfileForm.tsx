@@ -10,7 +10,6 @@ import {
 import { saveAddons } from '../core/libraryOps';
 import type { AddonDescriptor, UserProfile } from '../core/types';
 import { t } from '../i18n';
-import { AvatarPickerModal } from './ProfileAvatarPicker';
 
 const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif';
 
@@ -102,7 +101,6 @@ export function ProfileForm({
 }) {
   const [name, setName] = useState(existing?.name ?? '');
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(existing?.avatarUrl);
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pin, setPin] = useState('');
   const [removePin, setRemovePin] = useState(false);
@@ -119,7 +117,6 @@ export function ProfileForm({
     const reader = new FileReader();
     reader.onload = (event) => {
       setAvatarUrl(event.target?.result as string);
-      setShowAvatarPicker(false);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -163,7 +160,7 @@ export function ProfileForm({
   return (
     <section style={S.formShell}>
       <div style={S.previewPanel}>
-        <button style={S.avatarEditButton} onClick={() => setShowAvatarPicker(true)} title={t('profiles.choose_image')}>
+        <button style={S.avatarEditButton} onClick={() => fileInputRef.current?.click()} title={t('profiles.choose_image')}>
           <AvatarPreview profile={previewProfile} size={128} />
           <span style={S.cameraBadge}><Camera size={15} /></span>
         </button>
@@ -190,7 +187,7 @@ export function ProfileForm({
           {duplicateName && <p style={S.fieldNote}>{t('profiles.duplicate_name')}</p>}
         </div>
 
-        <button style={S.imageButton} onClick={() => setShowAvatarPicker(true)}>
+        <button style={S.imageButton} onClick={() => fileInputRef.current?.click()}>
           <ImagePlus size={16} />
           {t('profiles.choose_image')}
         </button>
@@ -233,16 +230,6 @@ export function ProfileForm({
       </div>
 
       <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
-
-      {showAvatarPicker && (
-        <AvatarPickerModal
-          selected={avatarUrl}
-          onSelect={(url) => { setAvatarUrl(url); setShowAvatarPicker(false); }}
-          onUpload={() => fileInputRef.current?.click()}
-          onClear={() => { setAvatarUrl(undefined); setShowAvatarPicker(false); }}
-          onClose={() => setShowAvatarPicker(false)}
-        />
-      )}
     </section>
   );
 }
