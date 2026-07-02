@@ -1143,5 +1143,18 @@
   "player.stats_avsync": "A/V senkron",
   "player.stats_color": "Renk",
   "player.stats_fps": "FPS",
+  "player.stats_stalls": "takılma",
+  "player.stats_stalls_plural": "takılma",
+  "player.stats_color_in": "Giriş",
+  "player.stats_color_out": "Çıkış",
+  "player.stats_peak": "tepe",
+  "player.stats_mistimed": "zamanlama hatası",
+  "player.stats_vo_delayed": "vo-gecikme",
+  "player.stats_display_fps": "ekran",
+  "player.stats_torrent": "Torrent",
+  "player.stats_peers": "eş",
+  "player.stats_preload": "önbellek",
+  "player.stats_container": "Konteyner",
+  "player.stats_copy": "İstatistikleri kopyala",
   "auto.no_similar_titles": "Benzer içerik bulunamadı."
 }

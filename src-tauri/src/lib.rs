@@ -63,6 +63,7 @@ pub struct DesktopState {
     pub next_ep_threshold_percent: Mutex<f64>,
     pub auto_play_next_episode: Mutex<bool>,
     pub auto_play_countdown_secs: Mutex<u32>,
+    pub auto_skip_segments: Mutex<bool>,
     pub eof_next_fired: Mutex<bool>,
     pub episodes_json: Mutex<Option<String>>,
     pub thumb_url: Mutex<Option<String>>,
@@ -71,6 +72,8 @@ pub struct DesktopState {
     pub thumbnail_loaded_url: Mutex<Option<String>>,
     pub pending_hide: AtomicBool,
     pub downloads: downloads::DownloadsState,
+    pub torrent_server_base_url: Mutex<Option<String>>,
+    pub torrent_stream_link: Mutex<Option<String>>,
 }
 
 impl Default for DesktopState {
@@ -92,6 +95,7 @@ impl Default for DesktopState {
             next_ep_threshold_percent: Mutex::new(85.0),
             auto_play_next_episode: Mutex::new(true),
             auto_play_countdown_secs: Mutex::new(7),
+            auto_skip_segments: Mutex::new(false),
             eof_next_fired: Mutex::new(false),
             episodes_json: Mutex::new(None),
             thumb_url: Mutex::new(None),
@@ -100,15 +104,17 @@ impl Default for DesktopState {
             thumbnail_loaded_url: Mutex::new(None),
             pending_hide: AtomicBool::new(false),
             downloads: downloads::DownloadsState::default(),
+            torrent_server_base_url: Mutex::new(None),
+            torrent_stream_link: Mutex::new(None),
         }
     }
 }
 
-// Temporary: re-checking the lag report after the screen-unmount/batching/effect-expiry
-// changes. Remove once confirmed.
 #[tauri::command]
 fn debug_log(msg: String) {
-    println!("[perf] {msg}");
+    if std::env::var_os("FLUXA_DEBUG_LOGS").is_some() {
+        println!("[perf] {msg}");
+    }
 }
 
 #[tauri::command]
@@ -163,7 +169,7 @@ fn start_torrent_stream_inner(
     stream_json: String,
     title: Option<String>,
     preferences: Option<Value>,
-) -> Result<String, String> {
+) -> Result<(String, String, String), String> {
     let cache_dir = data_dir.join("torrent-cache");
     let server_json =
         fluxa_streaming_engine::start_torrent_server(&cache_dir.to_string_lossy(), 0, "")
@@ -220,11 +226,12 @@ fn start_torrent_stream_inner(
         .ok_or_else(|| "torrent runtime info could not be resolved".to_string())?;
     let runtime: Value = serde_json::from_str(&runtime_json)
         .map_err(|e| format!("invalid torrent runtime response: {e}"))?;
-    runtime
+    let stream_url = runtime
         .get("streamUrl")
         .and_then(Value::as_str)
         .map(str::to_string)
-        .ok_or_else(|| "torrent runtime did not return streamUrl".to_string())
+        .ok_or_else(|| "torrent runtime did not return streamUrl".to_string())?;
+    Ok((stream_url, base_url.to_string(), link.to_string()))
 }
 
 #[tauri::command]
@@ -240,18 +247,43 @@ async fn start_torrent_stream(
         .unwrap()
         .clone()
         .ok_or_else(|| "app data dir is not ready".to_string())?;
-    tauri::async_runtime::spawn_blocking(move || {
+    let (stream_url, base_url, link) = tauri::async_runtime::spawn_blocking(move || {
         start_torrent_stream_inner(data_dir, stream_json, title, preferences)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    *state.torrent_server_base_url.lock().unwrap() = Some(base_url);
+    *state.torrent_stream_link.lock().unwrap() = Some(link);
+    Ok(stream_url)
 }
 
 #[tauri::command]
-async fn stop_torrent_stream() -> bool {
-    tauri::async_runtime::spawn_blocking(fluxa_streaming_engine::stop_torrent_server)
+async fn stop_torrent_stream(state: State<'_, DesktopState>) -> Result<bool, String> {
+    *state.torrent_server_base_url.lock().unwrap() = None;
+    *state.torrent_stream_link.lock().unwrap() = None;
+    Ok(tauri::async_runtime::spawn_blocking(fluxa_streaming_engine::stop_torrent_server)
         .await
-        .unwrap_or(false)
+        .unwrap_or(false))
+}
+
+#[tauri::command]
+async fn player_torrent_stats(state: State<'_, DesktopState>) -> Result<Option<Value>, String> {
+    let base_url = state.torrent_server_base_url.lock().unwrap().clone();
+    let link = state.torrent_stream_link.lock().unwrap().clone();
+    let (Some(base_url), Some(link)) = (base_url, link) else {
+        return Ok(None);
+    };
+    let url = format!("{}/torrents", base_url.trim_end_matches('/'));
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .json(&serde_json::json!({ "action": "get", "link": link }))
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let json_val = response.json::<Value>().await.map_err(|e| e.to_string())?;
+    Ok(Some(json_val))
 }
 
 fn apply_torrent_preferences(base_url: &str, preferences: Option<&Value>) {
@@ -332,17 +364,23 @@ pub fn run() {
                 }
             }
         }))
-        .plugin(
+        .plugin({
+            let log_level = if std::env::var_os("FLUXA_DEBUG_LOGS").is_some() {
+                log::LevelFilter::Debug
+            } else {
+                log::LevelFilter::Warn
+            };
+
             tauri_plugin_log::Builder::new()
-                .level(log::LevelFilter::Debug)
+                .level(log_level)
                 .targets([
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
                         file_name: None,
                     }),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
                 ])
-                .build(),
-        )
+                .build()
+        })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
@@ -499,6 +537,7 @@ pub fn run() {
             roku_play_pause,
             roku_disconnect,
             cast_proxy_serve,
+            player_torrent_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Fluxa Desktop");

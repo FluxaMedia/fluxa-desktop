@@ -9,7 +9,7 @@ export async function startTorrentStream(
 }
 
 export async function stopTorrentStream(): Promise<boolean> {
-  return invoke<boolean>('stop_torrent_stream');
+  return invoke<boolean>('stop_torrent_stream').catch(() => false);
 }
 
 export type EmbeddedMpvFrame = {
@@ -49,7 +49,32 @@ export type EmbeddedMpvStatus = {
   colorPrimaries?: string | null;
   colorMatrix?: string | null;
   colorGamma?: string | null;
+  videoOutPrimaries?: string | null;
+  videoOutMatrix?: string | null;
+  videoOutGamma?: string | null;
+  sigPeak?: string | null;
+  containerFps?: string | null;
+  displayFps?: string | null;
+  mistimedFrameCount?: string | null;
+  voDelayedFrameCount?: string | null;
+  pausedForCache?: string | null;
+  cacheBufferingState?: string | null;
+  fileFormat?: string | null;
 };
+
+export type TorrentStats = {
+  download_speed: number;
+  active_peers: number;
+  total_peers: number;
+  progress: number;
+  preload: number;
+  stat: number;
+  stat_string: string;
+};
+
+export async function playerTorrentStats(): Promise<TorrentStats | null> {
+  return invoke<TorrentStats | null>('player_torrent_stats');
+}
 
 export async function initEmbeddedMpv(): Promise<void> {
   await invoke('player_init');

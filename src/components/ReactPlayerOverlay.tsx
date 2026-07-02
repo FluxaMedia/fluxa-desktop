@@ -28,8 +28,8 @@ import {
   VolumeOff,
 } from 'lucide-react';
 import { setSuppressWindowGeometrySave } from '../core/windowGeometry';
-import type { EmbeddedMpvStatus } from '../core/mpvPlayer';
-import { playerGetPlaybackInfo, playerGetTrackOptions } from '../core/mpvPlayer';
+import type { EmbeddedMpvStatus, TorrentStats } from '../core/mpvPlayer';
+import { playerGetPlaybackInfo, playerGetTrackOptions, playerTorrentStats } from '../core/mpvPlayer';
 import type { PlayerTrackOption } from '../core/mpvPlayer';
 import { VolumeBar } from './player/VolumeBar';
 import { NextEpCard } from './player/NextEpCard';
@@ -149,7 +149,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [statsSnap, setStatsSnap] = useState<EmbeddedMpvStatus | null>(null);
+  const [torrentStatsSnap, setTorrentStatsSnap] = useState<TorrentStats | null>(null);
   const liveStatusRef = useRef<EmbeddedMpvStatus | null>(null);
+  const stallCountRef = useRef(0);
+  const prevPausedForCacheRef = useRef(false);
 
   const seekFillRef = useRef<HTMLDivElement>(null);
   const seekBufferRef = useRef<HTMLDivElement>(null);
@@ -312,6 +315,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       if (!status) return;
       liveStatusRef.current = status;
 
+      const pausedForCache = status.pausedForCache === 'yes';
+      if (pausedForCache && !prevPausedForCacheRef.current) stallCountRef.current++;
+      prevPausedForCacheRef.current = pausedForCache;
+
       const pos = parseFloat(status.timePos ?? '0');
       const dur = parseFloat(status.duration ?? '0');
       const isPaused = status.pause === 'yes';
@@ -418,9 +425,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
   useEffect(() => {
     if (!showStats) return;
-    const id = setInterval(() => {
+    const tick = async () => {
       if (liveStatusRef.current) setStatsSnap({ ...liveStatusRef.current });
-    }, 500);
+      const ts = await playerTorrentStats().catch(() => null);
+      setTorrentStatsSnap(ts);
+    };
+    void tick();
+    const id = setInterval(() => { void tick(); }, 500);
     return () => clearInterval(id);
   }, [showStats]);
 
@@ -506,6 +517,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       setAbLoopStage('none');
       setNextEpDismissed(false);
       autoSkippedKeysRef.current.clear();
+      stallCountRef.current = 0;
+      prevPausedForCacheRef.current = false;
     }).catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
@@ -1149,48 +1162,91 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             position: 'fixed',
             top: 60,
             left: 20,
-            background: 'rgba(0,0,0,0.82)',
+            background: 'rgba(0,0,0,0.84)',
             border: '1px solid rgba(255,255,255,0.1)',
             borderRadius: 8,
             padding: '10px 14px',
             fontFamily: 'monospace',
             fontSize: 11,
             color: 'rgba(255,255,255,0.82)',
-            lineHeight: 1.75,
+            lineHeight: 1.8,
             zIndex: 25,
-            pointerEvents: 'none',
-            minWidth: 240,
+            minWidth: 260,
             userSelect: 'none',
           }}
         >
           {(statsSnap?.width && statsSnap?.height) && (
-            <div>{statsSnap.width}×{statsSnap.height}{statsSnap.videoCodec ? `  ${statsSnap.videoCodec}` : ''}{statsSnap.videoFormat ? `  ${statsSnap.videoFormat}` : ''}{statsSnap.fps ? `  ${parseFloat(statsSnap.fps).toFixed(3)} ${t('player.stats_fps')}` : ''}</div>
+            <div>{statsSnap.width}×{statsSnap.height}{statsSnap.videoCodec ? `  ${statsSnap.videoCodec}` : ''}{statsSnap.videoFormat ? `  ${statsSnap.videoFormat}` : ''}{statsSnap.fps ? `  ${parseFloat(statsSnap.fps).toFixed(3)} ${t('player.stats_fps')}` : ''}{statsSnap.containerFps && statsSnap.fps && Math.abs(parseFloat(statsSnap.containerFps) - parseFloat(statsSnap.fps)) > 0.1 ? ` (${t('player.stats_container')} ${parseFloat(statsSnap.containerFps).toFixed(3)})` : ''}</div>
+          )}
+          {statsSnap?.displayFps && (
+            <div>{t('player.stats_display_fps')}: {parseFloat(statsSnap.displayFps).toFixed(3)} {t('player.stats_fps')}</div>
           )}
           {statsSnap?.hwdecCurrent && statsSnap.hwdecCurrent !== 'no' && statsSnap.hwdecCurrent !== '' && (
             <div>{t('player.stats_hwdec')}: {statsSnap.hwdecCurrent}</div>
           )}
-          {(statsSnap?.frameDropCount != null || statsSnap?.decoderFrameDropCount != null) && (
-            <div>{t('player.stats_dropped')}: {statsSnap.frameDropCount ?? '0'} / {statsSnap.decoderFrameDropCount ?? '0'}</div>
+          {(statsSnap?.colorMatrix || statsSnap?.colorGamma || statsSnap?.colorPrimaries) && (
+            <div>{t('player.stats_color_in')}: {[statsSnap.colorMatrix, statsSnap.colorGamma, statsSnap.colorPrimaries].filter(Boolean).join(' / ')}{statsSnap.sigPeak && parseFloat(statsSnap.sigPeak) > 1 ? `  ${t('player.stats_peak')} ${parseFloat(statsSnap.sigPeak).toFixed(0)}` : ''}</div>
+          )}
+          {(statsSnap?.videoOutMatrix || statsSnap?.videoOutGamma || statsSnap?.videoOutPrimaries) && (
+            <div>{t('player.stats_color_out')}: {[statsSnap.videoOutMatrix, statsSnap.videoOutGamma, statsSnap.videoOutPrimaries].filter(Boolean).join(' / ')}</div>
+          )}
+          {(statsSnap?.frameDropCount != null || statsSnap?.decoderFrameDropCount != null || statsSnap?.mistimedFrameCount != null || statsSnap?.voDelayedFrameCount != null) && (
+            <div>{t('player.stats_dropped')}: {statsSnap?.frameDropCount ?? '0'}+{statsSnap?.decoderFrameDropCount ?? '0'}  {t('player.stats_mistimed')}: {statsSnap?.mistimedFrameCount ?? '0'}  {t('player.stats_vo_delayed')}: {statsSnap?.voDelayedFrameCount ?? '0'}</div>
           )}
           {(statsSnap?.videoBitrate || statsSnap?.audioBitrate) && (
             <div>
               {statsSnap.videoBitrate ? `${t('player.stats_video_bitrate')}: ${(parseInt(statsSnap.videoBitrate) / 1000).toFixed(0)} kbps` : ''}
-              {statsSnap.videoBitrate && statsSnap.audioBitrate ? '  ' : ''}
-              {statsSnap.audioBitrate ? `${t('player.stats_audio_bitrate')}: ${(parseInt(statsSnap.audioBitrate) / 1000).toFixed(0)} kbps` : ''}
+              {statsSnap.audioBitrate ? `  ${t('player.stats_audio_bitrate')}: ${(parseInt(statsSnap.audioBitrate) / 1000).toFixed(0)} kbps` : ''}
             </div>
           )}
           {(statsSnap?.audioCodec || statsSnap?.audioSamplerate || statsSnap?.audioChannels) && (
             <div>{[statsSnap.audioCodec, statsSnap.audioSamplerate ? `${statsSnap.audioSamplerate} Hz` : null, statsSnap.audioChannels].filter(Boolean).join('  ')}</div>
           )}
-          {(statsSnap?.demuxerCacheDuration != null || statsSnap?.cacheSpeed != null) && (
-            <div>{t('player.stats_buffer')}: {parseFloat(statsSnap.demuxerCacheDuration ?? '0').toFixed(1)}s{statsSnap.cacheSpeed && statsSnap.cacheSpeed !== '0' ? `  ↓ ${(parseInt(statsSnap.cacheSpeed) / 1024).toFixed(0)} KB/s` : ''}</div>
+          {(statsSnap?.demuxerCacheDuration != null) && (
+            <div>
+              {t('player.stats_buffer')}: {parseFloat(statsSnap.demuxerCacheDuration ?? '0').toFixed(1)}s
+              {statsSnap.cacheSpeed && statsSnap.cacheSpeed !== '0' ? `  ↓ ${(parseInt(statsSnap.cacheSpeed) / 1024).toFixed(0)} KB/s` : ''}
+              {statsSnap.cacheBufferingState && statsSnap.pausedForCache === 'yes' ? `  ${statsSnap.cacheBufferingState}%` : ''}
+              {stallCountRef.current > 0 ? `  ${stallCountRef.current} ${stallCountRef.current === 1 ? t('player.stats_stalls') : t('player.stats_stalls_plural')}` : ''}
+            </div>
           )}
           {statsSnap?.avsync != null && (
             <div>{t('player.stats_avsync')}: {parseFloat(statsSnap.avsync).toFixed(3)}s</div>
           )}
-          {(statsSnap?.colorMatrix || statsSnap?.colorGamma || statsSnap?.colorPrimaries) && (
-            <div>{t('player.stats_color')}: {[statsSnap.colorMatrix, statsSnap.colorGamma, statsSnap.colorPrimaries].filter(Boolean).join(' / ')}</div>
+          {statsSnap?.fileFormat && (
+            <div>
+              {t('player.stats_container')}: {statsSnap.fileFormat}
+              {(() => {
+                try {
+                  const host = new URL(statsSnap.path ?? '').hostname;
+                  return host && !host.startsWith('127.') ? `  · ${host}` : '';
+                } catch { return ''; }
+              })()}
+            </div>
           )}
+          {torrentStatsSnap && torrentStatsSnap.stat >= 2 && (
+            <div>{t('player.stats_torrent')}: {torrentStatsSnap.active_peers}/{torrentStatsSnap.total_peers} {t('player.stats_peers')}  ↓ {(torrentStatsSnap.download_speed / (1024 * 1024)).toFixed(2)} MB/s  {t('player.stats_preload')}: {torrentStatsSnap.preload}%</div>
+          )}
+          <div style={{ marginTop: 4, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 4 }}>
+            <button
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontFamily: 'monospace', cursor: 'pointer', padding: 0 }}
+              onClick={() => {
+                const lines: string[] = [];
+                if (statsSnap?.width && statsSnap?.height) lines.push(`${statsSnap.width}×${statsSnap.height}  ${statsSnap.videoCodec ?? ''}  ${statsSnap.videoFormat ?? ''}  ${statsSnap.fps ? parseFloat(statsSnap.fps).toFixed(3) + ' fps' : ''}`);
+                if (statsSnap?.hwdecCurrent && statsSnap.hwdecCurrent !== 'no') lines.push(`HW: ${statsSnap.hwdecCurrent}`);
+                if (statsSnap?.colorMatrix) lines.push(`Color in: ${[statsSnap.colorMatrix, statsSnap.colorGamma, statsSnap.colorPrimaries].filter(Boolean).join(' / ')}${statsSnap.sigPeak && parseFloat(statsSnap.sigPeak) > 1 ? ` peak ${parseFloat(statsSnap.sigPeak).toFixed(0)}` : ''}`);
+                if (statsSnap?.videoOutMatrix) lines.push(`Color out: ${[statsSnap.videoOutMatrix, statsSnap.videoOutGamma, statsSnap.videoOutPrimaries].filter(Boolean).join(' / ')}`);
+                lines.push(`Dropped: ${statsSnap?.frameDropCount ?? 0}+${statsSnap?.decoderFrameDropCount ?? 0}  mistimed: ${statsSnap?.mistimedFrameCount ?? 0}  vo-delayed: ${statsSnap?.voDelayedFrameCount ?? 0}`);
+                if (statsSnap?.videoBitrate) lines.push(`Video: ${(parseInt(statsSnap.videoBitrate) / 1000).toFixed(0)} kbps  Audio: ${statsSnap.audioBitrate ? (parseInt(statsSnap.audioBitrate) / 1000).toFixed(0) + ' kbps' : 'n/a'}`);
+                if (statsSnap?.audioCodec) lines.push([statsSnap.audioCodec, statsSnap.audioSamplerate ? `${statsSnap.audioSamplerate} Hz` : null, statsSnap.audioChannels].filter(Boolean).join('  '));
+                lines.push(`Buffer: ${parseFloat(statsSnap?.demuxerCacheDuration ?? '0').toFixed(1)}s  stalls: ${stallCountRef.current}`);
+                if (statsSnap?.avsync) lines.push(`A/V: ${parseFloat(statsSnap.avsync).toFixed(3)}s`);
+                if (statsSnap?.fileFormat) lines.push(`Container: ${statsSnap.fileFormat}`);
+                if (torrentStatsSnap) lines.push(`Torrent: ${torrentStatsSnap.active_peers}/${torrentStatsSnap.total_peers} peers  ${(torrentStatsSnap.download_speed / (1024 * 1024)).toFixed(2)} MB/s  preload: ${torrentStatsSnap.preload}%`);
+                navigator.clipboard.writeText(lines.join('\n')).catch(() => undefined);
+              }}
+            >{t('player.stats_copy')}</button>
+          </div>
         </div>
       )}
 

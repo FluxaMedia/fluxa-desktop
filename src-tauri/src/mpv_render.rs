@@ -272,6 +272,17 @@ pub struct PlayerStatus {
     color_primaries: Option<String>,
     color_matrix: Option<String>,
     color_gamma: Option<String>,
+    video_out_primaries: Option<String>,
+    video_out_matrix: Option<String>,
+    video_out_gamma: Option<String>,
+    sig_peak: Option<String>,
+    container_fps: Option<String>,
+    display_fps: Option<String>,
+    mistimed_frame_count: Option<String>,
+    vo_delayed_frame_count: Option<String>,
+    paused_for_cache: Option<String>,
+    cache_buffering_state: Option<String>,
+    file_format: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -784,6 +795,17 @@ impl MpvRenderer {
             color_primaries: self.get_string_property("video-params/primaries"),
             color_matrix: self.get_string_property("video-params/colormatrix"),
             color_gamma: self.get_string_property("video-params/gamma"),
+            video_out_primaries: self.get_string_property("video-out-params/primaries"),
+            video_out_matrix: self.get_string_property("video-out-params/colormatrix"),
+            video_out_gamma: self.get_string_property("video-out-params/gamma"),
+            sig_peak: self.get_string_property("video-params/sig-peak"),
+            container_fps: self.get_string_property("container-fps"),
+            display_fps: self.get_string_property("display-fps"),
+            mistimed_frame_count: self.get_string_property("mistimed-frame-count"),
+            vo_delayed_frame_count: self.get_string_property("vo-delayed-frame-count"),
+            paused_for_cache: self.get_string_property("paused-for-cache"),
+            cache_buffering_state: self.get_string_property("cache-buffering-state"),
+            file_format: self.get_string_property("file-format"),
         }
     }
 

@@ -1143,5 +1143,18 @@
   "player.stats_avsync": "A/V sync",
   "player.stats_color": "Color",
   "player.stats_fps": "FPS",
+  "player.stats_stalls": "stall",
+  "player.stats_stalls_plural": "stalls",
+  "player.stats_color_in": "In",
+  "player.stats_color_out": "Out",
+  "player.stats_peak": "peak",
+  "player.stats_mistimed": "mistimed",
+  "player.stats_vo_delayed": "vo-delayed",
+  "player.stats_display_fps": "display",
+  "player.stats_torrent": "Torrent",
+  "player.stats_peers": "peers",
+  "player.stats_preload": "preload",
+  "player.stats_container": "Container",
+  "player.stats_copy": "Copy stats",
   "auto.no_similar_titles": "No similar titles found."
 }
