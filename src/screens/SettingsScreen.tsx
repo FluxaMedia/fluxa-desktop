@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { coreApplyPreferenceUpdate, httpFetchText, storageRead, storageWrite } from '../core/engine';
+import { Search } from 'lucide-react';
 import {
   coreAddonCollectionMutationPlan,
   manifestFetchPlan,
@@ -111,6 +112,16 @@ const TABS: { id: Tab; labelKey: string; subtitleKey: string; icon: React.ReactN
   { id: 'downloads', labelKey: 'auto.downloads', subtitleKey: 'auto.download_and_storage_settings', icon: <DownloadIcon /> },
 ];
 
+const SETTINGS_SEARCH_TERMS: Record<Tab, string[]> = {
+  account: ['profile', 'sync', 'trakt', 'simkl', 'anilist', 'nuvio', 'devices'],
+  general: ['language', 'startup', 'start page', 'background playback', 'notifications', 'discord'],
+  appearance: ['accent', 'color', 'theme', 'poster', 'layout', 'navigation', 'hero', 'continue watching', 'animations'],
+  playback: ['player', 'mpv', 'pip', 'hdr', 'p2p', 'speed', 'seek', 'subtitles', 'audio', 'skip intro', 'skip outro', 'auto skip', 'buffer', 'decoder'],
+  content: ['catalog', 'home', 'ranking', 'top 10', 'tmdb', 'rpdb', 'omdb', 'fanart', 'episodes'],
+  addons: ['addons', 'manifest', 'install', 'remove', 'reorder', 'source'],
+  downloads: ['download', 'storage', 'folder', 'subtitles'],
+};
+
 interface Props {
   state: AppState;
   onDispatch: (actionJson: string) => void;
@@ -125,6 +136,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
   const [tab, setTab] = useState<Tab>('account');
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [addonUrl, setAddonUrl] = useState('');
+  const [settingsQuery, setSettingsQuery] = useState('');
   const [installedAddons, setInstalledAddons] = useState<AddonDescriptor[]>([]);
   const [addonInstallStatus, setAddonInstallStatus] = useState<{ loading: boolean; error: string | null }>({ loading: false, error: null });
 
@@ -271,16 +283,35 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
   };
 
   const disabledAddonKeys = activeProfile?.addonSettings?.disabledLocalAddons ?? activeProfile?.disabledLocalAddons ?? [];
+  const normalizedSettingsQuery = settingsQuery.trim().toLowerCase();
+  const searchResults = normalizedSettingsQuery
+    ? TABS.filter((item) => {
+        const haystack = [
+          t(item.labelKey),
+          t(item.subtitleKey),
+          ...SETTINGS_SEARCH_TERMS[item.id],
+        ].join(' ').toLowerCase();
+        return haystack.includes(normalizedSettingsQuery);
+      })
+    : [];
 
   return (
     <div style={styles.screen}>
       <div style={styles.sidebar}>
         <p style={styles.sidebarTitle}>{t('nav.settings')}</p>
         <p style={styles.sidebarSubtitle}>{t('auto.general_0dbbccaf')}</p>
-        <div style={{ height: 16 }} />
+        <div style={settingsSearchStyles.wrap}>
+          <Search size={15} style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }} />
+          <input
+            value={settingsQuery}
+            onChange={(e) => setSettingsQuery(e.target.value)}
+            placeholder={t('settings.search_placeholder')}
+            style={settingsSearchStyles.input}
+          />
+        </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {TABS.map((tabItem) => (
+          {(searchResults.length > 0 ? searchResults : TABS).map((tabItem) => (
             <SidebarItem
               key={tabItem.id}
               label={t(tabItem.labelKey)}
@@ -303,6 +334,9 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
 
       <div style={styles.content}>
         <SettingsDetailHeader title={t(TABS.find((item) => item.id === tab)?.labelKey ?? 'nav.settings')} />
+        {normalizedSettingsQuery && searchResults.length === 0 && (
+          <div style={settingsSearchStyles.noResults}>{t('settings.search_no_results')}</div>
+        )}
 
         {tab === 'account' && (
           <AccountSection
@@ -340,3 +374,35 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     </div>
   );
 }
+
+const settingsSearchStyles: Record<string, React.CSSProperties> = {
+  wrap: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    height: 36,
+    padding: '0 10px',
+    margin: '14px 0 16px',
+    background: 'rgba(255,255,255,0.045)',
+    border: '1px solid rgba(255,255,255,0.09)',
+    borderRadius: 8,
+  },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    background: 'none',
+    border: 'none',
+    outline: 'none',
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: 600,
+  },
+  noResults: {
+    margin: '0 24px 16px',
+    padding: '10px 12px',
+    borderRadius: 8,
+    background: 'rgba(255,255,255,0.045)',
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 13,
+  },
+};
