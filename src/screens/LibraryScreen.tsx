@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Search } from 'lucide-react';
 import { VirtualizedPosterGrid } from '../components/VirtualizedPosterGrid';
 import { FilterDropdown } from '../components/FilterDropdown';
@@ -38,6 +38,12 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'title'>('recent');
   const [viewAllFolder, setViewAllFolder] = useState<{ title: string; items: Meta[] } | null>(null);
+  const collectionsScrollRef = useRef<HTMLDivElement>(null);
+  const savedScrollRef = useRef(0);
+
+  useLayoutEffect(() => {
+    if (!viewAllFolder && collectionsScrollRef.current) collectionsScrollRef.current.scrollTop = savedScrollRef.current;
+  }, [viewAllFolder]);
   const [editingCollection, setEditingCollection] = useState<UserCollection | 'new' | null>(null);
   const library = state.library;
 
@@ -206,11 +212,14 @@ export const LibraryScreen = React.memo(function LibraryScreen({
       <div style={{ height: 8 }} />
 
       {tab === 'collections' ? (
-        <div style={styles.collectionsScroll}>
+        <div ref={collectionsScrollRef} style={styles.collectionsScroll}>
           <CollectionsTab
             collections={collections}
             accent={accent}
-            onFolderClick={(folder, folderTitle) => setViewAllFolder({ title: folderTitle, items: getItemsForFolder(folder) })}
+            onFolderClick={(folder, folderTitle) => {
+              savedScrollRef.current = collectionsScrollRef.current?.scrollTop ?? 0;
+              setViewAllFolder({ title: folderTitle, items: getItemsForFolder(folder) });
+            }}
             onEditCollection={(col) => setEditingCollection(col)}
             onDeleteCollection={(id) => void handleDeleteCollection(id)}
             onNewCollection={() => setEditingCollection('new')}

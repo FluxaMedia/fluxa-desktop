@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { HeroSection } from '../components/HeroSection';
 import { ShelfRow } from '../components/ShelfRow';
 import { CategoryGridScreen } from './CategoryGridScreen';
@@ -46,11 +46,18 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const home = state.home;
   const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[] } | null>(null);
   const [folderLoading, setFolderLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const savedScrollRef = useRef(0);
+
+  useLayoutEffect(() => {
+    if (!viewAllCategory && scrollRef.current) scrollRef.current.scrollTop = savedScrollRef.current;
+  }, [viewAllCategory]);
 
   const handleFolderTileClick = useCallback(async (folderMeta: Meta) => {
     const allCats = (home.categories ?? []) as HomeCategory[];
     const folderCat = allCats.find((c) => c.id === folderMeta.id && c.type === 'collection_folder');
     if (!folderCat?.catalogSources?.length) return;
+    savedScrollRef.current = scrollRef.current?.scrollTop ?? 0;
     setViewAllCategory({ title: folderMeta.name, items: [] });
     setFolderLoading(true);
     try {
@@ -101,6 +108,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   }, [prefs.topTenFeedToggles]);
 
   const handleViewAll = useCallback((title: string, items: Meta[]) => {
+    savedScrollRef.current = scrollRef.current?.scrollTop ?? 0;
     setViewAllCategory({ title, items });
   }, []);
 
@@ -138,7 +146,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   }
 
   return (
-    <div style={styles.screen}>
+    <div ref={scrollRef} style={styles.screen}>
       {billboard && showHero && (
         <HeroSection
           meta={billboard}
