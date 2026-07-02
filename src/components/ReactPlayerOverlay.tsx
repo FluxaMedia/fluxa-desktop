@@ -459,7 +459,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
   useEffect(() => {
     if (!showNextEpCard) {
-      setNextEpDismissed(false);
       setCountdown(null);
       return;
     }
@@ -493,6 +492,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       setTitle(ev.payload.title ?? '');
       setEpisodeTitle(ev.payload.episodeTitle ?? '');
       setAbLoopStage('none');
+      setNextEpDismissed(false);
       autoSkippedKeysRef.current.clear();
     }).catch(() => undefined);
     return () => { cancelled = true; };
@@ -599,6 +599,11 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           if (showEpisodePanel) { setShowEpisodePanel(false); episodePanelOpenRef.current = false; return; }
           if (trackPopover) { setTrackPopover(null); return; }
           if (isFullscreenRef.current) { isFullscreenRef.current = false; void getCurrentWindow().setFullscreen(false); }
+          break;
+        case 'Backspace':
+          if (contextMenu || showEpisodePanel || trackPopover) return;
+          e.preventDefault();
+          void closePlayer();
           break;
         default:
           break;
@@ -1034,7 +1039,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       {showNextEpCard && nextEpSubtitle && !showEpisodePanel && (
         <NextEpCard
           subtitle={nextEpSubtitle}
-          posterUrl={initialPosterUrl}
           countdown={countdown}
           countdownTotal={autoPlayCountdownSecs}
           bottom={activeSkip ? 160 : 106}
