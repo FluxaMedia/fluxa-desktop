@@ -36,7 +36,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
 }: Props) {
   const [tab, setTab] = useState<Tab>('watchlist');
   const [query, setQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'recent' | 'title'>('recent');
+  const [sortBy, setSortBy] = useState<'recent' | 'title' | 'rating'>('recent');
   const [viewAllFolder, setViewAllFolder] = useState<{ title: string; items: Meta[] } | null>(null);
   const collectionsScrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
@@ -150,7 +150,11 @@ export const LibraryScreen = React.memo(function LibraryScreen({
 
   const q = query.trim().toLowerCase();
   const shown = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : items;
-  const sorted = sortBy === 'title' ? [...shown].sort((a, b) => a.name.localeCompare(b.name)) : shown;
+  const sorted = sortBy === 'title'
+    ? [...shown].sort((a, b) => a.name.localeCompare(b.name))
+    : sortBy === 'rating'
+    ? [...shown].sort((a, b) => Number((b as Meta).imdbRating ?? 0) - Number((a as Meta).imdbRating ?? 0) || a.name.localeCompare(b.name))
+    : shown;
 
   const subtitle = tab === 'watchlist' ? t('auto.movies_and_shows_you_saved_to_watch_later')
     : tab === 'watching' ? t('library.subtitle_watching')
@@ -202,8 +206,9 @@ export const LibraryScreen = React.memo(function LibraryScreen({
               options={[
                 { value: 'recent', label: t('library.sort_recent') },
                 { value: 'title', label: t('library.sort_title') },
+                { value: 'rating', label: t('library.sort_rating') },
               ]}
-              onSelect={(v) => setSortBy(v as 'recent' | 'title')}
+              onSelect={(v) => setSortBy(v as 'recent' | 'title' | 'rating')}
             />
           </div>
         )}

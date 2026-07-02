@@ -453,7 +453,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       const threshold0 = Number(prefString(prefs0, 'nextEpisodeThresholdPercent', '85')) || 85;
       const autoPlay0 = prefBool(prefs0, 'autoPlayNextEpisode', true);
       const countdown0 = Number(prefString(prefs0, 'autoPlayCountdownSecs', '7')) || 7;
-      void playerSetSkipInfo('[]', formatNextEpisodeSubtitle(playableNextEp), threshold0, autoPlay0, countdown0);
+      void playerSetSkipInfo('[]', formatNextEpisodeSubtitle(playableNextEp), threshold0, autoPlay0, countdown0, prefBool(prefs0, 'autoSkipIntro', false));
     }
 
     // Background: fetch skip segments + prefetch next episode stream
@@ -497,6 +497,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
           threshold,
           autoPlay,
           countdown,
+          prefBool(prefs, 'autoSkipIntro', false),
         );
 
         if (resolvedPlayableNextEp && await coreCanPrefetchNextEpisode(JSON.stringify(prefs), JSON.stringify(stream))) {

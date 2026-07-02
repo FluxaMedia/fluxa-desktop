@@ -149,10 +149,19 @@ const PosterCard = React.memo(function PosterCard({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       style={{ width: posterPrefs.width, cursor: 'pointer' }}
       onMouseEnter={() => onHover(meta)}
       onMouseLeave={() => onHover(null)}
       onClick={() => onClick(meta)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick(meta);
+        }
+      }}
+      aria-label={meta.name}
     >
       <div
         style={{
