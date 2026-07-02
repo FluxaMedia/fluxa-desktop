@@ -10,9 +10,11 @@ import {
   Captions,
   Cast,
   ChevronLeft,
+  Clock,
   Fullscreen,
   GalleryVerticalEnd,
   Gauge,
+  Info,
   Minimize2,
   Pause,
   PictureInPicture2,
@@ -120,6 +122,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [episodes, setEpisodes] = useState<EpisodeInfo[]>([]);
   const [showEpisodePanel, setShowEpisodePanel] = useState(false);
   const [activeSkip, setActiveSkip] = useState<ActiveSkip | null>(null);
+  const [autoSkipSegments, setAutoSkipSegments] = useState(false);
+  const autoSkippedKeysRef = useRef<Set<string>>(new Set());
   const [showNextEpCard, setShowNextEpCard] = useState(false);
   const [trackPopover, setTrackPopover] = useState<'audio' | 'sub' | 'speed' | null>(null);
   const [miniPlayerActive, setMiniPlayerActive] = useState(false);
@@ -162,6 +166,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const durRef = useRef(0);
   const pausedRef = useRef(false);
   const lastActivityRef = useRef(Date.now());
+  const isOverControlsRef = useRef(false);
+  const miniProgressRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const dragPosRef = useRef(0);
   const lastSeekAtRef = useRef(0);
@@ -365,7 +371,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       });
 
       const idle = Date.now() - lastActivityRef.current;
-      if (idle > 3000 && !isPaused && !episodePanelOpenRef.current && trackPopover === null) {
+      if (idle > 3000 && !isPaused && !episodePanelOpenRef.current && trackPopover === null && !isOverControlsRef.current) {
         if (controlsVisibleRef.current) {
           controlsVisibleRef.current = false;
           setControlsVisible(false);
@@ -374,12 +380,22 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         }
       }
 
+      if (miniProgressRef.current) miniProgressRef.current.style.width = `${(fraction * 100).toFixed(3)}%`;
+
       const posMs = pos * 1000;
       const seg = skipSegments.find((s) => posMs >= s.startTime && posMs < s.endTime);
       const newSkipKey = seg ? `${seg.type}:${seg.endTime}` : null;
       if (newSkipKey !== activeSkipKeyRef.current) {
         activeSkipKeyRef.current = newSkipKey;
-        setActiveSkip(seg ? { label: skipLabelForType(seg.type), startMs: seg.startTime, endMs: seg.endTime } : null);
+        if (seg && newSkipKey && autoSkipSegments && !autoSkippedKeysRef.current.has(newSkipKey)) {
+          autoSkippedKeysRef.current.add(newSkipKey);
+          lastSeekAtRef.current = Date.now();
+          sendCmd(`set time-pos ${Math.floor(seg.endTime / 1000)}`);
+          flashFeedback('seekFwd', t('player.skipped'));
+          setActiveSkip(null);
+        } else {
+          setActiveSkip(seg ? { label: skipLabelForType(seg.type), startMs: seg.startTime, endMs: seg.endTime } : null);
+        }
       }
       if (seg && skipFillRef.current) {
         const span = seg.endTime - seg.startTime;
@@ -387,16 +403,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         skipFillRef.current.style.width = `${(skipFrac * 100).toFixed(2)}%`;
       }
 
-      if (dur > 0 && nextEpSubtitle) {
-        const progress = (pos / dur) * 100;
-        setShowNextEpCard(progress >= nextEpThreshold);
-      } else {
-        setShowNextEpCard(false);
-      }
+      setShowNextEpCard((prev) => {
+        const next = !isPaused && dur > 0 && !!nextEpSubtitle && (pos / dur) * 100 >= nextEpThreshold;
+        return prev === next ? prev : next;
+      });
     }, 500);
 
     return () => clearInterval(interval);
-  }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl]);
+  }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, autoSkipSegments, flashFeedback]);
 
   useEffect(() => {
     return () => setIdleDiscordPresence();
@@ -434,6 +448,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         setNextEpThreshold(info.nextEpThresholdPercent ?? 85);
         setAutoPlayNextEpisode(info.autoPlayNextEpisode ?? false);
         setAutoPlayCountdownSecs(info.autoPlayCountdownSecs ?? 7);
+        setAutoSkipSegments(info.autoSkipSegments ?? false);
         setEpisodes(parseEpisodes(info.episodesJson));
       } catch {}
     };
@@ -478,9 +493,18 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       setTitle(ev.payload.title ?? '');
       setEpisodeTitle(ev.payload.episodeTitle ?? '');
       setAbLoopStage('none');
+      autoSkippedKeysRef.current.clear();
     }).catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
+
+  const triggerActiveSkip = useCallback(() => {
+    if (!activeSkip) return false;
+    resetActivity();
+    sendCmd(`set time-pos ${Math.floor(activeSkip.endMs / 1000)}`);
+    flashFeedback('seekFwd', activeSkip.label);
+    return true;
+  }, [activeSkip, flashFeedback, resetActivity]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -520,6 +544,36 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           e.preventDefault();
           sendCmd('add volume -5');
           break;
+        case 'Digit9':
+          e.preventDefault();
+          sendCmd('add volume -5');
+          break;
+        case 'Digit0':
+          e.preventDefault();
+          sendCmd('add volume 5');
+          break;
+        case 'Period':
+          e.preventDefault();
+          sendCmd('frame-step');
+          flashFeedback('seekFwd', t('player.frame_step'));
+          break;
+        case 'Comma':
+          e.preventDefault();
+          sendCmd('frame-back-step');
+          flashFeedback('seekBack', t('player.frame_back_step'));
+          break;
+        case 'KeyS':
+          if (triggerActiveSkip()) e.preventDefault();
+          break;
+        case 'Enter':
+          if (triggerActiveSkip()) e.preventDefault();
+          break;
+        case 'KeyN':
+          if (e.shiftKey && nextEpSubtitle) {
+            e.preventDefault();
+            void emit('native-player-next-episode', null);
+          }
+          break;
         case 'KeyM':
           e.preventDefault();
           sendCmd('cycle mute');
@@ -544,10 +598,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           if (contextMenu) { setContextMenu(null); return; }
           if (showEpisodePanel) { setShowEpisodePanel(false); episodePanelOpenRef.current = false; return; }
           if (trackPopover) { setTrackPopover(null); return; }
-          void (async () => {
-            if (isFullscreenRef.current) { isFullscreenRef.current = false; await getCurrentWindow().setFullscreen(false); return; }
-            await closePlayer();
-          })();
+          if (isFullscreenRef.current) { isFullscreenRef.current = false; void getCurrentWindow().setFullscreen(false); }
           break;
         default:
           break;
@@ -575,7 +626,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [closePlayer, contextMenu, flashFeedback, resetActivity, showEpisodePanel, startSeekOverlay, toggleFullscreen, trackPopover]);
+  }, [closePlayer, contextMenu, flashFeedback, nextEpSubtitle, resetActivity, showEpisodePanel, startSeekOverlay, toggleFullscreen, trackPopover, triggerActiveSkip]);
 
   useEffect(() => {
     return () => {
@@ -603,6 +654,19 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     window.addEventListener('mousemove', onMove);
     return () => window.removeEventListener('mousemove', onMove);
   }, [resetActivity]);
+
+  const onOverlayWheel = useCallback((e: React.WheelEvent) => {
+    if (Math.abs(e.deltaY) < 2) return;
+    resetActivity();
+    if (e.shiftKey) {
+      sendCmd(`add volume ${e.deltaY < 0 ? 5 : -5}`);
+      return;
+    }
+    startSeekOverlay();
+    const seconds = e.deltaY < 0 ? 5 : -5;
+    flashFeedback(seconds > 0 ? 'seekFwd' : 'seekBack', `${seconds > 0 ? '+' : ''}${seconds}s`);
+    sendCmd(`seek ${seconds} relative`);
+  }, [flashFeedback, resetActivity, startSeekOverlay]);
 
   const onSeekMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
@@ -731,6 +795,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     }
   }, [resetActivity, flashFeedback, title]);
 
+  const copyTimestamp = useCallback(async () => {
+    const text = fmtTime(posRef.current);
+    try { await navigator.clipboard.writeText(text); } catch {}
+    flashFeedback('subDelay', text);
+  }, [flashFeedback]);
+
   const centerClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const centerHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const centerHoldActiveRef = useRef(false);
@@ -792,6 +862,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       })
     : null;
   chapterSegmentsRef.current = chapterSegments;
+  const skipMarkers = dur > 0
+    ? skipSegments
+        .map((seg) => ({
+          start: Math.max(0, Math.min(1, (seg.startTime / 1000) / dur)),
+          end: Math.max(0, Math.min(1, (seg.endTime / 1000) / dur)),
+        }))
+        .filter((seg) => seg.end > seg.start)
+    : [];
 
   if (miniPlayerActive) {
     return (
@@ -800,8 +878,11 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         onMouseMove={resetActivity}
         style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'transparent' }}
       >
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: 'rgba(255,255,255,0.15)' }}>
+          <div ref={miniProgressRef} style={{ height: '100%', width: '0%', background: 'var(--primary-accent-color)' }} />
+        </div>
         <div
-          style={{ ...opacityStyle, position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '8px 10px', background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)' }}
+          style={{ ...opacityStyle, position: 'absolute', bottom: 2, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '8px 10px', background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)' }}
         >
           <button
             onClick={(e) => { e.stopPropagation(); resetActivity(); flashFeedback(paused ? 'play' : 'pause', ''); setPaused((prev) => !prev); sendCmd('cycle pause'); }}
@@ -836,6 +917,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     <div
       ref={overlayRef}
       style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', flexDirection: 'column', background: 'transparent' }}
+      onWheel={onOverlayWheel}
       onContextMenu={(e) => { e.preventDefault(); resetActivity(); setContextMenu({ x: e.clientX, y: e.clientY }); }}
     >
       <style>{`
@@ -869,7 +951,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           {(title || episodeTitle) && (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, overflow: 'hidden' }}>
               {title && (
-                <span style={{ color: '#fff', fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0, maxWidth: '55%' }}>
+                <span style={{ color: '#fff', fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: '0 1 auto', minWidth: 0 }}>
                   {title}
                 </span>
               )}
@@ -952,6 +1034,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       {showNextEpCard && nextEpSubtitle && !showEpisodePanel && (
         <NextEpCard
           subtitle={nextEpSubtitle}
+          posterUrl={initialPosterUrl}
           countdown={countdown}
           countdownTotal={autoPlayCountdownSecs}
           bottom={activeSkip ? 160 : 106}
@@ -1019,6 +1102,27 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             {abLoopStage === 'none' ? t('player.ab_loop') : abLoopStage === 'a' ? t('player.ab_loop_a_set') : t('player.ab_loop_active')}
           </button>
           <button
+            onClick={() => { void copyTimestamp(); setContextMenu(null); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <Clock size={15} />
+            {t('player.copy_timestamp')}
+          </button>
+          <button
+            onClick={() => { sendCmd('keypress i'); setContextMenu(null); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <Info size={15} />
+            {t('player.stats')}
+          </button>
+          <button
+            onClick={() => { void openTrackPopover('audio'); setContextMenu(null); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <AudioLines size={15} />
+            {t('player.track_info')}
+          </button>
+          <button
             onClick={() => { void takeScreenshot(); setContextMenu(null); }}
             style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
           >
@@ -1037,6 +1141,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           zIndex: 2,
           overflow: 'visible',
         }}
+        onMouseEnter={() => { isOverControlsRef.current = true; }}
+        onMouseLeave={() => { isOverControlsRef.current = false; }}
       >
         <div
           ref={seekbarRef}
@@ -1045,17 +1151,33 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           onMouseDown={onSeekMouseDown}
         >
           <div className="fluxa-seek-track" style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.22)', borderRadius: 3 }} />
+          {!chapterSegments && skipMarkers.map((seg, i) => (
+            <div
+              key={`${seg.start}-${seg.end}-${i}`}
+              className="fluxa-seek-track"
+              style={{
+                position: 'absolute',
+                left: `${seg.start * 100}%`,
+                width: `${(seg.end - seg.start) * 100}%`,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'color-mix(in srgb, var(--primary-accent-color) 20%, transparent)',
+                borderRadius: 3,
+                pointerEvents: 'none',
+              }}
+            />
+          ))}
 
           {chapterSegments ? (
             chapterSegments.map((seg, i) => (
               <div key={i} className="fluxa-seek-track" style={{ position: 'absolute', left: `calc(${seg.start * 100}% + 2px)`, width: `calc(${(seg.end - seg.start) * 100}% - 4px)`, top: '50%', transform: 'translateY(-50%)', overflow: 'hidden', background: 'rgba(255,255,255,0.18)', borderRadius: 2 }}>
-                <div ref={(el) => { segBufRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'rgba(255,255,255,0.5)' }} />
+                <div ref={(el) => { segBufRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'rgba(255,255,255,0.3)' }} />
                 <div ref={(el) => { segFillRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'var(--primary-accent-color)' }} />
               </div>
             ))
           ) : (
             <>
-              <div ref={seekBufferRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'rgba(255,255,255,0.5)', borderRadius: 3 }} />
+              <div ref={seekBufferRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'rgba(255,255,255,0.3)', borderRadius: 3 }} />
               <div ref={seekFillRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'var(--primary-accent-color)', borderRadius: 3 }} />
             </>
           )}
@@ -1088,11 +1210,16 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             style={{ display: 'flex', alignItems: 'center', position: 'relative' }}
             onMouseEnter={() => { if (volumeHideTimer.current) clearTimeout(volumeHideTimer.current); setShowVolumeSlider(true); }}
             onMouseLeave={() => { volumeHideTimer.current = setTimeout(() => setShowVolumeSlider(false), 200); }}
+            onWheel={(e) => {
+              e.stopPropagation();
+              resetActivity();
+              sendCmd(`add volume ${e.deltaY < 0 ? 5 : -5}`);
+            }}
           >
             <button onClick={(e) => { e.stopPropagation(); resetActivity(); setMuted((prev) => !prev); sendCmd('cycle mute'); }} className="fluxa-ibtn" style={styles.iconBtn} title={muted ? t('player.unmute') : t('player.mute')}>
               <IconVolume muted={muted} level={volumeLevel} />
             </button>
-            <div style={{ overflow: 'hidden', width: showVolumeSlider ? 96 : 0, opacity: showVolumeSlider ? 1 : 0, transition: 'width 0.22s ease, opacity 0.18s ease', display: 'flex', alignItems: 'center', paddingRight: showVolumeSlider ? 8 : 0 }}>
+            <div style={{ position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)', opacity: showVolumeSlider ? 1 : 0, pointerEvents: showVolumeSlider ? 'auto' : 'none', transition: 'opacity 0.18s ease', display: 'flex', alignItems: 'center', paddingLeft: 4, paddingRight: 8 }}>
               <VolumeBar
                 value={muted ? 0 : volumeLevel}
                 max={130}
@@ -1160,6 +1287,7 @@ function SeekPreview({ barRef, durRef, chaptersRef }: {
   const [preview, setPreview] = useState<{ x: number; time: number; chapter: string | null } | null>(null);
   const [thumbImg, setThumbImg] = useState<string | null>(null);
   const thumbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const thumbRequestTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     const bar = barRef.current;
@@ -1191,12 +1319,13 @@ function SeekPreview({ barRef, durRef, chaptersRef }: {
 
   useEffect(() => {
     if (!preview) { setThumbImg(null); return; }
-    const time = preview.time;
+    const requestedTime = preview.time;
+    thumbRequestTimeRef.current = requestedTime;
     if (thumbTimerRef.current) clearTimeout(thumbTimerRef.current);
     thumbTimerRef.current = setTimeout(() => {
-      invoke<string>('player_get_seek_thumbnail', { timePos: time })
-        .then((img) => { if (img) setThumbImg(img); })
-        .catch((err) => console.error('player_get_seek_thumbnail failed', err));
+      invoke<string>('player_get_seek_thumbnail', { timePos: requestedTime })
+        .then((img) => { if (img && thumbRequestTimeRef.current === requestedTime) setThumbImg(img); })
+        .catch(() => undefined);
     }, 120);
     return () => {
       if (thumbTimerRef.current) clearTimeout(thumbTimerRef.current);

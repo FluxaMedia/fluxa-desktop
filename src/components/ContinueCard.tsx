@@ -51,6 +51,7 @@ export function ContinueCard({
 }) {
   const [hovered, setHovered] = React.useState(false);
   const [imgError, setImgError] = React.useState(false);
+  const [imgLoaded, setImgLoaded] = React.useState(false);
   const [artworkOverride, setArtworkOverride] = React.useState<string | null>(null);
   const artwork = artworkOverride ?? artworkProp;
 
@@ -67,6 +68,7 @@ export function ContinueCard({
 
   React.useEffect(() => {
     setImgError(false);
+    setImgLoaded(false);
     setArtworkOverride(null);
   }, [artworkProp]);
 
@@ -111,7 +113,7 @@ export function ContinueCard({
     >
       <div style={cwStyles.imageArea}>
         {artwork && !imgError ? (
-          <img src={artwork} alt={meta.name} loading="lazy" decoding="async" style={cwStyles.artwork} onError={() => {
+          <img src={artwork} alt={meta.name} loading="lazy" decoding="async" style={{ ...cwStyles.artwork, opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.22s ease' }} onLoad={() => setImgLoaded(true)} onError={() => {
             const m = meta as unknown as { poster?: string | null; background?: string | null };
             const fallback = m.poster || m.background || null;
             if (fallback && fallback !== artwork) { setArtworkOverride(fallback); } else { setImgError(true); }
@@ -132,13 +134,11 @@ export function ContinueCard({
           </div>
         )}
 
-        {hovered && !dismissing && !pending && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(35,35,35,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="white" style={{ marginLeft: 3 }}><path d="M8 5v14l11-7z" /></svg>
-            </div>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: hovered && !dismissing && !pending ? 1 : 0, transition: 'opacity 0.16s ease' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="white" style={{ marginLeft: 3 }}><path d="M8 5v14l11-7z" /></svg>
           </div>
-        )}
+        </div>
       </div>
 
       <div style={cwStyles.footer}>
@@ -146,28 +146,26 @@ export function ContinueCard({
           <p style={cwStyles.name}>{meta.name}</p>
           <p style={cwStyles.episodeName}>{episodeLine ?? (meta.type === 'series' ? t('auto.up_next') : '')}</p>
         </div>
-        {hovered && !dismissing && !pending && (
-          <div style={cwStyles.hoverActions} onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              title={t('detail.mark_watched')}
-              style={cwStyles.actionBtn}
-              onClick={() => onMarkWatched(meta)}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
-              <Check size={14} />
-            </button>
-            <button
-              type="button"
-              title={t('home.drop_continue_watching')}
-              style={cwStyles.actionBtn}
-              onClick={() => onDrop(meta)}
-              onKeyDown={(e) => e.stopPropagation()}
-            >
-              <X size={14} />
-            </button>
-          </div>
-        )}
+        <div style={{ ...cwStyles.hoverActions, opacity: hovered && !dismissing && !pending ? 1 : 0, pointerEvents: hovered && !dismissing && !pending ? 'auto' : 'none', transition: 'opacity 0.16s ease' }} onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            title={t('detail.mark_watched')}
+            style={cwStyles.actionBtn}
+            onClick={() => onMarkWatched(meta)}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <Check size={14} />
+          </button>
+          <button
+            type="button"
+            title={t('home.drop_continue_watching')}
+            style={cwStyles.actionBtn}
+            onClick={() => onDrop(meta)}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -182,8 +180,8 @@ const cwStyles: Record<string, React.CSSProperties> = {
   placeholderText: { color: 'rgba(255,255,255,0.22)', fontSize: 48, fontWeight: 900 },
   footer: { height: 57, padding: '9px 10px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#050506' },
   metaStack: { flex: 1, minWidth: 0 },
-  imageProgressBg: { position: 'absolute', left: 10, right: 10, bottom: 8, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.45)' },
-  progressBar: { height: '100%', borderRadius: 999, background: '#e50914' },
+  imageProgressBg: { position: 'absolute', left: 10, right: 10, bottom: 8, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.25)' },
+  progressBar: { height: '100%', borderRadius: 999, background: 'var(--primary-accent-color)' },
   remainingBadge: { position: 'absolute', top: 8, right: 9, color: '#FFFFFF', fontSize: 12, fontWeight: 800, textShadow: '0 1px 5px rgba(0,0,0,0.88)', background: 'rgba(0,0,0,0.42)', borderRadius: 4, padding: '3px 6px' },
   newEpisodeBadge: { background: 'var(--primary-accent-color)', color: 'var(--primary-accent-foreground-color)', textShadow: 'none' },
 

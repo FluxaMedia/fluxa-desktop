@@ -116,20 +116,16 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
       <div style={cwStyles.header}>
         <p style={cwStyles.title}>{t('auto.continue_watching')}</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button
-            style={{ ...cwStyles.arrowBtn, opacity: canScrollLeft ? 1 : 0.28, cursor: canScrollLeft ? 'pointer' : 'default' }}
-            onClick={() => canScrollLeft && scroll('left')}
-            aria-label={t('common.scroll_left')}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15 18l-6-6 6-6v12z" /></svg>
-          </button>
-          <button
-            style={{ ...cwStyles.arrowBtn, opacity: canScrollRight ? 1 : 0.28, cursor: canScrollRight ? 'pointer' : 'default' }}
-            onClick={() => canScrollRight && scroll('right')}
-            aria-label={t('common.scroll_right')}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 18l6-6-6-6v12z" /></svg>
-          </button>
+          {canScrollLeft && (
+            <button style={cwStyles.arrowBtn} onClick={() => scroll('left')} aria-label={t('common.scroll_left')}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15 18l-6-6 6-6v12z" /></svg>
+            </button>
+          )}
+          {canScrollRight && (
+            <button style={cwStyles.arrowBtn} onClick={() => scroll('right')} aria-label={t('common.scroll_right')}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 18l6-6-6-6v12z" /></svg>
+            </button>
+          )}
         </div>
       </div>
       <div ref={scrollRef} style={cwStyles.scroll}>

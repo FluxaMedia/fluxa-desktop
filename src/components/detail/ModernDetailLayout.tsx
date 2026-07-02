@@ -204,7 +204,7 @@ export function ModernDetailLayout({
                       <button style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }} onClick={() => { dispatchMarkSeason([prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
                         {t('detail.prev_seasons_dialog_no')}
                       </button>
-                      <button style={{ background: '#4BB3FD', border: 'none', color: '#fff', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }} onClick={() => { dispatchMarkSeason([...prevSeasonDialog.unwatchedPrev, prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
+                      <button style={{ background: 'var(--primary-accent-color)', border: 'none', color: 'var(--primary-accent-foreground-color, #fff)', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }} onClick={() => { dispatchMarkSeason([...prevSeasonDialog.unwatchedPrev, prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
                         {t('detail.prev_seasons_dialog_yes')}
                       </button>
                     </div>
@@ -223,7 +223,7 @@ export function ModernDetailLayout({
               />
 
               {activeTab === 'episodes' && (
-                <div style={MS.episodeSection}>
+                <div style={{ ...MS.episodeSection, minHeight: 200 }}>
                   {detail.isLoading && filteredEps.length === 0 ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><div style={spinnerStyle} /></div>
                   ) : (
@@ -261,9 +261,9 @@ export function ModernDetailLayout({
               )}
 
               {activeTab === 'related' && (
-                <div style={MS.relatedSection}>
+                <div style={{ ...MS.relatedSection, minHeight: 200 }}>
                   {similarItems.length === 0 ? (
-                    <p style={MS.episodeCount}>{t('auto.no_sources_found_3019f12c')}</p>
+                    <p style={MS.episodeCount}>{t('auto.no_similar_titles')}</p>
                   ) : (
                     <div style={MS.relatedGrid}>
                       {similarItems.slice(0, 24).map((item) => (
@@ -275,7 +275,7 @@ export function ModernDetailLayout({
               )}
 
               {activeTab === 'details' && (
-                <div style={MS.detailsTab}>
+                <div style={{ ...MS.detailsTab, minHeight: 200 }}>
                   {displayMeta.description && (
                     <div style={MS.detailsSection}>
                       <h3 style={MS.detailsSectionTitle}>{t('detail.summary')}</h3>

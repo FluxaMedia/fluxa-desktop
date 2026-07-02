@@ -929,6 +929,7 @@
   "library.collections": "Collections",
   "library.sort_recent": "Recently updated",
   "library.sort_title": "Title (A-Z)",
+  "library.sort_rating": "Rating",
   "library.filter_placeholder": "Search in library",
   "library.no_matches": "Nothing matches your search.",
   "library.subtitle_watching": "Titles you're partway through.",
@@ -1120,5 +1121,13 @@
   "discover.all_years": "All years",
   "discover.older": "Older",
   "discover.rating": "Rating",
-  "discover.any_rating": "Any rating"
+  "discover.any_rating": "Any rating",
+  "settings.search_placeholder": "Search settings",
+  "settings.search_no_results": "No matching settings",
+  "player.copy_timestamp": "Copy timestamp",
+  "player.stats": "Stats",
+  "player.track_info": "Track info",
+  "player.frame_step": "Frame step",
+  "player.frame_back_step": "Frame back",
+  "auto.no_similar_titles": "No similar titles found."
 }

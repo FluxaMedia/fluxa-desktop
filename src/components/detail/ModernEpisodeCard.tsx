@@ -53,15 +53,16 @@ export function ModernEpisodeCard({ episode, number, isWatched, progressPct, min
         {minutesRemaining > 0 && <div style={MS.epTimeRemaining}>{t('format.remaining_minutes', minutesRemaining)}</div>}
         {progressPct > 0 && (
           <div style={MS.epProgressTrack}>
-            <div style={{ ...MS.epProgressFill, width: `${progressPct}%`, background: '#e50914' }} />
+            <div style={{ ...MS.epProgressFill, width: `${progressPct}%`, background: 'var(--primary-accent-color)' }} />
           </div>
         )}
         {cwBadge && !minutesRemaining && (
           <div style={{
             position: 'absolute', top: 7, left: 7, zIndex: 3,
-            background: cwBadge === 'newEpisode' ? '#e50914' : 'rgba(0,0,0,0.68)',
+            background: cwBadge === 'newEpisode' ? 'var(--primary-accent-color)' : 'rgba(0,0,0,0.68)',
+            color: cwBadge === 'newEpisode' ? 'var(--primary-accent-foreground-color, #fff)' : '#fff',
             backdropFilter: cwBadge !== 'newEpisode' ? 'blur(4px)' : undefined,
-            color: '#fff', fontSize: 11, fontWeight: 800,
+            fontSize: 11, fontWeight: 800,
             padding: '3px 7px', borderRadius: 4,
             textShadow: cwBadge === 'newEpisode' ? 'none' : '0 1px 4px rgba(0,0,0,0.8)',
             letterSpacing: '0.2px',
@@ -70,6 +71,11 @@ export function ModernEpisodeCard({ episode, number, isWatched, progressPct, min
               : cwBadge === 'upNext' ? t('auto.up_next')
               : cwBadge === 'scheduledEpisode' ? epReleaseCountdown(cwScheduledDate)
               : null}
+          </div>
+        )}
+        {isWatched && !hovered && (
+          <div style={{ position: 'absolute', top: 7, right: 7, zIndex: 3, pointerEvents: 'none' }}>
+            <CheckCircle2 size={18} color="rgba(255,255,255,0.7)" />
           </div>
         )}
         {hovered && (

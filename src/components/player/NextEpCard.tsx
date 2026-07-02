@@ -3,6 +3,7 @@ import { t } from '../../i18n';
 
 interface NextEpCardProps {
   subtitle: string;
+  posterUrl?: string;
   countdown: number | null;
   countdownTotal: number;
   bottom: number;
@@ -10,7 +11,7 @@ interface NextEpCardProps {
   onDismiss: () => void;
 }
 
-export function NextEpCard({ subtitle, countdown, countdownTotal, bottom, onPlay, onDismiss }: NextEpCardProps) {
+export function NextEpCard({ subtitle, posterUrl: _posterUrl, countdown, countdownTotal, bottom, onPlay, onDismiss }: NextEpCardProps) {
   const [hovered, setHovered] = useState(false);
   const epCodeMatch = subtitle.match(/^(S\d+:E\d+)\s+(.+)/i);
   const epCode = epCodeMatch ? epCodeMatch[1] : null;

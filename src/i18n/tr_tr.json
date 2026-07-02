@@ -929,6 +929,7 @@
   "library.collections": "Koleksiyonlar",
   "library.sort_recent": "Son güncellenen",
   "library.sort_title": "Başlık (A-Z)",
+  "library.sort_rating": "Puan",
   "library.filter_placeholder": "Kitaplıkta ara",
   "library.no_matches": "Aramanla eşleşen bir şey yok.",
   "library.subtitle_watching": "Yarım bıraktığın yapımlar.",
@@ -1120,5 +1121,13 @@
   "discover.all_years": "Tüm yıllar",
   "discover.older": "Daha eski",
   "discover.rating": "Puan",
-  "discover.any_rating": "Tüm puanlar"
+  "discover.any_rating": "Tüm puanlar",
+  "settings.search_placeholder": "Ayarlarda ara",
+  "settings.search_no_results": "Eşleşen ayar yok",
+  "player.copy_timestamp": "Zamanı kopyala",
+  "player.stats": "İstatistikler",
+  "player.track_info": "Parça bilgisi",
+  "player.frame_step": "Kare ileri",
+  "player.frame_back_step": "Kare geri",
+  "auto.no_similar_titles": "Benzer içerik bulunamadı."
 }

@@ -66,31 +66,6 @@ function streamText(stream: Stream): string {
   return [stream.name, stream.title, stream.description, stream.url, stream.playableUrl, stream.infoHash].filter(Boolean).join(' ');
 }
 
-function IconBtn({ icon, title }: { icon: React.ReactNode; title: string }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      title={title}
-      style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: '50%', color: hovered ? '#FFF' : 'rgba(255,255,255,0.5)', transition: 'color 0.15s', padding: 0, flexShrink: 0 }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {icon}
-    </button>
-  );
-}
-
-function LoadingHeader() {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {[300, 180, 360, 240].map((w, i) => (
-        <div key={i} style={{ width: w, height: i === 0 ? 48 : 16, background: 'rgba(255,255,255,0.07)', borderRadius: 8, animation: 'pulse 1.6s ease-in-out infinite', animationDelay: `${i * 0.08}s` }} />
-      ))}
-    </div>
-  );
-}
-
-void LoadingHeader;
 
 export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail, onNavigateGenre, onBack, initialEpisode, autoShowStreams }: Props) {
   const detail = state.detail;
@@ -401,8 +376,8 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
 
           <>
             <div style={{ marginTop: 28, marginBottom: 8 }}>
-              {fanartArtwork?.hdLogo || displayMeta.logo ? (
-                <img src={fanartArtwork?.hdLogo || displayMeta.logo} alt={displayMeta.name} style={S.logo} onError={() => {}} />
+              {(fanartArtwork?.hdLogo || displayMeta.logo) ? (
+                <img src={fanartArtwork?.hdLogo || displayMeta.logo} alt={displayMeta.name} style={S.logo} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
               ) : (
                 <h1 style={S.titleText}>{displayMeta.name}</h1>
               )}
@@ -537,10 +512,6 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
           </button>
 
           <div style={{ flex: 1 }} />
-
-          <IconBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>} title={t('detail.favourite')} />
-          <IconBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>} title={t('detail.like')} />
-          <IconBtn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>} title={t('auto.share')} />
         </div>
       </div>
 
