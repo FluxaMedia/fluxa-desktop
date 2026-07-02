@@ -28,7 +28,7 @@ pub async fn nuvio_request(
         .timeout(std::time::Duration::from_secs(20))
         .build()
         .map_err(|e| e.to_string())?;
-    let url = format!("{NUVIO_SUPABASE_URL}{path}");
+    let url = format!("{}{}", NUVIO_SUPABASE_URL.trim_end_matches('/'), path);
     let mut req = match method.as_str() {
         "GET" => client.get(&url),
         "POST" => client.post(&url),

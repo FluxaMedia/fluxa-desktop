@@ -97,6 +97,12 @@ export interface NuvioCollectionRow {
   updated_at: string;
 }
 
+const NUVIO_CLIENT_MAX_PROFILES = 6;
+
+function nuvioProgressKey(contentId: string, season?: number, episode?: number): string {
+  return season != null && episode != null ? `${contentId}_s${season}e${episode}` : contentId;
+}
+
 async function rawNuvioRequest(
   method: 'GET' | 'POST' | 'DELETE',
   path: string,
@@ -169,7 +175,7 @@ export async function nuvioPushProfiles(
   }>,
 ): Promise<void> {
   return post('/rest/v1/rpc/sync_push_profiles', {
-    p_client_max_profiles: 5,
+    p_client_max_profiles: NUVIO_CLIENT_MAX_PROFILES,
     p_profiles: profiles,
   }, token);
 }
@@ -265,13 +271,10 @@ export async function nuvioDeleteWatchProgress(
   season?: number,
   episode?: number,
 ): Promise<void> {
-  const params = new URLSearchParams({
-    profile_id: `eq.${profileId}`,
-    content_id: `eq.${contentId}`,
-  });
-  if (season != null) params.set('season', `eq.${season}`);
-  if (episode != null) params.set('episode', `eq.${episode}`);
-  await nuvioRequest<void>('DELETE', `/rest/v1/watch_progress?${params.toString()}`, undefined, token);
+  return post('/rest/v1/rpc/sync_delete_watch_progress', {
+    p_profile_id: profileId,
+    p_progress_key: nuvioProgressKey(contentId, season, episode),
+  }, token);
 }
 
 export async function nuvioPullWatchHistory(
