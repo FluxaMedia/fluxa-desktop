@@ -8,14 +8,36 @@ on:
 env:
   NODE_VERSION: "22"
   RUST_VERSION: "stable"
+  LIBMPV_TAG: "latest"
 
 permissions:
   contents: write
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Created up front so the three build jobs upload into one existing draft
+  # instead of racing to create it.
+  create-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create draft release for the tag
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ github.ref_name }}" -R "${{ github.repository }}" >/dev/null 2>&1 || \
+            gh release create "${{ github.ref_name }}" -R "${{ github.repository }}" \
+              --draft --title "Fluxa Desktop ${{ github.ref_name }}" --notes ""
+
   # libmpv + its MSYS2 runtime deps come prebuilt from KhooLy/mpv.
   build-windows:
+    needs: create-release
     runs-on: windows-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -46,17 +68,19 @@ jobs:
 
       - name: Fetch libmpv (KhooLy/mpv gpu-next fork)
         shell: bash
-        run: ./src-tauri/fetch-libmpv.sh
+        run: ./src-tauri/fetch-libmpv.sh "$LIBMPV_TAG"
 
       # ANGLE (libEGL.dll/libGLESv2.dll) backs mpv's OpenGL render API with a
       # real D3D11 device on Windows. Without it, D3D11VA hwdec has nothing to
       # attach to and decode silently falls back to software on every vendor.
+      # VCPKG_INSTALLATION_ROOT is C:\vcpkg on windows runners; it is a machine
+      # env var, not visible to ${{ env.* }} expressions, so it is hardcoded.
       - name: Cache vcpkg ANGLE build
         uses: actions/cache@v4
         with:
           path: |
-            ${{ env.VCPKG_INSTALLATION_ROOT }}\installed
-            ${{ env.VCPKG_INSTALLATION_ROOT }}\packages
+            C:\vcpkg\installed
+            C:\vcpkg\packages
           key: vcpkg-angle-x64-windows-v1
 
       - name: Build ANGLE via vcpkg
@@ -66,6 +90,14 @@ jobs:
           mkdir -p src-tauri/lib
           cp "$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/libEGL.dll" src-tauri/lib/
           cp "$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/libGLESv2.dll" src-tauri/lib/
+
+      - name: Verify bundled DLLs are present
+        shell: bash
+        run: |
+          ls -l src-tauri/lib/
+          test -f src-tauri/lib/libEGL.dll
+          test -f src-tauri/lib/libGLESv2.dll
+          ls src-tauri/lib/*mpv*.dll >/dev/null
 
       - name: npm install
         run: npm ci
@@ -84,14 +116,26 @@ jobs:
           FLUXA_NUVIO_SUPABASE_URL: ${{ secrets.FLUXA_NUVIO_SUPABASE_URL }}
           FLUXA_NUVIO_SUPABASE_KEY: ${{ secrets.FLUXA_NUVIO_SUPABASE_KEY }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Fluxa Desktop ${{ github.ref_name }}"
+          tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          releaseName: ${{ github.event_name == 'push' && format('Fluxa Desktop {0}', github.ref_name) || '' }}
           releaseDraft: true
           args: --target x86_64-pc-windows-msvc
 
+      - name: Upload build artifacts (manual run)
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluxa-windows-x64
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*
+          if-no-files-found: error
+
   # libmpv comes prebuilt from KhooLy/mpv, already dylibbundler'd.
   build-macos:
+    needs: create-release
     runs-on: macos-latest
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -119,7 +163,13 @@ jobs:
           workspaces: src-tauri
 
       - name: Fetch libmpv (KhooLy/mpv gpu-next fork)
-        run: ./src-tauri/fetch-libmpv.sh
+        run: ./src-tauri/fetch-libmpv.sh "$LIBMPV_TAG"
+
+      - name: Verify libmpv.dylib is intact
+        run: |
+          DYLIB="$(ls src-tauri/lib/libmpv*.dylib | head -n1)"
+          otool -L "$DYLIB"
+          lipo -info "$DYLIB"
 
       - name: npm install
         run: npm ci
@@ -138,14 +188,26 @@ jobs:
           FLUXA_NUVIO_SUPABASE_URL: ${{ secrets.FLUXA_NUVIO_SUPABASE_URL }}
           FLUXA_NUVIO_SUPABASE_KEY: ${{ secrets.FLUXA_NUVIO_SUPABASE_KEY }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Fluxa Desktop ${{ github.ref_name }}"
+          tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          releaseName: ${{ github.event_name == 'push' && format('Fluxa Desktop {0}', github.ref_name) || '' }}
           releaseDraft: true
           args: --target universal-apple-darwin
 
+      - name: Upload build artifacts (manual run)
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluxa-macos-universal
+          path: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.tar.gz
+          if-no-files-found: error
+
   # libmpv comes prebuilt from KhooLy/mpv (built on ubuntu-24.04, must match).
   build-linux:
+    needs: create-release
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -195,7 +257,7 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" ~/.apt-cache
 
       - name: Fetch libmpv (KhooLy/mpv gpu-next fork)
-        run: ./src-tauri/fetch-libmpv.sh
+        run: ./src-tauri/fetch-libmpv.sh "$LIBMPV_TAG"
 
       - name: Verify libmpv.so is intact
         run: |
@@ -219,8 +281,8 @@ jobs:
           FLUXA_NUVIO_SUPABASE_URL: ${{ secrets.FLUXA_NUVIO_SUPABASE_URL }}
           FLUXA_NUVIO_SUPABASE_KEY: ${{ secrets.FLUXA_NUVIO_SUPABASE_KEY }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Fluxa Desktop ${{ github.ref_name }}"
+          tagName: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          releaseName: ${{ github.event_name == 'push' && format('Fluxa Desktop {0}', github.ref_name) || '' }}
           releaseDraft: true
           args: --target x86_64-unknown-linux-gnu
 
@@ -247,11 +309,25 @@ jobs:
           mv "$STRIPPED" "$APPIMAGE"
           rm -rf "$WORKDIR"
 
-          gh release upload "${{ github.ref_name }}" "$APPIMAGE" --clobber
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            gh release upload "${{ github.ref_name }}" "$APPIMAGE" --clobber
+          fi
+
+      - name: Upload build artifacts (manual run)
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluxa-linux-x64
+          path: |
+            src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+            src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
+          if-no-files-found: error
 
   publish-release:
+    if: github.event_name == 'push'
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
