@@ -182,9 +182,7 @@ unsafe fn gcd_main_queue() -> *mut c_void {
     if lib.is_null() {
         return std::ptr::null_mut();
     }
-    let f: unsafe extern "C" fn() -> *mut c_void =
-        std::mem::transmute(libc::dlsym(lib, b"dispatch_get_main_queue\0".as_ptr() as _));
-    f()
+    libc::dlsym(lib, b"_dispatch_main_q\0".as_ptr() as _)
 }
 
 unsafe fn gcd_async_f(
@@ -199,6 +197,22 @@ unsafe fn gcd_async_f(
     let f: unsafe extern "C" fn(*mut c_void, *mut c_void, unsafe extern "C" fn(*mut c_void)) =
         std::mem::transmute(libc::dlsym(lib, b"dispatch_async_f\0".as_ptr() as _));
     f(queue, ctx, work);
+}
+
+fn run_on_main(f: impl FnOnce() + Send + 'static) {
+    unsafe extern "C" fn trampoline(ctx: *mut c_void) {
+        let f = unsafe { Box::from_raw(ctx as *mut Box<dyn FnOnce() + Send>) };
+        f();
+    }
+    let ctx = Box::into_raw(Box::new(Box::new(f) as Box<dyn FnOnce() + Send>)) as *mut c_void;
+    unsafe {
+        let queue = gcd_main_queue();
+        if queue.is_null() || libc::pthread_main_np() == 1 {
+            trampoline(ctx);
+        } else {
+            gcd_async_f(queue, ctx, trampoline);
+        }
+    }
 }
 
 // Surface commands
@@ -304,40 +318,30 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
     // Create the render subview on the main thread, collect result.
     // NSView frames are in points; inner_size() is physical pixels.
     let (view_tx, view_rx) = mpsc::channel::<Result<SendId, String>>();
-    let ctx_struct = Box::new((
-        SendId(ns_view),
-        init_w as f64 / scale,
-        init_h as f64 / scale,
-        Box::into_raw(Box::new(view_tx)) as usize,
-    ));
-    let ctx_ptr = Box::into_raw(ctx_struct) as *mut c_void;
-
-    extern "C" fn create_on_main(ctx: *mut c_void) {
-        unsafe {
-            let (parent, w, h, tx_addr) = *Box::from_raw(ctx as *mut (SendId, f64, f64, usize));
-            let tx = Box::from_raw(tx_addr as *mut mpsc::Sender<Result<SendId, String>>);
-            let result = create_render_subview(parent, w, h);
-            let _ = tx.send(result);
-        }
-    }
-
-    unsafe {
-        let queue = gcd_main_queue();
-        if queue.is_null() {
-            // Fallback: run inline (works if we're already on the main thread).
-            create_on_main(ctx_ptr);
-        } else {
-            gcd_async_f(queue, ctx_ptr, create_on_main);
-        }
-    }
+    let parent = SendId(ns_view);
+    let frame_w = init_w as f64 / scale;
+    let frame_h = init_h as f64 / scale;
+    run_on_main(move || {
+        let _ = view_tx.send(unsafe { create_render_subview(parent, frame_w, frame_h) });
+    });
 
     let render_view = view_rx
         .recv_timeout(Duration::from_secs(5))
         .map_err(|_| "macOS render view creation timed out".to_string())
         .and_then(|r| r)?;
 
-    // Create NSOpenGLContext.
-    let gl_ctx = unsafe { create_gl_context(render_view.clone())? };
+    let gl_ctx = unsafe { create_gl_context()? };
+
+    let (attach_tx, attach_rx) = mpsc::channel::<()>();
+    let attach_ctx = gl_ctx.clone();
+    let attach_view = render_view.clone();
+    run_on_main(move || {
+        unsafe { msg1_id(attach_ctx.0, "setView:", attach_view.0) };
+        let _ = attach_tx.send(());
+    });
+    attach_rx
+        .recv_timeout(Duration::from_secs(5))
+        .map_err(|_| "attaching GL context to render view timed out".to_string())?;
 
     // Make it current on this thread and init mpv render context.
     unsafe {
@@ -367,6 +371,8 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
         }
     }
 
+    unsafe { msg0(cls("NSOpenGLContext"), "clearCurrentContext") };
+
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
     let app = app_handle.clone();
 
@@ -390,8 +396,14 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             while let Ok(cmd) = receiver.try_recv() {
                 match cmd {
                     SurfaceCommand::Load { url, start_at, .. } => {
-                        unsafe { msg1_bool(rv, "setHidden:", 0) };
+                        let view = SendId(rv);
+                        run_on_main(move || unsafe {
+                            msg1_bool(view.0, "setHidden:", 0);
+                        });
                         visible = true;
+                        app.state::<DesktopState>()
+                            .pending_hide
+                            .store(false, std::sync::atomic::Ordering::Release);
                         let _ = app.emit("native-player-show", ());
                         let state = app.state::<DesktopState>();
                         *state.eof_next_fired.lock().unwrap() = false;
@@ -401,13 +413,19 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                                 drop(r);
                                 let _ = app.emit("native-player-error", e);
                                 visible = false;
-                                unsafe { msg1_bool(rv, "setHidden:", 1) };
+                                let view = SendId(rv);
+                                run_on_main(move || unsafe {
+                                    msg1_bool(view.0, "setHidden:", 1);
+                                });
                             }
                         }
                     }
                     SurfaceCommand::Hide => {
                         visible = false;
-                        unsafe { msg1_bool(rv, "setHidden:", 1) };
+                        let view = SendId(rv);
+                        run_on_main(move || unsafe {
+                            msg1_bool(view.0, "setHidden:", 1);
+                        });
                         let _ = app.emit("native-player-hide", ());
                         let state = app.state::<DesktopState>();
                         let guard = state.player_renderer.lock().unwrap();
@@ -441,6 +459,15 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             }
 
             if visible {
+                if app
+                    .state::<DesktopState>()
+                    .pending_hide
+                    .load(std::sync::atomic::Ordering::Acquire)
+                {
+                    std::thread::sleep(Duration::from_millis(16));
+                    continue;
+                }
+
                 // Track window size changes via Tauri.
                 if let Some(win) = app.get_webview_window("main") {
                     if let Ok(sz) = win.inner_size() {
@@ -449,20 +476,23 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                         let nh = (sz.height as i32).max(2);
                         if (nw, nh) != last_size {
                             last_size = (nw, nh);
-                            unsafe {
+                            let view = SendId(rv);
+                            let ctx = SendId(gl);
+                            let frame_w = nw as f64 / scale;
+                            let frame_h = nh as f64 / scale;
+                            run_on_main(move || unsafe {
                                 msg_set_frame(
-                                    rv,
+                                    view.0,
                                     NSRect {
                                         origin: NSPoint { x: 0.0, y: 0.0 },
                                         size: NSSize {
-                                            width: nw as f64 / scale,
-                                            height: nh as f64 / scale,
+                                            width: frame_w,
+                                            height: frame_h,
                                         },
                                     },
                                 );
-                                // Notify context that the view was resized.
-                                msg0(gl, "update");
-                            }
+                                msg0(ctx.0, "update");
+                            });
                         }
                     }
                 }
@@ -534,7 +564,7 @@ unsafe fn create_render_subview(parent: SendId, w: f64, h: f64) -> Result<SendId
     Ok(SendId(view))
 }
 
-unsafe fn create_gl_context(render_view: SendId) -> Result<SendId, String> {
+unsafe fn create_gl_context() -> Result<SendId, String> {
     let attribs: [u32; 9] = [
         NSOpenGLPFADoubleBuffer,
         NSOpenGLPFAAccelerated,
@@ -569,9 +599,6 @@ unsafe fn create_gl_context(render_view: SendId) -> Result<SendId, String> {
     if ctx.is_null() {
         return Err("NSOpenGLContext init failed".to_string());
     }
-
-    // Attach to the render view.
-    msg1_id(ctx, "setView:", render_view.0);
 
     Ok(SendId(ctx))
 }
