@@ -64,6 +64,38 @@ body {
   to { opacity: 1; }
 }
 
+.movie-card .mc-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.28);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.movie-card:hover .mc-dim,
+.movie-card:focus-visible .mc-dim {
+  opacity: 1;
+}
+
+.movie-card .mc-watched {
+  transition: opacity 0.25s ease;
+}
+
+.movie-card:hover .mc-watched,
+.movie-card:focus-visible .mc-watched {
+  opacity: 0;
+}
+
+.folder-tile .folder-card {
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.folder-tile:hover .folder-card,
+.folder-tile:focus-visible .folder-card {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 0 0 2px var(--primary-accent-color, rgba(255,255,255,0.44));
+}
+
 input:focus {
   border-color: rgba(255,255,255,0.3) !important;
   box-shadow: 0 0 0 2px rgba(255,255,255,0.08);

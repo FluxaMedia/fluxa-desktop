@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { PosterPrefs } from '../core/posterPrefs';
 import type { Meta } from '../core/types';
+import { cardImageUrl } from '../core/imageSizes';
 
 const GRID_PADDING_X = 24;
 const GRID_PADDING_TOP = 12;
@@ -8,7 +9,7 @@ const GRID_PADDING_BOTTOM = 60;
 const GRID_GAP_X = 18;
 const GRID_GAP_Y = 28;
 const GRID_MIN_COLUMN_WIDTH = 150;
-const GRID_OVERSCAN_ROWS = 3;
+const GRID_OVERSCAN_ROWS = 6;
 
 export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
   items,
@@ -142,7 +143,9 @@ const PosterCard = React.memo(function PosterCard({
   onClick: (m: Meta) => void;
 }) {
   const [imgErr, setImgErr] = useState(false);
-  const imgSrc = posterPrefs.layout === 'horizontal' ? meta.background || meta.poster : meta.poster || meta.background;
+  const imgSrc = posterPrefs.layout === 'horizontal'
+    ? cardImageUrl(meta.background, 'backdrop') || cardImageUrl(meta.poster)
+    : cardImageUrl(meta.poster) || cardImageUrl(meta.background, 'backdrop');
 
   return (
     <div

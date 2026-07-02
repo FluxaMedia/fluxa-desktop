@@ -3,6 +3,7 @@ import { t } from '../i18n';
 import type { Meta } from '../core/types';
 import type { PosterPrefs } from '../core/posterPrefs';
 import { rpdbPosterUrl } from '../core/rpdb';
+import { cardImageUrl } from '../core/imageSizes';
 
 interface Props {
   meta: Meta;
@@ -27,7 +28,6 @@ export const MovieCard = React.memo(function MovieCard({
   addonIcon,
   onClick,
 }: Props) {
-  const [hovered, setHovered] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [rpdbFailed, setRpdbFailed] = useState(false);
@@ -81,6 +81,7 @@ export const MovieCard = React.memo(function MovieCard({
       <div
         role="button"
         tabIndex={0}
+        className="movie-card"
         style={{
           width,
           height,
@@ -98,10 +99,6 @@ export const MovieCard = React.memo(function MovieCard({
           flexShrink: 0,
           marginLeft: topTenRank != null ? Math.round(rankNumWidth - rankOverlap) : 0,
         }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setHovered(true)}
-        onBlur={() => setHovered(false)}
         onClick={() => onClick?.(meta)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -112,7 +109,9 @@ export const MovieCard = React.memo(function MovieCard({
       >
         {/* Poster image */}
         {(() => {
-          const basePosterSrc = layout === 'horizontal' ? meta.background || meta.poster : meta.poster || meta.background;
+          const basePosterSrc = layout === 'horizontal'
+            ? cardImageUrl(meta.background, 'backdrop') || cardImageUrl(meta.poster)
+            : cardImageUrl(meta.poster) || cardImageUrl(meta.background, 'backdrop');
           const rpdbSrc = layout !== 'horizontal' ? rpdbPosterUrl(meta) : undefined;
           const posterSrc = rpdbSrc && !rpdbFailed ? rpdbSrc : basePosterSrc;
           if (posterSrc && !imgError) {
@@ -164,20 +163,12 @@ export const MovieCard = React.memo(function MovieCard({
           );
         })()}
 
-        {hovered && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(0,0,0,0.28)',
-              pointerEvents: 'none',
-            }}
-          />
-        )}
+        <div className="mc-dim" />
 
         {/* Watched overlay */}
         {isWatched && (
           <div
+            className="mc-watched"
             style={{
               position: 'absolute',
               inset: 0,
@@ -187,8 +178,6 @@ export const MovieCard = React.memo(function MovieCard({
               alignItems: 'center',
               justifyContent: 'center',
               gap: 10,
-              opacity: hovered ? 0 : 1,
-              transition: 'opacity 0.25s ease',
               pointerEvents: 'none',
             }}
           >

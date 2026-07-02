@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import type { Meta } from '../core/types';
 import { t } from '../i18n';
+import { cardImageUrl } from '../core/imageSizes';
+import { useInViewport } from '../hooks/useInViewport';
 
 const ROW_PADDING_LEFT = 32;
 
@@ -32,8 +34,7 @@ export const CollectionShelfRow = React.memo(function CollectionShelfRow({
   const [canScrollRight, setCanScrollRight] = React.useState(true);
   const [scrollLeft, setScrollLeft] = React.useState(0);
   const [containerWidth, setContainerWidth] = React.useState(() => window.innerWidth);
-  const [hoveredId, setHoveredId] = React.useState<string | null>(null);
-  const hoveredIdRef = React.useRef<string | null>(null);
+  const scrollRafRef = React.useRef<number | null>(null);
 
   const slotWidth = useMemo(
     () => (folders.length > 0 ? cardWidth(folders[0]) + SCROLL_GAP : 168),
@@ -64,17 +65,18 @@ export const CollectionShelfRow = React.memo(function CollectionShelfRow({
 
   const handleScroll = React.useCallback(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    updateArrows();
-    setScrollLeft(el.scrollLeft);
-    hoveredIdRef.current = null;
-    setHoveredId(null);
+    if (!el || scrollRafRef.current != null) return;
+    scrollRafRef.current = window.requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      updateArrows();
+      setScrollLeft((current) => (el.scrollLeft === current ? current : el.scrollLeft));
+    });
   }, [updateArrows]);
 
-  const handleTileHover = React.useCallback((fid: string | null) => {
-    if (hoveredIdRef.current === fid) return;
-    hoveredIdRef.current = fid;
-    setHoveredId(fid);
+  React.useEffect(() => {
+    return () => {
+      if (scrollRafRef.current != null) window.cancelAnimationFrame(scrollRafRef.current);
+    };
   }, []);
 
   const scroll = (dir: 'left' | 'right') => {
@@ -120,9 +122,7 @@ export const CollectionShelfRow = React.memo(function CollectionShelfRow({
           <FolderTileCard
             key={folder.id}
             folder={folder}
-            isHovered={hoveredId === folder.id}
             onClick={onFolderClick}
-            onHoverChange={handleTileHover}
             addonIcon={addonIcon}
             gifAutoplayEnabled={gifAutoplayEnabled}
           />
@@ -135,21 +135,20 @@ export const CollectionShelfRow = React.memo(function CollectionShelfRow({
 
 const FolderTileCard = React.memo(function FolderTileCard({
   folder,
-  isHovered,
   onClick,
-  onHoverChange,
   addonIcon,
   gifAutoplayEnabled,
 }: {
   folder: Meta;
-  isHovered: boolean;
   onClick: (f: Meta) => void;
-  onHoverChange: (fid: string | null) => void;
   addonIcon?: string;
   gifAutoplayEnabled: boolean;
 }) {
+  const [hovered, setHovered] = React.useState(false);
   const [staticImgError, setStaticImgError] = React.useState(false);
   const [gifError, setGifError] = React.useState(false);
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
+  const inViewport = useInViewport(wrapperRef, '120px');
 
   const shape = ((folder as unknown as Record<string, unknown>).reason as string | undefined ?? 'poster').toLowerCase();
   const isWide = shape === 'wide' || shape === 'landscape';
@@ -162,32 +161,34 @@ const FolderTileCard = React.memo(function FolderTileCard({
     ? { width: w, minWidth: w, height: 150 }
     : { width: w, minWidth: w, height: 234 };
 
-  const staticUrl = folder.poster ?? folder.background;
-  const shouldShowGif = !!folder.focusGifUrl && !gifError && (gifAutoplayEnabled || isHovered);
+  const staticUrl = cardImageUrl(folder.poster) ?? cardImageUrl(folder.background, 'backdrop');
+  const wantsMotion = !!folder.focusGifUrl && inViewport && (gifAutoplayEnabled || hovered);
+  const shouldShowGif = wantsMotion && !gifError;
   const displayUrl = shouldShowGif ? folder.focusGifUrl : staticUrl;
   const displayFailed = displayUrl === staticUrl && staticImgError;
 
   React.useEffect(() => {
     setStaticImgError(false);
     setGifError(false);
-  }, [folder.id, folder.poster, folder.background, folder.focusGifUrl]);
+  }, [folder.id, folder.poster, folder.background, folder.focusGifUrl, staticUrl]);
 
   return (
     <div
+      ref={wrapperRef}
       role="button"
       tabIndex={0}
+      className="folder-tile"
       style={{ ...collStyles.tileWrapper, width: imgStyle.width, minWidth: imgStyle.minWidth }}
       onClick={() => onClick(folder)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(folder); } }}
-      onPointerEnter={() => onHoverChange(folder.id)}
-      onPointerLeave={() => onHoverChange(null)}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
     >
-      <div style={{
-        ...collStyles.card,
-        ...imgStyle,
-        boxShadow: isHovered ? '0 0 0 2px var(--primary-accent-color, rgba(255,255,255,0.44))' : 'none',
-        transform: isHovered ? 'translateY(-2px) scale(1.02)' : 'none',
-      }}>
+      <div
+        className="folder-card"
+        data-motion-url={folder.focusGifUrl ?? undefined}
+        style={{ ...collStyles.card, ...imgStyle }}
+      >
         {displayUrl && !displayFailed ? (
           <img
             key={displayUrl}
@@ -279,7 +280,6 @@ const collStyles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     overflow: 'hidden',
     background: '#141922',
-    transition: 'transform 0.16s ease, box-shadow 0.16s ease',
   },
   img: {
     width: '100%',
