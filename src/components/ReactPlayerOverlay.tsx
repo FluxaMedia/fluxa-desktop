@@ -93,6 +93,32 @@ function IconVolume({ muted, level }: { muted: boolean; level: number }) {
   return <Volume2 size={24} />;
 }
 
+const SPARKLINE_MAX_SAMPLES = 60;
+
+function Sparkline({ data, w = 64, h = 16, gradId }: { data: number[]; w?: number; h?: number; gradId: string }) {
+  if (data.length < 2) return <span style={{ display: 'inline-block', width: w, height: h, verticalAlign: 'middle' }} />;
+  const max = Math.max(...data, 0.001);
+  const pad = 1;
+  const pts = data.map((v, i) => [
+    pad + (i / (data.length - 1)) * (w - pad * 2),
+    h - pad - (v / max) * (h - pad * 2),
+  ]);
+  const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = `${line} L${(w - pad).toFixed(1)},${h} L${pad},${h} Z`;
+  return (
+    <svg width={w} height={h} style={{ display: 'inline-block', verticalAlign: 'middle', overflow: 'visible', flexShrink: 0 }}>
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.1)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gradId})`} />
+      <path d={line} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 interface Props {
   closePlayer: () => Promise<void>;
   onFirstFrame?: () => void;
@@ -151,6 +177,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [showStats, setShowStats] = useState(false);
   const [statsSnap, setStatsSnap] = useState<EmbeddedMpvStatus | null>(null);
   const [torrentStatsSnap, setTorrentStatsSnap] = useState<TorrentStats | null>(null);
+  const [bufferHistory, setBufferHistory] = useState<number[]>([]);
+  const [netSpeedHistory, setNetSpeedHistory] = useState<number[]>([]);
+  const [torrentSpeedHistory, setTorrentSpeedHistory] = useState<number[]>([]);
   const liveStatusRef = useRef<EmbeddedMpvStatus | null>(null);
   const stallCountRef = useRef(0);
   const prevPausedForCacheRef = useRef(false);
@@ -427,9 +456,17 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   useEffect(() => {
     if (!showStats) return;
     const tick = async () => {
-      if (liveStatusRef.current) setStatsSnap({ ...liveStatusRef.current });
+      const s = liveStatusRef.current;
+      if (s) {
+        setStatsSnap({ ...s });
+        const bufVal = parseFloat(s.demuxerCacheDuration ?? '0') || 0;
+        const netVal = parseInt(s.cacheSpeed ?? '0') || 0;
+        setBufferHistory((h) => [...h.slice(-(SPARKLINE_MAX_SAMPLES - 1)), bufVal]);
+        setNetSpeedHistory((h) => [...h.slice(-(SPARKLINE_MAX_SAMPLES - 1)), netVal]);
+      }
       const ts = await playerTorrentStats().catch(() => null);
       setTorrentStatsSnap(ts);
+      if (ts) setTorrentSpeedHistory((h) => [...h.slice(-(SPARKLINE_MAX_SAMPLES - 1)), ts.download_speed]);
     };
     void tick();
     const id = setInterval(() => { void tick(); }, 500);
@@ -520,6 +557,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       autoSkippedKeysRef.current.clear();
       stallCountRef.current = 0;
       prevPausedForCacheRef.current = false;
+      setBufferHistory([]);
+      setNetSpeedHistory([]);
+      setTorrentSpeedHistory([]);
     }).catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
@@ -1269,11 +1309,19 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             <div>{[statsSnap.audioCodec, statsSnap.audioSamplerate ? `${statsSnap.audioSamplerate} Hz` : null, statsSnap.audioChannels].filter(Boolean).join('  ')}</div>
           )}
           {(statsSnap?.demuxerCacheDuration != null) && (
-            <div>
-              {t('player.stats_buffer')}: {parseFloat(statsSnap.demuxerCacheDuration ?? '0').toFixed(1)}s
-              {statsSnap.cacheSpeed && statsSnap.cacheSpeed !== '0' ? `  ↓ ${(parseInt(statsSnap.cacheSpeed) / 1024).toFixed(0)} KB/s` : ''}
-              {statsSnap.cacheBufferingState && statsSnap.pausedForCache === 'yes' ? `  ${statsSnap.cacheBufferingState}%` : ''}
-              {stallCountRef.current > 0 ? `  ${stallCountRef.current} ${stallCountRef.current === 1 ? t('player.stats_stalls') : t('player.stats_stalls_plural')}` : ''}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', rowGap: 2 }}>
+              <span>{t('player.stats_buffer')}:</span>
+              <Sparkline data={bufferHistory} gradId="sg-buf" />
+              <span>{parseFloat(statsSnap.demuxerCacheDuration ?? '0').toFixed(1)}s</span>
+              {stallCountRef.current > 0 && <span style={{ color: 'rgba(255,255,255,0.45)' }}>{stallCountRef.current} {stallCountRef.current === 1 ? t('player.stats_stalls') : t('player.stats_stalls_plural')}</span>}
+              {statsSnap.cacheBufferingState && statsSnap.pausedForCache === 'yes' && <span style={{ color: 'rgba(255,255,255,0.45)' }}>{statsSnap.cacheBufferingState}%</span>}
+            </div>
+          )}
+          {(statsSnap?.cacheSpeed != null) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>↓</span>
+              <Sparkline data={netSpeedHistory} gradId="sg-net" />
+              <span>{(parseInt(statsSnap.cacheSpeed ?? '0') / 1024).toFixed(0)} KB/s</span>
             </div>
           )}
           {statsSnap?.avsync != null && (
@@ -1291,7 +1339,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             </div>
           )}
           {torrentStatsSnap && torrentStatsSnap.stat >= 2 && (
-            <div>{t('player.stats_torrent')}: {torrentStatsSnap.active_peers}/{torrentStatsSnap.total_peers} {t('player.stats_peers')}  ↓ {(torrentStatsSnap.download_speed / (1024 * 1024)).toFixed(2)} MB/s  {t('player.stats_preload')}: {torrentStatsSnap.preload}%</div>
+            <div>
+              <div>{t('player.stats_torrent')}: {torrentStatsSnap.active_peers}/{torrentStatsSnap.total_peers} {t('player.stats_peers')}  {t('player.stats_preload')}: {torrentStatsSnap.preload}%</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>↓</span>
+                <Sparkline data={torrentSpeedHistory} gradId="sg-tor" />
+                <span>{(torrentStatsSnap.download_speed / (1024 * 1024)).toFixed(2)} MB/s</span>
+              </div>
+            </div>
           )}
           <div style={{ marginTop: 4, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 4 }}>
             <button
