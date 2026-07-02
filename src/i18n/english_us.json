@@ -1115,5 +1115,10 @@
   "auth.profile.name_label": "PROFILE NAME",
   "auth.profile.name_placeholder": "e.g. Main, Personal...",
   "auth.profile.default_name": "Primary",
-  "auth.profile.continue": "Continue"
+  "auth.profile.continue": "Continue",
+  "discover.year": "Year",
+  "discover.all_years": "All years",
+  "discover.older": "Older",
+  "discover.rating": "Rating",
+  "discover.any_rating": "Any rating"
 }

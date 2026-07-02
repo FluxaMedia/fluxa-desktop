@@ -1115,5 +1115,10 @@
   "auth.profile.name_label": "PROFİL ADI",
   "auth.profile.name_placeholder": "örn. Ana, Kişisel...",
   "auth.profile.default_name": "Birincil",
-  "auth.profile.continue": "Devam et"
+  "auth.profile.continue": "Devam et",
+  "discover.year": "Yıl",
+  "discover.all_years": "Tüm yıllar",
+  "discover.older": "Daha eski",
+  "discover.rating": "Puan",
+  "discover.any_rating": "Tüm puanlar"
 }

@@ -30,6 +30,22 @@ const FALLBACK_GENRES = [
 
 const SCROLL_HOVER_IDLE_MS = 180;
 
+const YEAR_BUCKETS = [
+  { value: '2020s', min: 2020, max: 9999 },
+  { value: '2010s', min: 2010, max: 2019 },
+  { value: '2000s', min: 2000, max: 2009 },
+  { value: '1990s', min: 1990, max: 1999 },
+  { value: '1980s', min: 1980, max: 1989 },
+  { value: 'older', min: 0, max: 1979 },
+];
+
+const RATING_OPTIONS = [9, 8, 7, 6];
+
+function itemYear(m: Meta): number | null {
+  const y = parseInt(String(m.releaseInfo ?? '').slice(0, 4), 10);
+  return Number.isFinite(y) && y > 1800 ? y : null;
+}
+
 let lastDiscoverFetch: { contentType: string; sortBy: string; genre: string | null } | null = null;
 const discoverResultsCache = new Map<string, Meta[]>();
 
@@ -46,6 +62,8 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
   const [contentType, setContentType] = useState<string>('movie');
   const [sortBy, setSortBy] = useState<string>('popular');
   const [genre, setGenre] = useState<string | null>(initialGenre ?? null);
+  const [yearBucket, setYearBucket] = useState<string | null>(null);
+  const [minRating, setMinRating] = useState<number | null>(null);
   const [hoveredMeta, setHoveredMeta] = useState<Meta | null>(null);
   const [selectedMeta, setSelectedMeta] = useState<Meta | null>(null);
   const isGridScrollingRef = useRef(false);
@@ -116,6 +134,35 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
     ? (streamingItems.length > 0 ? streamingItems : staleResultsRef.current)
     : (results.length > 0 ? results : (cachedResults ?? staleResultsRef.current));
 
+  const filteredResults = useMemo(() => {
+    if (!yearBucket && minRating === null) return displayResults;
+    const bucket = YEAR_BUCKETS.find((b) => b.value === yearBucket);
+    return displayResults.filter((m) => {
+      if (bucket) {
+        const y = itemYear(m);
+        if (y === null || y < bucket.min || y > bucket.max) return false;
+      }
+      if (minRating !== null) {
+        const r = parseFloat(String(m.imdbRating ?? ''));
+        if (!Number.isFinite(r) || r < minRating) return false;
+      }
+      return true;
+    });
+  }, [displayResults, yearBucket, minRating]);
+
+  const typeOptions = useMemo(() => {
+    const types = ['movie', 'series'];
+    for (const addon of state.addons?.installed ?? []) {
+      for (const cat of addon.manifest?.catalogs ?? addon.catalogs ?? []) {
+        if (cat.type && !types.includes(cat.type)) types.push(cat.type);
+      }
+    }
+    return types.map((ty) => ({
+      value: ty,
+      label: ty === 'movie' ? t('auto.movie') : ty === 'series' ? t('auto.series') : ty.charAt(0).toUpperCase() + ty.slice(1),
+    }));
+  }, [state.addons?.installed]);
+
   const handleGridScroll = useCallback(() => {
     isGridScrollingRef.current = true;
     if (hoveredMetaRef.current) {
@@ -150,8 +197,8 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
       <div style={S.left}>
         <div style={S.filterBar}>
           <FilterDropdown
-            value={contentType === 'movie' ? t('auto.movie') : t('auto.series')}
-            options={[{ value: 'movie', label: t('auto.movie') }, { value: 'series', label: t('auto.series') }]}
+            value={typeOptions.find((o) => o.value === contentType)?.label ?? contentType}
+            options={typeOptions}
             onSelect={(v) => { setContentType(v); setGenre(null); }}
           />
           <FilterDropdown
@@ -164,26 +211,42 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
             options={[{ value: '__all__', label: t('search.all_genres') }, ...genreOptions.map((g) => ({ value: g, label: g }))]}
             onSelect={(v) => setGenre(v === '__all__' ? null : v)}
           />
+          <FilterDropdown
+            value={yearBucket ? (yearBucket === 'older' ? t('discover.older') : yearBucket) : t('discover.year')}
+            options={[
+              { value: '__all__', label: t('discover.all_years') },
+              ...YEAR_BUCKETS.map((b) => ({ value: b.value, label: b.value === 'older' ? t('discover.older') : b.value })),
+            ]}
+            onSelect={(v) => setYearBucket(v === '__all__' ? null : v)}
+          />
+          <FilterDropdown
+            value={minRating !== null ? `${minRating}+` : t('discover.rating')}
+            options={[
+              { value: '__all__', label: t('discover.any_rating') },
+              ...RATING_OPTIONS.map((r) => ({ value: String(r), label: `${r}+` })),
+            ]}
+            onSelect={(v) => setMinRating(v === '__all__' ? null : parseInt(v, 10))}
+          />
           {discover.isLoading
             ? <div style={S.loadingDot} />
-            : results.length > 0 && <span style={S.resultCount}>{t('discover.result_count', results.length)}</span>
+            : filteredResults.length > 0 && <span style={S.resultCount}>{t('discover.result_count', filteredResults.length)}</span>
           }
         </div>
 
-        {discover.isLoading && displayResults.length === 0 ? (
+        {discover.isLoading && filteredResults.length === 0 ? (
           <div style={S.loadingGrid}>
             {Array.from({ length: 24 }).map((_, i) => (
               <div key={i} style={{ borderRadius: 10, background: '#1B212B', aspectRatio: '2/3', animation: 'pulse 1.6s ease-in-out infinite', animationDelay: `${(i % 8) * 0.07}s` }} />
             ))}
           </div>
-        ) : displayResults.length === 0 ? (
+        ) : filteredResults.length === 0 ? (
           <div style={S.empty}>
             <p style={S.emptyTitle}>{t('discover.no_content')}</p>
             <p style={S.emptyHint}>{t('discover.install_addons_hint')}</p>
           </div>
         ) : (
           <VirtualizedPosterGrid
-            items={displayResults}
+            items={filteredResults}
             selectedId={panelMeta?.id ?? null}
             posterPrefs={posterPrefs}
             onHover={handlePosterHover}
@@ -225,6 +288,7 @@ const S: Record<string, React.CSSProperties> = {
 export const DiscoverScreen = memo(DiscoverScreenInner, (prev, next) =>
   prev.state.discover === next.state.discover
   && prev.state.settings === next.state.settings
+  && prev.state.addons === next.state.addons
   && prev.onDispatch === next.onDispatch
   && prev.onNavigateDetail === next.onNavigateDetail
   && prev.initialGenre === next.initialGenre,
