@@ -120,7 +120,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [episodes, setEpisodes] = useState<EpisodeInfo[]>([]);
   const [showEpisodePanel, setShowEpisodePanel] = useState(false);
   const [activeSkip, setActiveSkip] = useState<ActiveSkip | null>(null);
-  const [skipProgress, setSkipProgress] = useState(0);
   const [showNextEpCard, setShowNextEpCard] = useState(false);
   const [trackPopover, setTrackPopover] = useState<'audio' | 'sub' | 'speed' | null>(null);
   const [miniPlayerActive, setMiniPlayerActive] = useState(false);
@@ -139,9 +138,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [audioTracks, setAudioTracks] = useState<PlayerTrackOption[]>([]);
   const [subTracks, setSubTracks] = useState<PlayerTrackOption[]>([]);
   const [feedback, setFeedback] = useState<FeedbackFlash | null>(null);
-  const [seekPreview, setSeekPreview] = useState<{ x: number; time: number; chapter: string | null } | null>(null);
-  const [seekThumbImg, setSeekThumbImg] = useState<string | null>(null);
-  const seekThumbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const volumeHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showSeekOverlay, setShowSeekOverlay] = useState(false);
@@ -158,6 +154,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const segFillRefs = useRef<(HTMLDivElement | null)[]>([]);
   const segBufRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const skipFillRef = useRef<HTMLDivElement>(null);
   const chapterSegmentsRef = useRef<Array<{ start: number; end: number }> | null>(null);
   const chaptersRef = useRef<Chapter[]>([]);
 
@@ -384,9 +381,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         activeSkipKeyRef.current = newSkipKey;
         setActiveSkip(seg ? { label: skipLabelForType(seg.type), startMs: seg.startTime, endMs: seg.endTime } : null);
       }
-      if (seg) {
+      if (seg && skipFillRef.current) {
         const span = seg.endTime - seg.startTime;
-        setSkipProgress(span > 0 ? Math.min(1, Math.max(0, (posMs - seg.startTime) / span)) : 0);
+        const skipFrac = span > 0 ? Math.min(1, Math.max(0, (posMs - seg.startTime) / span)) : 0;
+        skipFillRef.current.style.width = `${(skipFrac * 100).toFixed(2)}%`;
       }
 
       if (dur > 0 && nextEpSubtitle) {
@@ -616,49 +614,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     applyFills(frac);
   }, [fractionFromSeekbarEvent, resetActivity, applyFills]);
 
-  const onSeekMouseMove = useCallback((e: React.MouseEvent) => {
-    const bar = seekbarRef.current;
-    if (!bar) return;
-    const rect = bar.getBoundingClientRect();
-    const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const previewTime = frac * durRef.current;
-    const chaps = chaptersRef.current;
-    let chapterName: string | null = null;
-    if (chaps.length > 0) {
-      let found = chaps[0].title;
-      for (const ch of chaps) {
-        if (ch.startMs / 1000 <= previewTime) found = ch.title;
-        else break;
-      }
-      chapterName = found || null;
-    }
-    setSeekPreview({ x: e.clientX - rect.left, time: previewTime, chapter: chapterName });
-    if (isDraggingRef.current) {
-      dragPosRef.current = frac;
-      applyFills(frac);
-    }
-  }, [applyFills]);
-
-  const onSeekMouseLeave = useCallback(() => {
-    setSeekPreview(null);
-    setSeekThumbImg(null);
-    if (seekThumbTimerRef.current) { clearTimeout(seekThumbTimerRef.current); seekThumbTimerRef.current = null; }
-  }, []);
-
-  useEffect(() => {
-    if (!seekPreview) { setSeekThumbImg(null); return; }
-    const time = seekPreview.time;
-    if (seekThumbTimerRef.current) clearTimeout(seekThumbTimerRef.current);
-    seekThumbTimerRef.current = setTimeout(() => {
-      invoke<string>('player_get_seek_thumbnail', { timePos: time })
-        .then((img) => { if (img) setSeekThumbImg(img); })
-        .catch((err) => console.error('player_get_seek_thumbnail failed', err));
-    }, 120);
-    return () => {
-      if (seekThumbTimerRef.current) clearTimeout(seekThumbTimerRef.current);
-    };
-  }, [seekPreview?.time]);
-
   useEffect(() => {
     const onMouseUp = () => {
       if (!isDraggingRef.current) return;
@@ -838,8 +793,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     : null;
   chapterSegmentsRef.current = chapterSegments;
 
-  const seekHovered = seekPreview !== null;
-
   if (miniPlayerActive) {
     return (
       <div
@@ -894,6 +847,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         .fluxa-skip-btn:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.22) !important; }
         .fluxa-skip-btn:focus-visible { outline: 2px solid rgba(255,255,255,0.4); outline-offset: 2px; }
         .fluxa-cursor-hidden, .fluxa-cursor-hidden * { cursor: none !important; }
+        .fluxa-seek-track { height: 3px; transition: height 0.15s ease; }
+        .fluxa-seekbar:hover .fluxa-seek-track { height: 5px; }
+        .fluxa-seek-dot { width: 11px; height: 11px; transition: width 0.15s, height 0.15s; }
+        .fluxa-seekbar:hover .fluxa-seek-dot { width: 14px; height: 14px; }
       `}</style>
 
       <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 140, background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
@@ -987,7 +944,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           >
             <SkipForward size={17} />
             {activeSkip.label}
-            <div style={{ position: 'absolute', left: 0, bottom: 0, height: 2, width: `${skipProgress * 100}%`, background: 'rgba(255,255,255,0.4)' }} />
+            <div ref={skipFillRef} style={{ position: 'absolute', left: 0, bottom: 0, height: 2, width: '0%', background: 'rgba(255,255,255,0.4)' }} />
           </button>
         </div>
       )}
@@ -1083,51 +1040,33 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       >
         <div
           ref={seekbarRef}
+          className="fluxa-seekbar"
           style={{ position: 'relative', width: '100%', height: 36, cursor: 'pointer', overflow: 'visible', display: 'flex', alignItems: 'center' }}
           onMouseDown={onSeekMouseDown}
-          onMouseMove={onSeekMouseMove}
-          onMouseLeave={onSeekMouseLeave}
         >
-          <div style={{ position: 'absolute', left: 0, right: 0, height: seekHovered ? 5 : 3, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.22)', borderRadius: 3, transition: 'height 0.15s ease' }} />
+          <div className="fluxa-seek-track" style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.22)', borderRadius: 3 }} />
 
           {chapterSegments ? (
             chapterSegments.map((seg, i) => (
-              <div key={i} style={{ position: 'absolute', left: `calc(${seg.start * 100}% + 2px)`, width: `calc(${(seg.end - seg.start) * 100}% - 4px)`, height: seekHovered ? 5 : 3, top: '50%', transform: 'translateY(-50%)', overflow: 'hidden', background: 'rgba(255,255,255,0.18)', borderRadius: 2, transition: 'height 0.15s ease' }}>
+              <div key={i} className="fluxa-seek-track" style={{ position: 'absolute', left: `calc(${seg.start * 100}% + 2px)`, width: `calc(${(seg.end - seg.start) * 100}% - 4px)`, top: '50%', transform: 'translateY(-50%)', overflow: 'hidden', background: 'rgba(255,255,255,0.18)', borderRadius: 2 }}>
                 <div ref={(el) => { segBufRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'rgba(255,255,255,0.5)' }} />
                 <div ref={(el) => { segFillRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: '#E53935' }} />
               </div>
             ))
           ) : (
             <>
-              <div ref={seekBufferRef} style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', height: seekHovered ? 5 : 3, background: 'rgba(255,255,255,0.5)', borderRadius: 3, transition: 'height 0.15s ease' }} />
-              <div ref={seekFillRef} style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', height: seekHovered ? 5 : 3, background: '#E53935', borderRadius: 3, transition: 'height 0.15s ease' }} />
+              <div ref={seekBufferRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'rgba(255,255,255,0.5)', borderRadius: 3 }} />
+              <div ref={seekFillRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: '#E53935', borderRadius: 3 }} />
             </>
           )}
 
           <div
             ref={seekDotRef}
-            style={{ position: 'absolute', left: '0%', top: '50%', width: seekHovered ? 14 : 11, height: seekHovered ? 14 : 11, borderRadius: '50%', background: '#E53935', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 6px rgba(0,0,0,0.7)', pointerEvents: 'none', transition: 'width 0.15s, height 0.15s' }}
+            className="fluxa-seek-dot"
+            style={{ position: 'absolute', left: '0%', top: '50%', borderRadius: '50%', background: '#E53935', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 6px rgba(0,0,0,0.7)', pointerEvents: 'none' }}
           />
 
-          {seekPreview && (
-            <div style={{ position: 'absolute', bottom: 22, left: seekPreview.x, transform: 'translateX(-50%)', pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              {seekThumbImg && (
-                <div style={{ width: 160, height: 90, borderRadius: 4, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
-                  <img src={seekThumbImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                </div>
-              )}
-              <div style={{ whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                {seekPreview.chapter && (
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.2, textShadow: '0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,0.9)' }}>
-                    {seekPreview.chapter}
-                  </span>
-                )}
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: 0.4, textShadow: '0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,0.9)' }}>
-                  {fmtTime(seekPreview.time)}
-                </span>
-              </div>
-            </div>
-          )}
+          <SeekPreview barRef={seekbarRef} durRef={durRef} chaptersRef={chaptersRef} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px 14px', gap: 0 }}>
@@ -1208,6 +1147,80 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             <Fullscreen size={22} />
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SeekPreview({ barRef, durRef, chaptersRef }: {
+  barRef: React.RefObject<HTMLDivElement | null>;
+  durRef: React.MutableRefObject<number>;
+  chaptersRef: React.MutableRefObject<Chapter[]>;
+}) {
+  const [preview, setPreview] = useState<{ x: number; time: number; chapter: string | null } | null>(null);
+  const [thumbImg, setThumbImg] = useState<string | null>(null);
+  const thumbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const onMove = (e: MouseEvent) => {
+      const rect = bar.getBoundingClientRect();
+      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const previewTime = frac * durRef.current;
+      const chaps = chaptersRef.current;
+      let chapterName: string | null = null;
+      if (chaps.length > 0) {
+        let found = chaps[0].title;
+        for (const ch of chaps) {
+          if (ch.startMs / 1000 <= previewTime) found = ch.title;
+          else break;
+        }
+        chapterName = found || null;
+      }
+      setPreview({ x: e.clientX - rect.left, time: previewTime, chapter: chapterName });
+    };
+    const onLeave = () => setPreview(null);
+    bar.addEventListener('mousemove', onMove);
+    bar.addEventListener('mouseleave', onLeave);
+    return () => {
+      bar.removeEventListener('mousemove', onMove);
+      bar.removeEventListener('mouseleave', onLeave);
+    };
+  }, [barRef, durRef, chaptersRef]);
+
+  useEffect(() => {
+    if (!preview) { setThumbImg(null); return; }
+    const time = preview.time;
+    if (thumbTimerRef.current) clearTimeout(thumbTimerRef.current);
+    thumbTimerRef.current = setTimeout(() => {
+      invoke<string>('player_get_seek_thumbnail', { timePos: time })
+        .then((img) => { if (img) setThumbImg(img); })
+        .catch((err) => console.error('player_get_seek_thumbnail failed', err));
+    }, 120);
+    return () => {
+      if (thumbTimerRef.current) clearTimeout(thumbTimerRef.current);
+    };
+  }, [preview?.time]);
+
+  if (!preview) return null;
+
+  return (
+    <div style={{ position: 'absolute', bottom: 22, left: preview.x, transform: 'translateX(-50%)', pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      {thumbImg && (
+        <div style={{ width: 160, height: 90, borderRadius: 4, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
+          <img src={thumbImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        </div>
+      )}
+      <div style={{ whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+        {preview.chapter && (
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.2, textShadow: '0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,0.9)' }}>
+            {preview.chapter}
+          </span>
+        )}
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: 0.4, textShadow: '0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,0.9)' }}>
+          {fmtTime(preview.time)}
+        </span>
       </div>
     </div>
   );

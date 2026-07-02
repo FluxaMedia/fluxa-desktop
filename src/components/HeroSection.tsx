@@ -88,6 +88,15 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     return () => window.clearInterval(id);
   }, [canSlide, items.length, isActive]);
 
+  useEffect(() => {
+    if (!canSlide) return;
+    const next = items[(activeIndex + 1) % items.length];
+    if (!next) return;
+    const nextBg = (preferSeasonPosters ? seasonPosterUrl(next) : undefined) ?? next.background ?? next.poster;
+    if (nextBg) { const img = new Image(); img.src = nextBg; }
+    if (next.logo) { const img = new Image(); img.src = next.logo; }
+  }, [canSlide, items, activeIndex, preferSeasonPosters]);
+
   const goTo = (index: number) => {
     if (!canSlide) return;
     slideToIndex(index);
