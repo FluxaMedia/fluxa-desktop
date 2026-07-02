@@ -55,8 +55,13 @@ export function CategoryGridScreen({ title, items, isLoading = false, posterPref
   }, []);
 
   const handlePosterClick = useCallback((meta: Meta) => {
-    setSelectedMeta(meta);
-    onNavigateDetail(meta);
+    setSelectedMeta((prev) => {
+      if (prev?.id === meta.id) {
+        onNavigateDetail(meta);
+        return prev;
+      }
+      return meta;
+    });
   }, [onNavigateDetail]);
 
   return (
