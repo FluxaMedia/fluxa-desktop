@@ -165,8 +165,9 @@ fn start_torrent_stream_inner(
     preferences: Option<Value>,
 ) -> Result<String, String> {
     let cache_dir = data_dir.join("torrent-cache");
-    let server_json = fluxa_streaming_engine::start_torrent_server(&cache_dir.to_string_lossy(), 0, "")
-        .ok_or_else(|| "failed to start torrent server".to_string())?;
+    let server_json =
+        fluxa_streaming_engine::start_torrent_server(&cache_dir.to_string_lossy(), 0, "")
+            .ok_or_else(|| "failed to start torrent server".to_string())?;
     let server: Value = serde_json::from_str(&server_json)
         .map_err(|e| format!("invalid torrent server response: {e}"))?;
     let base_url = server
@@ -296,91 +297,6 @@ fn get_data_dir(state: State<DesktopState>) -> Option<String> {
         .map(|d| d.to_string_lossy().to_string())
 }
 
-fn find_ffmpeg() -> Option<String> {
-    for candidate in &["ffmpeg", "/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"] {
-        if std::process::Command::new(candidate)
-            .arg("-version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-        {
-            return Some(candidate.to_string());
-        }
-    }
-    None
-}
-
-#[tauri::command]
-async fn gif_to_webm(app: tauri::AppHandle, gif_url: String) -> Result<String, String> {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let mut h = DefaultHasher::new();
-    gif_url.hash(&mut h);
-    let hash = h.finish();
-
-    let cache_dir = app.path().app_cache_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&cache_dir).ok();
-
-    let out_path = cache_dir.join(format!("gc_{:x}.webm", hash));
-
-    let read_as_data_url = |path: &std::path::Path| -> Result<String, String> {
-        use base64::Engine as _;
-        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-        Ok(format!("data:video/webm;base64,{}", b64))
-    };
-
-    if out_path.exists() {
-        return read_as_data_url(&out_path);
-    }
-
-    let ffmpeg = find_ffmpeg().ok_or_else(|| "ffmpeg not found".to_string())?;
-
-    let bytes = reqwest::get(&gif_url)
-        .await
-        .map_err(|e| e.to_string())?
-        .bytes()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let in_path = cache_dir.join(format!("gc_{:x}.gif", hash));
-    std::fs::write(&in_path, &bytes).map_err(|e| e.to_string())?;
-
-    let out_str = out_path.to_string_lossy().to_string();
-    let in_str = in_path.to_string_lossy().to_string();
-
-    let success = tauri::async_runtime::spawn_blocking(move || {
-        let result = std::process::Command::new(&ffmpeg)
-            .args([
-                "-y", "-i", &in_str,
-                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-                "-c:v", "libvpx",
-                "-b:v", "800k",
-                "-auto-alt-ref", "0",
-                "-an",
-                &out_str,
-            ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-        let _ = std::fs::remove_file(&in_str);
-        result
-    })
-    .await
-    .map_err(|e| e.to_string())?;
-
-    if !success || !out_path.exists() {
-        return Err("conversion failed".to_string());
-    }
-
-    read_as_data_url(&out_path)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     std::env::set_var("MPV_LIBMPV_RENDER_BACKEND", "gpu-next");
@@ -402,9 +318,9 @@ pub fn run() {
                 let state = query
                     .and_then(|q| q.split('&').find(|p| p.starts_with("state=")))
                     .map(|p| p.trim_start_matches("state=").to_string());
-                    if let Some(code) = code {
-                        let evt = if arg.contains("/trakt") {
-                            "trakt-oauth-code"
+                if let Some(code) = code {
+                    let evt = if arg.contains("/trakt") {
+                        "trakt-oauth-code"
                     } else if arg.contains("/anilist") {
                         "anilist-oauth-code"
                     } else if arg.contains("/simkl") {
@@ -449,6 +365,25 @@ pub fn run() {
             *state.data_dir.lock().unwrap() = Some(data_dir.clone());
             let _ = fs::create_dir_all(&data_dir);
 
+            if let Ok(cache_dir) = app.path().app_cache_dir() {
+                std::thread::spawn(move || {
+                    if let Ok(entries) = fs::read_dir(&cache_dir) {
+                        for entry in entries.flatten() {
+                            let name = entry.file_name();
+                            let name = name.to_string_lossy();
+                            if name.starts_with("gc_")
+                                && (name.ends_with(".mp4")
+                                    || name.ends_with(".webm")
+                                    || name.ends_with(".gif")
+                                    || name.ends_with(".webp"))
+                            {
+                                let _ = fs::remove_file(entry.path());
+                            }
+                        }
+                    }
+                });
+            }
+
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
                 for url in event.urls() {
@@ -477,22 +412,6 @@ pub fn run() {
             });
 
             Ok(())
-        })
-        .register_uri_scheme_protocol("gifcache", |ctx, request| {
-            let filename = request.uri().path().trim_start_matches('/').to_string();
-            if filename.contains('/') || filename.contains("..") {
-                return tauri::http::Response::builder().status(400).body(vec![]).unwrap();
-            }
-            let cache_dir = ctx.app_handle().path().app_cache_dir().unwrap_or_default();
-            match std::fs::read(cache_dir.join(&filename)) {
-                Ok(data) => tauri::http::Response::builder()
-                    .status(200)
-                    .header("Content-Type", "video/webm")
-                    .header("Access-Control-Allow-Origin", "*")
-                    .body(data)
-                    .unwrap(),
-                Err(_) => tauri::http::Response::builder().status(404).body(vec![]).unwrap(),
-            }
         })
         .invoke_handler(tauri::generate_handler![
             debug_log,
@@ -580,7 +499,6 @@ pub fn run() {
             roku_play_pause,
             roku_disconnect,
             cast_proxy_serve,
-            gif_to_webm,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Fluxa Desktop");
