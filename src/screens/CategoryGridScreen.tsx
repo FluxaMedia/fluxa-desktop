@@ -7,6 +7,7 @@ import { t } from '../i18n';
 interface Props {
   title: string;
   items: Meta[];
+  isLoading?: boolean;
   posterPrefs: PosterPrefs;
   onNavigateDetail: (meta: Meta) => void;
   onBack: () => void;
@@ -23,7 +24,7 @@ const GRID_OVERSCAN_ROWS = 3;
 const SCROLL_HOVER_IDLE_MS = 180;
 const SCROLL_IMAGE_IDLE_MS = 240;
 
-export function CategoryGridScreen({ title, items, posterPrefs, onNavigateDetail, onBack, onDispatch }: Props) {
+export function CategoryGridScreen({ title, items, isLoading = false, posterPrefs, onNavigateDetail, onBack, onDispatch }: Props) {
   const [hoveredMeta, setHoveredMeta] = useState<Meta | null>(null);
   const [selectedMeta, setSelectedMeta] = useState<Meta | null>(null);
   const isGridScrollingRef = useRef(false);
@@ -67,17 +68,25 @@ export function CategoryGridScreen({ title, items, posterPrefs, onNavigateDetail
             <ChevronLeft size={20} />
           </button>
           <h2 style={S.title}>{title}</h2>
-          <span style={S.count}>{items.length} {t('auto.titles') ?? 'titles'}</span>
+          {!isLoading && <span style={S.count}>{items.length} {t('auto.titles') ?? 'titles'}</span>}
         </div>
 
-        <VirtualizedPosterGrid
-          items={items}
-          selectedId={panelMeta?.id ?? null}
-          posterPrefs={posterPrefs}
-          onHover={handlePosterHover}
-          onClick={handlePosterClick}
-          onScrollActivity={handleGridScroll}
-        />
+        {isLoading && items.length === 0 ? (
+          <div style={S.loadingGrid}>
+            {Array.from({ length: 24 }).map((_, i) => (
+              <div key={i} style={{ borderRadius: 10, background: '#1B212B', aspectRatio: '2/3', animation: 'pulse 1.6s ease-in-out infinite', animationDelay: `${(i % 8) * 0.07}s` }} />
+            ))}
+          </div>
+        ) : (
+          <VirtualizedPosterGrid
+            items={items}
+            selectedId={panelMeta?.id ?? null}
+            posterPrefs={posterPrefs}
+            onHover={handlePosterHover}
+            onClick={handlePosterClick}
+            onScrollActivity={handleGridScroll}
+          />
+        )}
       </div>
 
       {/* Right: detail panel */}
@@ -374,6 +383,15 @@ const S: Record<string, React.CSSProperties> = {
   count: {
     color: 'rgba(255,255,255,0.35)', fontSize: 13,
     fontWeight: 500, marginLeft: 4,
+  },
+  loadingGrid: {
+    flex: 1,
+    overflowY: 'hidden',
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+    gap: '28px 18px',
+    padding: '20px 24px 60px',
+    alignContent: 'start',
   },
   virtualGrid: {
     flex: 1,

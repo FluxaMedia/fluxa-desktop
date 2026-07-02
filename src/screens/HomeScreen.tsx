@@ -51,10 +51,12 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     const allCats = (home.categories ?? []) as HomeCategory[];
     const folderCat = allCats.find((c) => c.id === folderMeta.id && c.type === 'collection_folder');
     if (!folderCat?.catalogSources?.length) return;
+    setViewAllCategory({ title: folderMeta.name, items: [] });
     setFolderLoading(true);
     try {
       const items = await loadFolderItems(folderCat);
       if (items.length) setViewAllCategory({ title: folderMeta.name, items });
+      else setViewAllCategory(null);
     } finally {
       setFolderLoading(false);
     }
@@ -121,19 +123,12 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     return <EmptyHome />;
   }
 
-  if (folderLoading) {
-    return (
-      <div style={{ ...styles.screen, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 600 }}>{t('auto.loading')}</div>
-      </div>
-    );
-  }
-
   if (viewAllCategory) {
     return (
       <CategoryGridScreen
         title={viewAllCategory.title}
         items={viewAllCategory.items}
+        isLoading={folderLoading}
         posterPrefs={posterPrefs}
         onNavigateDetail={onNavigateDetail}
         onBack={() => setViewAllCategory(null)}
