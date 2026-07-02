@@ -149,7 +149,6 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, onB
               color: 'rgba(255,255,255,0.65)',
               fontSize: 15,
               marginTop: 12,
-              fontFamily: 'sans-serif',
               textShadow: '0 1px 8px rgba(0,0,0,0.8)',
             }}
           >

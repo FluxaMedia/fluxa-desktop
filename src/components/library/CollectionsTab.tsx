@@ -38,7 +38,7 @@ export function CollectionsTab({
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '10px 20px', background: accent, border: 'none', borderRadius: 24,
-            color: contrastOn(accent), fontWeight: 700, fontSize: 14, fontFamily: 'sans-serif', cursor: 'pointer',
+            color: contrastOn(accent), fontWeight: 700, fontSize: 14, cursor: 'pointer',
           }}
         >
           <Plus size={18} />
@@ -56,7 +56,7 @@ export function CollectionsTab({
             onClick={onShowAllOnHome}
             style={{
               padding: '8px 16px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.18)',
-              borderRadius: 20, color: '#fff', fontWeight: 700, fontSize: 13, fontFamily: 'sans-serif', cursor: 'pointer',
+              borderRadius: 20, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
             }}
           >
             Show all on Home
@@ -68,7 +68,7 @@ export function CollectionsTab({
           style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '8px 16px', background: accent, border: 'none', borderRadius: 20,
-            color: contrastOn(accent), fontWeight: 700, fontSize: 13, fontFamily: 'sans-serif', cursor: 'pointer',
+            color: contrastOn(accent), fontWeight: 700, fontSize: 13, cursor: 'pointer',
           }}
         >
           <Plus size={16} />
@@ -109,7 +109,7 @@ function CollectionSection({
   return (
     <div style={{ marginBottom: 32 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <span style={{ flex: 1, color: '#fff', fontSize: 18, fontWeight: 900, fontFamily: 'sans-serif' }}>
+        <span style={{ flex: 1, color: '#fff', fontSize: 18, fontWeight: 900 }}>
           {collection.title}
         </span>
         <button onClick={onEdit} style={S.actionBtn}>Edit</button>
@@ -126,7 +126,7 @@ function CollectionSection({
       </div>
 
       {folders.length === 0 ? (
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, fontFamily: 'sans-serif', fontStyle: 'italic' }}>
+        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, fontStyle: 'italic' }}>
           No folders. Edit to add some.
         </div>
       ) : (
@@ -173,19 +173,19 @@ function FolderTile({ folder, accent, onClick }: { folder: UserCollectionFolder;
           </div>
         ) : (
           <div style={{ width: '100%', height: '100%', background: `${accent}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: accent, fontSize: 11, fontWeight: 700, fontFamily: 'sans-serif' }}>
+            <span style={{ color: accent, fontSize: 11, fontWeight: 700 }}>
               {folder.title.charAt(0).toUpperCase()}
             </span>
           </div>
         )}
       </div>
       {!folder.hideTitle && (
-        <div style={{ marginTop: 6, color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ marginTop: 6, color: '#fff', fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {folder.title}
         </div>
       )}
       {folder.catalogTitle && (
-        <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, fontFamily: 'sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {folder.catalogTitle}
         </div>
       )}
@@ -198,16 +198,16 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
     justifyContent: 'center', paddingTop: 80, gap: 10,
   },
-  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0, fontFamily: 'sans-serif' },
-  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, fontFamily: 'sans-serif', textAlign: 'center', maxWidth: 320, lineHeight: 1.5 },
+  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0 },
+  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 },
   actionBtn: {
     background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 16,
     color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 700,
-    fontFamily: 'sans-serif', padding: '5px 12px', cursor: 'pointer',
+    padding: '5px 12px', cursor: 'pointer',
   },
   actionBtnDim: {
     background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 16,
     color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: 700,
-    fontFamily: 'sans-serif', padding: '5px 12px', cursor: 'pointer',
+    padding: '5px 12px', cursor: 'pointer',
   },
 };

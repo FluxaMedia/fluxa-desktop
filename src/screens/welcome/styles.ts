@@ -1,6 +1,6 @@
 import type React from 'react';
 
-export const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif';
+export const FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 export const S: Record<string, React.CSSProperties> = {
   root: {

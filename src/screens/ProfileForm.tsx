@@ -11,7 +11,7 @@ import { saveAddons } from '../core/libraryOps';
 import type { AddonDescriptor, UserProfile } from '../core/types';
 import { t } from '../i18n';
 
-const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif';
+const FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 const CINEMETA_DEFAULT: AddonDescriptor = {
   transportUrl: 'https://v3-cinemeta.strem.io/manifest.json',

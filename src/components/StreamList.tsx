@@ -81,7 +81,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     letterSpacing: '0.8px',
     margin: '0 0 12px',
-    fontFamily: 'sans-serif',
   },
   loadingBox: {
     display: 'flex',
@@ -132,13 +131,11 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    fontFamily: 'sans-serif',
   },
   addonName: {
     color: 'rgba(255,255,255,0.45)',
     fontSize: 12,
     margin: '2px 0 0',
-    fontFamily: 'sans-serif',
   },
   torrentTag: {
     background: 'rgba(255,255,255,0.08)',
@@ -148,12 +145,10 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '2px 7px',
     borderRadius: 4,
     letterSpacing: '0.5px',
-    fontFamily: 'sans-serif',
     flexShrink: 0,
   },
   empty: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 14,
-    fontFamily: 'sans-serif',
   },
 };

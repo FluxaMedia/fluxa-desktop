@@ -600,7 +600,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   );
 }
 
-const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", sans-serif';
+const FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 function formatTimestamp(seconds: number): string {
   const s = Math.floor(seconds);

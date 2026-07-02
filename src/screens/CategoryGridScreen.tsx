@@ -319,14 +319,14 @@ const PosterCard = React.memo(function PosterCard({ meta, selected, posterPrefs,
             onError={() => setImgErr(true)} />
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B212B' }}>
-            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 24, fontWeight: 900, fontFamily: 'sans-serif' }}>
+            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 24, fontWeight: 900 }}>
               {meta.name.slice(0, 2).toUpperCase()}
             </span>
           </div>
         )}
       </div>
       {!posterPrefs.hideTitles && (
-        <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: 600, margin: '7px 0 0', textAlign: 'center', fontFamily: 'sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: 600, margin: '7px 0 0', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {meta.name}
         </p>
       )}
@@ -371,11 +371,11 @@ const S: Record<string, React.CSSProperties> = {
   },
   title: {
     color: '#FFFFFF', fontSize: 18, fontWeight: 700,
-    margin: 0, fontFamily: 'sans-serif', letterSpacing: '-0.01em',
+    margin: 0, letterSpacing: '-0.01em',
   },
   count: {
     color: 'rgba(255,255,255,0.35)', fontSize: 13,
-    fontWeight: 500, fontFamily: 'sans-serif', marginLeft: 4,
+    fontWeight: 500, marginLeft: 4,
   },
   virtualGrid: {
     flex: 1,
@@ -400,7 +400,7 @@ const S: Record<string, React.CSSProperties> = {
   },
   panelEmptyText: {
     color: 'rgba(255,255,255,0.28)', fontSize: 13,
-    fontFamily: 'sans-serif', textAlign: 'center', margin: 0,
+    textAlign: 'center', margin: 0,
   },
 };
 
@@ -410,17 +410,17 @@ const DP: Record<string, React.CSSProperties> = {
   bgImg: { width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', opacity: 0.4 },
   bgFade: { position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 0%, #0C0D18 100%)' },
   content: { position: 'relative', zIndex: 1, padding: '180px 20px 32px', display: 'flex', flexDirection: 'column', flex: 1 },
-  title: { color: '#FFFFFF', fontSize: 26, fontWeight: 900, margin: '0 0 10px', fontFamily: 'sans-serif', lineHeight: 1.1, letterSpacing: '-0.3px' },
+  title: { color: '#FFFFFF', fontSize: 26, fontWeight: 900, margin: '0 0 10px', lineHeight: 1.1, letterSpacing: '-0.3px' },
   metaRow: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, flexWrap: 'wrap' },
-  metaItem: { color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: 600, fontFamily: 'sans-serif' },
+  metaItem: { color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: 600 },
   imdbBadge: { display: 'flex', alignItems: 'center', gap: 4, background: '#F5C518', borderRadius: 4, padding: '2px 6px' },
-  imdbLabel: { color: '#000', fontSize: 10, fontWeight: 900, fontFamily: 'sans-serif' },
-  imdbVal: { color: '#000', fontSize: 11, fontWeight: 900, fontFamily: 'sans-serif' },
-  desc: { color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: '19px', margin: '0 0 16px', fontFamily: 'sans-serif', display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden' },
+  imdbLabel: { color: '#000', fontSize: 10, fontWeight: 900 },
+  imdbVal: { color: '#000', fontSize: 11, fontWeight: 900 },
+  desc: { color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: '19px', margin: '0 0 16px', display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', overflow: 'hidden' },
   section: { marginBottom: 14 },
-  sectionLabel: { color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', margin: '0 0 6px', fontFamily: 'sans-serif' },
-  genreChip: { color: 'rgba(255,255,255,0.65)', fontSize: 13, fontFamily: 'sans-serif' },
-  castName: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontFamily: 'sans-serif' },
+  sectionLabel: { color: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700, letterSpacing: '1.2px', textTransform: 'uppercase', margin: '0 0 6px' },
+  genreChip: { color: 'rgba(255,255,255,0.65)', fontSize: 13 },
+  castName: { color: 'rgba(255,255,255,0.6)', fontSize: 13 },
   actions: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 'auto', paddingTop: 20, flexWrap: 'wrap' },
-  playBtn: { display: 'inline-flex', alignItems: 'center', gap: 7, height: 38, padding: '0 18px', background: '#FFFFFF', color: '#000000', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 900, cursor: 'pointer', fontFamily: 'sans-serif', flexShrink: 0 },
+  playBtn: { display: 'inline-flex', alignItems: 'center', gap: 7, height: 38, padding: '0 18px', background: '#FFFFFF', color: '#000000', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 900, cursor: 'pointer', flexShrink: 0 },
 };

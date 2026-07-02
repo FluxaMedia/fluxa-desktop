@@ -2,7 +2,7 @@ import type React from 'react';
 
 export const NAV_RAIL_WIDTH = 104;
 
-const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif';
+const FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 export { FONT };
 
 export const styles: Record<string, React.CSSProperties> = {

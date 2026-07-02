@@ -168,7 +168,7 @@ function AddProfileCard({ onClick }: { onClick: () => void }) {
   );
 }
 
-const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif';
+const FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 const S: Record<string, React.CSSProperties> = {
   root: { position: 'fixed', inset: 0, zIndex: 9999, background: '#0C0C0C', color: colors.white, overflow: 'auto', fontFamily: FONT },

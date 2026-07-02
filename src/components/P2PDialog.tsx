@@ -1,7 +1,7 @@
 import React from 'react';
 import { t } from '../i18n';
 
-const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", sans-serif';
+const FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 interface Props {
   mode: 'first-time' | 'disabled';

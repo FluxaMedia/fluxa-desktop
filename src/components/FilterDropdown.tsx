@@ -70,7 +70,6 @@ const FD: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 700,
-    fontFamily: 'sans-serif',
     transition: 'background 0.15s',
   },
   label: {
@@ -106,7 +105,6 @@ const FD: Record<string, React.CSSProperties> = {
     borderRadius: 7,
     cursor: 'pointer',
     fontSize: 13,
-    fontFamily: 'sans-serif',
     color: '#FFFFFF',
     transition: 'background 0.12s',
   },

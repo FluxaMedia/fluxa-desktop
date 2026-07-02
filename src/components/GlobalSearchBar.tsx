@@ -117,7 +117,6 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props)
           color: '#FFFFFF',
           fontSize: 15,
           fontWeight: 500,
-          fontFamily: 'sans-serif',
         }}
       />
       <button

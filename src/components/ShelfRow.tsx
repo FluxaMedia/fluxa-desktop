@@ -236,7 +236,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 700,
     cursor: 'pointer',
-    fontFamily: 'sans-serif',
     flexShrink: 0,
   },
   title: {

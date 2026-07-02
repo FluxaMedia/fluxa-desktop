@@ -254,7 +254,7 @@ function TabChip({ active, onClick, children }: { active: boolean; onClick: () =
         color: active ? '#000000' : '#FFFFFF',
         border: 'none', borderRadius: 20, padding: '8px 20px',
         fontSize: 14, fontWeight: 700, cursor: 'pointer',
-        fontFamily: 'sans-serif', transition: 'background 0.15s, color 0.15s',
+        transition: 'background 0.15s, color 0.15s',
       }}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
@@ -268,11 +268,11 @@ function TabChip({ active, onClick, children }: { active: boolean; onClick: () =
 const styles: Record<string, React.CSSProperties> = {
   screen: { background: '#040508', height: '100%', overflowY: 'auto', paddingBottom: 80, paddingLeft: NAV_RAIL_WIDTH },
   header: { display: 'flex', alignItems: 'center', gap: 24, padding: '40px 58px' },
-  title: { color: '#FFFFFF', fontSize: 32, fontWeight: 900, margin: '0 0 4px', fontFamily: 'sans-serif', letterSpacing: '2px' },
-  subtitle: { color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: 0, fontFamily: 'sans-serif', lineHeight: 1.4 },
+  title: { color: '#FFFFFF', fontSize: 32, fontWeight: 900, margin: '0 0 4px', letterSpacing: '2px' },
+  subtitle: { color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: 0, lineHeight: 1.4 },
   tabRow: { display: 'flex', gap: 10, paddingLeft: PX, paddingRight: PX },
   grid: { display: 'flex', flexWrap: 'wrap', gap: '24px 20px', paddingLeft: PX, paddingRight: PX, paddingBottom: 60 },
   empty: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 10 },
-  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0, fontFamily: 'sans-serif' },
-  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, fontFamily: 'sans-serif', textAlign: 'center', maxWidth: 320, lineHeight: 1.5 },
+  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0 },
+  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 },
 };

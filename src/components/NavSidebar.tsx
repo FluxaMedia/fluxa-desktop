@@ -336,7 +336,6 @@ function TopBarItem({
         cursor: 'pointer',
         outline: 'none',
         transition: 'background 0.15s, color 0.15s',
-        fontFamily: 'sans-serif',
         fontSize: 13,
         fontWeight: isActive ? 700 : 600,
         whiteSpace: 'nowrap',

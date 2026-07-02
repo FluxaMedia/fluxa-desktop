@@ -101,7 +101,7 @@ export function FolderEditorPage({ initial, accent, catalogOptions, onDismiss, o
           >
             <ArrowBack size={20} />
           </button>
-          <span style={{ color: '#fff', fontSize: 22, fontWeight: 700, fontFamily: 'sans-serif', letterSpacing: '-0.025em' }}>
+          <span style={{ color: '#fff', fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em' }}>
             {t('library.folder')}
           </span>
         </div>
@@ -124,7 +124,6 @@ export function FolderEditorPage({ initial, accent, catalogOptions, onDismiss, o
                     color: shape === s ? contrastOn(accent) : '#fff',
                     fontWeight: 700,
                     fontSize: 12,
-                    fontFamily: 'sans-serif',
                     cursor: 'pointer',
                     textTransform: 'capitalize',
                   }}

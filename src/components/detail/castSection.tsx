@@ -119,11 +119,11 @@ export const CastAvatar = React.memo(function CastAvatar({ name, role, imageUrl 
         {showImage ? (
           <img src={imageUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={() => setImageFailed(true)} />
         ) : (
-          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, fontWeight: 600, fontFamily: 'sans-serif' }}>{initials}</span>
+          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, fontWeight: 600 }}>{initials}</span>
         )}
       </div>
-      <p style={{ color: '#FFFFFF', fontSize: 12, fontWeight: 750, lineHeight: '14px', minHeight: 28, margin: '2px 0 0', textAlign: 'center', fontFamily: 'sans-serif', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{name}</p>
-      <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 10, margin: 0, textAlign: 'center', fontFamily: 'sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{role}</p>
+      <p style={{ color: '#FFFFFF', fontSize: 12, fontWeight: 750, lineHeight: '14px', minHeight: 28, margin: '2px 0 0', textAlign: 'center', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{name}</p>
+      <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 10, margin: 0, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{role}</p>
     </div>
   );
 });

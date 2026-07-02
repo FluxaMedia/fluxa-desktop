@@ -58,7 +58,6 @@ export function UtilButton({
         color: disabled ? 'rgba(255,255,255,0.3)' : accent,
         fontSize: 12,
         fontWeight: 700,
-        fontFamily: 'sans-serif',
         cursor: disabled ? 'default' : 'pointer',
         transition: 'background 0.15s',
         whiteSpace: 'nowrap',
@@ -98,7 +97,6 @@ export function SaveButton({
         color: disabled ? 'rgba(255,255,255,0.4)' : contrastOn(accent),
         fontSize: 14,
         fontWeight: 900,
-        fontFamily: 'sans-serif',
         cursor: disabled ? 'default' : 'pointer',
         transition: 'background 0.15s',
       }}
@@ -133,7 +131,6 @@ export function FieldInput({
         borderRadius: 8,
         color: '#fff',
         fontSize: 14,
-        fontFamily: 'sans-serif',
         outline: 'none',
         boxSizing: 'border-box',
       }}
@@ -242,7 +239,6 @@ export function FolderRow({
             color: '#fff',
             fontWeight: 700,
             fontSize: 14,
-            fontFamily: 'sans-serif',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -254,7 +250,6 @@ export function FolderRow({
           style={{
             color: 'rgba(255,255,255,0.5)',
             fontSize: 11,
-            fontFamily: 'sans-serif',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -268,7 +263,6 @@ export function FolderRow({
           color: accent,
           fontSize: 10,
           fontWeight: 900,
-          fontFamily: 'sans-serif',
           flexShrink: 0,
         }}
       >
@@ -286,7 +280,6 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
         fontSize: 11,
         fontWeight: 600,
         margin: '0 0 8px 4px',
-        fontFamily: 'sans-serif',
         textTransform: 'uppercase',
         letterSpacing: '0.07em',
       }}
@@ -341,7 +334,6 @@ export function Chip({
         color: selected ? contrastOn(accent) : '#fff',
         fontWeight: 700,
         fontSize: 12,
-        fontFamily: 'sans-serif',
         cursor: 'pointer',
         whiteSpace: 'nowrap',
         transition: 'background 0.12s',

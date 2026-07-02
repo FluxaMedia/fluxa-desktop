@@ -308,7 +308,6 @@ function TypeChip({ label, selected, onClick }: { label: string; selected: boole
         fontSize: 13,
         fontWeight: 700,
         cursor: 'pointer',
-        fontFamily: 'sans-serif',
         transition: 'background 0.15s, color 0.15s',
         flexShrink: 0,
       }}
@@ -334,7 +333,6 @@ function GenreCard({ genre, onClick }: { genre: string; onClick: () => void }) {
         fontSize: 14,
         fontWeight: 700,
         cursor: 'pointer',
-        fontFamily: 'sans-serif',
         transition: 'background 0.15s',
         display: 'flex',
         alignItems: 'center',
@@ -387,7 +385,7 @@ function SearchResultRow({ meta, onClick }: { meta: Meta; onClick: (meta: Meta) 
           />
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 900, fontFamily: 'sans-serif' }}>
+            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 900 }}>
               {meta.name.slice(0, 2).toUpperCase()}
             </span>
           </div>
@@ -396,10 +394,10 @@ function SearchResultRow({ meta, onClick }: { meta: Meta; onClick: (meta: Meta) 
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 700, margin: '0 0 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'sans-serif' }}>
+        <p style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 700, margin: '0 0 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {meta.name}
         </p>
-        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 600, margin: 0, fontFamily: 'sans-serif' }}>
+        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 600, margin: 0 }}>
           {metaChips.join('  ·  ')}
         </p>
       </div>
@@ -442,7 +440,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 600,
-    fontFamily: 'sans-serif',
   },
   clearBtn: {
     width: 28,
@@ -485,7 +482,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 800,
     margin: '0 0 6px',
-    fontFamily: 'sans-serif',
     textTransform: 'uppercase',
     letterSpacing: '0.8px',
   },
@@ -495,14 +491,12 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: '39px',
     fontWeight: 900,
     margin: 0,
-    fontFamily: 'sans-serif',
   },
   subtitle: {
     color: 'rgba(255,255,255,0.52)',
     fontSize: 13,
     fontWeight: 600,
     margin: '8px 0 0',
-    fontFamily: 'sans-serif',
   },
   typeRow: {
     display: 'flex',
@@ -515,7 +509,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontWeight: 700,
     margin: '0 0 14px',
-    fontFamily: 'sans-serif',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
   },
@@ -544,7 +537,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 20,
     fontWeight: 800,
     margin: '0 0 12px',
-    fontFamily: 'sans-serif',
   },
   categoryScroll: {
     display: 'flex',
@@ -577,12 +569,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 18,
     fontWeight: 700,
     margin: '0 0 6px',
-    fontFamily: 'sans-serif',
   },
   emptyHint: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 14,
     margin: 0,
-    fontFamily: 'sans-serif',
   },
 };

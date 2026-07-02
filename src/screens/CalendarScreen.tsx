@@ -184,7 +184,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
     padding: `34px 42px 80px ${NAV_RAIL_WIDTH + CONTENT_PAD}px`,
     overflowY: 'auto',
-    fontFamily: 'sans-serif',
   },
   header: {
     display: 'flex',

@@ -153,7 +153,7 @@ export function InlineSourceList({
           }
           <p style={EP.sourceSubtitle}>{episodeLabel}</p>
           {episode.overview && (
-            <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: 12, fontWeight: 400, margin: '5px 0 0', fontFamily: 'sans-serif', lineHeight: '17px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{episode.overview}</p>
+            <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: 12, fontWeight: 400, margin: '5px 0 0', lineHeight: '17px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{episode.overview}</p>
           )}
         </div>
       </div>

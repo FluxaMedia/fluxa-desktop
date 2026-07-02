@@ -101,7 +101,7 @@ function CollectionEditorPage({
           >
             <ArrowBack size={20} />
           </button>
-          <span style={{ flex: 1, color: '#fff', fontSize: 22, fontWeight: 700, fontFamily: 'sans-serif', letterSpacing: '-0.025em' }}>
+          <span style={{ flex: 1, color: '#fff', fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em' }}>
             {initial.title ? t('auto.edit_collection') : t('auto.new_collection')}
           </span>
         </div>
@@ -112,7 +112,7 @@ function CollectionEditorPage({
             <FieldInput value={title} placeholder={t('auto.collection_name')} onChange={setTitle} accent={accent} />
             <ImagePreviewField label={t('library.collection_image')} value={imageUrl} onChange={setImageUrl} accent={accent} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ flex: 1, color: '#fff', fontWeight: 600, fontSize: 13, fontFamily: 'sans-serif' }}>
+              <span style={{ flex: 1, color: '#fff', fontWeight: 600, fontSize: 13 }}>
                 {t('library.show_above_continue_watching')}
               </span>
               <Toggle checked={showOnHome} onChange={setShowOnHome} accent={accent} />
@@ -124,7 +124,7 @@ function CollectionEditorPage({
           <SectionLabel>{`${t('library.folder')} · ${folders.length}/10`}</SectionLabel>
           <Card>
             {folders.length === 0 && (
-              <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, fontFamily: 'sans-serif', textAlign: 'center', padding: '8px 0' }}>
+              <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, textAlign: 'center', padding: '8px 0' }}>
                 {t('library.no_folders_yet')}
               </div>
             )}
@@ -149,7 +149,6 @@ function CollectionEditorPage({
                 color: folders.length >= 10 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.7)',
                 fontWeight: 700,
                 fontSize: 14,
-                fontFamily: 'sans-serif',
                 cursor: folders.length >= 10 ? 'default' : 'pointer',
               }}
             >

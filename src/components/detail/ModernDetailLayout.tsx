@@ -194,17 +194,17 @@ export function ModernDetailLayout({
               {prevSeasonDialog && (
                 <div style={MS.overlayBackdrop} onClick={() => setPrevSeasonDialog(null)}>
                   <div style={{ ...MS.overlaySheet, maxWidth: 400, padding: 28 }} onClick={(e) => e.stopPropagation()}>
-                    <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: '0 0 10px', fontFamily: 'sans-serif' }}>
+                    <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>
                       {t('detail.prev_seasons_dialog_title')}
                     </p>
-                    <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, margin: '0 0 24px', fontFamily: 'sans-serif', lineHeight: '20px' }}>
+                    <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, margin: '0 0 24px', lineHeight: '20px' }}>
                       {t('detail.prev_seasons_dialog_body', prevSeasonDialog.unwatchedPrev.map((s) => seasonLabel(s)).join(', '))}
                     </p>
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                      <button style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'sans-serif' }} onClick={() => { dispatchMarkSeason([prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
+                      <button style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }} onClick={() => { dispatchMarkSeason([prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
                         {t('detail.prev_seasons_dialog_no')}
                       </button>
-                      <button style={{ background: '#4BB3FD', border: 'none', color: '#fff', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'sans-serif' }} onClick={() => { dispatchMarkSeason([...prevSeasonDialog.unwatchedPrev, prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
+                      <button style={{ background: '#4BB3FD', border: 'none', color: '#fff', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }} onClick={() => { dispatchMarkSeason([...prevSeasonDialog.unwatchedPrev, prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
                         {t('detail.prev_seasons_dialog_yes')}
                       </button>
                     </div>

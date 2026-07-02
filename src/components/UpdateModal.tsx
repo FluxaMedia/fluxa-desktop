@@ -219,14 +219,12 @@ const titleStyle: React.CSSProperties = {
   fontSize: 18,
   fontWeight: 700,
   margin: '0 0 6px',
-  fontFamily: 'sans-serif',
 };
 
 const subtitleStyle: React.CSSProperties = {
   color: 'rgba(255,255,255,0.5)',
   fontSize: 13,
   margin: '0 0 20px',
-  fontFamily: 'sans-serif',
   lineHeight: 1.5,
 };
 
@@ -241,7 +239,6 @@ const tagStyle: React.CSSProperties = {
   padding: '3px 8px',
   borderRadius: 6,
   marginBottom: 10,
-  fontFamily: 'sans-serif',
 };
 
 const changelogBox: React.CSSProperties = {
@@ -297,7 +294,6 @@ const btnBase: React.CSSProperties = {
   borderRadius: 8,
   fontSize: 13,
   fontWeight: 600,
-  fontFamily: 'sans-serif',
   cursor: 'pointer',
   border: 'none',
   transition: 'opacity 0.15s',

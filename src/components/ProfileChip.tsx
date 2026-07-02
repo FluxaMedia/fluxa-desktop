@@ -150,7 +150,6 @@ function ProfileRow({ profile, active, onClick }: { profile: UserProfile; active
           color: active ? '#FFFFFF' : 'rgba(255,255,255,0.7)',
           fontSize: 13.5,
           fontWeight: active ? 600 : 400,
-          fontFamily: 'sans-serif',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -198,7 +197,6 @@ function DropdownItem({
         color: danger ? '#FF6B6B' : hovered ? '#FFFFFF' : 'rgba(255,255,255,0.75)',
         fontSize: 13.5,
         fontWeight: 550,
-        fontFamily: 'sans-serif',
         transition: 'background 0.12s, color 0.12s',
         textAlign: 'left',
       }}

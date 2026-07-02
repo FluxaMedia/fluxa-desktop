@@ -45,7 +45,7 @@ export function ImportDialog({ accent, onDismiss, onImport }: Props) {
           boxSizing: 'border-box',
         }}
       >
-        <span style={{ color: '#fff', fontSize: 18, fontWeight: 900, fontFamily: 'sans-serif' }}>
+        <span style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>
           {t('library.import_collections')}
         </span>
         <textarea
@@ -81,7 +81,6 @@ export function ImportDialog({ accent, onDismiss, onImport }: Props) {
               background: 'none',
               border: 'none',
               color: 'rgba(255,255,255,0.6)',
-              fontFamily: 'sans-serif',
               fontSize: 14,
               cursor: 'pointer',
               padding: '8px 12px',
@@ -97,7 +96,6 @@ export function ImportDialog({ accent, onDismiss, onImport }: Props) {
               border: 'none',
               borderRadius: 8,
               color: json.trim() ? contrastOn(accent) : 'rgba(255,255,255,0.3)',
-              fontFamily: 'sans-serif',
               fontSize: 14,
               fontWeight: 700,
               cursor: json.trim() ? 'pointer' : 'default',

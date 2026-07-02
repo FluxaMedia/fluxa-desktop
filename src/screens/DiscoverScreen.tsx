@@ -212,15 +212,15 @@ const S: Record<string, React.CSSProperties> = {
   screen: { display: 'flex', width: 'calc(100% - 104px)', height: 'calc(100% - 52px)', marginLeft: 104, marginTop: 52, background: '#09091280', overflow: 'hidden' },
   left: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
   filterBar: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 24px', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.05)' },
-  resultCount: { marginLeft: 'auto', color: 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: 600, fontFamily: 'sans-serif', letterSpacing: '0.3px' },
+  resultCount: { marginLeft: 'auto', color: 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: 600, letterSpacing: '0.3px' },
   loadingDot: { marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', animation: 'pulse 1.2s ease-in-out infinite', flexShrink: 0 },
   loadingGrid: { flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '28px 18px', padding: '20px 24px 60px', alignContent: 'start', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent', contain: 'layout paint style' },
   empty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0, fontFamily: 'sans-serif' },
-  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, fontFamily: 'sans-serif', textAlign: 'center' },
+  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0 },
+  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, textAlign: 'center' },
   right: { width: 300, flexShrink: 0, background: '#0C0D18', borderLeft: '1px solid rgba(255,255,255,0.06)', overflowY: 'auto', scrollbarWidth: 'none', display: 'flex', flexDirection: 'column' },
   panelEmpty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  panelEmptyText: { color: 'rgba(255,255,255,0.28)', fontSize: 13, fontFamily: 'sans-serif', textAlign: 'center', margin: 0 },
+  panelEmptyText: { color: 'rgba(255,255,255,0.28)', fontSize: 13, textAlign: 'center', margin: 0 },
 };
 
 export const DiscoverScreen = memo(DiscoverScreenInner, (prev, next) =>
