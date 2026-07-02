@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
-import { MovieCard } from '../components/MovieCard';
+import { ArrowLeft, Search } from 'lucide-react';
+import { VirtualizedPosterGrid } from '../components/VirtualizedPosterGrid';
+import { FilterDropdown } from '../components/FilterDropdown';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefString } from '../core/appPrefs';
 import { effectiveCatalogId, exportCollectionsJson, importCollectionsJson } from '../core/collections';
@@ -34,6 +35,8 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   onProfileUpdated,
 }: Props) {
   const [tab, setTab] = useState<Tab>('watchlist');
+  const [query, setQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'recent' | 'title'>('recent');
   const [viewAllFolder, setViewAllFolder] = useState<{ title: string; items: Meta[] } | null>(null);
   const [editingCollection, setEditingCollection] = useState<UserCollection | 'new' | null>(null);
   const library = state.library;
@@ -139,6 +142,16 @@ export const LibraryScreen = React.memo(function LibraryScreen({
 
   const items = tab === 'watchlist' ? watchlist : tab === 'watching' ? watching : tab === 'completed' ? completed : tab === 'dropped' ? dropped : [];
 
+  const q = query.trim().toLowerCase();
+  const shown = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : items;
+  const sorted = sortBy === 'title' ? [...shown].sort((a, b) => a.name.localeCompare(b.name)) : shown;
+
+  const subtitle = tab === 'watchlist' ? t('auto.movies_and_shows_you_saved_to_watch_later')
+    : tab === 'watching' ? t('library.subtitle_watching')
+    : tab === 'completed' ? t('library.subtitle_completed')
+    : tab === 'dropped' ? t('library.subtitle_dropped')
+    : t('library.subtitle_collections');
+
   return (
     <div style={styles.screen}>
       <div style={styles.header}>
@@ -147,7 +160,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
         </CircleBtn>
         <div>
           <p style={styles.title}>{t('auto.my_library_a6c93797')}</p>
-          <p style={styles.subtitle}>{t('auto.movies_and_shows_you_saved_to_watch_later')}</p>
+          <p style={styles.subtitle}>{subtitle}</p>
         </div>
       </div>
 
@@ -167,20 +180,43 @@ export const LibraryScreen = React.memo(function LibraryScreen({
         <TabChip active={tab === 'collections'} onClick={() => setTab('collections')}>
           {t('library.collections')}{collections.length > 0 ? ` (${collections.length})` : ''}
         </TabChip>
+        {tab !== 'collections' && (
+          <div style={styles.controls}>
+            <div style={styles.searchWrap}>
+              <Search size={15} style={{ color: 'rgba(255,255,255,0.35)', flexShrink: 0 }} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t('library.filter_placeholder')}
+                style={styles.searchInput}
+              />
+            </div>
+            <FilterDropdown
+              value={sortBy === 'recent' ? t('library.sort_recent') : t('library.sort_title')}
+              options={[
+                { value: 'recent', label: t('library.sort_recent') },
+                { value: 'title', label: t('library.sort_title') },
+              ]}
+              onSelect={(v) => setSortBy(v as 'recent' | 'title')}
+            />
+          </div>
+        )}
       </div>
 
       <div style={{ height: 8 }} />
 
       {tab === 'collections' ? (
-        <CollectionsTab
-          collections={collections}
-          accent={accent}
-          onFolderClick={(folder, folderTitle) => setViewAllFolder({ title: folderTitle, items: getItemsForFolder(folder) })}
-          onEditCollection={(col) => setEditingCollection(col)}
-          onDeleteCollection={(id) => void handleDeleteCollection(id)}
-          onNewCollection={() => setEditingCollection('new')}
-          onShowAllOnHome={() => void saveCollections(collections.map((c) => ({ ...c, showOnHome: true })))}
-        />
+        <div style={styles.collectionsScroll}>
+          <CollectionsTab
+            collections={collections}
+            accent={accent}
+            onFolderClick={(folder, folderTitle) => setViewAllFolder({ title: folderTitle, items: getItemsForFolder(folder) })}
+            onEditCollection={(col) => setEditingCollection(col)}
+            onDeleteCollection={(id) => void handleDeleteCollection(id)}
+            onNewCollection={() => setEditingCollection('new')}
+            onShowAllOnHome={() => void saveCollections(collections.map((c) => ({ ...c, showOnHome: true })))}
+          />
+        </div>
       ) : items.length === 0 ? (
         <div style={styles.empty}>
           <p style={styles.emptyTitle}>
@@ -196,21 +232,19 @@ export const LibraryScreen = React.memo(function LibraryScreen({
               : t('library.dropped_hint')}
           </p>
         </div>
-      ) : (
-        <div style={styles.grid}>
-          {items.map((item) => (
-            <MovieCard
-              key={item.id}
-              meta={item as unknown as Meta}
-              width={posterPrefs.width}
-              height={posterPrefs.height}
-              radius={posterPrefs.radius}
-              layout={posterPrefs.layout}
-              hideTitle={posterPrefs.hideTitles}
-              onClick={onNavigateDetail}
-            />
-          ))}
+      ) : sorted.length === 0 ? (
+        <div style={styles.empty}>
+          <p style={styles.emptyTitle}>{t('library.no_matches')}</p>
         </div>
+      ) : (
+        <VirtualizedPosterGrid
+          items={sorted as unknown as Meta[]}
+          selectedId={null}
+          posterPrefs={posterPrefs}
+          onHover={() => false}
+          onClick={onNavigateDetail}
+          onScrollActivity={() => {}}
+        />
       )}
     </div>
   );
@@ -265,12 +299,21 @@ function TabChip({ active, onClick, children }: { active: boolean; onClick: () =
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  screen: { background: '#040508', height: '100%', overflowY: 'auto', paddingBottom: 80, paddingLeft: NAV_RAIL_WIDTH },
-  header: { display: 'flex', alignItems: 'center', gap: 24, padding: '40px 58px' },
+  screen: { background: '#040508', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingLeft: NAV_RAIL_WIDTH },
+  header: { display: 'flex', alignItems: 'center', gap: 24, padding: '40px 58px', flexShrink: 0 },
+  controls: { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 },
+  searchWrap: {
+    display: 'flex', alignItems: 'center', gap: 7, height: 36, padding: '0 12px', width: 220,
+    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
+  },
+  searchInput: {
+    flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none',
+    color: '#fff', fontSize: 13, fontWeight: 600,
+  },
+  collectionsScroll: { flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 80 },
   title: { color: '#FFFFFF', fontSize: 32, fontWeight: 900, margin: '0 0 4px', letterSpacing: '2px' },
   subtitle: { color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: 0, lineHeight: 1.4 },
-  tabRow: { display: 'flex', gap: 10, paddingLeft: PX, paddingRight: PX },
-  grid: { display: 'flex', flexWrap: 'wrap', gap: '24px 20px', paddingLeft: PX, paddingRight: PX, paddingBottom: 60 },
+  tabRow: { display: 'flex', alignItems: 'center', gap: 10, paddingLeft: PX, paddingRight: PX, flexShrink: 0 },
   empty: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 10 },
   emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0 },
   emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 },
