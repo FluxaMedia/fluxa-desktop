@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { MovieCard } from '../components/MovieCard';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefString } from '../core/appPrefs';
@@ -142,9 +143,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     <div style={styles.screen}>
       <div style={styles.header}>
         <CircleBtn onClick={onBack} size={48}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
-          </svg>
+          <ArrowLeft size={24} color="#fff" />
         </CircleBtn>
         <div>
           <p style={styles.title}>{t('auto.my_library_a6c93797')}</p>

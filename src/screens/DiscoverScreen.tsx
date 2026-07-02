@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LayoutGrid } from 'lucide-react';
 import { posterPrefsFromState, type PosterPrefs } from '../core/posterPrefs';
 import type { AppState, Meta } from '../core/types';
 import { getLanguage, t } from '../i18n';
@@ -197,9 +198,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
           <DiscoverDetailPanel meta={panelMeta} onPlay={() => onNavigateDetail(panelMeta)} onDispatch={onDispatch} />
         ) : (
           <div style={S.panelEmpty}>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="rgba(255,255,255,0.12)">
-              <path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z" />
-            </svg>
+            <LayoutGrid size={40} style={{ color: 'rgba(255,255,255,0.12)' }} />
             <p style={S.panelEmptyText}>{t('discover.hover_title_hint')}</p>
           </div>
         )}

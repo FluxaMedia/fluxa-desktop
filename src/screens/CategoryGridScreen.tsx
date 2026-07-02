@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Play, Plus } from 'lucide-react';
 import type { Meta } from '../core/types';
 import type { PosterPrefs } from '../core/posterPrefs';
 import { t } from '../i18n';
@@ -86,9 +86,7 @@ export function CategoryGridScreen({ title, items, posterPrefs, onNavigateDetail
           <DetailPanel meta={panelMeta} onPlay={() => onNavigateDetail(panelMeta)} onDispatch={onDispatch} />
         ) : (
           <div style={S.panelEmpty}>
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="rgba(255,255,255,0.12)">
-              <path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z" />
-            </svg>
+            <LayoutGrid size={40} style={{ color: 'rgba(255,255,255,0.12)' }} />
             <p style={S.panelEmptyText}>{t('discover.hover_title_hint')}</p>
           </div>
         )}
@@ -160,12 +158,12 @@ function DetailPanel({ meta, onPlay, onDispatch }: { meta: Meta; onPlay: () => v
         )}
         <div style={DP.actions}>
           <button style={DP.playBtn} onClick={onPlay}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+            <Play size={15} fill="currentColor" strokeWidth={0} />
             {t('common.details')}
           </button>
           <PanelIconBtn
             title={t('discover.add_to_list')}
-            icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13H13v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>}
+            icon={<Plus size={18} />}
             onClick={() => onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: meta }))}
           />
         </div>

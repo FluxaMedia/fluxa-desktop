@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MovieCard } from '../components/MovieCard';
 import { posterPrefsFromState, type PosterPrefs } from '../core/posterPrefs';
 import type { AppState, HomeCategory, Meta } from '../core/types';
@@ -63,9 +63,7 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
     <div style={styles.screen}>
       <div style={styles.content}>
         <button style={styles.backBtn} onClick={onBack}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M19 12H5M5 12l7 7M5 12l7-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <ArrowLeft size={18} strokeWidth={2.2} />
           {t('auto.back')}
         </button>
 
@@ -402,10 +400,7 @@ function SearchResultRow({ meta, onClick }: { meta: Meta; onClick: (meta: Meta) 
         </p>
       </div>
 
-      {/* Arrow */}
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(255,255,255,0.2)" style={{ flexShrink: 0 }}>
-        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-      </svg>
+      <ChevronRight size={18} style={{ flexShrink: 0, color: 'rgba(255,255,255,0.2)' }} />
     </div>
   );
 }

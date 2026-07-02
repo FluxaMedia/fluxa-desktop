@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 export function FilterDropdown({
   value,
@@ -25,15 +26,10 @@ export function FilterDropdown({
     <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
       <button style={FD.trigger} onClick={() => setOpen((o) => !o)}>
         <span style={FD.label}>{value}</span>
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="rgba(255,255,255,0.6)"
-          style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
-        >
-          <path d="M7 10l5 5 5-5z" />
-        </svg>
+        <ChevronDown
+          size={16}
+          style={{ flexShrink: 0, color: 'rgba(255,255,255,0.6)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+        />
       </button>
       {open && (
         <div style={FD.menu}>
