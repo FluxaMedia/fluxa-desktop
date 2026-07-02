@@ -229,15 +229,21 @@ function buildHeroSlides(billboard: Meta | null, items: Meta[]): Meta[] {
 }
 
 function LoadingSkeleton() {
+  const box: React.CSSProperties = { background: '#12161D', borderRadius: 10, animation: 'pulse 1.6s ease-in-out infinite' };
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        background: '#12161D',
-        animation: 'pulse 1.6s ease-in-out infinite',
-      }}
-    />
+    <div style={{ width: '100%', height: '100%', background: '#040508', overflow: 'hidden' }}>
+      <div style={{ ...box, width: '100%', height: HOME_HERO_HEIGHT, borderRadius: 0 }} />
+      {[0, 1].map((row) => (
+        <div key={row} style={{ padding: '28px 58px 0' }}>
+          <div style={{ ...box, width: 180, height: 18, marginBottom: 16, animationDelay: `${row * 0.2}s` }} />
+          <div style={{ display: 'flex', gap: 18, overflow: 'hidden' }}>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} style={{ ...box, width: 150, height: 225, flexShrink: 0, animationDelay: `${(row * 8 + i) * 0.06}s` }} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
