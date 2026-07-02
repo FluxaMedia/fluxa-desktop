@@ -1050,20 +1050,20 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             chapterSegments.map((seg, i) => (
               <div key={i} className="fluxa-seek-track" style={{ position: 'absolute', left: `calc(${seg.start * 100}% + 2px)`, width: `calc(${(seg.end - seg.start) * 100}% - 4px)`, top: '50%', transform: 'translateY(-50%)', overflow: 'hidden', background: 'rgba(255,255,255,0.18)', borderRadius: 2 }}>
                 <div ref={(el) => { segBufRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'rgba(255,255,255,0.5)' }} />
-                <div ref={(el) => { segFillRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: '#E53935' }} />
+                <div ref={(el) => { segFillRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'var(--primary-accent-color)' }} />
               </div>
             ))
           ) : (
             <>
               <div ref={seekBufferRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'rgba(255,255,255,0.5)', borderRadius: 3 }} />
-              <div ref={seekFillRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: '#E53935', borderRadius: 3 }} />
+              <div ref={seekFillRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'var(--primary-accent-color)', borderRadius: 3 }} />
             </>
           )}
 
           <div
             ref={seekDotRef}
             className="fluxa-seek-dot"
-            style={{ position: 'absolute', left: '0%', top: '50%', borderRadius: '50%', background: '#E53935', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 6px rgba(0,0,0,0.7)', pointerEvents: 'none' }}
+            style={{ position: 'absolute', left: '0%', top: '50%', borderRadius: '50%', background: 'var(--primary-accent-color)', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 6px rgba(0,0,0,0.7)', pointerEvents: 'none' }}
           />
 
           <SeekPreview barRef={seekbarRef} durRef={durRef} chaptersRef={chaptersRef} />
