@@ -203,7 +203,7 @@ fn mpv_options_from_preferences(
     }
     if let Some(mode) = get("audioDecoderMode") {
         let hwdec = match mode {
-            "hw_prefer" => "auto-safe",
+            "hw_prefer" => "auto",
             "hw_only" => "auto",
             "sw_only" => "no",
             _ => "",
@@ -725,6 +725,7 @@ pub fn player_get_playback_info(state: State<DesktopState>) -> serde_json::Value
         "nextEpThresholdPercent": *state.next_ep_threshold_percent.lock().unwrap(),
         "autoPlayNextEpisode": *state.auto_play_next_episode.lock().unwrap(),
         "autoPlayCountdownSecs": *state.auto_play_countdown_secs.lock().unwrap(),
+        "autoSkipSegments": *state.auto_skip_segments.lock().unwrap(),
     })
 }
 
@@ -775,6 +776,7 @@ pub fn player_set_skip_info(
     next_ep_threshold_percent: Option<f64>,
     auto_play_next_episode: Option<bool>,
     auto_play_countdown_secs: Option<u32>,
+    auto_skip_segments: Option<bool>,
 ) {
     *state.skip_segments_json.lock().unwrap() =
         if segments_json.trim().is_empty() || segments_json == "[]" {
@@ -792,6 +794,9 @@ pub fn player_set_skip_info(
     }
     if let Some(s) = auto_play_countdown_secs {
         *state.auto_play_countdown_secs.lock().unwrap() = s.max(1);
+    }
+    if let Some(v) = auto_skip_segments {
+        *state.auto_skip_segments.lock().unwrap() = v;
     }
 }
 
