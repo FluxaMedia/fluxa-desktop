@@ -177,8 +177,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [showStats, setShowStats] = useState(false);
   const [statsSnap, setStatsSnap] = useState<EmbeddedMpvStatus | null>(null);
   const [torrentStatsSnap, setTorrentStatsSnap] = useState<TorrentStats | null>(null);
-  const [bufferHistory, setBufferHistory] = useState<number[]>([]);
-  const [netSpeedHistory, setNetSpeedHistory] = useState<number[]>([]);
+  const bufferHistoryRef = useRef<number[]>([]);
+  const netSpeedHistoryRef = useRef<number[]>([]);
   const [torrentSpeedHistory, setTorrentSpeedHistory] = useState<number[]>([]);
   const liveStatusRef = useRef<EmbeddedMpvStatus | null>(null);
   const stallCountRef = useRef(0);
@@ -360,6 +360,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       durRef.current = dur;
       pausedRef.current = isPaused;
 
+      const bh = bufferHistoryRef.current;
+      if (bh.length >= SPARKLINE_MAX_SAMPLES) bh.shift();
+      bh.push(buffered);
+      const nh = netSpeedHistoryRef.current;
+      if (nh.length >= SPARKLINE_MAX_SAMPLES) nh.shift();
+      nh.push(parseInt(status.cacheSpeed ?? '0') || 0);
+
       const presenceKey = `${title}|${episodeTitle}|${isPaused}`;
       const presenceDue = Date.now() - discordPresenceSentAtRef.current > 25000;
       if (title && (presenceKey !== discordPresenceKeyRef.current || presenceDue)) {
@@ -456,14 +463,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   useEffect(() => {
     if (!showStats) return;
     const tick = async () => {
-      const s = liveStatusRef.current;
-      if (s) {
-        setStatsSnap({ ...s });
-        const bufVal = parseFloat(s.demuxerCacheDuration ?? '0') || 0;
-        const netVal = parseInt(s.cacheSpeed ?? '0') || 0;
-        setBufferHistory((h) => [...h.slice(-(SPARKLINE_MAX_SAMPLES - 1)), bufVal]);
-        setNetSpeedHistory((h) => [...h.slice(-(SPARKLINE_MAX_SAMPLES - 1)), netVal]);
-      }
+      if (liveStatusRef.current) setStatsSnap({ ...liveStatusRef.current });
       const ts = await playerTorrentStats().catch(() => null);
       setTorrentStatsSnap(ts);
       if (ts) setTorrentSpeedHistory((h) => [...h.slice(-(SPARKLINE_MAX_SAMPLES - 1)), ts.download_speed]);
@@ -557,8 +557,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       autoSkippedKeysRef.current.clear();
       stallCountRef.current = 0;
       prevPausedForCacheRef.current = false;
-      setBufferHistory([]);
-      setNetSpeedHistory([]);
+      bufferHistoryRef.current = [];
+      netSpeedHistoryRef.current = [];
       setTorrentSpeedHistory([]);
     }).catch(() => undefined);
     return () => { cancelled = true; };
@@ -643,18 +643,22 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             sendCmd('cycle pause');
           }
           break;
-        case 'BracketLeft':
+        case 'BracketLeft': {
           e.preventDefault();
+          const next = Math.max(0.25, parseFloat((playbackSpeed - 0.25).toFixed(2)));
+          sendCmd(`set speed ${next}`);
+          setPlaybackSpeed(next);
           flashFeedback('speed', t('player.speed_decrease'));
-          sendCmd('add speed -0.25');
-          setPlaybackSpeed((s) => Math.max(0.25, parseFloat((s - 0.25).toFixed(2))));
           break;
-        case 'BracketRight':
+        }
+        case 'BracketRight': {
           e.preventDefault();
+          const next = Math.min(4, parseFloat((playbackSpeed + 0.25).toFixed(2)));
+          sendCmd(`set speed ${next}`);
+          setPlaybackSpeed(next);
           flashFeedback('speed', t('player.speed_increase'));
-          sendCmd('add speed 0.25');
-          setPlaybackSpeed((s) => Math.min(4, parseFloat((s + 0.25).toFixed(2))));
           break;
+        }
         case 'KeyC':
           e.preventDefault();
           sendCmd('cycle sub');
@@ -1311,7 +1315,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           {(statsSnap?.demuxerCacheDuration != null) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', rowGap: 2 }}>
               <span>{t('player.stats_buffer')}:</span>
-              <Sparkline data={bufferHistory} gradId="sg-buf" />
+              <Sparkline data={bufferHistoryRef.current} gradId="sg-buf" />
               <span>{parseFloat(statsSnap.demuxerCacheDuration ?? '0').toFixed(1)}s</span>
               {stallCountRef.current > 0 && <span style={{ color: 'rgba(255,255,255,0.45)' }}>{stallCountRef.current} {stallCountRef.current === 1 ? t('player.stats_stalls') : t('player.stats_stalls_plural')}</span>}
               {statsSnap.cacheBufferingState && statsSnap.pausedForCache === 'yes' && <span style={{ color: 'rgba(255,255,255,0.45)' }}>{statsSnap.cacheBufferingState}%</span>}
@@ -1320,7 +1324,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           {(statsSnap?.cacheSpeed != null) && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>↓</span>
-              <Sparkline data={netSpeedHistory} gradId="sg-net" />
+              <Sparkline data={netSpeedHistoryRef.current} gradId="sg-net" />
               <span>{(parseInt(statsSnap.cacheSpeed ?? '0') / 1024).toFixed(0)} KB/s</span>
             </div>
           )}
