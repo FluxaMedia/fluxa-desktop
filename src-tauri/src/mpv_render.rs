@@ -390,7 +390,7 @@ impl MpvRenderer {
             return Err(format!("mpv_initialize failed: {message}"));
         }
 
-        let level = CString::new("warn").unwrap();
+        let level = CString::new("v").unwrap();
         unsafe { (renderer.api.mpv_request_log_messages)(renderer.handle, level.as_ptr()) };
 
         Ok(renderer)
