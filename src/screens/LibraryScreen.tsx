@@ -165,7 +165,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
           {t('library.dropped')}{dropped.length > 0 ? ` (${dropped.length})` : ''}
         </TabChip>
         <TabChip active={tab === 'collections'} onClick={() => setTab('collections')}>
-          {t('auto.new_collection').replace('New ', '')}{collections.length > 0 ? ` (${collections.length})` : ''}
+          {t('library.collections')}{collections.length > 0 ? ` (${collections.length})` : ''}
         </TabChip>
       </div>
 
