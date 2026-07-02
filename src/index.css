@@ -139,6 +139,13 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid rgba(255,255,255,0.55);
+  outline-offset: 2px;
+}
+
 button, input, select, textarea {
   font-family: inherit;
 }
