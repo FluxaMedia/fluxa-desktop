@@ -205,16 +205,39 @@ export default function App() {
     setDetailMeta(null);
   }, [activeRoute]);
 
+  const goBack = useCallback(() => {
+    if (detailMeta) {
+      void closePlayer();
+      setDetailMeta(null);
+      setDetailInitialEpisode(null);
+      setDetailAutoShowStreams(false);
+      setDetailResumeAt(undefined);
+      return;
+    }
+    if (activeRoute === 'settings') { navigateRoute(lastNonSettingsRouteRef.current); return; }
+    if (activeRoute === 'search') { navigateRoute(lastNonSearchRouteRef.current); }
+  }, [detailMeta, activeRoute, navigateRoute, closePlayer]);
+
   useEffect(() => {
     const shortcutRoutes: Record<string, NavRoute> = { '1': 'home', '2': 'library', '3': 'discover', '4': 'calendar', '5': 'settings' };
     const onKeyDown = (e: KeyboardEvent) => {
       if (nativePlayerActive) return;
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        setSearchFocusSignal((n) => n + 1);
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === '/') {
         e.preventDefault();
         setSearchFocusSignal((n) => n + 1);
+        return;
+      }
+      if (e.key === 'Backspace' || e.key === 'Escape') {
+        e.preventDefault();
+        goBack();
         return;
       }
       const route = shortcutRoutes[e.key];
@@ -222,7 +245,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [nativePlayerActive, navigateRoute]);
+  }, [nativePlayerActive, navigateRoute, goBack]);
 
   const dispatch = useCallback(async (actionJson: string) => {
     const result = await dispatchAction(actionJson);

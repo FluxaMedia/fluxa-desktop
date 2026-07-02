@@ -259,6 +259,19 @@ pub struct PlayerStatus {
     height: Option<String>,
     cache_speed: Option<String>,
     demuxer_cache_duration: Option<String>,
+    hwdec_current: Option<String>,
+    fps: Option<String>,
+    frame_drop_count: Option<String>,
+    decoder_frame_drop_count: Option<String>,
+    avsync: Option<String>,
+    video_bitrate: Option<String>,
+    audio_bitrate: Option<String>,
+    audio_codec: Option<String>,
+    audio_samplerate: Option<String>,
+    audio_channels: Option<String>,
+    color_primaries: Option<String>,
+    color_matrix: Option<String>,
+    color_gamma: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -758,6 +771,19 @@ impl MpvRenderer {
             height: self.get_string_property("height"),
             cache_speed: self.get_string_property("cache-speed"),
             demuxer_cache_duration: self.get_string_property("demuxer-cache-duration"),
+            hwdec_current: self.get_string_property("hwdec-current"),
+            fps: self.get_string_property("estimated-vf-fps"),
+            frame_drop_count: self.get_string_property("frame-drop-count"),
+            decoder_frame_drop_count: self.get_string_property("decoder-frame-drop-count"),
+            avsync: self.get_string_property("avsync"),
+            video_bitrate: self.get_string_property("video-bitrate"),
+            audio_bitrate: self.get_string_property("audio-bitrate"),
+            audio_codec: self.get_string_property("audio-codec-name"),
+            audio_samplerate: self.get_string_property("audio-params/samplerate"),
+            audio_channels: self.get_string_property("audio-params/channels"),
+            color_primaries: self.get_string_property("video-params/primaries"),
+            color_matrix: self.get_string_property("video-params/colormatrix"),
+            color_gamma: self.get_string_property("video-params/gamma"),
         }
     }
 

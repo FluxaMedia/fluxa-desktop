@@ -147,6 +147,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [showSeekOverlay, setShowSeekOverlay] = useState(false);
   const seekOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [showStats, setShowStats] = useState(false);
+  const [statsSnap, setStatsSnap] = useState<EmbeddedMpvStatus | null>(null);
+  const liveStatusRef = useRef<EmbeddedMpvStatus | null>(null);
 
   const seekFillRef = useRef<HTMLDivElement>(null);
   const seekBufferRef = useRef<HTMLDivElement>(null);
@@ -307,6 +310,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       let status: EmbeddedMpvStatus | null = null;
       try { status = await invoke<EmbeddedMpvStatus>('player_status'); } catch { return; }
       if (!status) return;
+      liveStatusRef.current = status;
 
       const pos = parseFloat(status.timePos ?? '0');
       const dur = parseFloat(status.duration ?? '0');
@@ -411,6 +415,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
     return () => clearInterval(interval);
   }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, autoSkipSegments, flashFeedback]);
+
+  useEffect(() => {
+    if (!showStats) return;
+    const id = setInterval(() => {
+      if (liveStatusRef.current) setStatsSnap({ ...liveStatusRef.current });
+    }, 500);
+    return () => clearInterval(id);
+  }, [showStats]);
 
   useEffect(() => {
     return () => setIdleDiscordPresence();
@@ -544,13 +556,65 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           e.preventDefault();
           sendCmd('add volume -5');
           break;
-        case 'Digit9':
+        case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Digit5':
+        case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': {
           e.preventDefault();
-          sendCmd('add volume -5');
+          const pct = parseInt(e.code.replace('Digit', ''), 10) * 10;
+          startSeekOverlay();
+          flashFeedback(pct < (posRef.current / Math.max(1, durRef.current) * 100) ? 'seekBack' : 'seekFwd', `${pct}%`);
+          sendCmd(`seek ${pct} absolute-percent`);
           break;
+        }
         case 'Digit0':
           e.preventDefault();
-          sendCmd('add volume 5');
+          startSeekOverlay();
+          flashFeedback('seekBack', '0%');
+          sendCmd('seek 0 absolute');
+          break;
+        case 'KeyJ':
+          e.preventDefault();
+          startSeekOverlay();
+          flashFeedback('seekBack', t('player.seek_big_back'));
+          sendCmd('seek -60 relative');
+          break;
+        case 'KeyL':
+          e.preventDefault();
+          startSeekOverlay();
+          flashFeedback('seekFwd', t('player.seek_big_forward'));
+          sendCmd('seek 60 relative');
+          break;
+        case 'KeyK':
+          e.preventDefault();
+          {
+            const icon = pausedRef.current ? 'play' : 'pause';
+            flashFeedback(icon, '');
+            setPaused((prev) => !prev);
+            sendCmd('cycle pause');
+          }
+          break;
+        case 'BracketLeft':
+          e.preventDefault();
+          flashFeedback('speed', t('player.speed_decrease'));
+          sendCmd('add speed -0.25');
+          break;
+        case 'BracketRight':
+          e.preventDefault();
+          flashFeedback('speed', t('player.speed_increase'));
+          sendCmd('add speed 0.25');
+          break;
+        case 'KeyC':
+          e.preventDefault();
+          sendCmd('cycle sub');
+          break;
+        case 'KeyA':
+          if (!e.shiftKey) {
+            e.preventDefault();
+            sendCmd('cycle audio');
+          }
+          break;
+        case 'KeyI':
+          e.preventDefault();
+          setShowStats((s) => !s);
           break;
         case 'Period':
           e.preventDefault();
@@ -1079,6 +1143,57 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         />
       )}
 
+      {showStats && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 60,
+            left: 20,
+            background: 'rgba(0,0,0,0.82)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 8,
+            padding: '10px 14px',
+            fontFamily: 'monospace',
+            fontSize: 11,
+            color: 'rgba(255,255,255,0.82)',
+            lineHeight: 1.75,
+            zIndex: 25,
+            pointerEvents: 'none',
+            minWidth: 240,
+            userSelect: 'none',
+          }}
+        >
+          {(statsSnap?.width && statsSnap?.height) && (
+            <div>{statsSnap.width}×{statsSnap.height}{statsSnap.videoCodec ? `  ${statsSnap.videoCodec}` : ''}{statsSnap.videoFormat ? `  ${statsSnap.videoFormat}` : ''}{statsSnap.fps ? `  ${parseFloat(statsSnap.fps).toFixed(3)} ${t('player.stats_fps')}` : ''}</div>
+          )}
+          {statsSnap?.hwdecCurrent && statsSnap.hwdecCurrent !== 'no' && statsSnap.hwdecCurrent !== '' && (
+            <div>{t('player.stats_hwdec')}: {statsSnap.hwdecCurrent}</div>
+          )}
+          {(statsSnap?.frameDropCount != null || statsSnap?.decoderFrameDropCount != null) && (
+            <div>{t('player.stats_dropped')}: {statsSnap.frameDropCount ?? '0'} / {statsSnap.decoderFrameDropCount ?? '0'}</div>
+          )}
+          {(statsSnap?.videoBitrate || statsSnap?.audioBitrate) && (
+            <div>
+              {statsSnap.videoBitrate ? `${t('player.stats_video_bitrate')}: ${(parseInt(statsSnap.videoBitrate) / 1000).toFixed(0)} kbps` : ''}
+              {statsSnap.videoBitrate && statsSnap.audioBitrate ? '  ' : ''}
+              {statsSnap.audioBitrate ? `${t('player.stats_audio_bitrate')}: ${(parseInt(statsSnap.audioBitrate) / 1000).toFixed(0)} kbps` : ''}
+            </div>
+          )}
+          {(statsSnap?.audioCodec || statsSnap?.audioSamplerate || statsSnap?.audioChannels) && (
+            <div>{[statsSnap.audioCodec, statsSnap.audioSamplerate ? `${statsSnap.audioSamplerate} Hz` : null, statsSnap.audioChannels].filter(Boolean).join('  ')}</div>
+          )}
+          {(statsSnap?.demuxerCacheDuration != null || statsSnap?.cacheSpeed != null) && (
+            <div>{t('player.stats_buffer')}: {parseFloat(statsSnap.demuxerCacheDuration ?? '0').toFixed(1)}s{statsSnap.cacheSpeed && statsSnap.cacheSpeed !== '0' ? `  ↓ ${(parseInt(statsSnap.cacheSpeed) / 1024).toFixed(0)} KB/s` : ''}</div>
+          )}
+          {statsSnap?.avsync != null && (
+            <div>{t('player.stats_avsync')}: {parseFloat(statsSnap.avsync).toFixed(3)}s</div>
+          )}
+          {(statsSnap?.colorMatrix || statsSnap?.colorGamma || statsSnap?.colorPrimaries) && (
+            <div>{t('player.stats_color')}: {[statsSnap.colorMatrix, statsSnap.colorGamma, statsSnap.colorPrimaries].filter(Boolean).join(' / ')}</div>
+          )}
+        </div>
+      )}
+
       {contextMenu && (
         <div
           ref={contextMenuRef}
@@ -1113,8 +1228,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             {t('player.copy_timestamp')}
           </button>
           <button
-            onClick={() => { sendCmd('keypress i'); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+            onClick={() => { setShowStats((s) => !s); setContextMenu(null); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: showStats ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
           >
             <Info size={15} />
             {t('player.stats')}

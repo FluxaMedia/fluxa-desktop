@@ -36,6 +36,19 @@ export type EmbeddedMpvStatus = {
   cacheSpeed?: string | null;
   demuxerCacheDuration?: string | null;
   seeking?: string | null;
+  hwdecCurrent?: string | null;
+  fps?: string | null;
+  frameDropCount?: string | null;
+  decoderFrameDropCount?: string | null;
+  avsync?: string | null;
+  videoBitrate?: string | null;
+  audioBitrate?: string | null;
+  audioCodec?: string | null;
+  audioSamplerate?: string | null;
+  audioChannels?: string | null;
+  colorPrimaries?: string | null;
+  colorMatrix?: string | null;
+  colorGamma?: string | null;
 };
 
 export async function initEmbeddedMpv(): Promise<void> {
@@ -152,6 +165,7 @@ export async function playerSetSkipInfo(
   nextEpThresholdPercent?: number,
   autoPlayNextEpisode?: boolean,
   autoPlayCountdownSecs?: number,
+  autoSkipSegments?: boolean,
 ): Promise<void> {
   await invoke('player_set_skip_info', {
     segmentsJson,
@@ -159,6 +173,7 @@ export async function playerSetSkipInfo(
     nextEpThresholdPercent: nextEpThresholdPercent ?? null,
     autoPlayNextEpisode: autoPlayNextEpisode ?? null,
     autoPlayCountdownSecs: autoPlayCountdownSecs ?? null,
+    autoSkipSegments: autoSkipSegments ?? null,
   });
 }
 
@@ -184,6 +199,7 @@ export type PlayerPlaybackInfo = {
   nextEpThresholdPercent: number;
   autoPlayNextEpisode: boolean;
   autoPlayCountdownSecs: number;
+  autoSkipSegments: boolean;
 };
 
 export async function playerGetPlaybackInfo(): Promise<PlayerPlaybackInfo> {
