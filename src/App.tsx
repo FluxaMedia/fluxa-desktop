@@ -235,7 +235,7 @@ export default function App() {
         setSearchFocusSignal((n) => n + 1);
         return;
       }
-      if (e.key === 'Backspace' || e.key === 'Escape') {
+      if (e.key === 'Backspace') {
         e.preventDefault();
         goBack();
         return;

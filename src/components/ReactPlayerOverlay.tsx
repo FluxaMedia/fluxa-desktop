@@ -147,6 +147,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [showSeekOverlay, setShowSeekOverlay] = useState(false);
   const seekOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [statsSnap, setStatsSnap] = useState<EmbeddedMpvStatus | null>(null);
   const [torrentStatsSnap, setTorrentStatsSnap] = useState<TorrentStats | null>(null);
@@ -539,10 +540,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           e.preventDefault();
           if (holdTimerRef.current) return;
           holdActiveRef.current = false;
-          {
-            const spd = parseFloat(String((window as unknown as Record<string, unknown>).__fluxaSpeed ?? '1')) || 1;
-            preSpeedRef.current = spd;
-          }
+          preSpeedRef.current = playbackSpeed;
           holdTimerRef.current = setTimeout(() => {
             holdActiveRef.current = true;
             sendCmd('set speed 2.00');
@@ -609,11 +607,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           e.preventDefault();
           flashFeedback('speed', t('player.speed_decrease'));
           sendCmd('add speed -0.25');
+          setPlaybackSpeed((s) => Math.max(0.25, parseFloat((s - 0.25).toFixed(2))));
           break;
         case 'BracketRight':
           e.preventDefault();
           flashFeedback('speed', t('player.speed_increase'));
           sendCmd('add speed 0.25');
+          setPlaybackSpeed((s) => Math.min(4, parseFloat((s + 0.25).toFixed(2))));
           break;
         case 'KeyC':
           e.preventDefault();
@@ -670,15 +670,22 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           e.preventDefault();
           void toggleFullscreen();
           break;
+        case 'Slash':
+          if (e.shiftKey) {
+            e.preventDefault();
+            setShowShortcutsHelp((s) => !s);
+          }
+          break;
         case 'Escape':
           e.preventDefault();
+          if (showShortcutsHelp) { setShowShortcutsHelp(false); return; }
           if (contextMenu) { setContextMenu(null); return; }
           if (showEpisodePanel) { setShowEpisodePanel(false); episodePanelOpenRef.current = false; return; }
           if (trackPopover) { setTrackPopover(null); return; }
           if (isFullscreenRef.current) { isFullscreenRef.current = false; void getCurrentWindow().setFullscreen(false); }
           break;
         case 'Backspace':
-          if (contextMenu || showEpisodePanel || trackPopover) return;
+          if (contextMenu || showEpisodePanel || trackPopover || showShortcutsHelp) return;
           e.preventDefault();
           void closePlayer();
           break;
@@ -708,7 +715,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [closePlayer, contextMenu, flashFeedback, nextEpSubtitle, resetActivity, showEpisodePanel, startSeekOverlay, toggleFullscreen, trackPopover, triggerActiveSkip]);
+  }, [closePlayer, contextMenu, flashFeedback, nextEpSubtitle, playbackSpeed, resetActivity, showEpisodePanel, showShortcutsHelp, startSeekOverlay, toggleFullscreen, trackPopover, triggerActiveSkip]);
 
   useEffect(() => {
     return () => {
@@ -891,14 +898,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const onCenterMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
     resetActivity();
-    const spd = parseFloat(String((window as unknown as Record<string, unknown>).__fluxaSpeed ?? '1')) || 1;
-    preSpeedRef.current = spd;
+    preSpeedRef.current = playbackSpeed;
     centerHoldTimerRef.current = setTimeout(() => {
       centerHoldActiveRef.current = true;
       sendCmd('set speed 2.00');
       flashFeedback('speed', '2×');
     }, 300);
-  }, [flashFeedback, resetActivity]);
+  }, [flashFeedback, playbackSpeed, resetActivity]);
 
   const releaseCenterHold = useCallback(() => {
     if (centerHoldTimerRef.current) { clearTimeout(centerHoldTimerRef.current); centerHoldTimerRef.current = null; }
@@ -1156,6 +1162,66 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         />
       )}
 
+      {showShortcutsHelp && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
+          onClick={() => setShowShortcutsHelp(false)}
+        >
+          <div
+            style={{ background: 'rgba(14,16,22,0.97)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '20px 24px', maxWidth: 580, width: '90vw', maxHeight: '80vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>{t('player.shortcuts_help')}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px' }}>
+              {([
+                { heading: t('player.shortcut_group_playback'), rows: [
+                  ['Space', t('player.shortcut_play_pause_hold')],
+                  ['K', t('player.shortcut_play_pause')],
+                  ['M', t('player.shortcut_mute')],
+                ]},
+                { heading: t('player.shortcut_group_seek'), rows: [
+                  ['← →', t('player.shortcut_seek_10')],
+                  ['J  L', t('player.shortcut_seek_60')],
+                  ['0 – 9', t('player.shortcut_percent_seek')],
+                ]},
+                { heading: t('player.shortcut_group_speed'), rows: [
+                  ['[ ]', t('player.shortcut_speed_step')],
+                ]},
+                { heading: t('player.shortcut_group_volume'), rows: [
+                  ['↑ ↓', t('player.shortcut_volume')],
+                ]},
+                { heading: t('player.shortcut_group_frame'), rows: [
+                  [', .', t('player.shortcut_frame_step')],
+                  ['Z  X', t('player.shortcut_sub_delay')],
+                ]},
+                { heading: t('player.shortcut_group_tracks'), rows: [
+                  ['C', t('player.shortcut_cycle_sub')],
+                  ['A', t('player.shortcut_cycle_audio')],
+                ]},
+                { heading: t('player.shortcut_group_interface'), rows: [
+                  ['F / F11', t('player.shortcut_fullscreen')],
+                  ['S / Enter', t('player.shortcut_skip')],
+                  ['Shift+N', t('player.shortcut_next_ep')],
+                  ['I', t('player.shortcut_stats')],
+                  ['?', t('player.shortcut_this_help')],
+                  ['Backspace', t('player.shortcut_close')],
+                ]},
+              ] as { heading: string; rows: [string, string][] }[]).map(({ heading, rows }) => (
+                <div key={heading} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{heading}</div>
+                  {rows.map(([key, desc]) => (
+                    <div key={key} style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#fff', background: 'rgba(255,255,255,0.08)', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap', flexShrink: 0, minWidth: 52, textAlign: 'center' }}>{key}</span>
+                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.4 }}>{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showStats && (
         <div
           style={{
@@ -1289,6 +1355,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           >
             <Info size={15} />
             {t('player.stats')}
+          </button>
+          <button
+            onClick={() => { setShowShortcutsHelp((s) => !s); setContextMenu(null); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <Gauge size={15} />
+            {t('player.shortcuts_help')}
           </button>
           <button
             onClick={() => { void openTrackPopover('audio'); setContextMenu(null); }}
