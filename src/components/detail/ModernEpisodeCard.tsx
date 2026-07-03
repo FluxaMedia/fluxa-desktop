@@ -12,9 +12,9 @@ export function epReleaseCountdown(date?: string): string {
   const mins = Math.floor(diff / 60000);
   const hours = Math.floor(mins / 60);
   const days = Math.floor(hours / 24);
-  if (days > 0) return hours % 24 > 0 ? `${days}d ${hours % 24}h` : `${days}d`;
-  if (hours > 0) return mins % 60 > 0 ? `${hours}h ${mins % 60}m` : `${hours}h`;
-  return `${mins}m`;
+  if (days > 0) return hours % 24 > 0 ? t('format.countdown_compact_dh', days, hours % 24) : t('format.countdown_compact_d', days);
+  if (hours > 0) return mins % 60 > 0 ? t('format.countdown_compact_hm', hours, mins % 60) : t('format.countdown_compact_h', hours);
+  return t('format.countdown_compact_m', mins);
 }
 
 function episodeContentRating(episode: Video): string | null {
@@ -23,14 +23,14 @@ function episodeContentRating(episode: Video): string | null {
   return typeof cr === 'string' && cr.trim() ? cr.trim() : null;
 }
 
-export function ModernEpisodeCard({ episode, number, isWatched, progressPct, minutesRemaining, cwBadge, cwScheduledDate, onClick, onToggleWatched }: {
+export function ModernEpisodeCard({ episode, number, isWatched, progressPct, minutesRemaining, cwBadge, cwScheduledDate, blurUnwatched, onClick, onToggleWatched }: {
   episode: Video; number: number; isWatched: boolean; progressPct: number; minutesRemaining: number;
-  cwBadge?: string | null; cwScheduledDate?: string; onClick: () => void; onToggleWatched?: () => void;
+  cwBadge?: string | null; cwScheduledDate?: string; blurUnwatched?: boolean; onClick: () => void; onToggleWatched?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const [thumbErr, setThumbErr] = useState(false);
   const [watchBtnHovered, setWatchBtnHovered] = useState(false);
-  const title = episode.title?.trim() || episode.name?.trim() || `Episode ${episode.episode ?? episode.number ?? number}`;
+  const title = episode.title?.trim() || episode.name?.trim() || t('format.episode_number', episode.episode ?? episode.number ?? number);
   const desc = (episode as unknown as { overview?: string }).overview;
   const dateStr = episode.released ? formatEpDate(episode.released) : null;
   const runtime = (episode as unknown as { runtime?: string }).runtime;
@@ -38,8 +38,18 @@ export function ModernEpisodeCard({ episode, number, isWatched, progressPct, min
 
   void watchBtnHovered;
 
+  const dimmed = blurUnwatched && !isWatched;
+
   return (
-    <div style={MS.epCard} onClick={onClick} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <div
+      style={{ ...MS.epCard, opacity: dimmed ? 0.45 : 1 }}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <div style={MS.epThumb}>
         {episode.thumbnail && !thumbErr ? (
           <img src={episode.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: isWatched ? 0.48 : 1, transition: 'opacity 0.2s' }} onError={() => setThumbErr(true)} />

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Circle } from 'lucide-react';
+import { ArrowLeft, Bookmark, BookmarkCheck, CheckCircle2, Circle, Film, XCircle } from 'lucide-react';
+import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { MovieCard } from '../MovieCard';
 import { t } from '../../i18n';
 import type { DetailState, LibraryItem, Meta, MetaLink, Stream, Trailer, Video } from '../../core/types';
@@ -9,7 +10,7 @@ import { CastAvatar, type NormalizedCastMember } from './castSection';
 import { TrailerCarousel, type TrailerMetadata } from './TrailerCarousel';
 import { InlineSourceList, MovieSourcePanel } from './SourcePanel';
 import { SeasonDropdown, seasonLabel, formatEpDate as _formatEpDate, type ProgressEntry } from './EpisodePanel';
-import { ModernPlayButton, ModernTabBar } from './DetailButtons';
+import { ModernIconBtn, ModernPlayButton, ModernTabBar } from './DetailButtons';
 import { ModernEpisodeCard } from './ModernEpisodeCard';
 import { useSeasonWatched } from '../../hooks/useSeasonWatched';
 
@@ -41,6 +42,10 @@ export type ModernDetailProps = {
   detailSeasonSelectorMode: string;
   episodeCardsLayout: string;
   isInWatchlist: boolean;
+  isDropped: boolean;
+  isCompleted: boolean;
+  omdbRatings?: { rottenTomatoes?: string; metascore?: string } | null;
+  fanartArtwork?: { hdLogo?: string } | null;
   availableAddons: string[];
   poster: ReturnType<typeof posterPrefsFromState>;
   onBack: () => void;
@@ -53,6 +58,9 @@ export type ModernDetailProps = {
   onBackToEpisodes: () => void;
   onPlaySource: (stream: Stream) => void;
   onPlay: (stream: Stream, meta: Meta, episode?: Video | null, resumeAt?: number) => void;
+  onToggleWatchlist: () => void;
+  onToggleCompleted: () => void;
+  onToggleDropped: () => void;
   onBgError: () => void;
 };
 
@@ -60,13 +68,14 @@ export function ModernDetailLayout({
   displayMeta, bgUrl, isSeries, detail, meta, episodes, filteredEps, seasonNumbers,
   selectedSeason, selectedEpisode, showSources, streams, episodePlan, similarItems,
   displayTrailers, trailerMetadata, castMembers, directorLinks, peopleImages,
-  watchedMap, progressMap, continueWatchingEntry, isInWatchlist: _isInWatchlist, availableAddons, poster,
-  trailerOnHero: _trailerOnHero, blurUnwatchedEpisodes: _blurUnwatchedEpisodes,
-  detailSeasonSelectorMode: _detailSeasonSelectorMode, episodeCardsLayout: _episodeCardsLayout,
+  watchedMap, progressMap, continueWatchingEntry, isInWatchlist, isDropped, isCompleted,
+  omdbRatings, fanartArtwork, availableAddons, poster,
+  trailerOnHero, blurUnwatchedEpisodes, detailSeasonSelectorMode: _detailSeasonSelectorMode, episodeCardsLayout,
   onBack, onDispatch, onNavigateDetail, onNavigateGenre, onSeasonChange, onEpisodeClick,
-  onMovieSources, onBackToEpisodes, onPlaySource, onPlay, onBgError,
+  onMovieSources, onBackToEpisodes, onPlaySource, onPlay,
+  onToggleWatchlist, onToggleCompleted, onToggleDropped, onBgError,
 }: ModernDetailProps) {
-  const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details'>('episodes');
+  const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details'>(() => isSeries ? 'episodes' : 'related');
   const [prevSeasonDialog, setPrevSeasonDialog] = useState<{ season: number; unwatchedPrev: number[] } | null>(null);
 
   const { seasonWatchedMap, dispatchMarkSeason, toggleEpisodeWatched } = useSeasonWatched({
@@ -102,13 +111,32 @@ export function ModernDetailLayout({
 
   const modernMetaDetails: string[] = [];
   if (displayMeta.imdbRating) modernMetaDetails.push(`IMDb ${displayMeta.imdbRating}/10`);
+  if (omdbRatings?.rottenTomatoes) modernMetaDetails.push(`RT ${omdbRatings.rottenTomatoes}`);
+  if (omdbRatings?.metascore) modernMetaDetails.push(`Metascore ${omdbRatings.metascore}`);
   if (displayMeta.releaseInfo) modernMetaDetails.push(displayMeta.releaseInfo);
+  if (displayMeta.runtime) modernMetaDetails.push(displayMeta.runtime);
   if (isSeries && seasonNumbers.length > 0) modernMetaDetails.push(`${seasonNumbers.length} ${t('auto.seasons')}`);
   const metaGenres = displayMeta.genres?.slice(0, 3) ?? [];
 
+  const heroLogo = fanartArtwork?.hdLogo || displayMeta.logo;
+
+  const episodeGridStyle = episodeCardsLayout === 'list'
+    ? { ...MS.episodeGrid, gridTemplateColumns: '1fr' }
+    : MS.episodeGrid;
+
+  const seriesTabs = [
+    { id: 'episodes', label: t('auto.episodes') },
+    { id: 'related', label: t('auto.similar_titles') },
+    { id: 'details', label: t('common.details') },
+  ];
+
+  const movieTabs = [
+    { id: 'related', label: t('auto.similar_titles') },
+    { id: 'details', label: t('common.details') },
+  ];
+
   return (
     <div style={MS.screen}>
-      {/* Hero */}
       <div style={MS.heroWrap}>
         {bgUrl ? (
           <>
@@ -123,15 +151,14 @@ export function ModernDetailLayout({
           <ArrowLeft size={18} color="rgba(255,255,255,0.85)" />
         </button>
         <div style={MS.logoWrap}>
-          {displayMeta.logo ? (
-            <img src={displayMeta.logo} alt={displayMeta.name} style={MS.logo} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+          {heroLogo ? (
+            <img src={heroLogo} alt={displayMeta.name} style={MS.logo} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           ) : (
             <h1 style={MS.titleHero}>{displayMeta.name}</h1>
           )}
         </div>
       </div>
 
-      {/* Main content */}
       <div style={MS.content}>
         <>
           <div style={MS.actionRow}>
@@ -143,6 +170,20 @@ export function ModernDetailLayout({
                 else onMovieSources();
               }}
             />
+            {trailerOnHero && displayTrailers.length > 0 && (
+              <ModernIconBtn title={t('detail.watch_trailer')} onClick={() => shellOpen(displayTrailers[0].url).catch(() => {})}>
+                <Film size={18} />
+              </ModernIconBtn>
+            )}
+            <ModernIconBtn title={isInWatchlist ? t('detail.in_library') : t('detail.add_to_library')} active={isInWatchlist} onClick={onToggleWatchlist}>
+              {isInWatchlist ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+            </ModernIconBtn>
+            <ModernIconBtn title={isCompleted ? t('library.unmark_completed') : t('library.mark_completed')} active={isCompleted} onClick={onToggleCompleted}>
+              <CheckCircle2 size={18} />
+            </ModernIconBtn>
+            <ModernIconBtn title={isDropped ? t('library.unmark_dropped') : t('library.mark_dropped')} active={isDropped} onClick={onToggleDropped}>
+              <XCircle size={18} />
+            </ModernIconBtn>
           </div>
 
           <div style={MS.metaBlock}>
@@ -213,11 +254,7 @@ export function ModernDetailLayout({
               )}
 
               <ModernTabBar
-                tabs={[
-                  { id: 'episodes', label: t('auto.episodes') },
-                  { id: 'related', label: t('auto.similar_titles') },
-                  { id: 'details', label: t('common.details') },
-                ]}
+                tabs={seriesTabs}
                 active={activeTab}
                 onChange={(id) => setActiveTab(id as typeof activeTab)}
               />
@@ -229,7 +266,7 @@ export function ModernDetailLayout({
                   ) : (
                     <>
                       <p style={MS.episodeCount}>{t('format.episode_count', filteredEps.length)}</p>
-                      <div style={MS.episodeGrid}>
+                      <div style={episodeGridStyle}>
                         {filteredEps.map((ep, i) => {
                           const isWatched = watchedMap[ep.id] === true;
                           const metaProgress = progressMap[meta.id];
@@ -249,6 +286,7 @@ export function ModernDetailLayout({
                               minutesRemaining={minutesRemaining}
                               cwBadge={cwBadge}
                               cwScheduledDate={cwScheduledDate}
+                              blurUnwatched={blurUnwatchedEpisodes}
                               onClick={() => onEpisodeClick(ep)}
                               onToggleWatched={() => toggleEpisodeWatched(ep, isWatched)}
                             />
@@ -282,6 +320,12 @@ export function ModernDetailLayout({
                       <p style={MS.detailsText}>{displayMeta.description}</p>
                     </div>
                   )}
+                  {displayMeta.awards && (
+                    <div style={MS.detailsSection}>
+                      <h3 style={MS.detailsSectionTitle}>{t('detail.awards')}</h3>
+                      <p style={{ ...MS.detailsText, color: '#54D17A', fontWeight: 700 }}>{displayMeta.awards}</p>
+                    </div>
+                  )}
                   {(castMembers.length > 0 || directorLinks.length > 0) && (
                     <div style={MS.detailsSection}>
                       <h3 style={MS.detailsSectionTitle}>{t('detail.cast_crew')}</h3>
@@ -302,21 +346,60 @@ export function ModernDetailLayout({
             </>
           )}
 
-          {!isSeries && displayTrailers.length > 0 && (
-            <div style={S.trailerSection}>
-              <h2 style={S.similarTitle}>{t('auto.trailers')}</h2>
-              <TrailerCarousel trailers={displayTrailers} trailerMetadata={trailerMetadata} />
-            </div>
-          )}
-          {!isSeries && similarItems.length > 0 && (
-            <div style={S.similarSection}>
-              <h2 style={S.similarTitle}>{t('auto.similar_titles')}</h2>
-              <div style={MS.relatedGrid}>
-                {similarItems.slice(0, 16).map((item) => (
-                  <MovieCard key={`${item.type}:${item.id}`} meta={item} width={poster.width} height={poster.height} radius={poster.radius} hideTitle={poster.hideTitles} layout={poster.layout} onClick={onNavigateDetail} />
-                ))}
-              </div>
-            </div>
+          {!isSeries && (
+            <>
+              <ModernTabBar
+                tabs={movieTabs}
+                active={activeTab === 'episodes' ? 'related' : activeTab}
+                onChange={(id) => setActiveTab(id as typeof activeTab)}
+              />
+
+              {(activeTab === 'related' || activeTab === 'episodes') && (
+                <div style={{ ...MS.relatedSection, minHeight: 200 }}>
+                  {similarItems.length === 0 ? (
+                    <p style={MS.episodeCount}>{t('auto.no_similar_titles')}</p>
+                  ) : (
+                    <div style={MS.relatedGrid}>
+                      {similarItems.slice(0, 24).map((item) => (
+                        <MovieCard key={`${item.type}:${item.id}`} meta={item} width={poster.width} height={poster.height} radius={poster.radius} hideTitle={poster.hideTitles} layout={poster.layout} onClick={onNavigateDetail} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'details' && (
+                <div style={{ ...MS.detailsTab, minHeight: 200 }}>
+                  {displayMeta.description && (
+                    <div style={MS.detailsSection}>
+                      <h3 style={MS.detailsSectionTitle}>{t('detail.summary')}</h3>
+                      <p style={MS.detailsText}>{displayMeta.description}</p>
+                    </div>
+                  )}
+                  {displayMeta.awards && (
+                    <div style={MS.detailsSection}>
+                      <h3 style={MS.detailsSectionTitle}>{t('detail.awards')}</h3>
+                      <p style={{ ...MS.detailsText, color: '#54D17A', fontWeight: 700 }}>{displayMeta.awards}</p>
+                    </div>
+                  )}
+                  {(castMembers.length > 0 || directorLinks.length > 0) && (
+                    <div style={MS.detailsSection}>
+                      <h3 style={MS.detailsSectionTitle}>{t('detail.cast_crew')}</h3>
+                      <div style={S.castRow}>
+                        {directorLinks.map((l) => <CastAvatar key={`dir-${l.name}`} name={l.name} role={t('detail.director')} imageUrl={peopleImages[l.name]} />)}
+                        {castMembers.map((member) => <CastAvatar key={`cast-${member.name}:${member.role ?? ''}`} name={member.name} role={member.role || t('detail.actor')} imageUrl={member.imageUrl ?? peopleImages[member.name]} />)}
+                      </div>
+                    </div>
+                  )}
+                  {displayTrailers.length > 0 && (
+                    <div style={MS.detailsSection}>
+                      <h3 style={MS.detailsSectionTitle}>{t('auto.trailers')}</h3>
+                      <TrailerCarousel trailers={displayTrailers} trailerMetadata={trailerMetadata} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </>
       </div>

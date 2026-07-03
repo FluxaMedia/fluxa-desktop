@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Play } from 'lucide-react';
 import { coreDetailEpisodePlan } from '../core/engine';
 import { appPrefs, prefBool, prefString } from '../core/appPrefs';
 import { posterPrefsFromState } from '../core/posterPrefs';
@@ -290,6 +291,23 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   const metaLine = metaParts.join(' · ');
 
   const viewMode = prefString(prefs, 'detailEpisodeViewMode', 'legacy');
+  const resumeDialogEl = resumeDialog ? (
+    <ResumeDialog
+      timeOffset={resumeDialog.timeOffset}
+      onContinue={() => {
+        setEpisodeResumeAt(resumeDialog.timeOffset);
+        openEpisodeSources(resumeDialog.episode);
+        setResumeDialog(null);
+      }}
+      onStartOver={() => {
+        setEpisodeResumeAt(0);
+        openEpisodeSources(resumeDialog.episode);
+        setResumeDialog(null);
+      }}
+      onClose={() => setResumeDialog(null)}
+    />
+  ) : null;
+
   if (viewMode === 'modern') {
     return (
       <>
@@ -317,6 +335,10 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
           progressMap={progressMap}
           continueWatchingEntry={continueWatchingEntry}
           isInWatchlist={isInWatchlist}
+          isDropped={isDropped}
+          isCompleted={isCompleted}
+          omdbRatings={omdbRatings}
+          fanartArtwork={fanartArtwork}
           availableAddons={detail.availableAddons ?? []}
           poster={poster}
           trailerOnHero={trailerOnHero}
@@ -333,239 +355,244 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
           onBackToEpisodes={() => setShowSources(false)}
           onPlaySource={(stream) => onPlay(stream, displayMeta, selectedEpisodeEnriched, episodeResumeAt)}
           onPlay={onPlay}
+          onToggleWatchlist={() => { flipWatchlistOverride(); onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: displayMeta })); }}
+          onToggleCompleted={() => { flipCompletedOverride(); onDispatch(JSON.stringify({ type: 'toggleLibraryStatusRequested', list: 'completed', item: displayMeta })); }}
+          onToggleDropped={() => { flipDroppedOverride(); onDispatch(JSON.stringify({ type: 'toggleLibraryStatusRequested', list: 'dropped', item: displayMeta })); }}
           onBgError={() => setBgError(true)}
         />
-        {resumeDialog && (
-          <ResumeDialog
-            timeOffset={resumeDialog.timeOffset}
-            onContinue={() => {
-              setEpisodeResumeAt(resumeDialog.timeOffset);
-              openEpisodeSources(resumeDialog.episode);
-              setResumeDialog(null);
-            }}
-            onStartOver={() => {
-              setEpisodeResumeAt(0);
-              openEpisodeSources(resumeDialog.episode);
-              setResumeDialog(null);
-            }}
-            onClose={() => setResumeDialog(null)}
-          />
-        )}
+        {resumeDialogEl}
       </>
     );
   }
 
   return (
-    <div style={S.screen}>
-      {bgUrl && (
-        <div style={S.bgWrap}>
-          <img src={bgUrl} alt="" style={S.bgImg} onError={() => setBgError(true)} />
-          <div style={S.bgGradLeft} />
-          <div style={S.bgGradBottom} />
-        </div>
-      )}
+    <>
+      <div style={S.screen}>
+        {bgUrl && (
+          <div style={S.bgWrap}>
+            <img src={bgUrl} alt="" style={S.bgImg} onError={() => setBgError(true)} />
+            <div style={S.bgGradLeft} />
+            <div style={S.bgGradBottom} />
+          </div>
+        )}
 
-      <div style={S.leftPanel}>
-        <div style={S.scrollArea}>
-          <button style={S.backBtn} onClick={onBack}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M19 12H5M5 12l7 7M5 12l7-7" stroke="rgba(255,255,255,0.85)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span style={{ marginLeft: 6 }}>{t('auto.back')}</span>
-          </button>
+        <div style={S.leftPanel}>
+          <div style={S.scrollArea}>
+            <button style={S.backBtn} onClick={onBack}>
+              <ArrowLeft size={18} color="rgba(255,255,255,0.85)" />
+              <span style={{ marginLeft: 6 }}>{t('auto.back')}</span>
+            </button>
 
-          <>
-            <div style={{ marginTop: 28, marginBottom: 8 }}>
-              {(fanartArtwork?.hdLogo || displayMeta.logo) ? (
-                <img src={fanartArtwork?.hdLogo || displayMeta.logo} alt={displayMeta.name} style={S.logo} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-              ) : (
-                <h1 style={S.titleText}>{displayMeta.name}</h1>
-              )}
-            </div>
-
-            {(metaLine || displayMeta.imdbRating || omdbRatings) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-                {metaLine && <span style={S.metaLine}>{metaLine}</span>}
-                {displayMeta.imdbRating && (
-                  <span style={{ ...S.imdbBadge }}>
-                    <span style={S.imdbLogo}>IMDb</span>
-                    <span style={S.imdbRating}>{displayMeta.imdbRating}</span>
-                  </span>
-                )}
-                {omdbRatings?.rottenTomatoes && (
-                  <span style={{ ...S.imdbBadge }}>
-                    <span style={S.imdbLogo}>RT</span>
-                    <span style={S.imdbRating}>{omdbRatings.rottenTomatoes}</span>
-                  </span>
-                )}
-                {omdbRatings?.metascore && (
-                  <span style={{ ...S.imdbBadge }}>
-                    <span style={S.imdbLogo}>Metascore</span>
-                    <span style={S.imdbRating}>{omdbRatings.metascore}</span>
-                  </span>
-                )}
+            {detail.isLoading && !displayMeta.description ? (
+              <div style={{ marginTop: 32 }}>
+                <div style={{ width: 280, height: 80, background: 'rgba(255,255,255,0.06)', borderRadius: 6, marginBottom: 18 }} />
+                <div style={{ width: 160, height: 14, background: 'rgba(255,255,255,0.05)', borderRadius: 4, marginBottom: 10 }} />
+                <div style={{ width: '100%', maxWidth: 460, height: 14, background: 'rgba(255,255,255,0.05)', borderRadius: 4, marginBottom: 8 }} />
+                <div style={{ width: '80%', maxWidth: 370, height: 14, background: 'rgba(255,255,255,0.05)', borderRadius: 4, marginBottom: 8 }} />
+                <div style={{ width: '60%', maxWidth: 280, height: 14, background: 'rgba(255,255,255,0.05)', borderRadius: 4 }} />
               </div>
-            )}
-
-            {trailerOnHero && displayTrailers.length > 0 && (
-              <div style={{ maxWidth: 620, marginBottom: 22 }}>
-                <TrailerCarousel trailers={displayTrailers.slice(0, 4)} trailerMetadata={trailerMetadata} />
-              </div>
-            )}
-
-            {displayMeta.genres && displayMeta.genres.length > 0 && (
-              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 22 }}>
-                {displayMeta.genres.slice(0, 6).map((g) => <span key={g} style={S.genrePill}>{g}</span>)}
-              </div>
-            )}
-
-            {displayMeta.description && (
-              <div style={{ marginBottom: 24 }}>
-                <p style={S.sectionLabel}>{t('detail.summary')}</p>
-                <p style={S.descText}>{displayMeta.description}</p>
-              </div>
-            )}
-
-            {displayMeta.awards && (
-              <div style={{ marginBottom: 24 }}>
-                <p style={S.sectionLabel}>{t('detail.awards')}</p>
-                <p style={S.awardsText}>{displayMeta.awards}</p>
-              </div>
-            )}
-
-            {(castMembers.length > 0 || directorLinks.length > 0) && (
-              <div style={{ marginBottom: 20 }}>
-                <p style={S.sectionLabel}>{t('detail.cast_crew')}</p>
-                <div style={S.castRow}>
-                  {directorLinks.map((l) => <CastAvatar key={`dir-${l.name}`} name={l.name} role={t('detail.director')} imageUrl={peopleImages[l.name]} />)}
-                  {castMembers.map((member) => (
-                    <CastAvatar key={`cast-${member.name}:${member.role ?? ''}`} name={member.name} role={member.role || t('detail.actor')} imageUrl={member.imageUrl ?? peopleImages[member.name]} />
-                  ))}
+            ) : (
+              <>
+                <div style={{ marginTop: 28, marginBottom: 8 }}>
+                  {(fanartArtwork?.hdLogo || displayMeta.logo) ? (
+                    <img src={fanartArtwork?.hdLogo || displayMeta.logo} alt={displayMeta.name} style={S.logo} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    <h1 style={S.titleText}>{displayMeta.name}</h1>
+                  )}
                 </div>
-              </div>
-            )}
 
-            {!trailerOnHero && displayTrailers.length > 0 && (
-              <div style={S.trailerSection}>
-                <h2 style={S.similarTitle}>{t('auto.trailers')}</h2>
-                <TrailerCarousel trailers={displayTrailers} trailerMetadata={trailerMetadata} />
-              </div>
-            )}
+                {(metaLine || displayMeta.imdbRating || omdbRatings) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                    {metaLine && <span style={S.metaLine}>{metaLine}</span>}
+                    {displayMeta.imdbRating && (
+                      <span style={S.imdbBadge}>
+                        <span style={S.imdbLogo}>IMDb</span>
+                        <span style={S.imdbRating}>{displayMeta.imdbRating}</span>
+                      </span>
+                    )}
+                    {omdbRatings?.rottenTomatoes && (
+                      <span style={S.imdbBadge}>
+                        <span style={S.imdbLogo}>RT</span>
+                        <span style={S.imdbRating}>{omdbRatings.rottenTomatoes}</span>
+                      </span>
+                    )}
+                    {omdbRatings?.metascore && (
+                      <span style={S.imdbBadge}>
+                        <span style={S.imdbLogo}>Metascore</span>
+                        <span style={S.imdbRating}>{omdbRatings.metascore}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
 
-            {similarItems.length > 0 && (
-              <div style={S.similarSection}>
-                <h2 style={S.similarTitle}>{t('auto.similar_titles')}</h2>
-                <div style={S.similarRow}>
-                  {similarItems.slice(0, 16).map((item) => (
-                    <MovieCard key={`${item.type}:${item.id}`} meta={item} width={poster.width} height={poster.height} radius={poster.radius} hideTitle={poster.hideTitles} layout={poster.layout} onClick={onNavigateDetail} />
-                  ))}
-                </div>
-              </div>
+                {trailerOnHero && displayTrailers.length > 0 && (
+                  <div style={{ maxWidth: 620, marginBottom: 22 }}>
+                    <TrailerCarousel trailers={displayTrailers.slice(0, 4)} trailerMetadata={trailerMetadata} />
+                  </div>
+                )}
+
+                {displayMeta.genres && displayMeta.genres.length > 0 && (
+                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 22 }}>
+                    {displayMeta.genres.slice(0, 6).map((g) => <span key={g} style={S.genrePill}>{g}</span>)}
+                  </div>
+                )}
+
+                {displayMeta.description && (
+                  <DescriptionBlock description={displayMeta.description} />
+                )}
+
+                {displayMeta.awards && (
+                  <div style={{ marginBottom: 24 }}>
+                    <p style={S.sectionLabel}>{t('detail.awards')}</p>
+                    <p style={S.awardsText}>{displayMeta.awards}</p>
+                  </div>
+                )}
+
+                {(castMembers.length > 0 || directorLinks.length > 0) && (
+                  <div style={{ marginBottom: 20 }}>
+                    <p style={S.sectionLabel}>{t('detail.cast_crew')}</p>
+                    <div style={S.castRow}>
+                      {directorLinks.map((l) => <CastAvatar key={`dir-${l.name}`} name={l.name} role={t('detail.director')} imageUrl={peopleImages[l.name]} />)}
+                      {castMembers.map((member) => (
+                        <CastAvatar key={`cast-${member.name}:${member.role ?? ''}`} name={member.name} role={member.role || t('detail.actor')} imageUrl={member.imageUrl ?? peopleImages[member.name]} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!trailerOnHero && displayTrailers.length > 0 && (
+                  <div style={S.trailerSection}>
+                    <h2 style={S.similarTitle}>{t('auto.trailers')}</h2>
+                    <TrailerCarousel trailers={displayTrailers} trailerMetadata={trailerMetadata} />
+                  </div>
+                )}
+
+                {similarItems.length > 0 && (
+                  <div style={S.similarSection}>
+                    <h2 style={S.similarTitle}>{t('auto.similar_titles')}</h2>
+                    <div style={S.similarRow}>
+                      {similarItems.slice(0, 16).map((item) => (
+                        <MovieCard key={`${item.type}:${item.id}`} meta={item} width={poster.width} height={poster.height} radius={poster.radius} hideTitle={poster.hideTitles} layout={poster.layout} onClick={onNavigateDetail} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
-          </>
+          </div>
+
+          <div style={S.actionBar}>
+            <LegacyPlayButton isSeries={isSeries} selectedEpisode={selectedEpisode} filteredEps={filteredEps} episodes={episodes} openEpisodeSources={openEpisodeSources} openMovieSources={openMovieSources} />
+
+            <button
+              style={{ ...S.secondaryBtn, background: isInWatchlist ? 'rgba(255,255,255,0.14)' : 'transparent' }}
+              onClick={() => { flipWatchlistOverride(); onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: displayMeta })); }}
+            >
+              {isInWatchlist ? t('detail.in_library') : t('detail.add_to_library')}
+            </button>
+
+            <button
+              style={{ ...S.secondaryBtn, background: isCompleted ? 'rgba(255,255,255,0.14)' : 'transparent' }}
+              onClick={() => { flipCompletedOverride(); onDispatch(JSON.stringify({ type: 'toggleLibraryStatusRequested', list: 'completed', item: displayMeta })); }}
+            >
+              {isCompleted ? t('library.unmark_completed') : t('library.mark_completed')}
+            </button>
+
+            <button
+              style={{ ...S.secondaryBtn, background: isDropped ? 'rgba(255,255,255,0.14)' : 'transparent' }}
+              onClick={() => { flipDroppedOverride(); onDispatch(JSON.stringify({ type: 'toggleLibraryStatusRequested', list: 'dropped', item: displayMeta })); }}
+            >
+              {isDropped ? t('library.unmark_dropped') : t('library.mark_dropped')}
+            </button>
+
+            <div style={{ flex: 1 }} />
+          </div>
         </div>
 
-        <div style={S.actionBar}>
-          <button
-            style={S.playBtn}
-            onClick={() => {
-              if (isSeries) {
-                const ep = selectedEpisode ?? filteredEps[0] ?? episodes[0];
-                if (ep) openEpisodeSources(ep);
-              } else {
-                openMovieSources();
-              }
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: 7 }}><path d="M8 5v14l11-7z"/></svg>
-            {t('common.play')}
-          </button>
-
-          <button
-            style={{ ...S.secondaryBtn, background: isInWatchlist ? 'rgba(255,255,255,0.14)' : 'transparent' }}
-            onClick={() => {
-              flipWatchlistOverride();
-              onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: displayMeta }));
-            }}
-          >
-            {isInWatchlist ? t('detail.in_library') : t('detail.add_to_library')}
-          </button>
-
-          <button
-            style={{ ...S.secondaryBtn, background: isCompleted ? 'rgba(255,255,255,0.14)' : 'transparent' }}
-            onClick={() => {
-              flipCompletedOverride();
-              onDispatch(JSON.stringify({ type: 'toggleLibraryStatusRequested', list: 'completed', item: displayMeta }));
-            }}
-          >
-            {isCompleted ? t('library.unmark_completed') : t('library.mark_completed')}
-          </button>
-
-          <button
-            style={{ ...S.secondaryBtn, background: isDropped ? 'rgba(255,255,255,0.14)' : 'transparent' }}
-            onClick={() => {
-              flipDroppedOverride();
-              onDispatch(JSON.stringify({ type: 'toggleLibraryStatusRequested', list: 'dropped', item: displayMeta }));
-            }}
-          >
-            {isDropped ? t('library.unmark_dropped') : t('library.mark_dropped')}
-          </button>
-
-          <div style={{ flex: 1 }} />
-        </div>
+        {isSeries ? (
+          <EpisodePanel
+            metaId={meta.id}
+            meta={meta}
+            seasons={seasonNumbers}
+            selectedSeason={selectedSeason}
+            onSeasonChange={changeSeason}
+            episodes={filteredEps}
+            selectedEpisode={selectedEpisode}
+            showSources={showSources}
+            streams={streams}
+            isLoadingStreams={!!detail.isLoadingStreams}
+            isLoadingEpisodes={detail.isLoading && filteredEps.length === 0}
+            availableAddons={detail.availableAddons ?? []}
+            onBackToEpisodes={() => setShowSources(false)}
+            onEpisodeClick={handleEpisodeClick}
+            onPlaySource={(stream) => onPlay(stream, displayMeta, selectedEpisodeEnriched, episodeResumeAt)}
+            watchedMap={watchedMap}
+            progressMap={progressMap}
+            blurUnwatchedEpisodes={blurUnwatchedEpisodes}
+            detailSeasonSelectorMode={detailSeasonSelectorMode}
+            episodeCardsLayout={episodeCardsLayout}
+            onToggleEpisodeWatched={toggleEpisodeWatched}
+            onMarkSeason={dispatchMarkSeason}
+            seasonWatchedMap={seasonWatchedMap}
+          />
+        ) : (
+          <MovieSourcePanel
+            meta={displayMeta}
+            streams={streams}
+            isLoading={!!detail.isLoadingStreams}
+            availableAddons={detail.availableAddons ?? []}
+            onPlay={(stream) => onPlay(stream, displayMeta, null)}
+          />
+        )}
       </div>
+      {resumeDialogEl}
+    </>
+  );
+}
 
-      {isSeries ? (
-        <EpisodePanel
-          metaId={meta.id}
-          meta={meta}
-          seasons={seasonNumbers}
-          selectedSeason={selectedSeason}
-          onSeasonChange={changeSeason}
-          episodes={filteredEps}
-          selectedEpisode={selectedEpisode}
-          showSources={showSources}
-          streams={streams}
-          isLoadingStreams={!!detail.isLoadingStreams}
-          isLoadingEpisodes={detail.isLoading && filteredEps.length === 0}
-          availableAddons={detail.availableAddons ?? []}
-          onBackToEpisodes={() => setShowSources(false)}
-          onEpisodeClick={handleEpisodeClick}
-          onPlaySource={(stream) => onPlay(stream, displayMeta, selectedEpisodeEnriched, episodeResumeAt)}
-          watchedMap={watchedMap}
-          progressMap={progressMap}
-          blurUnwatchedEpisodes={blurUnwatchedEpisodes}
-          detailSeasonSelectorMode={detailSeasonSelectorMode}
-          episodeCardsLayout={episodeCardsLayout}
-          onToggleEpisodeWatched={toggleEpisodeWatched}
-          onMarkSeason={dispatchMarkSeason}
-          seasonWatchedMap={seasonWatchedMap}
-        />
-      ) : (
-        <MovieSourcePanel
-          meta={displayMeta}
-          streams={streams}
-          isLoading={!!detail.isLoadingStreams}
-          availableAddons={detail.availableAddons ?? []}
-          onPlay={(stream) => onPlay(stream, displayMeta, null)}
-        />
-      )}
+function LegacyPlayButton({ isSeries, selectedEpisode, filteredEps, episodes, openEpisodeSources, openMovieSources }: {
+  isSeries: boolean; selectedEpisode: Video | null; filteredEps: Video[]; episodes: Video[];
+  openEpisodeSources: (ep: Video) => void; openMovieSources: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      style={{ ...S.playBtn, background: hovered ? '#e2e2e2' : '#FFFFFF' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => {
+        if (isSeries) {
+          const ep = selectedEpisode ?? filteredEps[0] ?? episodes[0];
+          if (ep) openEpisodeSources(ep);
+        } else {
+          openMovieSources();
+        }
+      }}
+    >
+      <Play size={16} fill="currentColor" strokeWidth={0} style={{ marginRight: 7 }} />
+      {t('common.play')}
+    </button>
+  );
+}
 
-      {resumeDialog && (
-        <ResumeDialog
-          timeOffset={resumeDialog.timeOffset}
-          onContinue={() => {
-            setEpisodeResumeAt(resumeDialog.timeOffset);
-            openEpisodeSources(resumeDialog.episode);
-            setResumeDialog(null);
-          }}
-          onStartOver={() => {
-            setEpisodeResumeAt(0);
-            openEpisodeSources(resumeDialog.episode);
-            setResumeDialog(null);
-          }}
-          onClose={() => setResumeDialog(null)}
-        />
+function DescriptionBlock({ description }: { description: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const CLAMP = 4;
+  const lines = description.split('\n');
+  const needsClamp = lines.length > CLAMP || description.length > 320;
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <p style={S.sectionLabel}>{t('detail.summary')}</p>
+      <p style={{ ...S.descText, display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: expanded ? undefined : CLAMP, overflow: expanded ? 'visible' : 'hidden' }}>
+        {description}
+      </p>
+      {needsClamp && (
+        <button
+          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '4px 0 0', display: 'block' }}
+          onClick={() => setExpanded((e) => !e)}
+        >
+          {expanded ? t('auto.read_less') : t('auto.read_more')}
+        </button>
       )}
     </div>
   );

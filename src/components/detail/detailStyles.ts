@@ -52,9 +52,9 @@ export const S: Record<string, React.CSSProperties> = {
   similarSection: { position: 'relative', zIndex: 1, padding: '8px 0 30px' },
   similarTitle: { color: '#FFFFFF', fontSize: 18, lineHeight: '24px', fontWeight: 900, margin: '0 0 14px' },
   similarRow: { display: 'flex', gap: 16, overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', padding: '10px 0 24px' },
-  actionBar: { flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: `14px 34px 18px ${NAV_RAIL_WIDTH + 42}px`, borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(10,11,20,0.6)', backdropFilter: 'blur(14px)' },
+  actionBar: { flexShrink: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: `14px 34px 18px ${NAV_RAIL_WIDTH + 42}px`, borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(10,11,20,0.6)', backdropFilter: 'blur(14px)' },
   playBtn: { display: 'inline-flex', alignItems: 'center', height: 42, minWidth: 110, background: '#FFFFFF', color: '#000000', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 900, cursor: 'pointer', paddingLeft: 18, paddingRight: 18, flexShrink: 0 },
-  secondaryBtn: { display: 'inline-flex', alignItems: 'center', height: 42, padding: '0 16px', background: 'transparent', color: 'rgba(255,255,255,0.8)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'background 0.15s' },
+  secondaryBtn: { display: 'inline-flex', alignItems: 'center', height: 42, padding: '0 16px', background: 'transparent', color: 'rgba(255,255,255,0.8)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0, transition: 'background 0.15s' },
 };
 
 export const EP: Record<string, React.CSSProperties> = {
@@ -140,7 +140,7 @@ export const MS: Record<string, React.CSSProperties> = {
   tabBtnActive: { color: '#FFFFFF', borderBottomColor: '#FFFFFF' },
   episodeSection: { paddingBottom: 48 },
   episodeCount: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: 500, margin: '0 0 18px' },
-  episodeGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '30px 20px' },
+  episodeGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '30px 20px' },
   epCard: { cursor: 'pointer', display: 'flex', flexDirection: 'column' },
   epThumb: { position: 'relative', width: '100%', aspectRatio: '16 / 9', borderRadius: 8, overflow: 'hidden', background: 'rgba(255,255,255,0.06)', marginBottom: 10, flexShrink: 0 },
   epThumbPlaceholder: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' },

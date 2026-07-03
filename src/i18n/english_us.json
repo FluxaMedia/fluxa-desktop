@@ -1183,5 +1183,10 @@
   "player.shortcut_stats": "Stats card",
   "player.shortcut_this_help": "This help",
   "player.shortcut_close": "Close player",
-  "auto.no_similar_titles": "No similar titles found."
+  "auto.no_similar_titles": "No similar titles found.",
+  "format.countdown_compact_dh": "%sd %sh",
+  "format.countdown_compact_d": "%sd",
+  "format.countdown_compact_hm": "%sh %sm",
+  "format.countdown_compact_h": "%sh",
+  "format.countdown_compact_m": "%sm"
 }

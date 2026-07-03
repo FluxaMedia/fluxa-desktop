@@ -1183,5 +1183,10 @@
   "player.shortcut_stats": "İstatistik kartı",
   "player.shortcut_this_help": "Bu yardım",
   "player.shortcut_close": "Oynatıcıyı kapat",
-  "auto.no_similar_titles": "Benzer içerik bulunamadı."
+  "auto.no_similar_titles": "Benzer içerik bulunamadı.",
+  "format.countdown_compact_dh": "%s g %s sa",
+  "format.countdown_compact_d": "%s g",
+  "format.countdown_compact_hm": "%s sa %s dk",
+  "format.countdown_compact_h": "%s sa",
+  "format.countdown_compact_m": "%s dk"
 }
