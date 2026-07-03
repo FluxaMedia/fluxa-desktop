@@ -318,10 +318,11 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
     // Create the render subview on the main thread, collect result.
     // NSView frames are in points; inner_size() is physical pixels.
     let (view_tx, view_rx) = mpsc::channel::<Result<SendId, String>>();
-    let parent = SendId(ns_view);
+    let parent_ptr = ns_view as usize;
     let frame_w = init_w as f64 / scale;
     let frame_h = init_h as f64 / scale;
     run_on_main(move || {
+        let parent = SendId(parent_ptr as Id);
         let _ = view_tx.send(unsafe { create_render_subview(parent, frame_w, frame_h) });
     });
 
@@ -333,10 +334,10 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
     let gl_ctx = unsafe { create_gl_context()? };
 
     let (attach_tx, attach_rx) = mpsc::channel::<()>();
-    let attach_ctx = gl_ctx.clone();
-    let attach_view = render_view.clone();
+    let attach_ctx = gl_ctx.0 as usize;
+    let attach_view = render_view.0 as usize;
     run_on_main(move || {
-        unsafe { msg1_id(attach_ctx.0, "setView:", attach_view.0) };
+        unsafe { msg1_id(attach_ctx as Id, "setView:", attach_view as Id) };
         let _ = attach_tx.send(());
     });
     attach_rx
@@ -396,9 +397,9 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             while let Ok(cmd) = receiver.try_recv() {
                 match cmd {
                     SurfaceCommand::Load { url, start_at, .. } => {
-                        let view = SendId(rv);
+                        let view = rv as usize;
                         run_on_main(move || unsafe {
-                            msg1_bool(view.0, "setHidden:", 0);
+                            msg1_bool(view as Id, "setHidden:", 0);
                         });
                         visible = true;
                         app.state::<DesktopState>()
@@ -413,18 +414,18 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                                 drop(r);
                                 let _ = app.emit("native-player-error", e);
                                 visible = false;
-                                let view = SendId(rv);
+                                let view = rv as usize;
                                 run_on_main(move || unsafe {
-                                    msg1_bool(view.0, "setHidden:", 1);
+                                    msg1_bool(view as Id, "setHidden:", 1);
                                 });
                             }
                         }
                     }
                     SurfaceCommand::Hide => {
                         visible = false;
-                        let view = SendId(rv);
+                        let view = rv as usize;
                         run_on_main(move || unsafe {
-                            msg1_bool(view.0, "setHidden:", 1);
+                            msg1_bool(view as Id, "setHidden:", 1);
                         });
                         let _ = app.emit("native-player-hide", ());
                         let state = app.state::<DesktopState>();
@@ -476,13 +477,13 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                         let nh = (sz.height as i32).max(2);
                         if (nw, nh) != last_size {
                             last_size = (nw, nh);
-                            let view = SendId(rv);
-                            let ctx = SendId(gl);
+                            let view = rv as usize;
+                            let ctx = gl as usize;
                             let frame_w = nw as f64 / scale;
                             let frame_h = nh as f64 / scale;
                             run_on_main(move || unsafe {
                                 msg_set_frame(
-                                    view.0,
+                                    view as Id,
                                     NSRect {
                                         origin: NSPoint { x: 0.0, y: 0.0 },
                                         size: NSSize {
@@ -491,7 +492,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                                         },
                                     },
                                 );
-                                msg0(ctx.0, "update");
+                                msg0(ctx as Id, "update");
                             });
                         }
                     }
