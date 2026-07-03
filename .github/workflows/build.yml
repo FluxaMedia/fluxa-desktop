@@ -343,6 +343,16 @@ jobs:
             clean="$(sed -E 's/^[a-zA-Z]+(\([^)]*\))?: //; s/^(.)/\U\1/' <<< "$subject")"
             echo "- $clean ([$hash]($REPO_URL/commit/$hash))" >> notes.md
           done
+      - name: Hide updater signature assets from release downloads
+        run: |
+          gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" --json assets \
+            --jq '.assets[].name | select(endswith(".sig"))' |
+          while IFS= read -r asset; do
+            [ -n "$asset" ] || continue
+            gh release delete-asset "${{ github.ref_name }}" "$asset" --yes --repo "${{ github.repository }}"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: gh release edit "${{ github.ref_name }}" --draft=false --notes-file notes.md --repo "${{ github.repository }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
