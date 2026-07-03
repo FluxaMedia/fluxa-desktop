@@ -677,7 +677,7 @@
   "settings.subtitle_preview": "Altyazi onizleme",
   "auto.unknown": "Bilinmeyen",
   "auto.loading": "Yukleniyor...",
-  "format.episode_number": "Bolum %s",
+  "format.episode_number": "Bölüm %s",
   "addons.count_existing": "%s addon",
   "addons.count_active": "%s aktif",
   "addons.count_catalogs": "%s katalog",
