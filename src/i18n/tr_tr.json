@@ -747,6 +747,8 @@
   "settings.trailer_on_hero_desc": "Detay sayfası hero bölümünde fragman düğmesini gösterir.",
   "settings.blur_unwatched_episodes": "İzlenmemiş Bölümleri Bulanıklaştır",
   "settings.blur_unwatched_episodes_desc": "İzlenen ve izlenmeyen bölümleri ayırt etmek için bölümleri soldurur.",
+  "settings.spoiler_hide_episode_info": "İzlenmemiş bölümlerde spoyleri gizle",
+  "settings.spoiler_hide_episode_info_desc": "Henüz izlemediğin bölümlerin küçük resimlerini bulanıklaştır, başlık ve açıklamalarını gizle.",
   "settings.episode_cards_layout": "Bölüm Kartı Düzeni",
   "settings.episode_layout_list": "Liste",
   "settings.episode_layout_horizontal": "Yatay",

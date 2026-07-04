@@ -39,6 +39,7 @@ export type ModernDetailProps = {
   continueWatchingEntry?: LibraryItem | null;
   trailerOnHero: boolean;
   blurUnwatchedEpisodes: boolean;
+  spoilerHideEpisodeInfo: boolean;
   detailSeasonSelectorMode: string;
   episodeCardsLayout: string;
   isInWatchlist: boolean;
@@ -70,7 +71,7 @@ export function ModernDetailLayout({
   displayTrailers, trailerMetadata, castMembers, directorLinks, peopleImages,
   watchedMap, progressMap, continueWatchingEntry, isInWatchlist, isDropped, isCompleted,
   omdbRatings, fanartArtwork, availableAddons, poster,
-  trailerOnHero, blurUnwatchedEpisodes, detailSeasonSelectorMode: _detailSeasonSelectorMode, episodeCardsLayout,
+  trailerOnHero, blurUnwatchedEpisodes, spoilerHideEpisodeInfo, detailSeasonSelectorMode: _detailSeasonSelectorMode, episodeCardsLayout,
   onBack, onDispatch, onNavigateDetail, onNavigateGenre, onSeasonChange, onEpisodeClick,
   onMovieSources, onBackToEpisodes, onPlaySource, onPlay,
   onToggleWatchlist, onToggleCompleted, onToggleDropped, onBgError,
@@ -287,6 +288,7 @@ export function ModernDetailLayout({
                               cwBadge={cwBadge}
                               cwScheduledDate={cwScheduledDate}
                               blurUnwatched={blurUnwatchedEpisodes}
+                              spoilerHide={spoilerHideEpisodeInfo}
                               onClick={() => onEpisodeClick(ep)}
                               onToggleWatched={() => toggleEpisodeWatched(ep, isWatched)}
                             />

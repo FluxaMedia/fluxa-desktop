@@ -747,6 +747,8 @@
   "settings.trailer_on_hero_desc": "Show trailer button on the detail page hero.",
   "settings.blur_unwatched_episodes": "Blur Unwatched Episodes",
   "settings.blur_unwatched_episodes_desc": "Dim episodes to distinguish watched from unwatched.",
+  "settings.spoiler_hide_episode_info": "Hide spoilers on unwatched episodes",
+  "settings.spoiler_hide_episode_info_desc": "Blur thumbnails and hide titles and descriptions for episodes you haven't watched yet.",
   "settings.episode_cards_layout": "Episode Cards Layout",
   "settings.episode_layout_list": "List",
   "settings.episode_layout_horizontal": "Horizontal",

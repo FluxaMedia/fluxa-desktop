@@ -39,6 +39,7 @@ export interface Prefs {
   detailEpisodeViewMode: string;
   trailerOnHero: boolean;
   blurUnwatchedEpisodes: boolean;
+  spoilerHideEpisodeInfo: boolean;
   continueWatchingHideTitles: boolean;
   showHeroSection: boolean;
   heroFeedToggles: string[];
@@ -157,6 +158,7 @@ export const DEFAULT_PREFS: Prefs = {
   detailEpisodeViewMode: 'legacy',
   trailerOnHero: false,
   blurUnwatchedEpisodes: false,
+  spoilerHideEpisodeInfo: false,
   continueWatchingHideTitles: false,
   showHeroSection: true,
   heroFeedToggles: [],

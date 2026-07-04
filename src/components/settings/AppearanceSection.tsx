@@ -139,6 +139,7 @@ export function AppearanceSection({ prefs, setPref }: { prefs: Prefs; setPref: <
       <SettingsSection title={t('settings.appearance_detail_screen')} subtitle={t('settings.appearance_detail_screen_desc')}>
         <ToggleTile title={t('settings.trailer_on_hero')} subtitle={t('settings.trailer_on_hero_desc')} checked={prefs.trailerOnHero} onToggle={(v) => setPref('trailerOnHero', v)} />
         <ToggleTile title={t('settings.blur_unwatched_episodes')} subtitle={t('settings.blur_unwatched_episodes_desc')} checked={prefs.blurUnwatchedEpisodes} onToggle={(v) => setPref('blurUnwatchedEpisodes', v)} />
+        <ToggleTile title={t('settings.spoiler_hide_episode_info')} subtitle={t('settings.spoiler_hide_episode_info_desc')} checked={prefs.spoilerHideEpisodeInfo} onToggle={(v) => setPref('spoilerHideEpisodeInfo', v)} />
         <ToggleTile
           title={t('settings.season_posters_on_hero') || "Hero'da Sezon Posterleri"}
           subtitle={t('settings.detail_season_posters_on_hero_desc') || 'Detay ekranındaki hero bölümünde sezon posterlerini göster'}

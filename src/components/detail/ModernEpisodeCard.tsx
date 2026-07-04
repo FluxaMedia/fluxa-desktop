@@ -23,9 +23,9 @@ function episodeContentRating(episode: Video): string | null {
   return typeof cr === 'string' && cr.trim() ? cr.trim() : null;
 }
 
-export function ModernEpisodeCard({ episode, number, isWatched, progressPct, minutesRemaining, cwBadge, cwScheduledDate, blurUnwatched, onClick, onToggleWatched }: {
+export function ModernEpisodeCard({ episode, number, isWatched, progressPct, minutesRemaining, cwBadge, cwScheduledDate, blurUnwatched, spoilerHide, onClick, onToggleWatched }: {
   episode: Video; number: number; isWatched: boolean; progressPct: number; minutesRemaining: number;
-  cwBadge?: string | null; cwScheduledDate?: string; blurUnwatched?: boolean; onClick: () => void; onToggleWatched?: () => void;
+  cwBadge?: string | null; cwScheduledDate?: string; blurUnwatched?: boolean; spoilerHide?: boolean; onClick: () => void; onToggleWatched?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const [thumbErr, setThumbErr] = useState(false);
@@ -39,6 +39,8 @@ export function ModernEpisodeCard({ episode, number, isWatched, progressPct, min
   void watchBtnHovered;
 
   const dimmed = blurUnwatched && !isWatched;
+  const hideInfo = spoilerHide && !isWatched && cwBadge !== 'scheduledEpisode';
+  const displayTitle = hideInfo ? t('format.episode_number', episode.episode ?? episode.number ?? number) : title;
 
   return (
     <div
@@ -52,7 +54,7 @@ export function ModernEpisodeCard({ episode, number, isWatched, progressPct, min
     >
       <div style={MS.epThumb}>
         {episode.thumbnail && !thumbErr ? (
-          <img src={episode.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: isWatched ? 0.48 : 1, transition: 'opacity 0.2s' }} onError={() => setThumbErr(true)} />
+          <img src={episode.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: isWatched ? 0.48 : 1, transition: 'opacity 0.2s', filter: hideInfo && !hovered ? 'blur(16px)' : undefined, transform: hideInfo && !hovered ? 'scale(1.1)' : undefined }} onError={() => setThumbErr(true)} />
         ) : (
           <div style={MS.epThumbPlaceholder}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="rgba(255,255,255,0.07)">
@@ -111,8 +113,8 @@ export function ModernEpisodeCard({ episode, number, isWatched, progressPct, min
           </button>
         )}
       </div>
-      <h3 style={{ ...MS.epTitle, color: hovered ? 'rgba(255,255,255,0.82)' : '#FFFFFF' }}>{number}. {title}</h3>
-      {desc && <p style={MS.epDesc}>{desc}</p>}
+      <h3 style={{ ...MS.epTitle, color: hovered ? 'rgba(255,255,255,0.82)' : '#FFFFFF' }}>{number}. {displayTitle}</h3>
+      {desc && !hideInfo && <p style={MS.epDesc}>{desc}</p>}
       <div style={MS.epMetaRow}>
         {contentRating && <span style={MS.epRatingBadge}>{contentRating}</span>}
         {(runtime || dateStr) && <span style={MS.epMetaText}>{[runtime, dateStr].filter(Boolean).join('  ')}</span>}

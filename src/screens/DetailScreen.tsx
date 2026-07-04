@@ -94,6 +94,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   const prefs = useMemo(() => appPrefs(state), [state.settings?.values]);
   const trailerOnHero = prefBool(prefs, 'trailerOnHero', false);
   const blurUnwatchedEpisodes = prefBool(prefs, 'blurUnwatchedEpisodes', false);
+  const spoilerHideEpisodeInfo = prefBool(prefs, 'spoilerHideEpisodeInfo', false);
   const detailSeasonSelectorMode = prefString(prefs, 'detailSeasonSelectorMode', 'tabs');
   const episodeCardsLayout = prefString(prefs, 'episodeCardsLayout', 'standard');
   const seasonHeroUrl = prefBool(prefs, 'detailSeasonPostersOnHero', true)
@@ -343,6 +344,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
           poster={poster}
           trailerOnHero={trailerOnHero}
           blurUnwatchedEpisodes={blurUnwatchedEpisodes}
+          spoilerHideEpisodeInfo={spoilerHideEpisodeInfo}
           detailSeasonSelectorMode={detailSeasonSelectorMode}
           episodeCardsLayout={episodeCardsLayout}
           onBack={onBack}
