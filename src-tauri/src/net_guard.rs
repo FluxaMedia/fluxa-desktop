@@ -12,6 +12,9 @@ fn is_blocked_ip(ip: &IpAddr) -> bool {
             // CGNAT 100.64.0.0/10
         }
         IpAddr::V6(v6) => {
+            if let Some(v4) = v6.to_ipv4_mapped() {
+                return is_blocked_ip(&IpAddr::V4(v4));
+            }
             v6.is_loopback()
                 || v6.is_unspecified()
                 || (v6.segments()[0] & 0xfe00) == 0xfc00 // unique local fc00::/7
@@ -45,4 +48,17 @@ pub async fn ensure_public_host(url_str: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ipv4_mapped_ipv6_does_not_escape_blocklist() {
+        for s in ["::ffff:127.0.0.1", "::ffff:169.254.169.254", "::ffff:10.0.0.1"] {
+            let ip: IpAddr = s.parse().unwrap();
+            assert!(is_blocked_ip(&ip), "{s} should be blocked");
+        }
+    }
 }
