@@ -5,6 +5,7 @@ import { FilterDropdown } from '../components/FilterDropdown';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefString } from '../core/appPrefs';
 import { effectiveCatalogId, exportCollectionsJson, importCollectionsJson } from '../core/collections';
+import { libraryContentType, type LibraryContentType } from '../core/animeDetection';
 import { saveProfile } from '../core/profiles';
 import type { AppState, HomeCategory, LibraryItem, Meta, UserCollection, UserCollectionFolder, UserProfile } from '../core/types';
 import { t } from '../i18n';
@@ -37,6 +38,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   const [tab, setTab] = useState<Tab>('watchlist');
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'title' | 'rating'>('recent');
+  const [typeFilter, setTypeFilter] = useState<'all' | LibraryContentType>('all');
   const [viewAllFolder, setViewAllFolder] = useState<{ title: string; items: Meta[] } | null>(null);
   const collectionsScrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
@@ -148,8 +150,16 @@ export const LibraryScreen = React.memo(function LibraryScreen({
 
   const items = tab === 'watchlist' ? watchlist : tab === 'watching' ? watching : tab === 'completed' ? completed : tab === 'dropped' ? dropped : [];
 
+  const typeCounts = useMemo(() => {
+    const counts = { all: items.length, movie: 0, series: 0, anime: 0 };
+    for (const it of items) counts[libraryContentType(it as unknown as Meta)]++;
+    return counts;
+  }, [items]);
+
+  const effectiveType = typeFilter !== 'all' && typeCounts[typeFilter] === 0 ? 'all' : typeFilter;
+  const byType = effectiveType === 'all' ? items : items.filter((it) => libraryContentType(it as unknown as Meta) === effectiveType);
   const q = query.trim().toLowerCase();
-  const shown = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : items;
+  const shown = q ? byType.filter((it) => it.name.toLowerCase().includes(q)) : byType;
   const sorted = sortBy === 'title'
     ? [...shown].sort((a, b) => a.name.localeCompare(b.name))
     : sortBy === 'rating'
@@ -213,6 +223,29 @@ export const LibraryScreen = React.memo(function LibraryScreen({
           </div>
         )}
       </div>
+
+      {tab !== 'collections' && [typeCounts.movie, typeCounts.series, typeCounts.anime].filter((n) => n > 0).length > 1 && (
+        <div style={styles.typeRow}>
+          <TypeChip active={effectiveType === 'all'} onClick={() => setTypeFilter('all')}>
+            {t('auto.all')} ({typeCounts.all})
+          </TypeChip>
+          {typeCounts.movie > 0 && (
+            <TypeChip active={effectiveType === 'movie'} onClick={() => setTypeFilter('movie')}>
+              {t('auto.movies')} ({typeCounts.movie})
+            </TypeChip>
+          )}
+          {typeCounts.series > 0 && (
+            <TypeChip active={effectiveType === 'series'} onClick={() => setTypeFilter('series')}>
+              {t('auto.series')} ({typeCounts.series})
+            </TypeChip>
+          )}
+          {typeCounts.anime > 0 && (
+            <TypeChip active={effectiveType === 'anime'} onClick={() => setTypeFilter('anime')}>
+              {t('auto.anime')} ({typeCounts.anime})
+            </TypeChip>
+          )}
+        </div>
+      )}
 
       <div style={{ height: 8 }} />
 
@@ -312,6 +345,26 @@ function TabChip({ active, onClick, children }: { active: boolean; onClick: () =
   );
 }
 
+function TypeChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      style={{
+        background: active ? 'rgba(255,255,255,0.14)' : hovered ? 'rgba(255,255,255,0.07)' : 'transparent',
+        color: active ? '#FFFFFF' : 'rgba(255,255,255,0.6)',
+        border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '5px 14px',
+        fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        transition: 'background 0.15s, color 0.15s',
+      }}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {children}
+    </button>
+  );
+}
+
 const styles: Record<string, React.CSSProperties> = {
   screen: { background: '#040508', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingLeft: NAV_RAIL_WIDTH },
   header: { display: 'flex', alignItems: 'center', gap: 24, padding: '40px 58px', flexShrink: 0 },
@@ -328,6 +381,7 @@ const styles: Record<string, React.CSSProperties> = {
   title: { color: '#FFFFFF', fontSize: 32, fontWeight: 900, margin: '0 0 4px', letterSpacing: '2px' },
   subtitle: { color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: 0, lineHeight: 1.4 },
   tabRow: { display: 'flex', alignItems: 'center', gap: 10, paddingLeft: PX, paddingRight: PX, flexShrink: 0 },
+  typeRow: { display: 'flex', alignItems: 'center', gap: 8, paddingLeft: PX, paddingRight: PX, flexShrink: 0, marginTop: 14 },
   empty: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 10 },
   emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0 },
   emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 },
