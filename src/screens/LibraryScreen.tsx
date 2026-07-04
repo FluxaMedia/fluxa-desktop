@@ -7,6 +7,7 @@ import { appPrefs, prefString } from '../core/appPrefs';
 import { effectiveCatalogId, exportCollectionsJson, importCollectionsJson } from '../core/collections';
 import { libraryContentType, type LibraryContentType } from '../core/animeDetection';
 import { ContentTypeFilter } from '../components/ContentTypeFilter';
+import { getViewPrefs, setViewPref, whenViewPrefsReady } from '../core/viewPrefs';
 import { saveProfile } from '../core/profiles';
 import type { AppState, HomeCategory, LibraryItem, Meta, UserCollection, UserCollectionFolder, UserProfile } from '../core/types';
 import { t } from '../i18n';
@@ -36,10 +37,23 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   activeProfile,
   onProfileUpdated,
 }: Props) {
-  const [tab, setTab] = useState<Tab>('watchlist');
+  const [tab, setTab] = useState<Tab>(() => (getViewPrefs().libraryTab as Tab) ?? 'watchlist');
   const [query, setQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'recent' | 'title' | 'rating'>('recent');
-  const [typeFilter, setTypeFilter] = useState<'all' | LibraryContentType>('all');
+  const [sortBy, setSortBy] = useState<'recent' | 'title' | 'rating'>(() => (getViewPrefs().librarySort as 'recent' | 'title' | 'rating') ?? 'recent');
+  const [typeFilter, setTypeFilter] = useState<'all' | LibraryContentType>(() => (getViewPrefs().libraryType as 'all' | LibraryContentType) ?? 'all');
+
+  useEffect(() => {
+    void whenViewPrefsReady().then(() => {
+      const v = getViewPrefs();
+      if (v.libraryTab) setTab(v.libraryTab as Tab);
+      if (v.librarySort) setSortBy(v.librarySort as 'recent' | 'title' | 'rating');
+      if (v.libraryType) setTypeFilter(v.libraryType as 'all' | LibraryContentType);
+    });
+  }, []);
+
+  const changeTab = (v: Tab) => { setTab(v); setViewPref('libraryTab', v); };
+  const changeSort = (v: 'recent' | 'title' | 'rating') => { setSortBy(v); setViewPref('librarySort', v); };
+  const changeType = (v: 'all' | LibraryContentType) => { setTypeFilter(v); setViewPref('libraryType', v); };
   const [viewAllFolder, setViewAllFolder] = useState<{ title: string; items: Meta[] } | null>(null);
   const collectionsScrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
@@ -186,19 +200,19 @@ export const LibraryScreen = React.memo(function LibraryScreen({
       </div>
 
       <div style={styles.tabRow}>
-        <TabChip active={tab === 'watchlist'} onClick={() => setTab('watchlist')}>
+        <TabChip active={tab === 'watchlist'} onClick={() => changeTab('watchlist')}>
           {t('library.plan_to_watch')}{watchlist.length > 0 ? ` (${watchlist.length})` : ''}
         </TabChip>
-        <TabChip active={tab === 'watching'} onClick={() => setTab('watching')}>
+        <TabChip active={tab === 'watching'} onClick={() => changeTab('watching')}>
           {t('library.watching')}{watching.length > 0 ? ` (${watching.length})` : ''}
         </TabChip>
-        <TabChip active={tab === 'completed'} onClick={() => setTab('completed')}>
+        <TabChip active={tab === 'completed'} onClick={() => changeTab('completed')}>
           {t('library.completed')}{completed.length > 0 ? ` (${completed.length})` : ''}
         </TabChip>
-        <TabChip active={tab === 'dropped'} onClick={() => setTab('dropped')}>
+        <TabChip active={tab === 'dropped'} onClick={() => changeTab('dropped')}>
           {t('library.dropped')}{dropped.length > 0 ? ` (${dropped.length})` : ''}
         </TabChip>
-        <TabChip active={tab === 'collections'} onClick={() => setTab('collections')}>
+        <TabChip active={tab === 'collections'} onClick={() => changeTab('collections')}>
           {t('library.collections')}{collections.length > 0 ? ` (${collections.length})` : ''}
         </TabChip>
         {tab !== 'collections' && (
@@ -219,7 +233,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
                 { value: 'title', label: t('library.sort_title') },
                 { value: 'rating', label: t('library.sort_rating') },
               ]}
-              onSelect={(v) => setSortBy(v as 'recent' | 'title' | 'rating')}
+              onSelect={(v) => changeSort(v as 'recent' | 'title' | 'rating')}
             />
           </div>
         )}
@@ -227,7 +241,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
 
       {tab !== 'collections' && [typeCounts.movie, typeCounts.series, typeCounts.anime].filter((n) => n > 0).length > 1 && (
         <div style={styles.typeRow}>
-          <ContentTypeFilter value={effectiveType} counts={typeCounts} onChange={setTypeFilter} />
+          <ContentTypeFilter value={effectiveType} counts={typeCounts} onChange={changeType} />
         </div>
       )}
 

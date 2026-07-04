@@ -7,6 +7,7 @@ import { ThisWeekRow } from '../components/ThisWeekRow';
 import { partitionThisWeek } from '../core/continueWatchingUtils';
 import { ContentTypeFilter, type TypeFilter } from '../components/ContentTypeFilter';
 import { libraryContentType } from '../core/animeDetection';
+import { getViewPrefs, setViewPref, whenViewPrefsReady } from '../core/viewPrefs';
 import { CollectionShelfRow } from '../components/CollectionShelfRow';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefBool } from '../core/appPrefs';
@@ -50,7 +51,14 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const home = state.home;
   const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[] } | null>(null);
   const [folderLoading, setFolderLoading] = useState(false);
-  const [homeType, setHomeType] = useState<TypeFilter>('all');
+  const [homeType, setHomeType] = useState<TypeFilter>(() => (getViewPrefs().homeType as TypeFilter) ?? 'all');
+  useEffect(() => {
+    void whenViewPrefsReady().then(() => {
+      const v = getViewPrefs().homeType;
+      if (v) setHomeType(v as TypeFilter);
+    });
+  }, []);
+  const changeHomeType = (v: TypeFilter) => { setHomeType(v); setViewPref('homeType', v); };
   const scrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
 
@@ -204,7 +212,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
       <div style={styles.shelves}>
         {[homeTypeCounts.movie, homeTypeCounts.series, homeTypeCounts.anime].filter((n) => n > 0).length > 1 && (
           <div style={styles.typeFilter}>
-            <ContentTypeFilter value={effectiveHomeType} counts={homeTypeCounts} showCounts={false} onChange={setHomeType} />
+            <ContentTypeFilter value={effectiveHomeType} counts={homeTypeCounts} showCounts={false} onChange={changeHomeType} />
           </div>
         )}
         {showContinueWatching && visibleCw.length > 0 && (
