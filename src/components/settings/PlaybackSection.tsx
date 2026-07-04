@@ -184,6 +184,7 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
       <ChoiceTile title={t('settings.secondary_audio_language')} subtitle={t('settings.secondary_audio_language_desc')} options={langOptions()} selected={prefs.secondaryAudioLanguage} onSelect={(v) => setPref('secondaryAudioLanguage', v)} />
       <ChoiceTile title={t('settings.preferred_subtitle_language')} subtitle={t('settings.preferred_subtitle_language_desc')} options={langOptions()} selected={prefs.preferredSubtitleLanguage} onSelect={(v) => setPref('preferredSubtitleLanguage', v)} />
       <ChoiceTile title={t('settings.secondary_subtitle_language')} subtitle={t('settings.secondary_subtitle_language_desc')} options={langOptions()} selected={prefs.secondarySubtitleLanguage} onSelect={(v) => setPref('secondarySubtitleLanguage', v)} />
+      <ToggleTile title={t('settings.anime_japanese_audio')} subtitle={t('settings.anime_japanese_audio_desc')} checked={prefs.animePreferJapaneseAudio} onToggle={(v) => setPref('animePreferJapaneseAudio', v)} />
     </SettingsSection>
     <SettingsSection title={t('settings.subtitle.customize')} subtitle={t('auto.subtitle_language_size_and_readability')}>
       <ToggleTile title={t('auto.auto_enable_subtitles_db2311e6')} subtitle={t('auto.enable_subtitles_automatically_when_availabl')} checked={prefs.autoEnableSubtitles} onToggle={(v) => setPref('autoEnableSubtitles', v)} />

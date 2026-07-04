@@ -74,6 +74,7 @@ export interface Prefs {
   useAniSkip: boolean;
   preferredAudioLanguage: string;
   secondaryAudioLanguage: string;
+  animePreferJapaneseAudio: boolean;
   preferredSubtitleLanguage: string;
   secondarySubtitleLanguage: string;
   autoEnableSubtitles: boolean;
@@ -191,6 +192,7 @@ export const DEFAULT_PREFS: Prefs = {
   useAniSkip: true,
   preferredAudioLanguage: 'none',
   secondaryAudioLanguage: 'none',
+  animePreferJapaneseAudio: false,
   preferredSubtitleLanguage: 'none',
   secondarySubtitleLanguage: 'none',
   autoEnableSubtitles: true,

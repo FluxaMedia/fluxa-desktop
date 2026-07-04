@@ -616,6 +616,8 @@
   "settings.preferred_subtitle_language_desc": "First subtitle language to enable automatically.",
   "settings.secondary_subtitle_language": "Secondary Subtitle Language",
   "settings.secondary_subtitle_language_desc": "Fallback subtitle language if the preferred one is unavailable.",
+  "settings.anime_japanese_audio": "Japanese audio for anime",
+  "settings.anime_japanese_audio_desc": "When a title is detected as anime, prefer the Japanese audio track and keep subtitles on.",
   "settings.subtitle_text": "Subtitle Text",
   "settings.subtitle_background": "Background",
   "settings.subtitle_outline": "Outline",

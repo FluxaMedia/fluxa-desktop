@@ -158,10 +158,19 @@ fn mpv_options_from_preferences(
     {
         options.push(("sub-back-color".to_string(), color));
     }
-    if preferences
-        .get("autoEnableSubtitles")
-        .and_then(|v| v.as_bool())
-        == Some(false)
+    let anime_japanese = preferences
+        .get("isAnimePlayback")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        && preferences
+            .get("animePreferJapaneseAudio")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+    if !anime_japanese
+        && preferences
+            .get("autoEnableSubtitles")
+            .and_then(|v| v.as_bool())
+            == Some(false)
     {
         options.push(("sid".to_string(), "no".to_string()));
     }
@@ -175,15 +184,26 @@ fn mpv_options_from_preferences(
     } else {
         options.push(("sub-shadow-offset".to_string(), "0".to_string()));
     }
-    let audio_languages =
-        language_list(&[get("preferredAudioLanguage"), get("secondaryAudioLanguage")]);
+    let audio_languages = if anime_japanese {
+        language_list(&[
+            Some("ja"),
+            Some("jpn"),
+            get("preferredAudioLanguage"),
+            get("secondaryAudioLanguage"),
+        ])
+    } else {
+        language_list(&[get("preferredAudioLanguage"), get("secondaryAudioLanguage")])
+    };
     if !audio_languages.is_empty() {
         options.push(("alang".to_string(), audio_languages));
     }
-    let subtitle_languages = language_list(&[
+    let mut subtitle_languages = language_list(&[
         get("preferredSubtitleLanguage"),
         get("secondarySubtitleLanguage"),
     ]);
+    if anime_japanese && subtitle_languages.is_empty() {
+        subtitle_languages = "eng,en".to_string();
+    }
     if !subtitle_languages.is_empty() {
         options.push(("slang".to_string(), subtitle_languages));
     }

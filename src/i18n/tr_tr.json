@@ -616,6 +616,8 @@
   "settings.preferred_subtitle_language_desc": "Otomatik açılacak ilk altyazı dili.",
   "settings.secondary_subtitle_language": "İkincil Altyazı Dili",
   "settings.secondary_subtitle_language_desc": "Birincil altyazı yoksa kullanılacak yedek altyazı dili.",
+  "settings.anime_japanese_audio": "Anime için Japonca ses",
+  "settings.anime_japanese_audio_desc": "Bir içerik anime olarak algılandığında Japonca ses parçasını tercih et ve altyazıları açık tut.",
   "settings.subtitle_text": "Altyazı Yazısı",
   "settings.subtitle_background": "Arka Plan",
   "settings.subtitle_outline": "Kontur",
