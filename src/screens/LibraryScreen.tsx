@@ -6,6 +6,7 @@ import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefString } from '../core/appPrefs';
 import { effectiveCatalogId, exportCollectionsJson, importCollectionsJson } from '../core/collections';
 import { libraryContentType, type LibraryContentType } from '../core/animeDetection';
+import { ContentTypeFilter } from '../components/ContentTypeFilter';
 import { saveProfile } from '../core/profiles';
 import type { AppState, HomeCategory, LibraryItem, Meta, UserCollection, UserCollectionFolder, UserProfile } from '../core/types';
 import { t } from '../i18n';
@@ -226,24 +227,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
 
       {tab !== 'collections' && [typeCounts.movie, typeCounts.series, typeCounts.anime].filter((n) => n > 0).length > 1 && (
         <div style={styles.typeRow}>
-          <TypeChip active={effectiveType === 'all'} onClick={() => setTypeFilter('all')}>
-            {t('auto.all')} ({typeCounts.all})
-          </TypeChip>
-          {typeCounts.movie > 0 && (
-            <TypeChip active={effectiveType === 'movie'} onClick={() => setTypeFilter('movie')}>
-              {t('auto.movies')} ({typeCounts.movie})
-            </TypeChip>
-          )}
-          {typeCounts.series > 0 && (
-            <TypeChip active={effectiveType === 'series'} onClick={() => setTypeFilter('series')}>
-              {t('auto.series')} ({typeCounts.series})
-            </TypeChip>
-          )}
-          {typeCounts.anime > 0 && (
-            <TypeChip active={effectiveType === 'anime'} onClick={() => setTypeFilter('anime')}>
-              {t('auto.anime')} ({typeCounts.anime})
-            </TypeChip>
-          )}
+          <ContentTypeFilter value={effectiveType} counts={typeCounts} onChange={setTypeFilter} />
         </div>
       )}
 
@@ -334,26 +318,6 @@ function TabChip({ active, onClick, children }: { active: boolean; onClick: () =
         color: active ? '#000000' : '#FFFFFF',
         border: 'none', borderRadius: 20, padding: '8px 20px',
         fontSize: 14, fontWeight: 700, cursor: 'pointer',
-        transition: 'background 0.15s, color 0.15s',
-      }}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {children}
-    </button>
-  );
-}
-
-function TypeChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      style={{
-        background: active ? 'rgba(255,255,255,0.14)' : hovered ? 'rgba(255,255,255,0.07)' : 'transparent',
-        color: active ? '#FFFFFF' : 'rgba(255,255,255,0.6)',
-        border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '5px 14px',
-        fontSize: 13, fontWeight: 600, cursor: 'pointer',
         transition: 'background 0.15s, color 0.15s',
       }}
       onClick={onClick}

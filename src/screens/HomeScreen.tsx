@@ -5,6 +5,8 @@ import { CategoryGridScreen } from './CategoryGridScreen';
 import { ContinueWatchingRow } from '../components/ContinueWatchingRow';
 import { ThisWeekRow } from '../components/ThisWeekRow';
 import { partitionThisWeek } from '../core/continueWatchingUtils';
+import { ContentTypeFilter, type TypeFilter } from '../components/ContentTypeFilter';
+import { libraryContentType } from '../core/animeDetection';
 import { CollectionShelfRow } from '../components/CollectionShelfRow';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefBool } from '../core/appPrefs';
@@ -48,6 +50,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const home = state.home;
   const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[] } | null>(null);
   const [folderLoading, setFolderLoading] = useState(false);
+  const [homeType, setHomeType] = useState<TypeFilter>('all');
   const scrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
 
@@ -130,6 +133,38 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     [continueWatching, keepScheduled],
   );
 
+  const homeTypeCounts = useMemo(() => {
+    const counts = { all: 0, movie: 0, series: 0, anime: 0 };
+    const seen = new Set<string>();
+    const scan = (list: Meta[]) => {
+      for (const m of list) {
+        if (seen.has(m.id)) continue;
+        seen.add(m.id);
+        counts.all++;
+        counts[libraryContentType(m)]++;
+      }
+    };
+    for (const cat of categories) {
+      if (cat.type === 'collection' || cat.type === 'collection_folder') continue;
+      scan((cat.items ?? []) as Meta[]);
+    }
+    scan(cwItems);
+    scan(thisWeek);
+    return counts;
+  }, [categories, cwItems, thisWeek]);
+  const effectiveHomeType = homeType !== 'all' && homeTypeCounts[homeType] === 0 ? 'all' : homeType;
+
+  const visibleCw = effectiveHomeType === 'all' ? cwItems : cwItems.filter((m) => libraryContentType(m) === effectiveHomeType);
+  const visibleThisWeek = effectiveHomeType === 'all' ? thisWeek : thisWeek.filter((m) => libraryContentType(m) === effectiveHomeType);
+  const visibleCategories = useMemo(() => {
+    if (effectiveHomeType === 'all') return categories;
+    return categories.flatMap((cat) => {
+      if (cat.type === 'collection' || cat.type === 'collection_folder') return [];
+      const items = (cat.items ?? []).filter((m) => libraryContentType(m as Meta) === effectiveHomeType);
+      return items.length ? [{ ...cat, items }] : [];
+    });
+  }, [categories, effectiveHomeType]);
+
   if (home.isLoading && !billboard && categories.length === 0) {
     return <LoadingSkeleton />;
   }
@@ -167,9 +202,14 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
       )}
 
       <div style={styles.shelves}>
-        {showContinueWatching && cwItems.length > 0 && (
+        {[homeTypeCounts.movie, homeTypeCounts.series, homeTypeCounts.anime].filter((n) => n > 0).length > 1 && (
+          <div style={styles.typeFilter}>
+            <ContentTypeFilter value={effectiveHomeType} counts={homeTypeCounts} showCounts={false} onChange={setHomeType} />
+          </div>
+        )}
+        {showContinueWatching && visibleCw.length > 0 && (
           <ContinueWatchingRow
-            items={cwItems}
+            items={visibleCw}
             cwLayout={cwLayout}
             artworkPreference={cwArtwork}
             remainingFormat={cwRemainingFormat}
@@ -178,14 +218,14 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
             onDispatch={onDispatch}
           />
         )}
-        {showContinueWatching && thisWeek.length > 0 && (
+        {showContinueWatching && visibleThisWeek.length > 0 && (
           <ThisWeekRow
-            items={thisWeek}
+            items={visibleThisWeek}
             artworkPreference={cwArtwork}
             onItemClick={onNavigateDetail}
           />
         )}
-        {categories.map((cat) =>
+        {visibleCategories.map((cat) =>
           cat.type === 'collection' ? (
             <CollectionShelfRow
               key={cat.id}
@@ -292,6 +332,10 @@ const styles: Record<string, React.CSSProperties> = {
     paddingTop: 8,
     paddingBottom: 80,
     background: '#040508',
+  },
+  typeFilter: {
+    display: 'flex',
+    padding: '4px 32px 12px',
   },
   empty: {
     height: '100%',
