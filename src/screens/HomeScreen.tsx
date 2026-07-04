@@ -3,6 +3,8 @@ import { HeroSection } from '../components/HeroSection';
 import { ShelfRow } from '../components/ShelfRow';
 import { CategoryGridScreen } from './CategoryGridScreen';
 import { ContinueWatchingRow } from '../components/ContinueWatchingRow';
+import { ThisWeekRow } from '../components/ThisWeekRow';
+import { partitionThisWeek } from '../core/continueWatchingUtils';
 import { CollectionShelfRow } from '../components/CollectionShelfRow';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefBool } from '../core/appPrefs';
@@ -122,6 +124,11 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const cwArtwork = String(cwSettingsValues?.continueWatchingArtwork ?? 'episode');
   const cwRemainingFormat = String(cwSettingsValues?.continueWatchingRemainingFormat ?? 'time');
   const cwProgressDirection = String(cwSettingsValues?.continueWatchingProgressDirection ?? 'remaining');
+  const keepScheduled = prefBool(prefs, 'continueWatchingKeepScheduled', false);
+  const { thisWeek, continueWatching: cwItems } = useMemo(
+    () => partitionThisWeek(continueWatching, keepScheduled),
+    [continueWatching, keepScheduled],
+  );
 
   if (home.isLoading && !billboard && categories.length === 0) {
     return <LoadingSkeleton />;
@@ -160,15 +167,22 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
       )}
 
       <div style={styles.shelves}>
-        {showContinueWatching && continueWatching.length > 0 && (
+        {showContinueWatching && cwItems.length > 0 && (
           <ContinueWatchingRow
-            items={continueWatching}
+            items={cwItems}
             cwLayout={cwLayout}
             artworkPreference={cwArtwork}
             remainingFormat={cwRemainingFormat}
             progressDirection={cwProgressDirection}
             onItemClick={onResume}
             onDispatch={onDispatch}
+          />
+        )}
+        {showContinueWatching && thisWeek.length > 0 && (
+          <ThisWeekRow
+            items={thisWeek}
+            artworkPreference={cwArtwork}
+            onItemClick={onNavigateDetail}
           />
         )}
         {categories.map((cat) =>

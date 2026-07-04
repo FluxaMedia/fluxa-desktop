@@ -30,6 +30,39 @@ export function formatRemaining(offset: number, duration: number): string {
   return m === 0 ? t('format.remaining_hours', h) : t('format.remaining_hours_minutes', h, m);
 }
 
+function endOfCurrentWeek(now: number): number {
+  const d = new Date(now);
+  const daysUntilSunday = (7 - d.getDay()) % 7;
+  d.setDate(d.getDate() + daysUntilSunday);
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
+
+export function partitionThisWeek(
+  items: Meta[],
+  keepScheduled: boolean,
+): { thisWeek: Meta[]; continueWatching: Meta[] } {
+  const weekEnd = endOfCurrentWeek(Date.now());
+  const thisWeek: Meta[] = [];
+  const thisWeekIds = new Set<string>();
+  for (const item of items) {
+    const lib = item as unknown as { continueWatchingBadge?: string; newEpisodeReleasedAt?: string };
+    if (lib.continueWatchingBadge !== 'scheduledEpisode' || !lib.newEpisodeReleasedAt) continue;
+    if (new Date(lib.newEpisodeReleasedAt).getTime() <= weekEnd) {
+      thisWeek.push(item);
+      thisWeekIds.add(item.id);
+    }
+  }
+  const continueWatching = keepScheduled ? items : items.filter((m) => !thisWeekIds.has(m.id));
+  return { thisWeek, continueWatching };
+}
+
+export function formatAirDay(date?: string): string {
+  if (!date) return '';
+  const locale = getLanguage() === 'tr' ? 'tr-TR' : 'en-US';
+  return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(date));
+}
+
 export function formatReleaseCountdown(date?: string): string {
   if (!date) return '';
   const target = new Date(date).getTime();

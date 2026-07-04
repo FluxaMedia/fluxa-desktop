@@ -5,6 +5,7 @@ import {
   formatRemaining,
   formatWatched,
   formatReleaseCountdown,
+  formatAirDay,
 } from '../core/continueWatchingUtils';
 import { t } from '../i18n';
 
@@ -31,6 +32,7 @@ export function ContinueCard({
   progressDirection,
   dismissing,
   pending,
+  hideActions,
   onClick,
   onMarkWatched,
   onDrop,
@@ -44,6 +46,7 @@ export function ContinueCard({
   progressDirection: string;
   dismissing: boolean;
   pending?: boolean;
+  hideActions?: boolean;
   onClick: (m: Meta) => void;
   onMarkWatched: (m: Meta) => void;
   onDrop: (m: Meta) => void;
@@ -64,6 +67,7 @@ export function ContinueCard({
     continueWatchingBackground?: string;
     continueWatchingBadge?: string;
     newEpisodeReleasedAt?: string;
+    unwatchedAhead?: number;
   };
 
   React.useEffect(() => {
@@ -87,6 +91,12 @@ export function ContinueCard({
     ? formatReleaseCountdown(lib.newEpisodeReleasedAt)
     : null;
   const badge = resolveBadge(lib.continueWatchingBadge, meta.type, isUpNext, remainingText, scheduledText);
+  const isScheduled = lib.continueWatchingBadge === 'scheduledEpisode';
+  const cornerText = isScheduled
+    ? formatAirDay(lib.newEpisodeReleasedAt)
+    : lib.unwatchedAhead && lib.unwatchedAhead > 0
+      ? `+${lib.unwatchedAhead}`
+      : null;
   return (
     <div
       role="button"
@@ -133,6 +143,9 @@ export function ContinueCard({
             {badge.text}
           </div>
         )}
+        {cornerText && (
+          <div style={cwStyles.cornerBadge}>{cornerText}</div>
+        )}
 
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: hovered && !dismissing && !pending ? 1 : 0, transition: 'opacity 0.16s ease' }}>
           <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -146,6 +159,7 @@ export function ContinueCard({
           <p style={cwStyles.name}>{meta.name}</p>
           <p style={cwStyles.episodeName}>{episodeLine ?? (meta.type === 'series' ? t('auto.up_next') : '')}</p>
         </div>
+        {!hideActions && (
         <div style={{ ...cwStyles.hoverActions, opacity: hovered && !dismissing && !pending ? 1 : 0, pointerEvents: hovered && !dismissing && !pending ? 'auto' : 'none', transition: 'opacity 0.16s ease' }} onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
@@ -166,6 +180,7 @@ export function ContinueCard({
             <X size={14} />
           </button>
         </div>
+        )}
       </div>
     </div>
   );
@@ -184,6 +199,7 @@ const cwStyles: Record<string, React.CSSProperties> = {
   progressBar: { height: '100%', borderRadius: 999, background: 'var(--primary-accent-color)' },
   remainingBadge: { position: 'absolute', top: 8, right: 9, color: '#FFFFFF', fontSize: 12, fontWeight: 800, textShadow: '0 1px 5px rgba(0,0,0,0.88)', background: 'rgba(0,0,0,0.42)', borderRadius: 4, padding: '3px 6px' },
   newEpisodeBadge: { background: 'var(--primary-accent-color)', color: 'var(--primary-accent-foreground-color)', textShadow: 'none' },
+  cornerBadge: { position: 'absolute', top: 8, left: 9, color: '#FFFFFF', fontSize: 12, fontWeight: 800, textShadow: '0 1px 5px rgba(0,0,0,0.88)', background: 'rgba(0,0,0,0.42)', borderRadius: 4, padding: '3px 6px' },
 
   episodeName: { color: 'rgba(255,255,255,0.68)', fontSize: 13, fontWeight: 600, margin: '4px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   name: { color: '#FFFFFF', fontSize: 15, fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.12 },

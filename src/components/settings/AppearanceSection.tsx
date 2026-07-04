@@ -126,6 +126,7 @@ export function AppearanceSection({ prefs, setPref }: { prefs: Prefs; setPref: <
       <SettingsSection title={t('auto.continue_watching')} subtitle={t('auto.continue_watching')}>
         <ToggleTile title={t('auto.continue_watching')} subtitle={t('auto.continue_watching')} checked={prefs.continueWatchingEnabled} onToggle={(v) => setPref('continueWatchingEnabled', v)} />
         <ToggleTile title={t('settings.continue_watching_hide_titles')} subtitle={t('auto.hide_titles')} checked={prefs.continueWatchingHideTitles} onToggle={(v) => setPref('continueWatchingHideTitles', v)} />
+        <ToggleTile title={t('settings.cw_keep_scheduled')} subtitle={t('settings.cw_keep_scheduled_desc')} checked={prefs.continueWatchingKeepScheduled} onToggle={(v) => setPref('continueWatchingKeepScheduled', v)} />
       </SettingsSection>
       <SettingsSection title={t('settings.appearance_home_screen') || 'Ana Ekran'} subtitle={t('settings.appearance_home_screen_desc') || 'Ana ekrana özel görünüm ayarları'}>
         <ToggleTile
