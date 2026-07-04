@@ -1,4 +1,5 @@
 import type { Stream, Video, Meta } from './types';
+import { t } from '../i18n';
 
 export type PlayerSubtitleSource = {
   url: string;
@@ -78,7 +79,7 @@ export function formatNextEpisodeSubtitle(ep: Video): string {
   if (typeof season === 'number' && typeof epNum === 'number') {
     return name ? `S${season}:E${epNum} ${name}` : `S${season}:E${epNum}`;
   }
-  return name || 'Next Episode';
+  return name || t('auto.next_episode');
 }
 
 export function isEpisodeReleasedForPlayback(video: Video): boolean {
