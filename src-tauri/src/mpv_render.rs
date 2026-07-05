@@ -368,9 +368,7 @@ impl MpvRenderer {
         renderer.set_option("hwdec", "auto-safe")?;
         renderer.set_option("hwdec-codecs", "all")?;
 
-        // Needs the *_player_surface.rs render loops to be real vsync-paced, not
-        // sleep(16ms)-polled -- otherwise mpv's calibration black-screens for seconds.
-        renderer.set_option("video-sync", "display-resample")?;
+        renderer.set_option("video-sync", "audio")?;
 
         // Start playback immediately without waiting for the cache to fill.
         // cache-pause-initial=yes (default in many MPV builds) causes MPV to pause
