@@ -60,10 +60,21 @@ fn schedule_parent_blur(app: &AppHandle, parent_hwnd: HWND, enable: bool) {
     });
 }
 
+// Reads the cached size lib.rs's main-thread Resized handler stores, rather
+// than calling window.inner_size() itself here on the render loop thread: see
+// the comment on DesktopState::main_window_size for why that cross-thread
+// call was deadlocking against the main thread during fullscreen transitions.
 fn main_window_client_size(app: &AppHandle) -> Option<(i32, i32)> {
-    app.get_webview_window("main")
-        .and_then(|w| w.inner_size().ok())
-        .map(|s| (s.width.max(2) as i32, s.height.max(2) as i32))
+    let state = app.state::<DesktopState>();
+    let packed = state
+        .main_window_size
+        .load(std::sync::atomic::Ordering::Acquire);
+    if packed == 0 {
+        return None;
+    }
+    let width = (packed >> 32) as u32 as i32;
+    let height = (packed & 0xFFFF_FFFF) as u32 as i32;
+    Some((width.max(2), height.max(2)))
 }
 
 fn query_icm_profile(hdc: HDC) -> Option<Vec<u8>> {
