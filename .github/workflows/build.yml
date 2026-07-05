@@ -88,8 +88,7 @@ jobs:
         run: |
           "$VCPKG_INSTALLATION_ROOT/vcpkg" install angle:x64-windows
           mkdir -p src-tauri/lib
-          cp "$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/libEGL.dll" src-tauri/lib/
-          cp "$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/libGLESv2.dll" src-tauri/lib/
+          cp "$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/"*.dll src-tauri/lib/
 
       - name: Verify bundled DLLs are present
         shell: bash
@@ -97,6 +96,7 @@ jobs:
           ls -l src-tauri/lib/
           test -f src-tauri/lib/libEGL.dll
           test -f src-tauri/lib/libGLESv2.dll
+          test -f src-tauri/lib/z.dll
           ls src-tauri/lib/*mpv*.dll >/dev/null
 
       - name: npm install
