@@ -226,6 +226,7 @@ pub struct MpvRenderer {
     height: i32,
     loaded: bool,
     log_ring: std::collections::VecDeque<String>,
+    frames_rendered: u64,
 }
 
 unsafe impl Send for MpvRenderer {}
@@ -283,6 +284,9 @@ pub struct PlayerStatus {
     paused_for_cache: Option<String>,
     cache_buffering_state: Option<String>,
     file_format: Option<String>,
+    frames_rendered: u64,
+    has_video_track: bool,
+    track_list_ready: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -344,6 +348,7 @@ impl MpvRenderer {
             height: 0,
             loaded: false,
             log_ring: std::collections::VecDeque::new(),
+            frames_rendered: 0,
         };
 
         renderer.set_option("terminal", "no")?;
@@ -412,6 +417,7 @@ impl MpvRenderer {
             height: 0,
             loaded: false,
             log_ring: std::collections::VecDeque::new(),
+            frames_rendered: 0,
         };
 
         renderer.set_option("terminal", "no")?;
@@ -447,6 +453,7 @@ impl MpvRenderer {
         let escaped = url.replace('\\', "\\\\").replace('"', "\\\"");
         self.loaded = false;
         self.log_ring.clear();
+        self.frames_rendered = 0;
         // Pass start position as a per-file option directly in the loadfile command.
         // This is the most reliable way to seek on open — no timing dependency.
         if let Some(secs) = start_at.filter(|&s| s > 0) {
@@ -667,6 +674,7 @@ impl MpvRenderer {
                 self.api.error_string(result)
             ));
         }
+        self.frames_rendered = self.frames_rendered.saturating_add(1);
         Ok(())
     }
 
@@ -762,7 +770,24 @@ impl MpvRenderer {
         events
     }
 
+    fn track_list_status(&self) -> (bool, bool) {
+        let count = self
+            .get_string_property("track-list/count")
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(0);
+        if count == 0 {
+            return (false, false);
+        }
+        for index in 0..count {
+            if self.get_string_property(&format!("track-list/{index}/type")).as_deref() == Some("video") {
+                return (true, true);
+            }
+        }
+        (false, true)
+    }
+
     pub fn status(&self) -> PlayerStatus {
+        let (has_video_track, track_list_ready) = self.track_list_status();
         PlayerStatus {
             loaded: self.loaded,
             path: self.get_string_property("path"),
@@ -806,6 +831,9 @@ impl MpvRenderer {
             paused_for_cache: self.get_string_property("paused-for-cache"),
             cache_buffering_state: self.get_string_property("cache-buffering-state"),
             file_format: self.get_string_property("file-format"),
+            frames_rendered: self.frames_rendered,
+            has_video_track,
+            track_list_ready,
         }
     }
 

@@ -72,13 +72,6 @@ pub struct DesktopState {
     pub thumbnail_loaded_url: Mutex<Option<String>>,
     pub pending_hide: AtomicBool,
     #[cfg(target_os = "windows")]
-    // Packed (width << 32 | height) main-window client size, updated only from
-    // the main thread's Resized window event. The native player's render loop
-    // reads this instead of calling window.inner_size() itself: that call
-    // crosses into WRY/tao's window-thread state, and polling it every ~16ms
-    // from a background thread was found to deadlock against the main thread
-    // during OS-level window transitions (e.g. the fullscreen toggle enters a
-    // modal resize loop on the main thread), freezing the whole app.
     pub main_window_size: std::sync::atomic::AtomicU64,
     pub downloads: downloads::DownloadsState,
     pub torrent_server_base_url: Mutex<Option<String>>,
@@ -384,17 +377,6 @@ pub fn run() {
 
             tauri_plugin_log::Builder::new()
                 .level(log_level)
-                // librqbit's DHT/tracker code logs routine, high-frequency events
-                // (e.g. one line per DHT peer candidate during bootstrap) via
-                // tracing spans that surface as log::Level::Error regardless of
-                // the global filter above. At torrent-swarm scale this floods
-                // the shared log writer with hundreds of lines/sec, and the
-                // logging mutex contention it creates can stall unrelated
-                // threads (including the native player's render loop) badly
-                // enough to make the whole app appear to hang.
-                // "librqbit" catches the main crate's internal modules too
-                // (librqbit::dht_utils, librqbit::session, etc.), not just the
-                // separately-published librqbit-dht/tracker-comms/upnp crates.
                 .level_for("librqbit", log::LevelFilter::Off)
                 .level_for("librqbit_dht", log::LevelFilter::Off)
                 .level_for("librqbit_tracker_comms", log::LevelFilter::Off)

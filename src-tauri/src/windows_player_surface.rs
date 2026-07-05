@@ -60,10 +60,6 @@ fn schedule_parent_blur(app: &AppHandle, parent_hwnd: HWND, enable: bool) {
     });
 }
 
-// Reads the cached size lib.rs's main-thread Resized handler stores, rather
-// than calling window.inner_size() itself here on the render loop thread: see
-// the comment on DesktopState::main_window_size for why that cross-thread
-// call was deadlocking against the main thread during fullscreen transitions.
 fn main_window_client_size(app: &AppHandle) -> Option<(i32, i32)> {
     let state = app.state::<DesktopState>();
     let packed = state

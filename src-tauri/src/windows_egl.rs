@@ -13,12 +13,6 @@ use std::sync::OnceLock;
 use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryExA};
 
-// Without these flags, LoadLibraryExA resolves a DLL's own dependencies using
-// the search order rooted at the *main executable's* directory, not the
-// directory the DLL itself was loaded from. Since libGLESv2.dll (and its own
-// dependency, z.dll) live in the exe-relative "lib" subfolder rather than
-// beside the exe, plain LoadLibraryA/LoadLibraryExA(0) fails to resolve them
-// with ERROR_MOD_NOT_FOUND even though every file is present on disk.
 const LOAD_LIBRARY_SEARCH_DEFAULT_DIRS: u32 = 0x0000_1000;
 const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x0000_0100;
 

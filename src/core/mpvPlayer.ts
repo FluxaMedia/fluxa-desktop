@@ -60,6 +60,9 @@ export type EmbeddedMpvStatus = {
   pausedForCache?: string | null;
   cacheBufferingState?: string | null;
   fileFormat?: string | null;
+  framesRendered: number;
+  hasVideoTrack: boolean;
+  trackListReady: boolean;
 };
 
 export type TorrentStats = {

@@ -214,7 +214,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const controlsVisibleRef = useRef(true);
   const episodePanelOpenRef = useRef(false);
   const firstFrameFiredRef = useRef(false);
-  const loadStartedAtRef = useRef(Date.now());
   const isFullscreenRef = useRef(false);
   const activeSkipKeyRef = useRef<string | null>(null);
   const discordPresenceKeyRef = useRef<string | null>(null);
@@ -382,10 +381,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       }
 
       if (!firstFrameFiredRef.current && onFirstFrame) {
-        const voReady = status.voConfigured === 'yes';
-        const audioPlaying = !voReady && status.coreIdle === 'no' && !isPaused && pos > 0;
-        const noVideoTrack = !status.videoCodec && Date.now() - loadStartedAtRef.current > 1000;
-        if (voReady || audioPlaying || noVideoTrack) {
+        const noVideoTrack = status.trackListReady && !status.hasVideoTrack;
+        const voReady = !noVideoTrack && status.voConfigured === 'yes' && status.framesRendered >= 2;
+        if (voReady || noVideoTrack) {
           firstFrameFiredRef.current = true;
           sendCmd('set pause no');
           onFirstFrame();
