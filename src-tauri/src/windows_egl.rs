@@ -11,7 +11,16 @@ use std::ffi::{c_char, c_void, CString};
 use std::ptr;
 use std::sync::OnceLock;
 use windows_sys::Win32::Foundation::HWND;
-use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryExA};
+
+// Without these flags, LoadLibraryExA resolves a DLL's own dependencies using
+// the search order rooted at the *main executable's* directory, not the
+// directory the DLL itself was loaded from. Since libGLESv2.dll (and its own
+// dependency, z.dll) live in the exe-relative "lib" subfolder rather than
+// beside the exe, plain LoadLibraryA/LoadLibraryExA(0) fails to resolve them
+// with ERROR_MOD_NOT_FOUND even though every file is present on disk.
+const LOAD_LIBRARY_SEARCH_DEFAULT_DIRS: u32 = 0x0000_1000;
+const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x0000_0100;
 
 type EglDisplay = *mut c_void;
 type EglSurfaceHandle = *mut c_void;
@@ -130,7 +139,13 @@ fn find_and_load_dll(name: &str) -> Result<isize, String> {
         }
         if let Some(path_str) = path.to_str() {
             if let Ok(cpath) = CString::new(path_str) {
-                let handle = unsafe { LoadLibraryA(cpath.as_ptr() as *const u8) };
+                let handle = unsafe {
+                    LoadLibraryExA(
+                        cpath.as_ptr() as *const u8,
+                        0,
+                        LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR,
+                    )
+                };
                 if handle != 0 {
                     return Ok(handle);
                 }
@@ -139,7 +154,7 @@ fn find_and_load_dll(name: &str) -> Result<isize, String> {
     }
 
     let cname = CString::new(name).map_err(|e| e.to_string())?;
-    let handle = unsafe { LoadLibraryA(cname.as_ptr() as *const u8) };
+    let handle = unsafe { LoadLibraryExA(cname.as_ptr() as *const u8, 0, 0) };
     if handle == 0 {
         Err(format!(
             "failed to load {name} (not bundled beside the executable, and not on PATH)"
