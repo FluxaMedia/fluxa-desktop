@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { t } from '../../i18n';
-import { nuvioSignIn, type NuvioSession } from '../../core/nuvioApi';
+import { nuvioAuthErrorKind, nuvioSignIn, type NuvioSession } from '../../core/nuvioApi';
 import type { UserProfile } from '../../core/types';
 import { S, FONT } from './styles';
 import { TopBar, Field, PasswordField } from './fields';
@@ -50,11 +50,28 @@ export function NuvioLoginView({ onBack, onImporting, onContinueLocal, localLoad
       const profile = buildNuvioProfile(session, email.trim());
       onImporting(profile);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('400') || msg.includes('Invalid')) {
-        setError(t('auth.error.invalid_credentials'));
-      } else {
-        setError(t('auth.error.network'));
+      switch (nuvioAuthErrorKind(err)) {
+        case 'invalid_credentials':
+          setError(t('auth.error.invalid_credentials'));
+          break;
+        case 'account_exists':
+          setError(t('auth.error.account_exists'));
+          break;
+        case 'email_not_confirmed':
+          setError(t('auth.error.email_not_confirmed'));
+          break;
+        case 'rate_limited':
+          setError(t('auth.error.rate_limited'));
+          break;
+        case 'server':
+          setError(t('auth.error.server'));
+          break;
+        case 'network':
+          setError(t('auth.error.network'));
+          break;
+        default:
+          setError(err instanceof Error ? err.message : t('auth.error.network'));
+          break;
       }
       setSubmitting(false);
     }

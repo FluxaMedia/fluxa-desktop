@@ -99,8 +99,75 @@ export interface NuvioCollectionRow {
 
 const NUVIO_CLIENT_MAX_PROFILES = 6;
 
+export class NuvioApiError extends Error {
+  status?: number;
+  code?: string;
+  rawBody?: string;
+
+  constructor(message: string, status?: number, code?: string, rawBody?: string) {
+    super(message);
+    this.name = 'NuvioApiError';
+    this.status = status;
+    this.code = code;
+    this.rawBody = rawBody;
+  }
+}
+
 function nuvioProgressKey(contentId: string, season?: number, episode?: number): string {
   return season != null && episode != null ? `${contentId}_s${season}e${episode}` : contentId;
+}
+
+function extractNuvioError(status: number, text: string): { message: string; code?: string } {
+  if (!text) return { message: `Nuvio API ${status}` };
+  try {
+    const json = JSON.parse(text) as Record<string, unknown>;
+    const message = [
+      json.error_description,
+      json.msg,
+      json.message,
+      json.error,
+    ].find((value) => typeof value === 'string' && value.trim().length > 0);
+    const code = [
+      json.code,
+      json.error_code,
+      json.error,
+    ].find((value) => typeof value === 'string' && value.trim().length > 0);
+    if (message) return { message: String(message), code: code ? String(code) : undefined };
+  } catch {}
+  return { message: text };
+}
+
+export type NuvioAuthErrorKind =
+  | 'invalid_credentials'
+  | 'account_exists'
+  | 'email_not_confirmed'
+  | 'rate_limited'
+  | 'server'
+  | 'network'
+  | 'unknown';
+
+export function nuvioAuthErrorKind(error: unknown): NuvioAuthErrorKind {
+  const status = error instanceof NuvioApiError ? error.status : undefined;
+  const code = error instanceof NuvioApiError ? error.code ?? '' : '';
+  const message = error instanceof Error ? error.message : String(error);
+  const combined = `${code} ${message}`;
+
+  if (/invalid login|invalid_grant|invalid credentials|wrong password|user not found/i.test(combined)) {
+    return 'invalid_credentials';
+  }
+  if (/already registered|already exists|user_already_exists|email_exists/i.test(combined)) {
+    return 'account_exists';
+  }
+  if (/email.*not.*confirm|confirm.*email|email_not_confirmed/i.test(combined)) {
+    return 'email_not_confirmed';
+  }
+  if (status === 400 || status === 401) return 'invalid_credentials';
+  if (status === 429 || /rate limit|too many requests/i.test(combined)) return 'rate_limited';
+  if (status != null && status >= 500) return 'server';
+  if (/failed to fetch|networkerror|load failed|connection|timed out|timeout|dns|error sending request/i.test(combined)) {
+    return 'network';
+  }
+  return 'unknown';
 }
 
 async function rawNuvioRequest(
@@ -123,9 +190,17 @@ async function nuvioRequest<T>(
   body?: unknown,
   token?: string,
 ): Promise<T> {
-  const [status, text] = await rawNuvioRequest(method, path, body, token);
+  let status: number;
+  let text: string;
+  try {
+    [status, text] = await rawNuvioRequest(method, path, body, token);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new NuvioApiError(message || 'Nuvio request failed');
+  }
   if (status < 200 || status >= 300) {
-    throw new Error(`Nuvio API ${status}: ${text}`);
+    const parsed = extractNuvioError(status, text);
+    throw new NuvioApiError(parsed.message, status, parsed.code, text);
   }
   return text ? (JSON.parse(text) as T) : (null as T);
 }
