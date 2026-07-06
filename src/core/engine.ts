@@ -302,6 +302,14 @@ export async function coreSimklWatchedToIds(showsJson: string, moviesJson: strin
   return coreInvoke('simklWatchedToIds', JSON.stringify({ showsJson, moviesJson }));
 }
 
+export async function coreStremioWatchlistToItems(items: unknown[]): Promise<unknown[] | null> {
+  return coreInvoke('stremioWatchlistToItems', JSON.stringify(items));
+}
+
+export async function coreStremioWatchedToIds(items: unknown[]): Promise<Record<string, boolean> | null> {
+  return coreInvoke('stremioWatchedToIds', JSON.stringify(items));
+}
+
 export async function coreNormalizeLibraryDocument(json: string): Promise<Record<string, unknown>> {
   return (await coreInvoke<Record<string, unknown>>('normalizeLibraryDocument', json)) ?? {};
 }

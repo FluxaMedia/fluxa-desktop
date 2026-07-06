@@ -11,6 +11,8 @@ import { syncExternalIntegrationNow } from '../../core/effectRunner';
 import { refreshAnimeTrackingProfile } from '../../core/animeExternalSync';
 import { SettingsSection, SyncServicePopover, SyncServiceRow } from './SettingsUI';
 import type { Prefs, SyncMeta, TraktTokenResponse } from './settingsTypes';
+import { nuvioAuthErrorKind, nuvioSignIn } from '../../core/nuvioApi';
+import { stremioLogin, stremioLogout } from '../../core/stremioApi';
 
 function generateCodeVerifier(): string {
   const array = new Uint8Array(48);
@@ -28,6 +30,85 @@ interface OAuthCodePayload {
 }
 
 type OAuthService = 'trakt' | 'anilist' | 'simkl';
+
+function credentialAuthErrorMessage(err: unknown): string {
+  switch (nuvioAuthErrorKind(err)) {
+    case 'invalid_credentials':
+      return t('auth.error.invalid_credentials');
+    case 'email_not_confirmed':
+      return t('auth.error.email_not_confirmed');
+    case 'rate_limited':
+      return t('auth.error.rate_limited');
+    case 'server':
+      return t('auth.error.server');
+    case 'network':
+      return t('auth.error.network');
+    default:
+      return err instanceof Error && err.message ? err.message : t('auth.error.network');
+  }
+}
+
+function CredentialLoginForm({
+  busy,
+  onSubmit,
+  onCancel,
+}: {
+  busy: boolean;
+  onSubmit: (email: string, password: string) => void;
+  onCancel: () => void;
+}) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const canSubmit = !busy && email.trim().length > 0 && password.length > 0;
+  const input: React.CSSProperties = {
+    height: 30,
+    borderRadius: 7,
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(255,255,255,0.05)',
+    color: '#fff',
+    fontSize: 12.5,
+    padding: '0 10px',
+    outline: 'none',
+    flex: 1,
+    minWidth: 0,
+  };
+  const btn: React.CSSProperties = {
+    height: 30,
+    borderRadius: 7,
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(255,255,255,0.06)',
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
+    padding: '0 12px',
+    whiteSpace: 'nowrap',
+  };
+  return (
+    <div style={{ padding: '0 18px 12px', borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', gap: 8, alignItems: 'center' }}>
+      <input
+        type="email"
+        placeholder={t('auth.placeholder.email')}
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={input}
+        autoFocus
+      />
+      <input
+        type="password"
+        placeholder={t('auth.placeholder.password_login')}
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) onSubmit(email.trim(), password); }}
+        style={input}
+      />
+      <button disabled={!canSubmit} onClick={() => onSubmit(email.trim(), password)} style={{ ...btn, opacity: canSubmit ? 1 : 0.5 }}>
+        {busy ? t('auth.signing_in') : t('auth.sign_in')}
+      </button>
+      <button onClick={onCancel} disabled={busy} style={btn}>{t('common.cancel')}</button>
+    </div>
+  );
+}
 
 export function AccountSection({
   prefs,
@@ -59,17 +140,31 @@ export function AccountSection({
   const [simklError, setSimklError] = useState<string | null>(null);
   const [simklPopoverOpen, setSimklPopoverOpen] = useState(false);
   const [simklSyncMeta, setSimklSyncMeta] = useState<SyncMeta | null>(null);
+  const [nuvioBusy, setNuvioBusy] = useState(false);
+  const [nuvioError, setNuvioError] = useState<string | null>(null);
+  const [nuvioPopoverOpen, setNuvioPopoverOpen] = useState(false);
+  const [nuvioSyncMeta, setNuvioSyncMeta] = useState<SyncMeta | null>(null);
+  const [nuvioFormOpen, setNuvioFormOpen] = useState(false);
+  const [stremioBusy, setStremioBusy] = useState(false);
+  const [stremioError, setStremioError] = useState<string | null>(null);
+  const [stremioPopoverOpen, setStremioPopoverOpen] = useState(false);
+  const [stremioSyncMeta, setStremioSyncMeta] = useState<SyncMeta | null>(null);
+  const [stremioFormOpen, setStremioFormOpen] = useState(false);
   const [authUrls, setAuthUrls] = useState<Partial<Record<OAuthService, string>>>({});
 
   useEffect(() => {
     storageRead<SyncMeta>('trakt_sync_meta').then((m) => { if (m) setTraktSyncMeta(m); });
     storageRead<SyncMeta>('anilist_sync_meta').then((m) => { if (m) setAnilistSyncMeta(m); });
     storageRead<SyncMeta>('simkl_sync_meta').then((m) => { if (m) setSimklSyncMeta(m); });
+    storageRead<SyncMeta>('nuvio_sync_meta').then((m) => { if (m) setNuvioSyncMeta(m); });
+    storageRead<SyncMeta>('stremio_sync_meta').then((m) => { if (m) setStremioSyncMeta(m); });
   }, []);
 
   const traktConnected = isTraktConnected(activeProfile);
   const anilistConnected = Boolean(activeProfile?.anilistAccessToken);
   const simklConnected = Boolean(activeProfile?.simklAccessToken);
+  const nuvioConnected = Boolean(activeProfile?.nuvioAccessToken || activeProfile?.nuvioRefreshToken);
+  const stremioConnected = Boolean(activeProfile?.stremioAuthKey);
 
   useEffect(() => { if (traktConnected) setTraktBusy(false); }, [traktConnected]);
   useEffect(() => { if (anilistConnected) setAnilistBusy(false); }, [anilistConnected]);
@@ -275,6 +370,76 @@ export function AccountSection({
     onProfileUpdated(updated);
   };
 
+  const handleNuvioConnect = async (email: string, password: string) => {
+    if (!activeProfile || nuvioBusy) return;
+    setNuvioBusy(true);
+    setNuvioError(null);
+    try {
+      const session = await nuvioSignIn(email, password);
+      const updated: UserProfile = {
+        ...activeProfile,
+        nuvioAccessToken: session.access_token,
+        nuvioRefreshToken: session.refresh_token,
+        nuvioTokenExpiresAt: Math.floor(Date.now() / 1000) + (session.expires_in ?? 3600),
+        nuvioUserId: session.user?.id,
+        nuvioEmail: email,
+        nuvioProfileIndex: activeProfile.nuvioProfileIndex ?? 1,
+      };
+      await saveProfile(updated);
+      onProfileUpdated(updated);
+      setNuvioFormOpen(false);
+    } catch (err) {
+      setNuvioError(credentialAuthErrorMessage(err));
+    } finally {
+      setNuvioBusy(false);
+    }
+  };
+
+  const handleNuvioDisconnect = async () => {
+    if (!activeProfile) return;
+    setNuvioPopoverOpen(false);
+    const updated: UserProfile = {
+      ...activeProfile,
+      nuvioAccessToken: undefined,
+      nuvioRefreshToken: undefined,
+      nuvioTokenExpiresAt: undefined,
+      nuvioUserId: undefined,
+      nuvioEmail: undefined,
+    };
+    await saveProfile(updated);
+    onProfileUpdated(updated);
+  };
+
+  const handleStremioConnect = async (email: string, password: string) => {
+    if (!activeProfile || stremioBusy) return;
+    setStremioBusy(true);
+    setStremioError(null);
+    try {
+      const auth = await stremioLogin(email, password);
+      const updated: UserProfile = {
+        ...activeProfile,
+        stremioAuthKey: auth.authKey,
+        stremioEmail: auth.user.email ?? email,
+      };
+      await saveProfile(updated);
+      onProfileUpdated(updated);
+      setStremioFormOpen(false);
+    } catch (err) {
+      setStremioError(credentialAuthErrorMessage(err));
+    } finally {
+      setStremioBusy(false);
+    }
+  };
+
+  const handleStremioDisconnect = async () => {
+    if (!activeProfile) return;
+    setStremioPopoverOpen(false);
+    if (activeProfile.stremioAuthKey) void stremioLogout(activeProfile.stremioAuthKey);
+    const updated: UserProfile = { ...activeProfile, stremioAuthKey: undefined, stremioEmail: undefined };
+    await saveProfile(updated);
+    onProfileUpdated(updated);
+  };
+
   const handleTraktSyncNow = async () => {
     if (!activeProfile?.traktAccessToken) return;
     setTraktBusy(true);
@@ -326,6 +491,57 @@ export function AccountSection({
       setSimklError(error instanceof Error ? error.message : String(error));
     } finally {
       setSimklBusy(false);
+    }
+    onDispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
+    onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: prefs.language }));
+  };
+
+  const handleNuvioSyncNow = async () => {
+    if (!activeProfile?.nuvioAccessToken && !activeProfile?.nuvioRefreshToken) return;
+    setNuvioBusy(true);
+    setNuvioError(null);
+    try {
+      const result = await syncExternalIntegrationNow({
+        provider: 'nuvio',
+        profile: activeProfile,
+      }) as { synced?: boolean; error?: string };
+      if (!result.synced) {
+        setNuvioError(result.error ?? 'Nuvio sync failed');
+      } else {
+        const meta: SyncMeta = { lastSyncAt: Date.now(), continueWatchingCount: 0, watchlistCount: 0 };
+        setNuvioSyncMeta(meta);
+        await storageWrite('nuvio_sync_meta', meta);
+      }
+    } catch (error) {
+      setNuvioError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setNuvioBusy(false);
+    }
+    onDispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
+    onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: prefs.language }));
+  };
+
+  const handleStremioSyncNow = async () => {
+    if (!activeProfile?.stremioAuthKey) return;
+    setStremioBusy(true);
+    setStremioError(null);
+    try {
+      const result = await syncExternalIntegrationNow({
+        provider: 'stremio',
+        profile: activeProfile,
+        token: activeProfile.stremioAuthKey,
+      }) as { synced?: boolean; error?: string; continueWatchingCount?: number; watchlistCount?: number };
+      if (!result.synced) {
+        setStremioError(result.error ?? 'Stremio sync failed');
+      } else {
+        const meta: SyncMeta = { lastSyncAt: Date.now(), continueWatchingCount: result.continueWatchingCount ?? 0, watchlistCount: result.watchlistCount ?? 0 };
+        setStremioSyncMeta(meta);
+        await storageWrite('stremio_sync_meta', meta);
+      }
+    } catch (error) {
+      setStremioError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setStremioBusy(false);
     }
     onDispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
     onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: prefs.language }));
@@ -491,6 +707,100 @@ export function AccountSection({
                 onSyncNow={() => void handleSimklSyncNow()}
                 onDisconnect={() => void handleSimklDisconnect()}
                 onClose={() => setSimklPopoverOpen(false)}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Nuvio */}
+        {!nuvioConnected && (
+          <SyncServiceRow
+            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="https://nuvio.tv//assets/Logo_1080x1080.png" alt="Nuvio" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>}
+            title="Nuvio"
+            value={nuvioBusy ? t('auth.signing_in') : t('settings.connect_nuvio_account')}
+            onClick={() => setNuvioFormOpen((o) => !o)}
+            busy={nuvioBusy}
+            expanded={nuvioFormOpen}
+          />
+        )}
+        {!nuvioConnected && nuvioFormOpen && (
+          <CredentialLoginForm
+            busy={nuvioBusy}
+            onSubmit={(email, password) => void handleNuvioConnect(email, password)}
+            onCancel={() => { setNuvioFormOpen(false); setNuvioError(null); }}
+          />
+        )}
+        {nuvioError && (
+          <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
+            <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {nuvioError}</p>
+          </div>
+        )}
+        {nuvioConnected && (
+          <div style={{ position: 'relative' }}>
+            <SyncServiceRow
+              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="https://nuvio.tv//assets/Logo_1080x1080.png" alt="Nuvio" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>}
+              title="Nuvio"
+              value={nuvioBusy ? t('trakt.device.syncing') : (activeProfile?.nuvioEmail ?? t('trakt.device.connected'))}
+              valueColor="#54D17A"
+              onClick={() => setNuvioPopoverOpen((o) => !o)}
+              busy={nuvioBusy}
+              expanded={nuvioPopoverOpen}
+            />
+            {nuvioPopoverOpen && (
+              <SyncServicePopover
+                serviceName="Nuvio"
+                meta={nuvioSyncMeta}
+                busy={nuvioBusy}
+                onSyncNow={() => void handleNuvioSyncNow()}
+                onDisconnect={() => void handleNuvioDisconnect()}
+                onClose={() => setNuvioPopoverOpen(false)}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Stremio */}
+        {!stremioConnected && (
+          <SyncServiceRow
+            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>S</span></div>}
+            title="Stremio"
+            value={stremioBusy ? t('auth.signing_in') : t('settings.connect_stremio_account')}
+            onClick={() => setStremioFormOpen((o) => !o)}
+            busy={stremioBusy}
+            expanded={stremioFormOpen}
+          />
+        )}
+        {!stremioConnected && stremioFormOpen && (
+          <CredentialLoginForm
+            busy={stremioBusy}
+            onSubmit={(email, password) => void handleStremioConnect(email, password)}
+            onCancel={() => { setStremioFormOpen(false); setStremioError(null); }}
+          />
+        )}
+        {stremioError && (
+          <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
+            <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {stremioError}</p>
+          </div>
+        )}
+        {stremioConnected && (
+          <div style={{ position: 'relative' }}>
+            <SyncServiceRow
+              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>S</span></div>}
+              title="Stremio"
+              value={stremioBusy ? t('trakt.device.syncing') : (activeProfile?.stremioEmail ?? t('trakt.device.connected'))}
+              valueColor="#54D17A"
+              onClick={() => setStremioPopoverOpen((o) => !o)}
+              busy={stremioBusy}
+              expanded={stremioPopoverOpen}
+            />
+            {stremioPopoverOpen && (
+              <SyncServicePopover
+                serviceName="Stremio"
+                meta={stremioSyncMeta}
+                busy={stremioBusy}
+                onSyncNow={() => void handleStremioSyncNow()}
+                onDisconnect={() => void handleStremioDisconnect()}
+                onClose={() => setStremioPopoverOpen(false)}
               />
             )}
           </div>

@@ -3,6 +3,7 @@ import { coreParseVideoId } from './engine';
 import { dropTraktPlaybackProgress } from './traktSync';
 import { syncTraktNow, pushMarkWatchedTrakt, pushWatchlistTrakt } from './traktExternalSync';
 import { syncSimklNow, pushMarkWatchedSimkl, pushWatchlistSimkl } from './simklExternalSync';
+import { syncStremioNow } from './stremioExternalSync';
 import { pushAnimeTrackingExternal } from './animeExternalSync';
 import { pushLibraryStatusAniList, pushWatchlistAniList, syncAniListNow } from './anilistExternalSync';
 import { nuvioDeleteWatchProgress, nuvioPushWatchHistory, nuvioPushWatchProgress, nuvioRefreshToken } from './nuvioApi';
@@ -210,5 +211,19 @@ export async function syncExternalIntegrationNow(payload: Record<string, unknown
   if (provider === 'anilist') return syncAniListNow(payload);
   if (provider === 'simkl') return syncSimklNow(payload);
   if (provider === 'trakt') return syncTraktNow(payload);
+  if (provider === 'stremio') return syncStremioNow(payload);
+  if (provider === 'nuvio') return syncNuvioNow(payload);
   return { synced: false, error: `Unsupported external sync provider: ${provider}` };
+}
+
+async function syncNuvioNow(payload: Record<string, unknown>): Promise<unknown> {
+  const profile = payload.profile as UserProfile | undefined;
+  if (!profile?.nuvioAccessToken) return { synced: false, error: 'Nuvio is not connected' };
+  const { importNuvioProfileData } = await import('./nuvioSync');
+  const report = await importNuvioProfileData(profile);
+  const failures = Object.entries(report.errors);
+  if (failures.length > 0) {
+    return { synced: false, error: failures.map(([step, msg]) => `${step}: ${msg}`).join('; ') };
+  }
+  return { synced: true, provider: 'nuvio' };
 }

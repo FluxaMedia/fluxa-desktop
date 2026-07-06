@@ -251,6 +251,8 @@ export interface UserProfile {
   anilistTokenExpiresAt?: number;
   simklAccessToken?: string;
   simklRefreshToken?: string;
+  stremioAuthKey?: string;
+  stremioEmail?: string;
   nuvioAccessToken?: string;
   nuvioRefreshToken?: string;
   nuvioTokenExpiresAt?: number;
