@@ -106,6 +106,15 @@ fn mpv_options_from_preferences(
                 options.push(("cache-secs".to_string(), seconds.clone()));
                 options.push(("demuxer-readahead-secs".to_string(), seconds));
             }
+            if let Some(back_ms) = targets.get("backBufferMs").and_then(Value::as_i64) {
+                let cache_bytes = targets
+                    .get("cacheSizeBytes")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(100_000_000);
+                let back_bytes = ((back_ms / 1000) * 1_310_720)
+                    .clamp(10_000_000, cache_bytes);
+                options.push(("demuxer-max-back-bytes".to_string(), back_bytes.to_string()));
+            }
         }
     }
     if preferences
