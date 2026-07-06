@@ -1038,6 +1038,8 @@
   "common.move_down": "Aşağı taşı",
   "common.configure": "Yapılandır",
   "player.back": "Geri",
+  "player.playback_error_title": "Oynatma başarısız oldu",
+  "player.playback_error_detail": "Akış bir hata nedeniyle durdu. Geri dönüp farklı bir kaynak deneyebilirsin.",
   "player.cast": "Yayınla",
   "player.ab_loop": "A-B Döngüsü",
   "player.ab_loop_a_set": "A noktası ayarlandı",

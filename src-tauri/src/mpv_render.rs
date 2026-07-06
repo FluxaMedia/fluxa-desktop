@@ -632,6 +632,16 @@ impl MpvRenderer {
         })
     }
 
+    pub fn reset_render_context(&mut self) {
+        if self.render_context.is_null() {
+            return;
+        }
+        unsafe {
+            (self.api.mpv_render_context_free)(self.render_context);
+        }
+        self.render_context = ptr::null_mut();
+    }
+
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     pub fn render_opengl_frame(&mut self, width: i32, height: i32) -> Result<(), String> {
         if self.render_context.is_null() {

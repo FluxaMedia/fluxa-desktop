@@ -6,6 +6,7 @@ import { currentMonitor, getCurrentWindow } from '@tauri-apps/api/window';
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import {
   AudioLines,
+  AlertTriangle,
   Camera,
   Captions,
   Cast,
@@ -29,7 +30,7 @@ import {
 } from 'lucide-react';
 import { setSuppressWindowGeometrySave } from '../core/windowGeometry';
 import type { EmbeddedMpvStatus, TorrentStats } from '../core/mpvPlayer';
-import { playerGetPlaybackInfo, playerGetTrackOptions, playerTorrentStats } from '../core/mpvPlayer';
+import { embeddedMpvRenderFrame, playerGetPlaybackInfo, playerGetTrackOptions, playerTorrentStats } from '../core/mpvPlayer';
 import type { PlayerTrackOption } from '../core/mpvPlayer';
 import { VolumeBar } from './player/VolumeBar';
 import { NextEpCard } from './player/NextEpCard';
@@ -127,10 +128,12 @@ interface Props {
   initialPosterUrl?: string;
   initialSubtitleUrl?: string;
   initialStreamHeaders?: Record<string, string>;
+  playbackError?: string | null;
+  softwareVideoActive?: boolean;
   bannerOffset?: number;
 }
 
-export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, initialPosterUrl, initialSubtitleUrl, initialStreamHeaders, bannerOffset = 0 }: Props) {
+export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, initialPosterUrl, initialSubtitleUrl, initialStreamHeaders, playbackError, softwareVideoActive = false, bannerOffset = 0 }: Props) {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(100);
@@ -190,6 +193,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const currentTimeRef = useRef<HTMLSpanElement>(null);
   const durationRef = useRef<HTMLSpanElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
+  const softwareCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const segFillRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -239,6 +243,56 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     }).then((u) => { unlisten = u; }).catch(() => {});
     return () => { unlisten?.(); };
   }, [resetActivity]);
+
+  useEffect(() => {
+    if (!softwareVideoActive) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const draw = async () => {
+      if (cancelled) return;
+      const canvas = softwareCanvasRef.current;
+      if (!canvas) {
+        timer = setTimeout(draw, 100);
+        return;
+      }
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      const viewportW = Math.max(320, window.innerWidth);
+      const viewportH = Math.max(180, window.innerHeight);
+      const scale = Math.min(dpr, 960 / viewportW, 540 / viewportH);
+      const targetW = Math.max(320, Math.floor(viewportW * scale));
+      const targetH = Math.max(180, Math.floor(viewportH * scale));
+      try {
+        const frame = await embeddedMpvRenderFrame(targetW, targetH);
+        if (cancelled) return;
+        if (canvas.width !== frame.width || canvas.height !== frame.height) {
+          canvas.width = frame.width;
+          canvas.height = frame.height;
+        }
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const binary = atob(frame.pixelsBase64);
+          const pixels = new Uint8ClampedArray(binary.length);
+          for (let i = 0; i < binary.length; i++) pixels[i] = binary.charCodeAt(i);
+          ctx.putImageData(new ImageData(pixels, frame.width, frame.height), 0, 0);
+          if (!firstFrameFiredRef.current && onFirstFrame) {
+            firstFrameFiredRef.current = true;
+            sendCmd('set pause no');
+            onFirstFrame();
+          }
+        }
+        timer = setTimeout(draw, 42);
+      } catch {
+        timer = setTimeout(draw, 120);
+      }
+    };
+
+    void draw();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [softwareVideoActive, onFirstFrame]);
 
   const toggleFullscreen = useCallback(async () => {
     const next = !isFullscreenRef.current;
@@ -295,6 +349,45 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     if (seekOverlayTimerRef.current) clearTimeout(seekOverlayTimerRef.current);
     seekOverlayTimerRef.current = setTimeout(() => setShowSeekOverlay(false), 30000);
   }, []);
+
+  useEffect(() => {
+    const mediaSession = navigator.mediaSession;
+    if (!mediaSession) return;
+    mediaSession.metadata = new MediaMetadata({
+      title: episodeTitle || title || 'Fluxa',
+      artist: episodeTitle ? title : undefined,
+      artwork: initialPosterUrl ? [{ src: initialPosterUrl }] : undefined,
+    });
+    mediaSession.setActionHandler('play', () => {
+      setPaused(false);
+      sendCmd('set pause no');
+    });
+    mediaSession.setActionHandler('pause', () => {
+      setPaused(true);
+      sendCmd('set pause yes');
+    });
+    mediaSession.setActionHandler('seekbackward', () => {
+      startSeekOverlay();
+      flashFeedback('seekBack', '-10s');
+      sendCmd('seek -10 relative');
+    });
+    mediaSession.setActionHandler('seekforward', () => {
+      startSeekOverlay();
+      flashFeedback('seekFwd', '+10s');
+      sendCmd('seek 10 relative');
+    });
+    mediaSession.setActionHandler('nexttrack', () => {
+      void emit('native-player-next-episode', null);
+    });
+    return () => {
+      mediaSession.setActionHandler('play', null);
+      mediaSession.setActionHandler('pause', null);
+      mediaSession.setActionHandler('seekbackward', null);
+      mediaSession.setActionHandler('seekforward', null);
+      mediaSession.setActionHandler('nexttrack', null);
+      mediaSession.metadata = null;
+    };
+  }, [title, episodeTitle, initialPosterUrl, startSeekOverlay, flashFeedback]);
 
   const seekToFraction = useCallback((fraction: number) => {
     const tt = fraction * durRef.current;
@@ -1046,7 +1139,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   return (
     <div
       ref={overlayRef}
-      style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', flexDirection: 'column', background: 'transparent' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', flexDirection: 'column', background: softwareVideoActive ? '#000' : 'transparent' }}
       onWheel={onOverlayWheel}
       onContextMenu={(e) => { e.preventDefault(); resetActivity(); setContextMenu({ x: e.clientX, y: e.clientY }); }}
     >
@@ -1065,8 +1158,73 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         .fluxa-seekbar:hover .fluxa-seek-dot { width: 14px; height: 14px; }
       `}</style>
 
+      {softwareVideoActive && (
+        <canvas
+          ref={softwareCanvasRef}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#000', zIndex: 0, pointerEvents: 'none' }}
+        />
+      )}
+
       <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 140, background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 230, background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.5) 45%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
+
+      {playbackError && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            background: 'rgba(0,0,0,0.62)',
+            backdropFilter: 'blur(8px)',
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            style={{
+              width: 540,
+              maxWidth: '100%',
+              background: 'rgba(13,15,22,0.94)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 8,
+              padding: '22px 24px',
+              boxShadow: '0 18px 70px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <AlertTriangle size={21} color="#ff6b6b" />
+              <h2 style={{ margin: 0, color: '#fff', fontSize: 19, lineHeight: '25px' }}>{t('player.playback_error_title')}</h2>
+            </div>
+            <p style={{ margin: '0 0 12px', color: 'rgba(255,255,255,0.68)', fontSize: 13, lineHeight: '19px' }}>
+              {t('player.playback_error_detail')}
+            </p>
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: 'rgba(255,255,255,0.82)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '10px 12px', fontFamily: 'monospace', fontSize: 12, lineHeight: '17px', maxHeight: 160, overflowY: 'auto' }}>
+              {playbackError}
+            </pre>
+            <button
+              onClick={(e) => { e.stopPropagation(); void closePlayer(); }}
+              style={{
+                marginTop: 16,
+                height: 36,
+                padding: '0 14px',
+                borderRadius: 7,
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(255,255,255,0.08)',
+                color: '#fff',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {t('player.back')}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ ...opacityStyle, position: 'absolute', top: bannerOffset, left: 0, right: 0, zIndex: 3, display: 'flex', alignItems: 'center', padding: '14px 12px', gap: 6 }}>
         <button

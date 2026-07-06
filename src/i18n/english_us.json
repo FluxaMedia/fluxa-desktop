@@ -1038,6 +1038,8 @@
   "common.move_down": "Move down",
   "common.configure": "Configure",
   "player.back": "Back",
+  "player.playback_error_title": "Playback failed",
+  "player.playback_error_detail": "The stream stopped playing because of an error. You can go back and try a different source.",
   "player.cast": "Cast",
   "player.ab_loop": "A-B Loop",
   "player.ab_loop_a_set": "Loop point A set",

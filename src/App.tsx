@@ -78,6 +78,7 @@ export default function App() {
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [searchFocusSignal, setSearchFocusSignal] = useState(0);
   const [nativePlayerActive, setNativePlayerActive] = useState(false);
+  const [softwareVideoActive, setSoftwareVideoActive] = useState(false);
   const [p2pDialog, setP2PDialog] = useState<{ mode: 'first-time' | 'disabled'; pendingPlay: () => void } | null>(null);
   const storedPrefsRef = useRef<Record<string, unknown>>({});
   const stateRef = useRef<AppState>(DEFAULT_STATE);
@@ -114,13 +115,22 @@ export default function App() {
     listen('native-player-show', () => {
       debugLog('App: received native-player-show');
       setNativePlayerActive(true);
+      setSoftwareVideoActive(false);
       document.documentElement.setAttribute('data-native-player-active', 'true');
     }).then((fn) => { debugLog('App: native-player-show listener registered'); if (cancelled) fn(); else unlisteners.push(fn); }).catch((err) => debugLog(`App: native-player-show listen() failed ${String(err)}`));
 
     listen('native-player-hide', () => {
       debugLog('App: received native-player-hide');
       setNativePlayerActive(false);
+      setSoftwareVideoActive(false);
       document.documentElement.removeAttribute('data-native-player-active');
+    }).then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); }).catch(() => undefined);
+
+    listen<string>('native-player-software-rendering', (event) => {
+      debugLog(`App: software video rendering active: ${event.payload}`);
+      setNativePlayerActive(true);
+      setSoftwareVideoActive(true);
+      document.documentElement.setAttribute('data-native-player-active', 'true');
     }).then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); }).catch(() => undefined);
 
     return () => { cancelled = true; unlisteners.forEach((fn) => fn()); };
@@ -150,7 +160,7 @@ export default function App() {
     setWelcomeCompleted,
   } = useAppInit(updateState, setActiveRoute, storedPrefsRef);
 
-  const { playerLoadingOverlay, playerTitle, playerEpisodeTitle, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame } = usePlayer({
+  const { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame } = usePlayer({
     stateRef,
     activeProfile,
     updateState,
@@ -622,6 +632,8 @@ export default function App() {
             initialPosterUrl={playerPosterUrl}
             initialSubtitleUrl={playerSubtitleUrl}
             initialStreamHeaders={playerStreamHeaders}
+            playbackError={playerPlaybackError}
+            softwareVideoActive={softwareVideoActive}
             bannerOffset={bannerOffset}
           />
         </ErrorBoundary>

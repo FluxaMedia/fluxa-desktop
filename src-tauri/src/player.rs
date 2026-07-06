@@ -232,14 +232,6 @@ fn mpv_options_from_preferences(
             options.push(("hwdec".to_string(), hwdec.to_string()));
         }
     }
-    if preferences
-        .get("showFpsCounter")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
-    {
-        options.push(("osd-level".to_string(), "3".to_string()));
-    }
-
     options
 }
 
@@ -372,7 +364,7 @@ pub async fn player_init(app: AppHandle, state: State<'_, DesktopState>) -> Resu
             log::info!("player_init: ok (Windows native surface)");
             return Ok(());
         }
-        return Err("Windows native player surface is unavailable; check bundled mpv/ANGLE DLLs and GPU driver support".to_string());
+        log::warn!("player_init: Windows native player surface unavailable, using software video rendering");
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -426,9 +418,27 @@ pub fn player_load(
     #[cfg(target_os = "windows")]
     {
         if let Some(surface) = ensure_native_player_surface(&app, &state) {
-            return surface.load(url, start_at, total_duration);
+            match surface.load(url.clone(), start_at, total_duration) {
+                Ok(()) => return Ok(()),
+                Err(error) => {
+                    log::warn!("player_load: Windows native player surface failed, using software video rendering: {error}");
+                    *state.native_player_surface.lock().unwrap() = None;
+                }
+            }
         }
-        return Err("Windows native player surface is unavailable; check bundled mpv/ANGLE DLLs and GPU driver support".to_string());
+        log::warn!(
+            "player_load: Windows native player surface unavailable, using software video rendering"
+        );
+        if let Ok(mut renderer) = state.player_renderer.lock() {
+            if let Some(renderer) = renderer.as_mut() {
+                renderer.reset_render_context();
+            }
+        }
+        let _ = app.emit("native-player-show", ());
+        let _ = app.emit(
+            "native-player-software-rendering",
+            "Windows native player surface is unavailable; using software video rendering",
+        );
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -441,7 +451,6 @@ pub fn player_load(
         );
     }
 
-    let _ = app;
     let mut renderer = state.player_renderer.lock().unwrap();
     if renderer.is_none() {
         *renderer = Some(mpv_render::MpvRenderer::new()?);
@@ -704,14 +713,15 @@ pub fn player_show_loading(
 }
 
 #[tauri::command]
-pub fn player_hide(state: State<DesktopState>) {
+pub fn player_hide(app: AppHandle, state: State<DesktopState>) {
     state.pending_hide.store(true, Ordering::Release);
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     if let Some(surface) = state.native_player_surface.lock().unwrap().as_ref() {
         surface.hide();
+        return;
     }
 
-    let _ = state;
+    let _ = app.emit("native-player-hide", ());
 }
 
 #[tauri::command]

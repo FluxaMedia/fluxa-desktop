@@ -68,6 +68,7 @@ interface UsePlayerResult {
   playerPosterUrl: string | undefined;
   playerSubtitleUrl: string | undefined;
   playerStreamHeaders: Record<string, string> | undefined;
+  playerPlaybackError: string | null;
   handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number) => Promise<void>;
   closePlayer: () => Promise<void>;
   notifyFirstFrame: () => void;
@@ -82,6 +83,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   const [playerStreamHeaders, setPlayerStreamHeaders] = useState<Record<string, string> | undefined>();
   const [playerUsesTorrent, setPlayerUsesTorrent] = useState(false);
   const [playerLoadingOverlay, setPlayerLoadingOverlay] = useState<PlayerLoadingOverlayState | null>(null);
+  const [playerPlaybackError, setPlayerPlaybackError] = useState<string | null>(null);
 
   const activeProfileRef = useRef<UserProfile | null>(null);
   const mpvInitializedRef = useRef(false);
@@ -226,6 +228,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerStreamHeaders(undefined);
     setPlayerUsesTorrent(false);
     setPlayerLoadingOverlay(null);
+    setPlayerPlaybackError(null);
     inNativePlayerRef.current = false;
     void playerClearSkipInfo();
     void playerClearChapters();
@@ -345,6 +348,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     totalDurationSeconds?: number,
   ) => {
     debugLog('handlePlay:start');
+    setPlayerPlaybackError(null);
     try {
     const generation = ++playGenerationRef.current;
     const isCancelled = () => generation !== playGenerationRef.current;
@@ -528,10 +532,10 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     if (playerLoadingOverlayRef.current && !playerLoadingOverlayRef.current.error) {
       await failPlayerLoading(message);
     } else if (!playerLoadingOverlayRef.current) {
-      void closePlayer();
-      alert(message);
+      setPlayerPlaybackError(message);
+      void invoke('player_command', { command: 'set pause yes' }).catch(() => undefined);
     }
-  }, [failPlayerLoading, closePlayer]);
+  }, [failPlayerLoading]);
 
   usePlayerNativeEvents({
     stateRef,
@@ -550,5 +554,5 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerLoadingOverlay((prev) => (prev?.error ? prev : null));
   }, []);
 
-  return { playerLoadingOverlay, playerTitle, playerEpisodeTitle, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame };
+  return { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame };
 }

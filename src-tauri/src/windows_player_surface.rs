@@ -495,17 +495,17 @@ fn spawn_install_thread(
                                 last_render_error = Some(e.clone());
                             }
                             if consecutive_render_errors >= 30 {
-                                log::error!("player surface: too many render failures; retiring Windows native surface");
+                                log::error!("player surface: too many render failures; switching to software video rendering");
                                 visible = false;
                                 unsafe { ShowWindow(child_hwnd, SW_HIDE) };
-                                let _ = app.emit(
-                                    "native-player-error",
-                                    format!("Windows player render failed repeatedly: {e}"),
-                                );
                                 let state = app.state::<DesktopState>();
                                 *state.native_player_surface.lock().unwrap() = None;
                                 reset_install_slot();
-                                let _ = r.command_string("stop");
+                                r.reset_render_context();
+                                let _ = app.emit(
+                                    "native-player-software-rendering",
+                                    format!("Windows native player render failed repeatedly: {e}"),
+                                );
                             }
                         } else {
                             last_render_error = None;
