@@ -569,8 +569,6 @@
   "settings.dv7_fallback_desc": "Treats Dolby Vision profile 7 HLS/DASH variants as HDR10 when DV7 playback is not supported.",
   "settings.dv7_to_dv8_fallback": "DV7 to DV8 fallback",
   "settings.dv7_to_dv8_fallback_desc": "Treats Dolby Vision profile 7 HLS/DASH variants as profile 8.1 on DV8-capable devices.",
-  "settings.tunneled_playback": "Tunneled playback",
-  "settings.tunneled_playback_desc": "Uses Android tunneled playback on devices that support it.",
   "settings.audio_decoder_mode": "Audio Decoder",
   "settings.audio_decoder_mode_desc": "Controls which decoders are used for audio playback.",
   "settings.audio_decoder_hw_only": "Hardware Only",

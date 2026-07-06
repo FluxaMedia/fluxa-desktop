@@ -569,8 +569,6 @@
   "settings.dv7_fallback_desc": "DV7 desteklenmediğinde Dolby Vision profile 7 HLS/DASH varyantlarını HDR10 gibi oynatır.",
   "settings.dv7_to_dv8_fallback": "DV7 to DV8 fallback",
   "settings.dv7_to_dv8_fallback_desc": "DV8 destekli cihazlarda Dolby Vision profile 7 HLS/DASH varyantlarını profile 8.1 gibi oynatır.",
-  "settings.tunneled_playback": "Tunneled playback",
-  "settings.tunneled_playback_desc": "Destekleyen cihazlarda Android tunneled playback kullanır.",
   "settings.audio_decoder_mode": "Ses Çözücü",
   "settings.audio_decoder_mode_desc": "Ses oynatmada hangi çözücülerin kullanılacağını belirler.",
   "settings.audio_decoder_hw_only": "Yalnızca Donanım",

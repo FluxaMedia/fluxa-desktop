@@ -64,7 +64,6 @@ export interface Prefs {
   playerForwardBufferSeconds: string;
   playerBackBufferSeconds: string;
   audioDecoderMode: string;
-  tunneledPlayback: boolean;
   autoSkipIntro: boolean;
   useIntroDb: boolean;
   useAniSkip: boolean;
@@ -177,7 +176,6 @@ export const DEFAULT_PREFS: Prefs = {
   playerForwardBufferSeconds: '120',
   playerBackBufferSeconds: '30',
   audioDecoderMode: 'hw_prefer',
-  tunneledPlayback: false,
   autoSkipIntro: false,
   useIntroDb: true,
   useAniSkip: true,

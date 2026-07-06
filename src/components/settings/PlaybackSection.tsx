@@ -154,9 +154,7 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
       <ChoiceTile title={t('settings.back_buffer')} subtitle={t('settings.back_buffer_desc')} options={[{ value: '0', label: '0s' }, { value: '15', label: '15s' }, { value: '30', label: '30s' }, { value: '60', label: '60s' }, { value: '120', label: '120s' }, { value: '300', label: '300s' }]} selected={prefs.playerBackBufferSeconds} onSelect={(v) => setPref('playerBackBufferSeconds', v)} />
     </SettingsSection>
     <SettingsSection title={t('settings.decoder')} subtitle={t('settings.audio_decoder_mode_desc')}>
-      <ChoiceTile title={t('settings.audio_decoder_mode')} subtitle={t('settings.audio_decoder_mode_desc')} options={[{ value: 'hw_prefer', label: t('settings.audio_decoder_hw_prefer') }, { value: 'hw_only', label: t('settings.audio_decoder_hw_only') }, { value: 'sw_only', label: t('settings.audio_decoder_sw_only') }]} selected={prefs.audioDecoderMode} onSelect={(v) => setPref('audioDecoderMode', v)} />
-      <ToggleTile title={t('settings.tunneled_playback')} subtitle={t('settings.tunneled_playback_desc')} checked={prefs.tunneledPlayback} onToggle={(v) => setPref('tunneledPlayback', v)} />
-    </SettingsSection>
+      <ChoiceTile title={t('settings.audio_decoder_mode')} subtitle={t('settings.audio_decoder_mode_desc')} options={[{ value: 'hw_prefer', label: t('settings.audio_decoder_hw_prefer') }, { value: 'hw_only', label: t('settings.audio_decoder_hw_only') }, { value: 'sw_only', label: t('settings.audio_decoder_sw_only') }]} selected={prefs.audioDecoderMode} onSelect={(v) => setPref('audioDecoderMode', v)} />    </SettingsSection>
     <SettingsSection title={t('settings.skip_segments')} subtitle={t('settings.use_introdb_desc')}>
       <ToggleTile title={t('settings.use_introdb')} subtitle={t('settings.use_introdb_desc')} checked={prefs.useIntroDb} onToggle={(v) => setPref('useIntroDb', v)} />
       <ToggleTile title={t('settings.use_aniskip')} subtitle={t('settings.use_aniskip_desc')} checked={prefs.useAniSkip} onToggle={(v) => setPref('useAniSkip', v)} />
