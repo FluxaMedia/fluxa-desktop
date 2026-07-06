@@ -89,6 +89,28 @@ fn query_icm_profile(hdc: HDC) -> Option<Vec<u8>> {
     std::fs::read(path).ok()
 }
 
+fn ensure_renderer_for_surface(app: &AppHandle, hdc: HDC) -> Result<(), String> {
+    let state = app.state::<DesktopState>();
+    let mut renderer = state.player_renderer.lock().unwrap();
+    if renderer.is_none() {
+        log::warn!("player surface: renderer missing, recreating before load");
+        let mut fresh =
+            crate::mpv_render::MpvRenderer::new().map_err(|e| format!("mpv init failed: {e}"))?;
+        fresh
+            .prepare_opengl_context()
+            .map_err(|e| format!("mpv GL context failed: {e}"))?;
+        if hdc != 0 {
+            if let Some(icc) = query_icm_profile(hdc) {
+                if let Err(e) = fresh.set_icc_profile(&icc) {
+                    log::warn!("failed to set ICC profile: {e}");
+                }
+            }
+        }
+        *renderer = Some(fresh);
+    }
+    Ok(())
+}
+
 enum SurfaceCommand {
     Load {
         url: String,
@@ -318,37 +340,12 @@ fn spawn_install_thread(
         }
 
         // mpv renderer init
-        {
-            let state = app.state::<DesktopState>();
-            let mut renderer = state.player_renderer.lock().unwrap();
-            if renderer.is_none() {
-                match crate::mpv_render::MpvRenderer::new() {
-                    Ok(r) => {
-                        log::info!("player surface: MpvRenderer::new() succeeded");
-                        *renderer = Some(r);
-                    }
-                    Err(e) => {
-                        log::error!("player surface: MpvRenderer::new() failed: {e}");
-                        let _ = setup_tx.send(Err(format!("mpv init failed: {e}")));
-                        return;
-                    }
-                }
-            }
-            if let Some(r) = renderer.as_mut() {
-                if let Err(e) = r.prepare_opengl_context() {
-                    log::error!("player surface: prepare_opengl_context() failed: {e}");
-                    let _ = setup_tx.send(Err(format!("mpv GL context failed: {e}")));
-                    return;
-                }
-                if hdc != 0 {
-                    if let Some(icc) = query_icm_profile(hdc) {
-                        if let Err(e) = r.set_icc_profile(&icc) {
-                            log::warn!("failed to set ICC profile: {e}");
-                        }
-                    }
-                }
-            }
+        if let Err(e) = ensure_renderer_for_surface(&app, hdc) {
+            log::error!("player surface: renderer setup failed: {e}");
+            let _ = setup_tx.send(Err(e));
+            return;
         }
+        log::info!("player surface: MpvRenderer ready");
 
         log::info!("player surface: setup complete, entering render loop");
         let _ = setup_tx.send(Ok(NativePlayerSurface {
@@ -393,7 +390,17 @@ fn spawn_install_thread(
                         visible = true;
                         let _ = app.emit("native-player-show", ());
                         let state = app.state::<DesktopState>();
+                        state.pending_hide.store(false, Ordering::Release);
                         *state.eof_next_fired.lock().unwrap() = false;
+                        if let Err(e) = ensure_renderer_for_surface(&app, hdc) {
+                            log::error!(
+                                "player surface: renderer recreate failed before load: {e}"
+                            );
+                            let _ = app.emit("native-player-error", e);
+                            visible = false;
+                            unsafe { ShowWindow(child_hwnd, SW_HIDE) };
+                            continue;
+                        }
                         let mut renderer = state.player_renderer.lock().unwrap();
                         if let Some(r) = renderer.as_mut() {
                             if let Err(e) = r.load(&url, start_at) {
@@ -409,6 +416,12 @@ fn spawn_install_thread(
                             log::error!(
                                 "player surface: Load command received but renderer is None"
                             );
+                            let _ = app.emit(
+                                "native-player-error",
+                                "player renderer is unavailable".to_string(),
+                            );
+                            visible = false;
+                            unsafe { ShowWindow(child_hwnd, SW_HIDE) };
                         }
                     }
                     SurfaceCommand::Hide => {
