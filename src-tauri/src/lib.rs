@@ -495,6 +495,8 @@ pub fn run() {
                             continue;
                         };
                         let _ = handle.emit(evt, json!({ "code": code, "state": state }));
+                    } else {
+                        let _ = handle.emit("deep-link-opened", json!({ "url": s }));
                     }
                 }
             });

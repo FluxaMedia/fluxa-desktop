@@ -79,6 +79,7 @@ export default function App() {
   const [searchFocusSignal, setSearchFocusSignal] = useState(0);
   const [nativePlayerActive, setNativePlayerActive] = useState(false);
   const [softwareVideoActive, setSoftwareVideoActive] = useState(false);
+  const [pendingAddonUrl, setPendingAddonUrl] = useState<string | null>(null);
   const [p2pDialog, setP2PDialog] = useState<{ mode: 'first-time' | 'disabled'; pendingPlay: () => void } | null>(null);
   const storedPrefsRef = useRef<Record<string, unknown>>({});
   const stateRef = useRef<AppState>(DEFAULT_STATE);
@@ -214,6 +215,20 @@ export default function App() {
     setActiveRoute(route);
     setDetailMeta(null);
   }, [activeRoute]);
+
+  useEffect(() => {
+    const unlisten = listen<{ url?: string }>('deep-link-opened', (e) => {
+      const raw = e.payload.url ?? '';
+      const match = raw.match(/^fluxa:\/\/addon\/(.+)$/i);
+      if (!match) return;
+      let addonUrl = decodeURIComponent(match[1]);
+      if (addonUrl.startsWith('stremio://')) addonUrl = addonUrl.replace(/^stremio:\/\//, 'https://');
+      if (!/^https?:\/\//i.test(addonUrl)) return;
+      setPendingAddonUrl(addonUrl);
+      navigateRoute('settings');
+    });
+    return () => { void unlisten.then((fn) => fn()); };
+  }, [navigateRoute]);
 
   const goBack = useCallback(() => {
     if (detailMeta) {
@@ -586,6 +601,7 @@ export default function App() {
               onSwitchProfile={() => setActiveProfile(null)}
               onBack={() => navigateRoute(lastNonSettingsRouteRef.current)}
               onCheckForUpdates={() => void startUpdateCheck(setUpdateModalState)}
+              initialAddonUrl={pendingAddonUrl}
             />
           </React.Suspense>
         ) : null}

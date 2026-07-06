@@ -130,9 +130,10 @@ interface Props {
   onSwitchProfile: () => void;
   onBack: () => void;
   onCheckForUpdates: () => void;
+  initialAddonUrl?: string | null;
 }
 
-export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpdated, onSwitchProfile, onBack, onCheckForUpdates }: Props) {
+export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpdated, onSwitchProfile, onBack, onCheckForUpdates, initialAddonUrl }: Props) {
   const [tab, setTab] = useState<Tab>('account');
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [addonUrl, setAddonUrl] = useState('');
@@ -152,6 +153,13 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     });
     loadAddons().then((a) => setInstalledAddons(a));
   }, []);
+
+  useEffect(() => {
+    const url = initialAddonUrl?.trim();
+    if (!url) return;
+    setAddonUrl(url);
+    setTab('addons');
+  }, [initialAddonUrl]);
 
   const engineAddons = state.addons.installed ?? [];
   useEffect(() => {
