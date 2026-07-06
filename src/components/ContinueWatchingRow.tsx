@@ -97,12 +97,17 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
       return;
     }
     let cancelled = false;
-    void continueWatchingCardFields(visibleItems, artworkPreference, isHorizontal).then((fields) => {
-      if (cancelled) return;
-      lastCardFieldsKey = cardFieldsKey;
-      lastCardFields = fields;
-      setCardFields(fields);
-    });
+    const load = () => {
+      void continueWatchingCardFields(visibleItems, artworkPreference, isHorizontal).then((fields) => {
+        if (cancelled) return;
+        lastCardFieldsKey = cardFieldsKey;
+        lastCardFields = fields;
+        setCardFields(fields);
+      }).catch(() => {
+        if (!cancelled) setTimeout(load, 1000);
+      });
+    };
+    load();
     return () => { cancelled = true; };
   }, [cardFieldsKey, visibleItems, artworkPreference, isHorizontal]);
 

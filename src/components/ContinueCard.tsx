@@ -76,6 +76,17 @@ export function ContinueCard({
     setArtworkOverride(null);
   }, [artworkProp]);
 
+  React.useEffect(() => {
+    if (!artwork || imgLoaded || imgError) return;
+    const timer = setTimeout(() => {
+      const m = meta as unknown as { poster?: string | null; background?: string | null };
+      const fallback = m.poster || m.background || null;
+      if (fallback && fallback !== artwork) setArtworkOverride(fallback);
+      else setImgError(true);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [artwork, imgLoaded, imgError, meta]);
+
   const progress = lib.timeOffset && lib.duration ? lib.timeOffset / lib.duration : 0;
   const isUpNext = progress < 0.005 || progress >= 0.995;
   const remainingText = !isUpNext && lib.timeOffset && lib.duration
