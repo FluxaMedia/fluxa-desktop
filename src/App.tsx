@@ -269,6 +269,7 @@ export default function App() {
     setLanguage(typeof freshPrefs.language === 'string' ? freshPrefs.language : null);
     setRpdbApiKey(prefString(freshPrefs, 'rpdbApiKey', ''));
     void invoke('discord_presence_configure', { enabled: prefBool(freshPrefs, 'discordRichPresenceEnabled', true) });
+    void invoke('set_diagnostic_mode', { enabled: prefBool(freshPrefs, 'diagnosticMode', false) });
     updateState({ settings: { values: freshPrefs } });
   }, [updateState]);
 
@@ -607,6 +608,7 @@ export default function App() {
           logo={playerLoadingOverlay.logo}
           title={playerLoadingOverlay.title}
           episodeLine={playerLoadingOverlay.episodeLine}
+          error={playerLoadingOverlay.error}
           onBack={closePlayer}
         />
       )}

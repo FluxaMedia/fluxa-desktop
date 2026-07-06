@@ -51,6 +51,7 @@ export type PlayerLoadingOverlayState = {
   logo?: string | null;
   title?: string;
   episodeLine?: string;
+  error?: string | null;
 };
 
 interface UsePlayerOptions {
@@ -96,19 +97,24 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   const prefetchedNextEpRef = useRef<{ episodeId: string; stream: Stream } | null>(null);
   const playerUsesTorrentRef = useRef(false);
 
+  const playerLoadingOverlayRef = useRef<PlayerLoadingOverlayState | null>(null);
+
   useEffect(() => { activeProfileRef.current = activeProfile; }, [activeProfile]);
   useEffect(() => { playerUsesTorrentRef.current = playerUsesTorrent; }, [playerUsesTorrent]);
+  useEffect(() => { playerLoadingOverlayRef.current = playerLoadingOverlay; }, [playerLoadingOverlay]);
 
-  const abortPlayerLoading = useCallback(async () => {
+  const failPlayerLoading = useCallback(async (message: string) => {
+    ++playGenerationRef.current;
+    const shouldStopTorrent = playerUsesTorrentRef.current;
     setPlayerUrl(null);
-    setPlayerTitle(undefined);
-    setPlayerPosterUrl(undefined);
     setPlayerSubtitleUrl(undefined);
     setPlayerStreamHeaders(undefined);
     setPlayerUsesTorrent(false);
-    setPlayerLoadingOverlay(null);
     inNativePlayerRef.current = false;
+    setPlayerLoadingOverlay((prev) => ({ ...(prev ?? {}), error: message }));
     await embeddedMpvHide().catch(() => undefined);
+    await embeddedMpvStop().catch(() => undefined);
+    if (shouldStopTorrent) await stopTorrentStream().catch(() => false);
   }, []);
 
   const showPlayerLoading = useCallback((
@@ -376,15 +382,15 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
 
     const url = playbackPlan?.url ?? stream.playableUrl ?? stream.url;
     if (!url) {
-      if (!isCancelled()) await abortPlayerLoading();
-      alert(t('player.no_playable_url'));
+      if (!isCancelled()) await failPlayerLoading(t('player.no_playable_url'));
       return;
     }
     if (playbackPlan?.mode === 'reject') {
-      if (!isCancelled()) await abortPlayerLoading();
-      alert(playbackPlan.rejectReason === 'incompatible_stream'
-        ? t('player.incompatible_desktop_stream')
-        : t('player.no_playable_url'));
+      if (!isCancelled()) {
+        await failPlayerLoading(playbackPlan.rejectReason === 'incompatible_stream'
+          ? t('player.incompatible_desktop_stream')
+          : t('player.no_playable_url'));
+      }
       return;
     }
 
@@ -430,8 +436,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         debugLog('handlePlay:playInEmbeddedMpv (torrent) resolved');
       } catch (err) {
         debugLog(`handlePlay:torrent path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
-        if (!isCancelled()) await abortPlayerLoading();
-        alert(t('player.playback_error') || 'Playback failed');
+        if (!isCancelled()) await failPlayerLoading(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
         return;
       }
     } else {
@@ -441,8 +446,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         debugLog('handlePlay:playInEmbeddedMpv resolved');
       } catch (err) {
         debugLog(`handlePlay:direct path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
-        if (!isCancelled()) await abortPlayerLoading();
-        alert(t('player.playback_error') || 'Playback failed');
+        if (!isCancelled()) await failPlayerLoading(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
         return;
       }
     }
@@ -516,10 +520,18 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     })();
     } catch (err) {
       debugLog(`handlePlay:FATAL ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
-      await abortPlayerLoading();
-      alert(t('player.playback_error') || 'Playback failed');
+      await failPlayerLoading(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
     }
-  }, [stateRef, showPlayerLoading, abortPlayerLoading, playInEmbeddedMpv]);
+  }, [stateRef, showPlayerLoading, failPlayerLoading, playInEmbeddedMpv]);
+
+  const handleNativePlayerError = useCallback(async (message: string) => {
+    if (playerLoadingOverlayRef.current && !playerLoadingOverlayRef.current.error) {
+      await failPlayerLoading(message);
+    } else if (!playerLoadingOverlayRef.current) {
+      void closePlayer();
+      alert(message);
+    }
+  }, [failPlayerLoading, closePlayer]);
 
   usePlayerNativeEvents({
     stateRef,
@@ -531,10 +543,11 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     prefetchedNextEpRef,
     closePlayer,
     handlePlay,
+    onPlayerError: handleNativePlayerError,
   });
 
   const notifyFirstFrame = useCallback(() => {
-    setPlayerLoadingOverlay(null);
+    setPlayerLoadingOverlay((prev) => (prev?.error ? prev : null));
   }, []);
 
   return { playerLoadingOverlay, playerTitle, playerEpisodeTitle, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame };

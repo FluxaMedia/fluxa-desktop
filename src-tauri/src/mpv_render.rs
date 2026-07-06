@@ -225,7 +225,7 @@ pub struct MpvRenderer {
     width: i32,
     height: i32,
     loaded: bool,
-    log_ring: std::collections::VecDeque<String>,
+    log_ring: std::collections::VecDeque<(c_int, String)>,
     frames_rendered: u64,
 }
 
@@ -459,7 +459,11 @@ impl MpvRenderer {
         } else {
             self.command_string(&format!("loadfile \"{escaped}\" replace"))?;
         }
-        self.command_string("set pause yes")?;
+        // Keep playback startup owned by mpv, not by the WebView overlay's
+        // first-frame polling. Release builds can poll status while the native
+        // render thread holds the renderer lock; if startup is paused, that race
+        // can leave network/torrent streams sitting forever behind the loader.
+        self.command_string("set pause no")?;
         self.loaded = true;
         Ok(())
     }
@@ -714,6 +718,36 @@ impl MpvRenderer {
         self.get_string_property("media-title")
     }
 
+    fn error_log_details(&self) -> Vec<String> {
+        const MPV_LOG_LEVEL_WARN: c_int = 30;
+        const MAX_LINES: usize = 6;
+        const MAX_LINE_LEN: usize = 220;
+        let mut lines: Vec<String> = Vec::new();
+        for (level, text) in self.log_ring.iter().rev() {
+            if *level > MPV_LOG_LEVEL_WARN {
+                continue;
+            }
+            let mut line = text.clone();
+            if line.len() > MAX_LINE_LEN {
+                let mut cut = MAX_LINE_LEN;
+                while !line.is_char_boundary(cut) {
+                    cut -= 1;
+                }
+                line.truncate(cut);
+                line.push('…');
+            }
+            if lines.contains(&line) {
+                continue;
+            }
+            lines.push(line);
+            if lines.len() >= MAX_LINES {
+                break;
+            }
+        }
+        lines.reverse();
+        lines
+    }
+
     pub fn poll_events(&mut self) -> Vec<PlayerEvent> {
         let mut events = Vec::new();
         loop {
@@ -730,26 +764,20 @@ impl MpvRenderer {
                     let text = text.trim_end();
                     if !text.is_empty() {
                         log::debug!("mpv: {text}");
-                        if self.log_ring.len() >= 20 {
+                        if self.log_ring.len() >= 40 {
                             self.log_ring.pop_front();
                         }
-                        self.log_ring.push_back(text.to_string());
+                        self.log_ring.push_back((msg.log_level, text.to_string()));
                     }
                 }
                 MPV_EVENT_END_FILE if !event.data.is_null() => {
                     let end_file = unsafe { &*(event.data as *const MpvEventEndFile) };
                     if end_file.reason == MPV_END_FILE_REASON_ERROR {
                         let mut message = self.api.error_string(end_file.error);
-                        if !self.log_ring.is_empty() {
-                            message.push_str(": ");
-                            message.push_str(
-                                &self
-                                    .log_ring
-                                    .iter()
-                                    .cloned()
-                                    .collect::<Vec<_>>()
-                                    .join(" / "),
-                            );
+                        let details = self.error_log_details();
+                        if !details.is_empty() {
+                            message.push('\n');
+                            message.push_str(&details.join("\n"));
                         }
                         events.push(PlayerEvent::EndFile {
                             eof: false,

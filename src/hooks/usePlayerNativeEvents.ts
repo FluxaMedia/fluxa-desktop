@@ -18,6 +18,7 @@ export function usePlayerNativeEvents({
   prefetchedNextEpRef,
   closePlayer,
   handlePlay,
+  onPlayerError,
 }: {
   stateRef: React.MutableRefObject<AppState>;
   closingPlayerRef: React.MutableRefObject<boolean>;
@@ -28,6 +29,7 @@ export function usePlayerNativeEvents({
   prefetchedNextEpRef: React.MutableRefObject<{ episodeId: string; stream: Stream } | null>;
   closePlayer: () => Promise<void>;
   handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number) => Promise<void>;
+  onPlayerError: (message: string) => Promise<void>;
 }) {
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
@@ -38,14 +40,13 @@ export function usePlayerNativeEvents({
       .catch(() => undefined);
 
     listen<string>('native-player-error', (event) => {
-      void closePlayer();
-      alert(event.payload);
+      void onPlayerError(event.payload);
     })
       .then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); })
       .catch(() => undefined);
 
     return () => { cancelled = true; unlisteners.forEach((fn) => fn()); };
-  }, [closePlayer]);
+  }, [closePlayer, onPlayerError]);
 
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
