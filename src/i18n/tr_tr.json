@@ -40,6 +40,8 @@
   "trakt.device.open_url": "Telefondan bu adrese git:",
   "trakt.device.enter_code": "Kodu gir:",
   "trakt.device.waiting": "Yetkilendirme bekleniyor...",
+  "sync.device.syncing": "Senkronize ediliyor...",
+  "sync.device.connected": "Bağlandı",
   "auto.movie": "Film",
   "auto.series": "Dizi",
   "auto.my_list": "Listem",

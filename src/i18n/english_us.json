@@ -40,6 +40,8 @@
   "trakt.device.open_url": "Open this address on your phone:",
   "trakt.device.enter_code": "Enter this code:",
   "trakt.device.waiting": "Waiting for authorization...",
+  "sync.device.syncing": "Syncing...",
+  "sync.device.connected": "Connected",
   "auto.movie": "Movie",
   "auto.series": "Series",
   "auto.my_list": "My List",

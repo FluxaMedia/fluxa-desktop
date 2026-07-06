@@ -610,7 +610,7 @@ export function AccountSection({
             <SyncServiceRow
               icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(237,28,36,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/trakt.svg" alt="Trakt" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
               title="Trakt.tv"
-              value={traktBusy ? t('trakt.device.syncing') : t('trakt.device.connected')}
+              value={traktBusy ? t('sync.device.syncing') : t('sync.device.connected')}
               valueColor="#54D17A"
               onClick={() => setTraktPopoverOpen((o) => !o)}
               busy={traktBusy}
@@ -650,7 +650,7 @@ export function AccountSection({
             <SyncServiceRow
               icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(2,169,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/anilist.svg" alt="AniList" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
               title="AniList"
-              value={anilistBusy ? t('trakt.device.syncing') : t('settings.anime_tracking_enabled')}
+              value={anilistBusy ? t('sync.device.syncing') : t('settings.anime_tracking_enabled')}
               valueColor="#54D17A"
               onClick={() => setAnilistPopoverOpen((o) => !o)}
               busy={anilistBusy}
@@ -693,7 +693,7 @@ export function AccountSection({
             <SyncServiceRow
               icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.svg" alt="Simkl" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
               title="Simkl"
-              value={simklBusy ? t('trakt.device.syncing') : t('trakt.device.connected')}
+              value={simklBusy ? t('sync.device.syncing') : t('sync.device.connected')}
               valueColor="#54D17A"
               onClick={() => setSimklPopoverOpen((o) => !o)}
               busy={simklBusy}
@@ -740,7 +740,7 @@ export function AccountSection({
             <SyncServiceRow
               icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="https://nuvio.tv//assets/Logo_1080x1080.png" alt="Nuvio" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>}
               title="Nuvio"
-              value={nuvioBusy ? t('trakt.device.syncing') : (activeProfile?.nuvioEmail ?? t('trakt.device.connected'))}
+              value={nuvioBusy ? t('sync.device.syncing') : (activeProfile?.nuvioEmail ?? t('sync.device.connected'))}
               valueColor="#54D17A"
               onClick={() => setNuvioPopoverOpen((o) => !o)}
               busy={nuvioBusy}
@@ -787,7 +787,7 @@ export function AccountSection({
             <SyncServiceRow
               icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(123,91,245,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/stremio.svg" alt="Stremio" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>}
               title="Stremio"
-              value={stremioBusy ? t('trakt.device.syncing') : (activeProfile?.stremioEmail ?? t('trakt.device.connected'))}
+              value={stremioBusy ? t('sync.device.syncing') : (activeProfile?.stremioEmail ?? t('sync.device.connected'))}
               valueColor="#54D17A"
               onClick={() => setStremioPopoverOpen((o) => !o)}
               busy={stremioBusy}
