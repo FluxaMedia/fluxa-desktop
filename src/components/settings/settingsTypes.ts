@@ -63,13 +63,8 @@ export interface Prefs {
   playerBufferCacheMb: string;
   playerForwardBufferSeconds: string;
   playerBackBufferSeconds: string;
-  dolbyVisionFallbackMode: string;
-  dvRpuMode: string;
-  dvZeroLevel5: boolean;
-  dvHdr10PlusMode: string;
   audioDecoderMode: string;
   tunneledPlayback: boolean;
-  showFpsCounter: boolean;
   autoSkipIntro: boolean;
   useIntroDb: boolean;
   useAniSkip: boolean;
@@ -97,7 +92,6 @@ export interface Prefs {
   heroFeedOrder: string[];
   homeFeedOrder: string[];
   pictureInPicture: boolean;
-  hdrPlayback: boolean;
   notificationsEnabled: boolean;
   automaticUpdates: boolean;
   timezoneConversionEnabled: boolean;
@@ -182,13 +176,8 @@ export const DEFAULT_PREFS: Prefs = {
   playerBufferCacheMb: '100',
   playerForwardBufferSeconds: '120',
   playerBackBufferSeconds: '30',
-  dolbyVisionFallbackMode: 'auto',
-  dvRpuMode: '2',
-  dvZeroLevel5: false,
-  dvHdr10PlusMode: 'auto',
   audioDecoderMode: 'hw_prefer',
   tunneledPlayback: false,
-  showFpsCounter: false,
   autoSkipIntro: false,
   useIntroDb: true,
   useAniSkip: true,
@@ -216,7 +205,6 @@ export const DEFAULT_PREFS: Prefs = {
   heroFeedOrder: [],
   homeFeedOrder: [],
   pictureInPicture: false,
-  hdrPlayback: true,
   notificationsEnabled: true,
   automaticUpdates: true,
   timezoneConversionEnabled: true,

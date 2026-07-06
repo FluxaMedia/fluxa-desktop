@@ -36,12 +36,6 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
         onToggle={(v) => setPref('pictureInPicture', v)}
       />
       <ToggleTile
-        title={t('settings.hdr_playback') || 'HDR Oynatma'}
-        subtitle={t('settings.hdr_playback_desc') || 'Destekleniyorsa HDR içerikleri HDR modunda oynat'}
-        checked={prefs.hdrPlayback}
-        onToggle={(v) => setPref('hdrPlayback', v)}
-      />
-      <ToggleTile
         title={t('settings.p2p_enabled')}
         subtitle={t('settings.p2p_enabled_desc')}
         checked={prefs.p2pEnabled}
@@ -159,18 +153,9 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
       <ChoiceTile title={t('settings.forward_buffer')} subtitle={t('settings.forward_buffer_desc')} options={[{ value: '30', label: '30s' }, { value: '60', label: '60s' }, { value: '120', label: '120s' }, { value: '300', label: '300s' }, { value: '600', label: '600s' }]} selected={prefs.playerForwardBufferSeconds} onSelect={(v) => setPref('playerForwardBufferSeconds', v)} />
       <ChoiceTile title={t('settings.back_buffer')} subtitle={t('settings.back_buffer_desc')} options={[{ value: '0', label: '0s' }, { value: '15', label: '15s' }, { value: '30', label: '30s' }, { value: '60', label: '60s' }, { value: '120', label: '120s' }, { value: '300', label: '300s' }]} selected={prefs.playerBackBufferSeconds} onSelect={(v) => setPref('playerBackBufferSeconds', v)} />
     </SettingsSection>
-    <SettingsSection title={t('settings.decoder')} subtitle={t('settings.dv_fallback_desc')}>
-      <ChoiceTile title={t('settings.dv_fallback')} subtitle={t('settings.dv_fallback_desc')} options={[{ value: 'auto', label: t('settings.dv_fallback_auto') }, { value: 'convert_dv81', label: t('settings.dv_fallback_convert_dv81') }, { value: 'off', label: t('settings.dv_fallback_off') }]} selected={prefs.dolbyVisionFallbackMode} onSelect={(v) => setPref('dolbyVisionFallbackMode', v)} />
-      {prefs.dolbyVisionFallbackMode === 'convert_dv81' && (
-        <>
-          <ChoiceTile title={t('settings.dv_rpu_mode')} subtitle={t('settings.dv_rpu_mode_desc')} options={[{ value: '2', label: t('settings.dv_rpu_mode_2') }, { value: '1', label: t('settings.dv_rpu_mode_1') }, { value: '4', label: t('settings.dv_rpu_mode_4') }]} selected={prefs.dvRpuMode} onSelect={(v) => setPref('dvRpuMode', v)} />
-          <ToggleTile title={t('settings.dv_zero_level5')} subtitle={t('settings.dv_zero_level5_desc')} checked={prefs.dvZeroLevel5} onToggle={(v) => setPref('dvZeroLevel5', v)} />
-          <ChoiceTile title={t('settings.dv_hdr10plus_mode')} subtitle={t('settings.dv_hdr10plus_mode_desc')} options={[{ value: 'auto', label: t('settings.dv_hdr10plus_mode_auto') }, { value: 'always', label: t('settings.dv_hdr10plus_mode_always') }, { value: 'never', label: t('settings.dv_hdr10plus_mode_never') }]} selected={prefs.dvHdr10PlusMode} onSelect={(v) => setPref('dvHdr10PlusMode', v)} />
-        </>
-      )}
+    <SettingsSection title={t('settings.decoder')} subtitle={t('settings.audio_decoder_mode_desc')}>
       <ChoiceTile title={t('settings.audio_decoder_mode')} subtitle={t('settings.audio_decoder_mode_desc')} options={[{ value: 'hw_prefer', label: t('settings.audio_decoder_hw_prefer') }, { value: 'hw_only', label: t('settings.audio_decoder_hw_only') }, { value: 'sw_only', label: t('settings.audio_decoder_sw_only') }]} selected={prefs.audioDecoderMode} onSelect={(v) => setPref('audioDecoderMode', v)} />
       <ToggleTile title={t('settings.tunneled_playback')} subtitle={t('settings.tunneled_playback_desc')} checked={prefs.tunneledPlayback} onToggle={(v) => setPref('tunneledPlayback', v)} />
-      <ToggleTile title={t('settings.fps_counter')} subtitle={t('settings.fps_counter_desc')} checked={prefs.showFpsCounter} onToggle={(v) => setPref('showFpsCounter', v)} />
     </SettingsSection>
     <SettingsSection title={t('settings.skip_segments')} subtitle={t('settings.use_introdb_desc')}>
       <ToggleTile title={t('settings.use_introdb')} subtitle={t('settings.use_introdb_desc')} checked={prefs.useIntroDb} onToggle={(v) => setPref('useIntroDb', v)} />
