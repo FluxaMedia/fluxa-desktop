@@ -24,6 +24,7 @@ interface Props {
   // visit was costing a visible stutter), so this tells HeroSection to pause its
   // auto-slide interval rather than keep cycling backdrop images forever in the background.
   isActive: boolean;
+  onScrolledChange?: (scrolled: boolean) => void;
 }
 
 async function loadFolderItems(folderCategory: HomeCategory): Promise<Meta[]> {
@@ -45,7 +46,7 @@ async function loadFolderItems(folderCategory: HomeCategory): Promise<Meta[]> {
   return batches.flat();
 }
 
-export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, onOpenSettings, isActive }: Props) {
+export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, onOpenSettings, isActive, onScrolledChange }: Props) {
   const home = state.home;
   const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[] } | null>(null);
   const [folderLoading, setFolderLoading] = useState(false);
@@ -55,6 +56,15 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   useLayoutEffect(() => {
     if (!viewAllCategory && scrollRef.current) scrollRef.current.scrollTop = savedScrollRef.current;
   }, [viewAllCategory]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !onScrolledChange) return;
+    const handleScroll = () => onScrolledChange(el.scrollTop > 40);
+    handleScroll();
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [onScrolledChange]);
 
   const handleFolderTileClick = useCallback(async (folderMeta: Meta) => {
     const allCats = (home.categories ?? []) as HomeCategory[];
@@ -305,7 +315,7 @@ function EmptyHome({ onOpenSettings }: { onOpenSettings?: () => void }) {
   );
 }
 
-const HOME_HERO_HEIGHT = 'clamp(600px, 65vh, 860px)';
+const HOME_HERO_HEIGHT = 'clamp(540px, 58vh, 760px)';
 
 const styles: Record<string, React.CSSProperties> = {
   screen: {

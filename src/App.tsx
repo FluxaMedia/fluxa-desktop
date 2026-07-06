@@ -70,6 +70,7 @@ export default function App() {
   const [state, setState] = useState<AppState>(DEFAULT_STATE);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [activeRoute, setActiveRoute] = useState<NavRoute>('home');
+  const [homeScrolled, setHomeScrolled] = useState(false);
   const [detailMeta, setDetailMeta] = useState<Meta | null>(null);
   const [detailInitialEpisode, setDetailInitialEpisode] = useState<Video | null>(null);
   const [detailAutoShowStreams, setDetailAutoShowStreams] = useState(false);
@@ -472,7 +473,7 @@ export default function App() {
         <TopBar
           activeRoute={activeRoute}
           onNavigate={navigateRoute}
-          transparent={activeRoute === 'home' && !showDetail}
+          transparent={activeRoute === 'home' && !showDetail && !homeScrolled}
           position={navBarPosition}
           itemsAlign={navItemsAlign}
           topOffset={bannerOffset}
@@ -551,6 +552,7 @@ export default function App() {
             onPlay={handleHomePlay}
             onResume={handleResumeFromContinueWatching}
             isActive={!showDetail && activeRoute === 'home'}
+            onScrolledChange={setHomeScrolled}
           />
         </div>
         {!showDetail && activeRoute === 'calendar' && (
