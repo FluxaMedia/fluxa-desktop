@@ -46,7 +46,11 @@ export function ModernTabBar({ tabs, active, onChange }: { tabs: Array<{ id: str
   return (
     <div style={MS.tabBar}>
       {tabs.map((tab) => (
-        <button key={tab.id} style={{ ...MS.tabBtn, ...(tab.id === active ? MS.tabBtnActive : {}) }} onClick={() => onChange(tab.id)}>
+        <button
+          key={tab.id}
+          style={{ ...MS.tabBtn, ...(tab.id === active ? MS.tabBtnActive : {}) }}
+          onClick={(e) => { onChange(tab.id); e.currentTarget.blur(); }}
+        >
           {tab.label}
         </button>
       ))}
