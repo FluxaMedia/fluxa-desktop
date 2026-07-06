@@ -706,13 +706,11 @@ pub fn player_title(state: State<DesktopState>) -> Option<String> {
 
 #[tauri::command]
 pub fn player_status(state: State<DesktopState>) -> Result<mpv_render::PlayerStatus, String> {
-    state
-        .player_renderer
-        .try_lock()
-        .map_err(|_| "player renderer busy".to_string())?
-        .as_ref()
-        .ok_or_else(|| "player renderer is not initialized".to_string())
-        .map(mpv_render::MpvRenderer::status)
+    match with_renderer_retry(&state, 80, |renderer| Ok(renderer.status())) {
+        Ok(Some(status)) => Ok(status),
+        Ok(None) => Err("player renderer is not initialized".to_string()),
+        Err(e) => Err(e),
+    }
 }
 
 #[tauri::command]
