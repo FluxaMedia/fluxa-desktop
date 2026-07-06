@@ -1,7 +1,8 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react';
 import { MovieCard } from '../components/MovieCard';
 import { posterPrefsFromState, type PosterPrefs } from '../core/posterPrefs';
+import { storageRead, storageWrite } from '../core/engine';
 import type { AppState, HomeCategory, Meta } from '../core/types';
 import { getLanguage, t } from '../i18n';
 
@@ -26,20 +27,48 @@ const GENRE_CHIPS = [
 ];
 
 const NAV_RAIL_WIDTH = 104;
+const RECENT_SEARCHES_KEY = 'recent_searches';
+const MAX_RECENT_SEARCHES = 8;
 
 export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch, onNavigateDetail, query, onQueryChange, onBack }: Props) {
   const [typeFilter, setTypeFilter] = useState('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const search = state.search;
   const posterPrefs = posterPrefsFromState(state, 0.85);
 
   useEffect(() => {
-    if (query.trim().length >= 2) {
-      onDispatch(JSON.stringify({ type: 'searchRequested', query: query.trim(), language: getLanguage() }));
+    storageRead<string[]>(RECENT_SEARCHES_KEY)
+      .then((items) => setRecentSearches(normalizeRecentSearches(items)))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length >= 2) {
+      rememberRecentSearch(trimmed, setRecentSearches);
+      onDispatch(JSON.stringify({ type: 'searchRequested', query: trimmed, language: getLanguage() }));
     }
   }, [query, onDispatch]);
 
   const handleGenreClick = (genreKey: string) => {
     onQueryChange(t(genreKey));
+  };
+
+  const handleRecentClick = (value: string) => {
+    onQueryChange(value);
+  };
+
+  const handleRemoveRecent = (value: string) => {
+    setRecentSearches((current) => {
+      const next = current.filter((item) => item !== value);
+      void storageWrite(RECENT_SEARCHES_KEY, next);
+      return next;
+    });
+  };
+
+  const handleClearRecent = () => {
+    setRecentSearches([]);
+    void storageWrite(RECENT_SEARCHES_KEY, []);
   };
 
   const categories = useMemo(
@@ -86,6 +115,25 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
           ))}
         </div>
 
+        {!query && recentSearches.length > 0 && (
+          <>
+            <div style={styles.sectionHeaderRow}>
+              <p style={styles.sectionLabel}>{t('search.recent_searches')}</p>
+              <button style={styles.clearRecentBtn} onClick={handleClearRecent}>{t('common.clear')}</button>
+            </div>
+            <div style={styles.recentGrid}>
+              {recentSearches.map((item) => (
+                <RecentSearchChip
+                  key={item}
+                  value={item}
+                  onClick={() => handleRecentClick(item)}
+                  onRemove={() => handleRemoveRecent(item)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
         {!query && (
           <>
             <p style={styles.sectionLabel}>{t('search.browse_by_genre')}</p>
@@ -101,7 +149,20 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
           <LoadingShelves />
         )}
 
-        {!search.isLoading && query.length >= 2 && resultCount === 0 && (
+        {!search.isLoading && search.error && query.trim().length >= 2 && (
+          <div style={styles.emptyState}>
+            <p style={styles.emptyTitle}>{t('common.error')}</p>
+            <p style={styles.emptyHint}>{search.error}</p>
+            <button
+              style={styles.retryBtn}
+              onClick={() => onDispatch(JSON.stringify({ type: 'searchRequested', query: query.trim(), language: getLanguage() }))}
+            >
+              {t('common.retry')}
+            </button>
+          </div>
+        )}
+
+        {!search.isLoading && !search.error && query.length >= 2 && resultCount === 0 && (
           <div style={styles.emptyState}>
             <p style={styles.emptyTitle}>{t('format.no_results_for', query)}</p>
             <p style={styles.emptyHint}>{t('search.try_shorter_or_genre')}</p>
@@ -113,7 +174,7 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
           </div>
         )}
 
-        {!search.isLoading && categories.length > 0 && (
+        {!search.isLoading && !search.error && categories.length > 0 && (
           <div style={styles.categoryList}>
             {categories.map((category) => (
               <SearchCategoryRow
@@ -276,6 +337,60 @@ function SearchScrollArrow({ direction, onClick }: { direction: 'left' | 'right'
         onMouseLeave={() => setHovered(false)}
       >
         {isLeft ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+      </button>
+    </div>
+  );
+}
+
+function normalizeRecentSearches(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value
+    .map((item) => String(item ?? '').trim())
+    .filter((item) => {
+      const key = item.toLowerCase();
+      if (!item || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, MAX_RECENT_SEARCHES);
+}
+
+function rememberRecentSearch(query: string, setRecentSearches: React.Dispatch<React.SetStateAction<string[]>>) {
+  const normalized = query.trim();
+  if (normalized.length < 2) return;
+  setRecentSearches((current) => {
+    const next = normalizeRecentSearches([normalized, ...current.filter((item) => item.toLowerCase() !== normalized.toLowerCase())]);
+    void storageWrite(RECENT_SEARCHES_KEY, next);
+    return next;
+  });
+}
+
+function RecentSearchChip({ value, onClick, onRemove }: { value: string; onClick: () => void; onRemove: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      style={{
+        ...styles.recentChip,
+        background: hovered ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.045)',
+        borderColor: hovered ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.08)',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <button style={styles.recentChipMain} onClick={onClick}>
+        <Clock size={15} color="rgba(255,255,255,0.45)" />
+        <span style={styles.recentChipText}>{value}</span>
+      </button>
+      <button
+        title={t('common.remove')}
+        style={styles.recentChipRemove}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+      >
+        <X size={14} />
       </button>
     </div>
   );
@@ -507,6 +622,74 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
   },
+  sectionHeaderRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    marginBottom: 14,
+  },
+  clearRecentBtn: {
+    height: 28,
+    padding: '0 10px',
+    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(255,255,255,0.04)',
+    color: 'rgba(255,255,255,0.58)',
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  recentGrid: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 32,
+  },
+  recentChip: {
+    height: 38,
+    display: 'flex',
+    alignItems: 'center',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 999,
+    transition: 'background 0.15s, border-color 0.15s',
+    maxWidth: 280,
+  },
+  recentChipMain: {
+    minWidth: 0,
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '0 8px 0 13px',
+    background: 'transparent',
+    border: 'none',
+    color: '#fff',
+    cursor: 'pointer',
+  },
+  recentChipText: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  recentChipRemove: {
+    width: 30,
+    height: 30,
+    marginRight: 4,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: 'none',
+    borderRadius: '50%',
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.42)',
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
   genreGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
@@ -569,5 +752,17 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 14,
     margin: 0,
+  },
+  retryBtn: {
+    height: 36,
+    marginTop: 16,
+    padding: '0 14px',
+    borderRadius: 999,
+    border: '1px solid rgba(255,255,255,0.14)',
+    background: '#FFFFFF',
+    color: '#000000',
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: 'pointer',
   },
 };

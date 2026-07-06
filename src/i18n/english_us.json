@@ -253,6 +253,8 @@
   "auto.connect_trakt_tv_account": "Connect Trakt.tv account",
   "auto.connect_anilist_account": "Connect AniList account",
   "auto.connect_simkl_account": "Connect Simkl account",
+  "search.recent_searches": "Recent searches",
+  "common.clear": "Clear",
   "library.smart_recent": "Recent",
   "library.smart_unwatched": "Unwatched",
   "library.smart_airing": "Airing",

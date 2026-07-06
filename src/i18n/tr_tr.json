@@ -253,6 +253,8 @@
   "auto.connect_trakt_tv_account": "İlerlemeni senkronize etmek için bağla.",
   "auto.connect_anilist_account": "Anime takibi için AniList hesabını bağla.",
   "auto.connect_simkl_account": "Filmler, diziler ve animeler için bağla.",
+  "search.recent_searches": "Son aramalar",
+  "common.clear": "Temizle",
   "library.smart_recent": "Son Etkinlik",
   "library.smart_unwatched": "İzlenmemiş",
   "library.smart_airing": "Yayında",
