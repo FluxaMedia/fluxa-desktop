@@ -13,7 +13,7 @@ import { CategoryGridScreen } from './CategoryGridScreen';
 import { CollectionEditorScreen } from './CollectionEditorScreen';
 import { CollectionsTab } from '../components/library/CollectionsTab';
 
-type Tab = 'watchlist' | 'watching' | 'completed' | 'dropped' | 'collections' | 'recent' | 'unwatched' | 'airing' | 'paused' | 'rewatch' | 'rated' | 'history';
+type Tab = 'watchlist' | 'watching' | 'completed' | 'dropped' | 'collections' | 'airing' | 'rated' | 'history';
 
 const NAV_RAIL_WIDTH = 104;
 const PX = 58;
@@ -163,44 +163,23 @@ export const LibraryScreen = React.memo(function LibraryScreen({
 
   const smartLists = useMemo(() => {
     const all = uniqueLibraryItems([...watchlist, ...watching, ...completed, ...dropped, ...progressItems]);
-    const completedIds = new Set(completed.map((item) => item.id));
-    const recent = [...all]
-      .filter((item) => itemActivityTime(item) > 0)
-      .sort((a, b) => itemActivityTime(b) - itemActivityTime(a))
-      .slice(0, 80);
-    const unwatched = uniqueLibraryItems([
-      ...watching.filter((item) => item.type === 'series' && !completedIds.has(item.id)),
-      ...watchlist.filter((item) => item.type === 'series' && !completedIds.has(item.id)),
-    ]);
     const airing = uniqueLibraryItems([...watching, ...watchlist])
       .filter((item) => Boolean(item.nextEpisodeAirDate || item.newEpisodeReleasedAt || item.continueWatchingBadge === 'newEpisode' || item.continueWatchingBadge === 'scheduledEpisode'))
       .sort((a, b) => itemAirTime(a) - itemAirTime(b));
-    const paused = watching
-      .filter((item) => {
-        const activity = itemActivityTime(item);
-        const ratio = (item.timeOffset ?? 0) > 0 && (item.duration ?? 0) > 0 ? (item.timeOffset ?? 0) / (item.duration ?? 1) : 0;
-        return activity > 0 && Date.now() - activity > 30 * 24 * 60 * 60 * 1000 && ratio < 0.95;
-      })
-      .sort((a, b) => itemActivityTime(a) - itemActivityTime(b));
-    const rewatch = completed;
     const rated = [...all]
       .filter((item) => Number((item as unknown as Meta).imdbRating ?? 0) >= 7.5)
       .sort((a, b) => Number((b as unknown as Meta).imdbRating ?? 0) - Number((a as unknown as Meta).imdbRating ?? 0));
     const history = [...all]
       .filter((item) => itemActivityTime(item) > 0)
       .sort((a, b) => itemActivityTime(b) - itemActivityTime(a));
-    return { recent, unwatched, airing, paused, rewatch, rated, history };
+    return { airing, rated, history };
   }, [watchlist, watching, completed, dropped, progressItems]);
 
   const items = tab === 'watchlist' ? watchlist
     : tab === 'watching' ? watching
     : tab === 'completed' ? completed
     : tab === 'dropped' ? dropped
-    : tab === 'recent' ? smartLists.recent
-    : tab === 'unwatched' ? smartLists.unwatched
     : tab === 'airing' ? smartLists.airing
-    : tab === 'paused' ? smartLists.paused
-    : tab === 'rewatch' ? smartLists.rewatch
     : tab === 'rated' ? smartLists.rated
     : tab === 'history' ? smartLists.history
     : [];
@@ -226,11 +205,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     : tab === 'watching' ? t('library.subtitle_watching')
     : tab === 'completed' ? t('library.subtitle_completed')
     : tab === 'dropped' ? t('library.subtitle_dropped')
-    : tab === 'recent' ? t('library.subtitle_recent')
-    : tab === 'unwatched' ? t('library.subtitle_unwatched')
     : tab === 'airing' ? t('library.subtitle_airing')
-    : tab === 'paused' ? t('library.subtitle_paused')
-    : tab === 'rewatch' ? t('library.subtitle_rewatch')
     : tab === 'rated' ? t('library.subtitle_rated')
     : tab === 'history' ? t('library.subtitle_history')
     : t('library.subtitle_collections');
@@ -316,20 +291,8 @@ export const LibraryScreen = React.memo(function LibraryScreen({
         <TabChip active={tab === 'collections'} onClick={() => changeTab('collections')}>
           {t('library.collections')}{collections.length > 0 ? ` (${collections.length})` : ''}
         </TabChip>
-        <TabChip active={tab === 'recent'} onClick={() => changeTab('recent')}>
-          {t('library.smart_recent')}{smartLists.recent.length > 0 ? ` (${smartLists.recent.length})` : ''}
-        </TabChip>
-        <TabChip active={tab === 'unwatched'} onClick={() => changeTab('unwatched')}>
-          {t('library.smart_unwatched')}{smartLists.unwatched.length > 0 ? ` (${smartLists.unwatched.length})` : ''}
-        </TabChip>
         <TabChip active={tab === 'airing'} onClick={() => changeTab('airing')}>
           {t('library.smart_airing')}{smartLists.airing.length > 0 ? ` (${smartLists.airing.length})` : ''}
-        </TabChip>
-        <TabChip active={tab === 'paused'} onClick={() => changeTab('paused')}>
-          {t('library.smart_paused')}{smartLists.paused.length > 0 ? ` (${smartLists.paused.length})` : ''}
-        </TabChip>
-        <TabChip active={tab === 'rewatch'} onClick={() => changeTab('rewatch')}>
-          {t('library.smart_rewatch')}{smartLists.rewatch.length > 0 ? ` (${smartLists.rewatch.length})` : ''}
         </TabChip>
         <TabChip active={tab === 'rated'} onClick={() => changeTab('rated')}>
           {t('library.smart_rated')}{smartLists.rated.length > 0 ? ` (${smartLists.rated.length})` : ''}
