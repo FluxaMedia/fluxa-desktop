@@ -103,7 +103,7 @@ function sidebarClosedTransform(position: NavBarPosition, isOpen: boolean): stri
 
 export const NavSidebar = React.memo(function NavSidebar({ activeRoute, onNavigate, position: positionValue = 'left', itemsAlign: alignValue = 'center', topOffset = 0, alwaysOpen = false }: SidebarProps) {
   const [pinned, setPinned] = useState<boolean>(() => {
-    try { return localStorage.getItem(PINNED_KEY) !== 'false'; } catch { return true; }
+    try { return localStorage.getItem(PINNED_KEY) === 'true'; } catch { return false; }
   });
   const [hovered, setHovered] = useState(false);
 
