@@ -122,7 +122,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   }
 
   async function handleImportJson(json: string) {
-    const imported = importCollectionsJson(json);
+    const imported = await importCollectionsJson(json);
     if (!imported.length) return;
     const existingIds = new Set(collections.map((c) => c.id));
     const merged = [...collections, ...imported.filter((c) => !existingIds.has(c.id))];
@@ -130,9 +130,9 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     setEditingCollection(null);
   }
 
-  function handleExportAll() {
-    const json = exportCollectionsJson(collections);
-    void navigator.clipboard.writeText(json);
+  async function handleExportAll() {
+    const json = await exportCollectionsJson(collections);
+    await navigator.clipboard.writeText(json);
   }
 
   if (viewAllFolder) {
@@ -160,7 +160,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
           onDismiss={() => setEditingCollection(null)}
           onSave={(c) => void handleSaveCollection(c)}
           onImportJson={(json) => void handleImportJson(json)}
-          onExportAll={handleExportAll}
+          onExportAll={() => void handleExportAll()}
         />
       </div>
     );

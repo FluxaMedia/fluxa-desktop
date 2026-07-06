@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { dispatchAction, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream } from '../core/engine';
+import { dispatchAction, coreDetectAnimePlayback, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream } from '../core/engine';
 
 function debugLog(msg: string) {
   void invoke('debug_log', { msg }).catch(() => {});
@@ -42,7 +42,6 @@ import { traktScrobbleOnClose, simklScrobbleOnClose } from '../core/scrobble';
 import { saveProfile } from '../core/profiles';
 import { resolvePlaybackSubtitles } from '../core/subtitles';
 import { persistLastPlaybackSource } from '../core/libraryStorage';
-import { detectAnimePlayback } from '../core/animeDetection';
 import type { AppState, Meta, Video, Stream, AddonDescriptor, UserProfile } from '../core/types';
 import { usePlayerNativeEvents } from './usePlayerNativeEvents';
 
@@ -427,7 +426,12 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     void playerClearChapters();
     const episodeList = meta?.videos ?? [];
     void playerSetEpisodes(JSON.stringify(episodeList));
-    const animeDetection = detectAnimePlayback(meta, episode, stream, stateRef.current.addons.installed ?? []);
+    const animeDetection = await coreDetectAnimePlayback(
+      JSON.stringify(meta ?? null),
+      JSON.stringify(episode ?? null),
+      JSON.stringify(stream ?? null),
+      JSON.stringify(stateRef.current.addons.installed ?? []),
+    );
     debugLog(`handlePlay:anime detection confidence=${animeDetection.confidence} isAnime=${animeDetection.isAnime} reasons=${animeDetection.reasons.join(', ')}`);
 
     if (playbackPlan?.mode === 'torrent') {

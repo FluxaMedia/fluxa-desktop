@@ -59,10 +59,10 @@ function CollectionEditorPage({
     };
   }
 
-  function handleCopyJson() {
+  async function handleCopyJson() {
     const draft = buildDraft();
-    const json = exportCollectionsJson([draft]);
-    void navigator.clipboard.writeText(json);
+    const json = await exportCollectionsJson([draft]);
+    await navigator.clipboard.writeText(json);
   }
 
   const canSave = title.trim().length > 0;
@@ -181,7 +181,7 @@ function CollectionEditorPage({
               label={t('library.copy_collection_json')}
               accent={accent}
               disabled={!canSave}
-              onClick={handleCopyJson}
+              onClick={() => void handleCopyJson()}
               fullWidth
             />
           </Card>

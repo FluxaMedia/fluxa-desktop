@@ -228,6 +228,45 @@ export async function coreBuildTraktIds(videoId: string): Promise<Record<string,
   return coreInvoke('buildTraktIds', JSON.stringify({ id: videoId }));
 }
 
+export async function coreDetectAnimePlayback(
+  metaJson: string,
+  episodeJson: string,
+  streamJson: string,
+  addonsJson: string,
+): Promise<{ isAnime: boolean; confidence: number; reasons: string[] }> {
+  return (await coreInvoke('detectAnimePlayback', JSON.stringify({ metaJson, episodeJson, streamJson, addonsJson })))
+    ?? { isAnime: false, confidence: 0, reasons: [] };
+}
+
+export async function coreAnilistEntriesToSync(entriesJson: string, nowMs: number): Promise<{
+  watchlist: Record<string, unknown>[];
+  completed: Record<string, unknown>[];
+  dropped: Record<string, unknown>[];
+  watching: Record<string, unknown>[];
+  watched: Record<string, boolean>;
+  progress: Record<string, unknown>;
+} | null> {
+  return coreInvoke('anilistEntriesToSync', JSON.stringify({ entriesJson, nowMs }));
+}
+
+export async function coreMergeLibraryItemsById(localJson: string, incomingJson: string): Promise<Record<string, unknown>[]> {
+  return (await coreInvoke<Record<string, unknown>[]>('mergeLibraryItemsById', JSON.stringify({ localJson, incomingJson }))) ?? [];
+}
+
+export async function coreTmdbPeopleRequestPlan(metaJson: string, apiKey: string, language: string): Promise<{
+  creditsUrl?: string; findUrl?: string;
+} | null> {
+  return coreInvoke('tmdbPeopleRequestPlan', JSON.stringify({ metaJson, apiKey, language }));
+}
+
+export async function coreTmdbCreditsUrlFromFind(findJson: string, metaJson: string, apiKey: string, language: string): Promise<string | null> {
+  return coreInvoke('tmdbCreditsUrlFromFind', JSON.stringify({ findJson, metaJson, apiKey, language }));
+}
+
+export async function coreTmdbPeopleImagesFromCredits(creditsJson: string, linksJson: string): Promise<Record<string, string>> {
+  return (await coreInvoke<Record<string, string>>('tmdbPeopleImagesFromCredits', JSON.stringify({ creditsJson, linksJson }))) ?? {};
+}
+
 export async function coreCalendarItemsFromMeta(metaJson: string, monthPrefix: string): Promise<unknown[]> {
   return (await coreInvoke<unknown[]>('calendarItemsFromMeta', JSON.stringify({ metaJson, monthPrefix }))) ?? [];
 }
