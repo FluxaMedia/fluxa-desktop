@@ -65,6 +65,23 @@ export type ModernDetailProps = {
   onBgError: () => void;
 };
 
+function GenreTag({ label, onClick }: { label: string; onClick?: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <span
+      style={{ ...MS.genreTag, textDecoration: hovered ? 'underline' : 'none' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(); }}
+    >
+      {label}
+    </span>
+  );
+}
+
 export function ModernDetailLayout({
   displayMeta, bgUrl, isSeries, detail, meta, episodes, filteredEps, seasonNumbers,
   selectedSeason, selectedEpisode, showSources, streams, episodePlan, similarItems,
@@ -192,26 +209,26 @@ export function ModernDetailLayout({
               <p style={MS.metaInfoLine}>
                 {metaGenres.map((g, i) => (
                   <React.Fragment key={g}>
-                    <span style={MS.genreTag} onClick={() => onNavigateGenre?.(g)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onNavigateGenre?.(g); }}>{g}</span>
+                    <GenreTag label={g} onClick={() => onNavigateGenre?.(g)} />
                     {(i < metaGenres.length - 1 || modernMetaDetails.length > 0) && <span style={MS.metaDot}> • </span>}
                   </React.Fragment>
                 ))}
-                {modernMetaDetails.length > 0 && <span>{modernMetaDetails.join(' • ')}</span>}
+                {modernMetaDetails.length > 0 && <span style={MS.metaDetailsText}>{modernMetaDetails.join(' • ')}</span>}
               </p>
             )}
             {displayMeta.description && <p style={MS.descText}>{displayMeta.description}</p>}
-            {castMembers.length > 0 && (
-              <p style={MS.castLine}>
-                <span style={{ color: 'rgba(255,255,255,0.28)' }}>{t('detail.cast_crew')}: </span>
-                {castMembers.slice(0, 5).map((m, i) => (
-                  <React.Fragment key={m.name}>
-                    <span style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>{m.name}</span>
-                    {i < Math.min(castMembers.length, 5) - 1 && <span style={{ color: 'rgba(255,255,255,0.2)' }}>, </span>}
-                  </React.Fragment>
-                ))}
-              </p>
-            )}
           </div>
+
+          {castMembers.length > 0 && (
+            <div style={{ ...S.castRow, marginBottom: 26 }}>
+              {directorLinks.slice(0, 1).map((l) => (
+                <CastAvatar key={`dir-${l.name}`} name={l.name} role={t('detail.director')} imageUrl={peopleImages[l.name]} />
+              ))}
+              {castMembers.slice(0, 9).map((member) => (
+                <CastAvatar key={`cast-${member.name}:${member.role ?? ''}`} name={member.name} role={member.role || t('detail.actor')} imageUrl={member.imageUrl ?? peopleImages[member.name]} />
+              ))}
+            </div>
+          )}
 
           {isSeries && (
             <>

@@ -102,7 +102,7 @@ export const CastAvatar = React.memo(function CastAvatar({ name, role, imageUrl 
   const initials = name.split(' ').slice(0, 2).map((w) => w[0] ?? '').join('').toUpperCase();
   const showImage = imageUrl && !imageFailed;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 92, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 104, flexShrink: 0 }}>
       <div
         style={{
           width: 70,
@@ -122,8 +122,8 @@ export const CastAvatar = React.memo(function CastAvatar({ name, role, imageUrl 
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, fontWeight: 600 }}>{initials}</span>
         )}
       </div>
-      <p style={{ color: '#FFFFFF', fontSize: 12, fontWeight: 750, lineHeight: '14px', minHeight: 28, margin: '2px 0 0', textAlign: 'center', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{name}</p>
-      <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 10, margin: 0, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{role}</p>
+      <p style={{ color: '#FFFFFF', fontSize: 12, fontWeight: 750, lineHeight: '14px', margin: '2px 0 0', textAlign: 'center', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{name}</p>
+      <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 10, margin: '1px 0 0', textAlign: 'center', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{role}</p>
     </div>
   );
 });
