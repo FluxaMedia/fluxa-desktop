@@ -762,7 +762,7 @@ export function AccountSection({
         {/* Stremio */}
         {!stremioConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>S</span></div>}
+            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(123,91,245,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/stremio.svg" alt="Stremio" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>}
             title="Stremio"
             value={stremioBusy ? t('auth.signing_in') : t('settings.connect_stremio_account')}
             onClick={() => setStremioFormOpen((o) => !o)}
@@ -785,7 +785,7 @@ export function AccountSection({
         {stremioConnected && (
           <div style={{ position: 'relative' }}>
             <SyncServiceRow
-              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>S</span></div>}
+              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(123,91,245,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/stremio.svg" alt="Stremio" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>}
               title="Stremio"
               value={stremioBusy ? t('trakt.device.syncing') : (activeProfile?.stremioEmail ?? t('trakt.device.connected'))}
               valueColor="#54D17A"
