@@ -17,6 +17,19 @@ interface Props {
 const SLIDE_INTERVAL_MS = 6500;
 const PANEL_LEFT = 120;
 
+const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+const keyframes = `
+@keyframes heroKenBurns {
+  from { transform: scale(1); }
+  to { transform: scale(1.06); }
+}
+@keyframes heroIndicatorFill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+`;
+
 export const HeroSection = React.memo(function HeroSection({ meta, slides, onPlay, onDetails, onAddToWatchlist, preferSeasonPosters = false, isActive = true }: Props) {
   const items = useMemo(() => {
     const seen = new Set<string>();
@@ -32,6 +45,8 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
   const [visible, setVisible] = useState(true);
   const [bgError, setBgError] = useState(false);
   const [logoError, setLogoError] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [cycle, setCycle] = useState(0);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeIndexRef = useRef(activeIndex);
   activeIndexRef.current = activeIndex;
@@ -81,12 +96,12 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
   }
 
   useEffect(() => {
-    if (!canSlide || !isActive) return;
+    if (!canSlide || !isActive || paused) return;
     const id = window.setInterval(() => {
       slideToIndex(activeIndexRef.current + 1);
     }, SLIDE_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [canSlide, items.length, isActive]);
+  }, [canSlide, items.length, isActive, paused]);
 
   useEffect(() => {
     if (!canSlide) return;
@@ -107,14 +122,28 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     transition: 'opacity 0.25s ease',
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!canSlide) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(activeIndex - 1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); goTo(activeIndex + 1); }
+  };
+
   return (
-    <div style={styles.hero}>
+    <div
+      style={styles.hero}
+      tabIndex={canSlide ? 0 : -1}
+      onKeyDown={handleKeyDown}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => { setPaused(false); setCycle((c) => c + 1); }}
+    >
+      <style>{keyframes}</style>
       {bgUrl && (
         <img
+          key={activeMeta.id || activeIndex}
           src={bgUrl}
           alt=""
           decoding="async"
-          style={{ ...styles.backdrop, ...contentStyle }}
+          style={{ ...styles.backdrop, ...contentStyle, animationPlayState: paused ? 'paused' : 'running' }}
           onError={() => setBgError(true)}
         />
       )}
@@ -142,23 +171,20 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
           <p style={styles.metaLine}>{metaParts.join(' · ')}</p>
         )}
 
-        {!isNaN(imdbNum) && (
-          <div style={styles.ratingsRow}>
-            <span style={styles.imdbBadge}>
-              <span style={styles.imdbLabel}>IMDb</span>
-              <span style={styles.imdbScore}>{imdbNum.toFixed(1)}</span>
-            </span>
-          </div>
-        )}
-
-        {(certification || genreLine.length > 0) && (
-          <div style={styles.genreRow}>
+        {(!isNaN(imdbNum) || certification || genreLine.length > 0) && (
+          <div style={styles.metaRow}>
+            {!isNaN(imdbNum) && (
+              <span style={styles.imdbBadge}>
+                <img src="/imdb.svg" alt="IMDb" style={styles.imdbLogo} />
+                <span style={styles.imdbScore}>{imdbNum.toFixed(1)}</span>
+              </span>
+            )}
             {certification && (
               <span style={styles.certBadge}>{certification}</span>
             )}
-            {genreLine.map((g) => (
-              <span key={g} style={styles.genrePill}>{g}</span>
-            ))}
+            {genreLine.length > 0 && (
+              <span style={styles.genreText}>{genreLine.join('  ·  ')}</span>
+            )}
           </div>
         )}
 
@@ -173,10 +199,10 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
             <Play size={13} fill="currentColor" />
             {t('common.play')}
           </button>
-          <HeroIconBtn onClick={() => onAddToWatchlist?.(activeMeta)} title={t('auto.my_list')}>
+          <HeroIconBtn onClick={() => onAddToWatchlist?.(activeMeta)} title={t('auto.my_list')} ariaLabel={t('auto.my_list')}>
             <Plus size={20} />
           </HeroIconBtn>
-          <HeroIconBtn onClick={() => onDetails?.(activeMeta)} title={t('auto.info')}>
+          <HeroIconBtn onClick={() => onDetails?.(activeMeta)} title={t('auto.info')} ariaLabel={t('auto.info')}>
             <Info size={20} />
           </HeroIconBtn>
         </div>
@@ -191,12 +217,23 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
               <button
                 key={item.id || item.name}
                 aria-label={`Show ${item.name}`}
-                style={{
-                  ...styles.indicator,
-                  ...(i === activeIndex ? styles.indicatorActive : null),
-                }}
+                style={styles.indicatorTrack}
                 onClick={() => goTo(i)}
-              />
+              >
+                <span
+                  key={i === activeIndex ? `${activeIndex}-${cycle}` : `${i}-static`}
+                  style={{
+                    ...styles.indicatorFill,
+                    ...(i < activeIndex ? styles.indicatorFillDone : null),
+                    ...(i === activeIndex
+                      ? {
+                          animation: `heroIndicatorFill ${SLIDE_INTERVAL_MS}ms linear forwards`,
+                          animationPlayState: paused ? 'paused' : 'running',
+                        }
+                      : null),
+                  }}
+                />
+              </button>
             ))}
           </div>
         </>
@@ -244,11 +281,12 @@ function NavArrow({ direction, onClick }: { direction: 'left' | 'right'; onClick
   );
 }
 
-function HeroIconBtn({ onClick, title, children }: { onClick?: () => void; title?: string; children: React.ReactNode }) {
+function HeroIconBtn({ onClick, title, ariaLabel, children }: { onClick?: () => void; title?: string; ariaLabel?: string; children: React.ReactNode }) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
       title={title}
+      aria-label={ariaLabel ?? title}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -292,7 +330,7 @@ const styles: Record<string, React.CSSProperties> = {
   hero: {
     position: 'relative',
     width: '100%',
-    height: 'var(--hero-height, clamp(600px, 65vh, 860px))' as unknown as number,
+    height: 'var(--hero-height, clamp(540px, 58vh, 760px))' as unknown as number,
     overflow: 'hidden',
     flexShrink: 0,
     background: '#040508',
@@ -309,6 +347,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block',
     userSelect: 'none',
     pointerEvents: 'none',
+    animation: prefersReducedMotion ? 'none' : `heroKenBurns ${SLIDE_INTERVAL_MS + 400}ms ease-out forwards`,
+    transformOrigin: 'center 30%',
   },
   gradientTop: {
     position: 'absolute',
@@ -352,7 +392,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   panel: {
     position: 'absolute',
-    top: 'clamp(80px, 14vh, 160px)' as unknown as number,
+    bottom: 'clamp(48px, 7vh, 80px)' as unknown as number,
     left: PANEL_LEFT,
     maxWidth: 580,
     display: 'flex',
@@ -388,34 +428,6 @@ const styles: Record<string, React.CSSProperties> = {
     textShadow: '0 2px 8px rgba(0,0,0,0.7)',
     lineHeight: 1.3,
   },
-  ratingsRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 14,
-    flexWrap: 'wrap' as const,
-  },
-  imdbBadge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    background: '#F5C518',
-    borderRadius: 3,
-    padding: '2px 6px 3px',
-  },
-  imdbLabel: {
-    color: '#000000',
-    fontSize: 10,
-    fontWeight: 900,
-    letterSpacing: '0.02em',
-    lineHeight: 1,
-  },
-  imdbScore: {
-    color: '#000000',
-    fontSize: 13,
-    fontWeight: 900,
-    lineHeight: 1,
-  },
   metaLine: {
     color: 'rgb(170, 170, 170)',
     fontSize: '0.875rem',
@@ -424,19 +436,39 @@ const styles: Record<string, React.CSSProperties> = {
     textShadow: '0 2px 4px rgba(0,0,0,0.8)',
     lineHeight: 1.4,
   },
-  genreRow: {
+  metaRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap' as const,
+    gap: 12,
     marginBottom: 18,
+    flexWrap: 'wrap' as const,
+  },
+  imdbBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  imdbLogo: {
+    height: 16,
+    width: 'auto',
+    display: 'block',
+    borderRadius: 3,
+    userSelect: 'none',
+  },
+  imdbScore: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: '0.9rem',
+    fontWeight: 700,
+    lineHeight: 1,
+    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
   },
   certBadge: {
     display: 'inline-flex',
     alignItems: 'center',
     padding: '1px 5px 2px',
-    border: '1px solid rgba(255,255,255,0.60)',
-    color: 'rgba(255,255,255,0.60)',
+    border: '1px solid rgba(255,255,255,0.50)',
+    color: 'rgba(255,255,255,0.75)',
     borderRadius: 2,
     fontSize: '0.72rem',
     fontWeight: 600,
@@ -444,17 +476,12 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.02em',
     flexShrink: 0,
   },
-  genrePill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: '2px 8px',
-    background: 'rgba(255,255,255,0.10)',
-    border: '1px solid rgba(255,255,255,0.14)',
-    borderRadius: 4,
-    fontSize: '0.75rem',
-    color: 'rgba(255,255,255,0.82)',
+  genreText: {
+    color: 'rgba(255,255,255,0.62)',
+    fontSize: '0.85rem',
     fontWeight: 500,
-    flexShrink: 0,
+    lineHeight: 1,
+    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
   },
   description: {
     color: 'rgba(255,255,255,0.82)',
@@ -502,7 +529,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   indicators: {
     position: 'absolute',
-    bottom: 60,
+    bottom: 24,
     left: '50%',
     transform: 'translateX(-50%)',
     display: 'flex',
@@ -510,18 +537,24 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 10,
     padding: '10px 16px',
   },
-  indicator: {
-    width: 8,
-    height: 8,
+  indicatorTrack: {
+    width: 28,
+    height: 3,
     borderRadius: 999,
-    background: 'rgba(255,255,255,0.35)',
-    border: '1px solid rgba(255,255,255,0.20)',
+    background: 'rgba(255,255,255,0.25)',
+    border: 'none',
     cursor: 'pointer',
     padding: 0,
-    transition: 'all 0.3s ease',
+    overflow: 'hidden',
   },
-  indicatorActive: {
+  indicatorFill: {
+    display: 'block',
+    height: '100%',
+    width: '0%',
     background: 'rgba(255,255,255,0.90)',
-    width: 24,
+    borderRadius: 999,
+  },
+  indicatorFillDone: {
+    width: '100%',
   },
 };
