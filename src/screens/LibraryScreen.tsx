@@ -5,8 +5,6 @@ import { FilterDropdown } from '../components/FilterDropdown';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefString } from '../core/appPrefs';
 import { effectiveCatalogId, exportCollectionsJson, importCollectionsJson } from '../core/collections';
-import { libraryContentType, type LibraryContentType } from '../core/animeDetection';
-import { ContentTypeFilter } from '../components/ContentTypeFilter';
 import { getViewPrefs, setViewPref, whenViewPrefsReady } from '../core/viewPrefs';
 import { saveProfile } from '../core/profiles';
 import type { AppState, HomeCategory, LibraryItem, Meta, UserCollection, UserCollectionFolder, UserProfile } from '../core/types';
@@ -40,7 +38,6 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   const [tab, setTab] = useState<Tab>(() => (getViewPrefs().libraryTab as Tab) ?? 'watchlist');
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'title' | 'rating'>(() => (getViewPrefs().librarySort as 'recent' | 'title' | 'rating') ?? 'recent');
-  const [typeFilter, setTypeFilter] = useState<'all' | LibraryContentType>(() => (getViewPrefs().libraryType as 'all' | LibraryContentType) ?? 'all');
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
@@ -49,13 +46,11 @@ export const LibraryScreen = React.memo(function LibraryScreen({
       const v = getViewPrefs();
       if (v.libraryTab) setTab(v.libraryTab as Tab);
       if (v.librarySort) setSortBy(v.librarySort as 'recent' | 'title' | 'rating');
-      if (v.libraryType) setTypeFilter(v.libraryType as 'all' | LibraryContentType);
     });
   }, []);
 
   const changeTab = (v: Tab) => { setTab(v); setViewPref('libraryTab', v); };
   const changeSort = (v: 'recent' | 'title' | 'rating') => { setSortBy(v); setViewPref('librarySort', v); };
-  const changeType = (v: 'all' | LibraryContentType) => { setTypeFilter(v); setViewPref('libraryType', v); };
   const [viewAllFolder, setViewAllFolder] = useState<{ title: string; items: Meta[] } | null>(null);
   const collectionsScrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
@@ -219,16 +214,8 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     });
   }, [items]);
 
-  const typeCounts = useMemo(() => {
-    const counts = { all: items.length, movie: 0, series: 0, anime: 0 };
-    for (const it of items) counts[libraryContentType(it as unknown as Meta)]++;
-    return counts;
-  }, [items]);
-
-  const effectiveType = typeFilter !== 'all' && typeCounts[typeFilter] === 0 ? 'all' : typeFilter;
-  const byType = effectiveType === 'all' ? items : items.filter((it) => libraryContentType(it as unknown as Meta) === effectiveType);
   const q = query.trim().toLowerCase();
-  const shown = q ? byType.filter((it) => it.name.toLowerCase().includes(q)) : byType;
+  const shown = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : items;
   const sorted = sortBy === 'title'
     ? [...shown].sort((a, b) => a.name.localeCompare(b.name))
     : sortBy === 'rating'
@@ -402,12 +389,6 @@ export const LibraryScreen = React.memo(function LibraryScreen({
             <button style={styles.bulkDangerBtn} disabled={selectedIds.size === 0} onClick={removeSelectedFromCurrentList}>{t('common.remove')}</button>
           )}
           <button style={styles.bulkIconBtn} onClick={() => { setBulkMode(false); clearSelection(); }} title={t('common.close')}><X size={17} /></button>
-        </div>
-      )}
-
-      {tab !== 'collections' && [typeCounts.movie, typeCounts.series, typeCounts.anime].filter((n) => n > 0).length > 1 && (
-        <div style={styles.typeRow}>
-          <ContentTypeFilter value={effectiveType} counts={typeCounts} onChange={changeType} />
         </div>
       )}
 
@@ -679,7 +660,6 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     cursor: 'pointer',
   },
-  typeRow: { display: 'flex', alignItems: 'center', gap: 8, paddingLeft: PX, paddingRight: PX, flexShrink: 0, marginTop: 14 },
   errorBanner: {
     margin: '14px 58px 0',
     padding: '12px 14px',
