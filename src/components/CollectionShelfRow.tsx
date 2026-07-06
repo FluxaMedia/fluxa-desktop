@@ -3,6 +3,7 @@ import type { Meta } from '../core/types';
 import { t } from '../i18n';
 import { cardImageUrl } from '../core/imageSizes';
 import { useInViewport } from '../hooks/useInViewport';
+import { useGifSlot } from '../hooks/useGifSlot';
 
 const ROW_PADDING_LEFT = 32;
 
@@ -148,7 +149,7 @@ const FolderTileCard = React.memo(function FolderTileCard({
   const [staticImgError, setStaticImgError] = React.useState(false);
   const [gifError, setGifError] = React.useState(false);
   const wrapperRef = React.useRef<HTMLDivElement>(null);
-  const inViewport = useInViewport(wrapperRef, '120px');
+  const inViewport = useInViewport(wrapperRef, '150px');
 
   const shape = ((folder as unknown as Record<string, unknown>).reason as string | undefined ?? 'poster').toLowerCase();
   const isWide = shape === 'wide' || shape === 'landscape';
@@ -162,10 +163,11 @@ const FolderTileCard = React.memo(function FolderTileCard({
     : { width: w, minWidth: w, height: 234 };
 
   const staticUrl = cardImageUrl(folder.poster) ?? cardImageUrl(folder.background, 'backdrop');
-  const wantsMotion = !!folder.focusGifUrl && inViewport && (gifAutoplayEnabled || hovered);
-  const shouldShowGif = wantsMotion && !gifError;
-  const displayUrl = shouldShowGif ? folder.focusGifUrl : staticUrl;
-  const displayFailed = displayUrl === staticUrl && staticImgError;
+  const hasStatic = !!staticUrl && !staticImgError;
+  const gifEligible = !!folder.focusGifUrl && inViewport && (gifAutoplayEnabled || hovered) && !gifError;
+  const hasGifSlot = useGifSlot(folder.id, gifEligible);
+  const wantsMotion = gifEligible && hasGifSlot;
+  const showPlaceholder = !hasStatic && !wantsMotion;
 
   React.useEffect(() => {
     setStaticImgError(false);
@@ -189,20 +191,23 @@ const FolderTileCard = React.memo(function FolderTileCard({
         data-motion-url={folder.focusGifUrl ?? undefined}
         style={{ ...collStyles.card, ...imgStyle }}
       >
-        {displayUrl && !displayFailed ? (
+        {hasStatic && (
           <img
-            key={displayUrl}
-            src={displayUrl}
+            src={staticUrl}
             alt={folder.name}
-            loading="lazy"
-            decoding="async"
             style={collStyles.img}
-            onError={() => {
-              if (displayUrl === folder.focusGifUrl) setGifError(true);
-              else setStaticImgError(true);
-            }}
+            onError={() => setStaticImgError(true)}
           />
-        ) : (
+        )}
+        {wantsMotion && (
+          <img
+            src={folder.focusGifUrl}
+            alt=""
+            style={{ ...collStyles.img, position: 'absolute', inset: 0 }}
+            onError={() => setGifError(true)}
+          />
+        )}
+        {showPlaceholder && (
           <div style={collStyles.namePlaceholder}>
             {addonIcon ? (
               <img src={addonIcon} alt="" style={{ width: '48%', height: '48%', objectFit: 'contain', opacity: 0.35 }} />

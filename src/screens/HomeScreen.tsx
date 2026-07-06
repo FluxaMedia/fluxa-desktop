@@ -104,7 +104,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   }, [state.addons.installed]);
   const showHero = prefBool(prefs, 'showHeroSection', true);
   const showContinueWatching = prefBool(prefs, 'continueWatchingEnabled', true);
-  const gifAutoplayEnabled = prefBool(prefs, 'gifAutoplayEnabled', true);
+  const gifAutoplayEnabled = prefBool(prefs, 'gifAutoplayEnabled', false);
   const topTenFeedKeys = useMemo(() => {
     const raw = prefs.topTenFeedToggles;
     return new Set<string>(Array.isArray(raw) ? (raw as string[]) : []);

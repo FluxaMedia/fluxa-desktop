@@ -132,7 +132,7 @@ export const DEFAULT_PREFS: Prefs = {
   tmdbRatingsEnabled: true,
   accentColorArgb: '#FFFFFF',
   animationsEnabled: true,
-  gifAutoplayEnabled: true,
+  gifAutoplayEnabled: false,
   navLayout: 'sidebar',
   navBarPosition: 'left',
   navItemsAlign: 'center',
