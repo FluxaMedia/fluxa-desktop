@@ -427,10 +427,10 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     const episodeList = meta?.videos ?? [];
     void playerSetEpisodes(JSON.stringify(episodeList));
     const animeDetection = await coreDetectAnimePlayback(
-      JSON.stringify(meta ?? null),
-      JSON.stringify(episode ?? null),
-      JSON.stringify(stream ?? null),
-      JSON.stringify(stateRef.current.addons.installed ?? []),
+      meta ?? null,
+      episode ?? null,
+      stream ?? null,
+      stateRef.current.addons.installed ?? [],
     );
     debugLog(`handlePlay:anime detection confidence=${animeDetection.confidence} isAnime=${animeDetection.isAnime} reasons=${animeDetection.reasons.join(', ')}`);
 

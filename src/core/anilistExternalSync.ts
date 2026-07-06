@@ -53,13 +53,13 @@ export async function syncAniListNow(payload: Record<string, unknown>): Promise<
     .flatMap((list) => list.entries ?? [])
     .filter((entry): entry is AniListEntry => Boolean(entry?.media?.id));
 
-  const plan = await coreAnilistEntriesToSync(JSON.stringify(entries), Date.now());
+  const plan = await coreAnilistEntriesToSync(entries, Date.now());
   if (!plan) return { synced: false, error: 'AniList entries could not be processed' };
 
   const lib = await loadLibrary();
-  lib.watchlist = await coreMergeLibraryItemsById(JSON.stringify((lib.watchlist as LibraryItemRecord[] | undefined) ?? []), JSON.stringify(plan.watchlist));
-  lib.completed = await coreMergeLibraryItemsById(JSON.stringify((lib.completed as LibraryItemRecord[] | undefined) ?? []), JSON.stringify(plan.completed));
-  lib.dropped = await coreMergeLibraryItemsById(JSON.stringify((lib.dropped as LibraryItemRecord[] | undefined) ?? []), JSON.stringify(plan.dropped));
+  lib.watchlist = await coreMergeLibraryItemsById((lib.watchlist as LibraryItemRecord[] | undefined) ?? [], plan.watchlist);
+  lib.completed = await coreMergeLibraryItemsById((lib.completed as LibraryItemRecord[] | undefined) ?? [], plan.completed);
+  lib.dropped = await coreMergeLibraryItemsById((lib.dropped as LibraryItemRecord[] | undefined) ?? [], plan.dropped);
   lib.watched = { ...((lib.watched as Record<string, boolean> | undefined) ?? {}), ...plan.watched };
   lib.progress = { ...((lib.progress as Record<string, unknown> | undefined) ?? {}), ...plan.progress };
   lib.continueWatching = await buildContinueWatching(lib.progress as Record<string, unknown>);

@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { DispatchResult, EffectResult } from './types';
+import type { CoreMethod } from './coreMethods';
 
 let engineHandle: number | null = null;
 
@@ -77,7 +78,7 @@ export async function enqueueOfflineDownload(request: unknown): Promise<unknown 
   return raw ? JSON.parse(raw) : null;
 }
 
-export async function coreInvoke<T>(method: string, argsJson: string): Promise<T | null> {
+export async function coreInvoke<T>(method: CoreMethod, argsJson: string): Promise<T | null> {
   const t0 = performance.now();
   const raw = await invoke<string>('core_invoke', { method, argsJson });
   debugLog(`coreInvoke:${method} bytes=${argsJson.length}+${raw.length} ms=${(performance.now() - t0).toFixed(1)}`);
@@ -229,16 +230,16 @@ export async function coreBuildTraktIds(videoId: string): Promise<Record<string,
 }
 
 export async function coreDetectAnimePlayback(
-  metaJson: string,
-  episodeJson: string,
-  streamJson: string,
-  addonsJson: string,
+  meta: unknown,
+  episode: unknown,
+  stream: unknown,
+  addons: unknown[],
 ): Promise<{ isAnime: boolean; confidence: number; reasons: string[] }> {
-  return (await coreInvoke('detectAnimePlayback', JSON.stringify({ metaJson, episodeJson, streamJson, addonsJson })))
+  return (await coreInvoke('detectAnimePlayback', JSON.stringify({ meta, episode, stream, addons })))
     ?? { isAnime: false, confidence: 0, reasons: [] };
 }
 
-export async function coreAnilistEntriesToSync(entriesJson: string, nowMs: number): Promise<{
+export async function coreAnilistEntriesToSync(entries: unknown[], nowMs: number): Promise<{
   watchlist: Record<string, unknown>[];
   completed: Record<string, unknown>[];
   dropped: Record<string, unknown>[];
@@ -246,25 +247,25 @@ export async function coreAnilistEntriesToSync(entriesJson: string, nowMs: numbe
   watched: Record<string, boolean>;
   progress: Record<string, unknown>;
 } | null> {
-  return coreInvoke('anilistEntriesToSync', JSON.stringify({ entriesJson, nowMs }));
+  return coreInvoke('anilistEntriesToSync', JSON.stringify({ entries, nowMs }));
 }
 
-export async function coreMergeLibraryItemsById(localJson: string, incomingJson: string): Promise<Record<string, unknown>[]> {
-  return (await coreInvoke<Record<string, unknown>[]>('mergeLibraryItemsById', JSON.stringify({ localJson, incomingJson }))) ?? [];
+export async function coreMergeLibraryItemsById(local: unknown[], incoming: unknown[]): Promise<Record<string, unknown>[]> {
+  return (await coreInvoke<Record<string, unknown>[]>('mergeLibraryItemsById', JSON.stringify({ local, incoming }))) ?? [];
 }
 
-export async function coreTmdbPeopleRequestPlan(metaJson: string, apiKey: string, language: string): Promise<{
+export async function coreTmdbPeopleRequestPlan(meta: unknown, apiKey: string, language: string): Promise<{
   creditsUrl?: string; findUrl?: string;
 } | null> {
-  return coreInvoke('tmdbPeopleRequestPlan', JSON.stringify({ metaJson, apiKey, language }));
+  return coreInvoke('tmdbPeopleRequestPlan', JSON.stringify({ meta, apiKey, language }));
 }
 
-export async function coreTmdbCreditsUrlFromFind(findJson: string, metaJson: string, apiKey: string, language: string): Promise<string | null> {
-  return coreInvoke('tmdbCreditsUrlFromFind', JSON.stringify({ findJson, metaJson, apiKey, language }));
+export async function coreTmdbCreditsUrlFromFind(find: unknown, meta: unknown, apiKey: string, language: string): Promise<string | null> {
+  return coreInvoke('tmdbCreditsUrlFromFind', JSON.stringify({ find, meta, apiKey, language }));
 }
 
-export async function coreTmdbPeopleImagesFromCredits(creditsJson: string, linksJson: string): Promise<Record<string, string>> {
-  return (await coreInvoke<Record<string, string>>('tmdbPeopleImagesFromCredits', JSON.stringify({ creditsJson, linksJson }))) ?? {};
+export async function coreTmdbPeopleImagesFromCredits(credits: unknown, links: unknown[]): Promise<Record<string, string>> {
+  return (await coreInvoke<Record<string, string>>('tmdbPeopleImagesFromCredits', JSON.stringify({ credits, links }))) ?? {};
 }
 
 export async function coreCalendarItemsFromMeta(metaJson: string, monthPrefix: string): Promise<unknown[]> {

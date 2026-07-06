@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "typecheck": "tsc --noEmit",
-    "build": "tsc && vite build",
+    "typecheck": "node scripts/gen-core-methods.mjs && tsc --noEmit",
+    "build": "node scripts/gen-core-methods.mjs && tsc && vite build",
     "check": "npm run build && cd src-tauri && cargo check",
     "preview": "vite preview",
     "tauri": "tauri",

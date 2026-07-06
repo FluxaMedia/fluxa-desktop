@@ -15,18 +15,17 @@ export async function fetchTmdbPeopleImages({
   const trimmedKey = apiKey.trim();
   if (!trimmedKey || links.length === 0) return {};
 
-  const metaJson = JSON.stringify(meta);
-  const plan = await coreTmdbPeopleRequestPlan(metaJson, trimmedKey, language);
+  const plan = await coreTmdbPeopleRequestPlan(meta, trimmedKey, language);
   let creditsUrl = plan?.creditsUrl ?? null;
   if (!creditsUrl && plan?.findUrl) {
     const found = await tryFetchJson(plan.findUrl);
-    if (found) creditsUrl = await coreTmdbCreditsUrlFromFind(JSON.stringify(found), metaJson, trimmedKey, language);
+    if (found) creditsUrl = await coreTmdbCreditsUrlFromFind(found, meta, trimmedKey, language);
   }
   if (!creditsUrl) return {};
 
   const credits = await tryFetchJson(creditsUrl);
   if (!credits) return {};
-  return coreTmdbPeopleImagesFromCredits(JSON.stringify(credits), JSON.stringify(links));
+  return coreTmdbPeopleImagesFromCredits(credits, links);
 }
 
 async function tryFetchJson(url: string): Promise<unknown | null> {
