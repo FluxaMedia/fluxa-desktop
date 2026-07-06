@@ -13,6 +13,22 @@ import { platformFetch } from './httpClient';
 import { traktHeaders } from './traktSync';
 import { enrichWithAddonMeta, replaceExternalContinueWatching } from './externalSyncUtils';
 
+async function fetchAllPages(url: string, headers: HeadersInit, limit: number): Promise<Record<string, unknown>[]> {
+  const sep = url.includes('?') ? '&' : '?';
+  const items: Record<string, unknown>[] = [];
+  for (let page = 1; page <= 100; page++) {
+    const res = await platformFetch(`${url}${sep}page=${page}&limit=${limit}`, { headers });
+    if (!res.ok) break;
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) break;
+    items.push(...(data as Record<string, unknown>[]));
+    const pageCount = Number(res.headers.get('x-pagination-page-count'));
+    if (Number.isFinite(pageCount) && page >= pageCount) break;
+    if (data.length < limit) break;
+  }
+  return items;
+}
+
 async function mergeExternalWatchlist(externalItems: Record<string, unknown>[]): Promise<void> {
   const lib = await loadLibrary();
   const local = (lib.watchlist as Record<string, unknown>[] | undefined) ?? [];
@@ -54,22 +70,18 @@ export async function syncTraktNow(payload: Record<string, unknown>): Promise<un
 
   let watchlistCount = 0;
   try {
-    const [watchlistMoviesRes, watchlistShowsRes, watchedMoviesRes, watchedShowsRes] = await Promise.all([
-      platformFetch('https://api.trakt.tv/users/me/watchlist/movies?limit=500', { headers }),
-      platformFetch('https://api.trakt.tv/users/me/watchlist/shows?limit=500', { headers }),
-      platformFetch('https://api.trakt.tv/users/me/watched/movies', { headers }),
-      platformFetch('https://api.trakt.tv/users/me/watched/shows?extended=episodes', { headers }),
+    const [watchlistMovies, watchlistShows, watchedMovies, watchedShows] = await Promise.all([
+      fetchAllPages('https://api.trakt.tv/users/me/watchlist/movies', headers, 250),
+      fetchAllPages('https://api.trakt.tv/users/me/watchlist/shows', headers, 250),
+      fetchAllPages('https://api.trakt.tv/users/me/watched/movies', headers, 250),
+      fetchAllPages('https://api.trakt.tv/users/me/watched/shows?extended=progress', headers, 100),
     ]);
 
-    const wlMoviesData = watchlistMoviesRes.ok ? JSON.stringify(await watchlistMoviesRes.json()) : '[]';
-    const wlShowsData = watchlistShowsRes.ok ? JSON.stringify(await watchlistShowsRes.json()) : '[]';
-    const watchlistItems = ((await coreTraktWatchlistToItems(wlMoviesData, wlShowsData)) ?? []) as Record<string, unknown>[];
+    const watchlistItems = ((await coreTraktWatchlistToItems(JSON.stringify(watchlistMovies), JSON.stringify(watchlistShows))) ?? []) as Record<string, unknown>[];
     watchlistCount = watchlistItems.length;
     await mergeExternalWatchlist(watchlistItems);
 
-    const watchedMoviesData = watchedMoviesRes.ok ? JSON.stringify(await watchedMoviesRes.json()) : '[]';
-    const watchedShowsData = watchedShowsRes.ok ? JSON.stringify(await watchedShowsRes.json()) : '[]';
-    const watchedIds = ((await coreTraktWatchedToIds(watchedMoviesData, watchedShowsData)) ?? {}) as Record<string, boolean>;
+    const watchedIds = ((await coreTraktWatchedToIds(JSON.stringify(watchedMovies), JSON.stringify(watchedShows))) ?? {}) as Record<string, boolean>;
     await mergeExternalWatched(watchedIds);
   } catch {}
 
