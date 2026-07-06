@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Search } from 'lucide-react';
+import { ArrowLeft, CheckSquare2, Search, Square, X } from 'lucide-react';
 import { VirtualizedPosterGrid } from '../components/VirtualizedPosterGrid';
 import { FilterDropdown } from '../components/FilterDropdown';
 import { posterPrefsFromState } from '../core/posterPrefs';
@@ -15,7 +15,7 @@ import { CategoryGridScreen } from './CategoryGridScreen';
 import { CollectionEditorScreen } from './CollectionEditorScreen';
 import { CollectionsTab } from '../components/library/CollectionsTab';
 
-type Tab = 'watchlist' | 'watching' | 'completed' | 'dropped' | 'collections';
+type Tab = 'watchlist' | 'watching' | 'completed' | 'dropped' | 'collections' | 'recent' | 'unwatched' | 'airing' | 'paused' | 'rewatch' | 'rated' | 'history';
 
 const NAV_RAIL_WIDTH = 104;
 const PX = 58;
@@ -41,6 +41,8 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'title' | 'rating'>(() => (getViewPrefs().librarySort as 'recent' | 'title' | 'rating') ?? 'recent');
   const [typeFilter, setTypeFilter] = useState<'all' | LibraryContentType>(() => (getViewPrefs().libraryType as 'all' | LibraryContentType) ?? 'all');
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     void whenViewPrefsReady().then(() => {
@@ -74,6 +76,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   const watching = (library.lastWrite?.continueWatching ?? library.continueWatching ?? []) as LibraryItem[];
   const rawCompleted = (library.lastWrite?.completed ?? library.completed ?? []) as LibraryItem[];
   const rawDropped = (library.lastWrite?.dropped ?? library.dropped ?? []) as LibraryItem[];
+  const progressItems = Object.values((library.lastWrite?.progress ?? {}) as Record<string, LibraryItem>);
   const completed = useMemo(
     () => [...rawCompleted].sort((a, b) => (b.statusChangedAt ?? '').localeCompare(a.statusChangedAt ?? '')),
     [rawCompleted]
@@ -163,7 +166,58 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     );
   }
 
-  const items = tab === 'watchlist' ? watchlist : tab === 'watching' ? watching : tab === 'completed' ? completed : tab === 'dropped' ? dropped : [];
+  const smartLists = useMemo(() => {
+    const all = uniqueLibraryItems([...watchlist, ...watching, ...completed, ...dropped, ...progressItems]);
+    const completedIds = new Set(completed.map((item) => item.id));
+    const recent = [...all]
+      .filter((item) => itemActivityTime(item) > 0)
+      .sort((a, b) => itemActivityTime(b) - itemActivityTime(a))
+      .slice(0, 80);
+    const unwatched = uniqueLibraryItems([
+      ...watching.filter((item) => item.type === 'series' && !completedIds.has(item.id)),
+      ...watchlist.filter((item) => item.type === 'series' && !completedIds.has(item.id)),
+    ]);
+    const airing = uniqueLibraryItems([...watching, ...watchlist])
+      .filter((item) => Boolean(item.nextEpisodeAirDate || item.newEpisodeReleasedAt || item.continueWatchingBadge === 'newEpisode' || item.continueWatchingBadge === 'scheduledEpisode'))
+      .sort((a, b) => itemAirTime(a) - itemAirTime(b));
+    const paused = watching
+      .filter((item) => {
+        const activity = itemActivityTime(item);
+        const ratio = (item.timeOffset ?? 0) > 0 && (item.duration ?? 0) > 0 ? (item.timeOffset ?? 0) / (item.duration ?? 1) : 0;
+        return activity > 0 && Date.now() - activity > 30 * 24 * 60 * 60 * 1000 && ratio < 0.95;
+      })
+      .sort((a, b) => itemActivityTime(a) - itemActivityTime(b));
+    const rewatch = completed;
+    const rated = [...all]
+      .filter((item) => Number((item as unknown as Meta).imdbRating ?? 0) >= 7.5)
+      .sort((a, b) => Number((b as unknown as Meta).imdbRating ?? 0) - Number((a as unknown as Meta).imdbRating ?? 0));
+    const history = [...all]
+      .filter((item) => itemActivityTime(item) > 0)
+      .sort((a, b) => itemActivityTime(b) - itemActivityTime(a));
+    return { recent, unwatched, airing, paused, rewatch, rated, history };
+  }, [watchlist, watching, completed, dropped, progressItems]);
+
+  const items = tab === 'watchlist' ? watchlist
+    : tab === 'watching' ? watching
+    : tab === 'completed' ? completed
+    : tab === 'dropped' ? dropped
+    : tab === 'recent' ? smartLists.recent
+    : tab === 'unwatched' ? smartLists.unwatched
+    : tab === 'airing' ? smartLists.airing
+    : tab === 'paused' ? smartLists.paused
+    : tab === 'rewatch' ? smartLists.rewatch
+    : tab === 'rated' ? smartLists.rated
+    : tab === 'history' ? smartLists.history
+    : [];
+
+  useEffect(() => {
+    setSelectedIds((current) => {
+      if (current.size === 0) return current;
+      const visibleIds = new Set(items.map((item) => item.id));
+      const next = new Set([...current].filter((id) => visibleIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [items]);
 
   const typeCounts = useMemo(() => {
     const counts = { all: items.length, movie: 0, series: 0, anime: 0 };
@@ -185,7 +239,67 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     : tab === 'watching' ? t('library.subtitle_watching')
     : tab === 'completed' ? t('library.subtitle_completed')
     : tab === 'dropped' ? t('library.subtitle_dropped')
+    : tab === 'recent' ? t('library.subtitle_recent')
+    : tab === 'unwatched' ? t('library.subtitle_unwatched')
+    : tab === 'airing' ? t('library.subtitle_airing')
+    : tab === 'paused' ? t('library.subtitle_paused')
+    : tab === 'rewatch' ? t('library.subtitle_rewatch')
+    : tab === 'rated' ? t('library.subtitle_rated')
+    : tab === 'history' ? t('library.subtitle_history')
     : t('library.subtitle_collections');
+
+  const selectedItems = useMemo(
+    () => items.filter((item) => selectedIds.has(item.id)),
+    [items, selectedIds],
+  );
+  const canRemoveFromCurrentList = tab === 'watchlist' || tab === 'completed' || tab === 'dropped';
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+  const runForSelected = async (buildAction: (item: LibraryItem) => Record<string, unknown> | null) => {
+    const batch = [...selectedItems];
+    clearSelection();
+    for (const item of batch) {
+      const action = buildAction(item);
+      if (action) await Promise.resolve(onDispatch(JSON.stringify(action)));
+    }
+  };
+  const markSelectedWatched = (watched: boolean) => {
+    void runForSelected((item) => ({
+      type: 'markWatchedRequested',
+      seriesId: item.id,
+      videoIds: [item.lastVideoId ?? item.id],
+      watched,
+      meta: item,
+      episodes: item.lastVideoId ? [{
+        id: item.lastVideoId,
+        name: item.lastEpisodeName,
+        season: item.lastEpisodeSeason,
+        number: item.lastEpisodeNumber,
+        thumbnail: item.lastEpisodeThumbnail,
+      }] : [],
+    }));
+  };
+  const moveSelectedToStatus = (list: 'completed' | 'dropped') => {
+    const existingIds = new Set((list === 'completed' ? completed : dropped).map((item) => item.id));
+    void runForSelected((item) => existingIds.has(item.id) ? null : ({
+      type: 'toggleLibraryStatusRequested',
+      list,
+      item,
+    }));
+  };
+  const removeSelectedFromCurrentList = () => {
+    if (!canRemoveFromCurrentList) return;
+    void runForSelected((item) => tab === 'watchlist'
+      ? { type: 'toggleWatchlistRequested', item }
+      : { type: 'toggleLibraryStatusRequested', list: tab, item });
+  };
 
   return (
     <div style={styles.screen}>
@@ -215,6 +329,27 @@ export const LibraryScreen = React.memo(function LibraryScreen({
         <TabChip active={tab === 'collections'} onClick={() => changeTab('collections')}>
           {t('library.collections')}{collections.length > 0 ? ` (${collections.length})` : ''}
         </TabChip>
+        <TabChip active={tab === 'recent'} onClick={() => changeTab('recent')}>
+          {t('library.smart_recent')}{smartLists.recent.length > 0 ? ` (${smartLists.recent.length})` : ''}
+        </TabChip>
+        <TabChip active={tab === 'unwatched'} onClick={() => changeTab('unwatched')}>
+          {t('library.smart_unwatched')}{smartLists.unwatched.length > 0 ? ` (${smartLists.unwatched.length})` : ''}
+        </TabChip>
+        <TabChip active={tab === 'airing'} onClick={() => changeTab('airing')}>
+          {t('library.smart_airing')}{smartLists.airing.length > 0 ? ` (${smartLists.airing.length})` : ''}
+        </TabChip>
+        <TabChip active={tab === 'paused'} onClick={() => changeTab('paused')}>
+          {t('library.smart_paused')}{smartLists.paused.length > 0 ? ` (${smartLists.paused.length})` : ''}
+        </TabChip>
+        <TabChip active={tab === 'rewatch'} onClick={() => changeTab('rewatch')}>
+          {t('library.smart_rewatch')}{smartLists.rewatch.length > 0 ? ` (${smartLists.rewatch.length})` : ''}
+        </TabChip>
+        <TabChip active={tab === 'rated'} onClick={() => changeTab('rated')}>
+          {t('library.smart_rated')}{smartLists.rated.length > 0 ? ` (${smartLists.rated.length})` : ''}
+        </TabChip>
+        <TabChip active={tab === 'history'} onClick={() => changeTab('history')}>
+          {t('library.history')}{smartLists.history.length > 0 ? ` (${smartLists.history.length})` : ''}
+        </TabChip>
         {tab !== 'collections' && (
           <div style={styles.controls}>
             <div style={styles.searchWrap}>
@@ -235,13 +370,56 @@ export const LibraryScreen = React.memo(function LibraryScreen({
               ]}
               onSelect={(v) => changeSort(v as 'recent' | 'title' | 'rating')}
             />
+            <button
+              style={{ ...styles.bulkToggle, background: bulkMode ? '#FFFFFF' : 'rgba(255,255,255,0.05)', color: bulkMode ? '#000' : '#fff' }}
+              onClick={() => {
+                setBulkMode((v) => !v);
+                clearSelection();
+              }}
+            >
+              {bulkMode ? <CheckSquare2 size={15} /> : <Square size={15} />}
+              <span>{t('library.bulk_select')}</span>
+            </button>
           </div>
         )}
       </div>
 
+      {bulkMode && tab !== 'collections' && (
+        <div style={styles.bulkBar}>
+          <button style={styles.bulkGhostBtn} onClick={() => {
+            if (selectedIds.size === sorted.length) clearSelection();
+            else setSelectedIds(new Set(sorted.map((item) => item.id)));
+          }}>
+            {selectedIds.size === sorted.length ? t('library.clear_selection') : t('library.select_all')}
+          </button>
+          <span style={styles.bulkCount}>{t('library.selected_count', selectedIds.size)}</span>
+          <div style={{ flex: 1 }} />
+          <button style={styles.bulkBtn} disabled={selectedIds.size === 0} onClick={() => markSelectedWatched(true)}>{t('detail.mark_watched')}</button>
+          <button style={styles.bulkBtn} disabled={selectedIds.size === 0} onClick={() => markSelectedWatched(false)}>{t('detail.mark_unwatched')}</button>
+          <button style={styles.bulkBtn} disabled={selectedIds.size === 0} onClick={() => moveSelectedToStatus('completed')}>{t('library.mark_completed')}</button>
+          <button style={styles.bulkBtn} disabled={selectedIds.size === 0} onClick={() => moveSelectedToStatus('dropped')}>{t('library.mark_dropped')}</button>
+          {canRemoveFromCurrentList && (
+            <button style={styles.bulkDangerBtn} disabled={selectedIds.size === 0} onClick={removeSelectedFromCurrentList}>{t('common.remove')}</button>
+          )}
+          <button style={styles.bulkIconBtn} onClick={() => { setBulkMode(false); clearSelection(); }} title={t('common.close')}><X size={17} /></button>
+        </div>
+      )}
+
       {tab !== 'collections' && [typeCounts.movie, typeCounts.series, typeCounts.anime].filter((n) => n > 0).length > 1 && (
         <div style={styles.typeRow}>
           <ContentTypeFilter value={effectiveType} counts={typeCounts} onChange={changeType} />
+        </div>
+      )}
+
+      {library.lastWriteError && (
+        <div style={styles.errorBanner}>
+          <div style={{ minWidth: 0 }}>
+            <p style={styles.errorTitle}>{t('common.error')}</p>
+            <p style={styles.errorText}>{library.lastWriteError}</p>
+          </div>
+          <button style={styles.errorBtn} onClick={() => onDispatch(JSON.stringify({ type: 'libraryHydrateRequested' }))}>
+            {t('common.retry')}
+          </button>
         </div>
       )}
 
@@ -268,26 +446,33 @@ export const LibraryScreen = React.memo(function LibraryScreen({
             {tab === 'watchlist' ? t('library.your_list_empty')
               : tab === 'watching' ? t('library.nothing_to_continue')
               : tab === 'completed' ? t('library.nothing_completed')
-              : t('library.nothing_dropped')}
+              : tab === 'dropped' ? t('library.nothing_dropped')
+              : tab === 'history' ? t('library.history_empty')
+              : t('library.smart_empty')}
           </p>
           <p style={styles.emptyHint}>
             {tab === 'watchlist' ? t('library.add_titles_hint')
               : tab === 'watching' ? t('library.start_watching_hint')
               : tab === 'completed' ? t('library.completed_hint')
-              : t('library.dropped_hint')}
+              : tab === 'dropped' ? t('library.dropped_hint')
+              : tab === 'history' ? t('library.history_empty_hint')
+              : t('library.smart_empty_hint')}
           </p>
         </div>
       ) : sorted.length === 0 ? (
         <div style={styles.empty}>
           <p style={styles.emptyTitle}>{t('library.no_matches')}</p>
         </div>
+      ) : tab === 'history' ? (
+        <HistoryTimeline items={sorted} onNavigateDetail={onNavigateDetail} />
       ) : (
         <VirtualizedPosterGrid
           items={sorted as unknown as Meta[]}
           selectedId={null}
+          selectedIds={bulkMode ? selectedIds : undefined}
           posterPrefs={posterPrefs}
           onHover={() => false}
-          onClick={onNavigateDetail}
+          onClick={bulkMode ? (item) => toggleSelected(item.id) : onNavigateDetail}
           onScrollActivity={() => {}}
         />
       )}
@@ -303,6 +488,71 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   prev.onBack === next.onBack &&
   prev.onProfileUpdated === next.onProfileUpdated,
 );
+
+function uniqueLibraryItems(items: LibraryItem[]): LibraryItem[] {
+  const seen = new Set<string>();
+  const next: LibraryItem[] = [];
+  for (const item of items) {
+    if (!item?.id || seen.has(item.id)) continue;
+    seen.add(item.id);
+    next.push(item);
+  }
+  return next;
+}
+
+function itemActivityTime(item: LibraryItem): number {
+  const raw = (item as LibraryItem & { savedAt?: string; updatedAt?: string; lastWatchedAt?: string }).savedAt
+    ?? (item as LibraryItem & { savedAt?: string; updatedAt?: string; lastWatchedAt?: string }).lastWatchedAt
+    ?? item.statusChangedAt
+    ?? item.newEpisodeReleasedAt
+    ?? item.lastAirDateCheckedAt
+    ?? (item as LibraryItem & { updatedAt?: string }).updatedAt;
+  const parsed = raw ? Date.parse(raw) : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function itemAirTime(item: LibraryItem): number {
+  const raw = item.nextEpisodeAirDate ?? item.newEpisodeReleasedAt;
+  const parsed = raw ? Date.parse(raw) : Number.POSITIVE_INFINITY;
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+}
+
+function HistoryTimeline({ items, onNavigateDetail }: { items: LibraryItem[]; onNavigateDetail: (meta: Meta) => void }) {
+  return (
+    <div style={styles.historyScroll}>
+      {items.map((item) => {
+        const at = itemActivityTime(item);
+        const progress = (item.timeOffset ?? 0) > 0 && (item.duration ?? 0) > 0
+          ? Math.min(100, Math.round(((item.timeOffset ?? 0) / (item.duration ?? 1)) * 100))
+          : null;
+        const label = item.statusChangedAt
+          ? t('library.history_status_changed')
+          : item.lastVideoId
+            ? t('library.history_watched_episode', item.lastEpisodeSeason ?? 1, item.lastEpisodeNumber ?? '')
+            : t('library.history_updated');
+        return (
+          <button key={`${item.id}:${at}`} style={styles.historyRow} onClick={() => onNavigateDetail(item as unknown as Meta)}>
+            <div style={styles.historyDate}>
+              <span style={styles.historyDay}>{at ? new Date(at).toLocaleDateString(undefined, { day: '2-digit' }) : '--'}</span>
+              <span style={styles.historyMonth}>{at ? new Date(at).toLocaleDateString(undefined, { month: 'short' }) : ''}</span>
+            </div>
+            {item.poster && <img src={item.poster} alt="" style={styles.historyPoster} />}
+            <div style={styles.historyInfo}>
+              <p style={styles.historyTitle}>{item.name}</p>
+              <p style={styles.historyMeta}>{label}</p>
+              {progress != null && progress > 0 && progress < 100 && (
+                <div style={styles.historyProgressTrack}>
+                  <div style={{ ...styles.historyProgressFill, width: `${progress}%` }} />
+                </div>
+              )}
+            </div>
+            <span style={styles.historyTime}>{at ? new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function CircleBtn({ onClick, size, children }: { onClick: () => void; size: number; children: React.ReactNode }) {
   const [hovered, setHovered] = useState(false);
@@ -347,6 +597,18 @@ const styles: Record<string, React.CSSProperties> = {
   screen: { background: '#040508', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingLeft: NAV_RAIL_WIDTH },
   header: { display: 'flex', alignItems: 'center', gap: 24, padding: '40px 58px', flexShrink: 0 },
   controls: { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 },
+  bulkToggle: {
+    height: 36,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 7,
+    padding: '0 12px',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
   searchWrap: {
     display: 'flex', alignItems: 'center', gap: 7, height: 36, padding: '0 12px', width: 220,
     background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
@@ -358,9 +620,117 @@ const styles: Record<string, React.CSSProperties> = {
   collectionsScroll: { flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 80 },
   title: { color: '#FFFFFF', fontSize: 32, fontWeight: 900, margin: '0 0 4px', letterSpacing: '2px' },
   subtitle: { color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: 0, lineHeight: 1.4 },
-  tabRow: { display: 'flex', alignItems: 'center', gap: 10, paddingLeft: PX, paddingRight: PX, flexShrink: 0 },
+  tabRow: { display: 'flex', alignItems: 'center', gap: 10, paddingLeft: PX, paddingRight: PX, flexShrink: 0, flexWrap: 'wrap' },
+  bulkBar: {
+    margin: '14px 58px 0',
+    minHeight: 44,
+    padding: '7px 8px',
+    borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(255,255,255,0.06)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  bulkCount: { color: 'rgba(255,255,255,0.62)', fontSize: 13, fontWeight: 800 },
+  bulkBtn: {
+    height: 30,
+    padding: '0 10px',
+    borderRadius: 7,
+    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(255,255,255,0.08)',
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+  bulkDangerBtn: {
+    height: 30,
+    padding: '0 10px',
+    borderRadius: 7,
+    border: '1px solid rgba(255,80,80,0.22)',
+    background: 'rgba(255,80,80,0.14)',
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+  bulkGhostBtn: {
+    height: 30,
+    padding: '0 10px',
+    borderRadius: 7,
+    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.78)',
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+  bulkIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 7,
+    border: 'none',
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.7)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+  },
   typeRow: { display: 'flex', alignItems: 'center', gap: 8, paddingLeft: PX, paddingRight: PX, flexShrink: 0, marginTop: 14 },
+  errorBanner: {
+    margin: '14px 58px 0',
+    padding: '12px 14px',
+    borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(255,255,255,0.055)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    flexShrink: 0,
+  },
+  errorTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: 850, margin: '0 0 3px' },
+  errorText: { color: 'rgba(255,255,255,0.52)', fontSize: 12, fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  errorBtn: {
+    height: 32,
+    padding: '0 12px',
+    borderRadius: 999,
+    border: '1px solid rgba(255,255,255,0.14)',
+    background: '#FFFFFF',
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: 850,
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
   empty: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 10 },
   emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0 },
   emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 },
+  historyScroll: { flex: 1, overflowY: 'auto', padding: '10px 58px 80px', display: 'flex', flexDirection: 'column', gap: 8 },
+  historyRow: {
+    width: '100%',
+    minHeight: 76,
+    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'rgba(255,255,255,0.035)',
+    borderRadius: 10,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    padding: '10px 12px',
+    cursor: 'pointer',
+    textAlign: 'left',
+  },
+  historyDate: { width: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 },
+  historyDay: { color: '#FFFFFF', fontSize: 18, fontWeight: 900, lineHeight: '20px' },
+  historyMonth: { color: 'rgba(255,255,255,0.42)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' },
+  historyPoster: { width: 38, height: 56, objectFit: 'cover', borderRadius: 6, flexShrink: 0 },
+  historyInfo: { flex: 1, minWidth: 0 },
+  historyTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: 850, margin: '0 0 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  historyMeta: { color: 'rgba(255,255,255,0.48)', fontSize: 12, fontWeight: 650, margin: 0 },
+  historyTime: { color: 'rgba(255,255,255,0.38)', fontSize: 12, fontWeight: 750, flexShrink: 0 },
+  historyProgressTrack: { width: 160, maxWidth: '100%', height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.1)', marginTop: 9, overflow: 'hidden' },
+  historyProgressFill: { height: '100%', borderRadius: 999, background: 'var(--primary-accent-color)' },
 };

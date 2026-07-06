@@ -14,6 +14,7 @@ const GRID_OVERSCAN_ROWS = 6;
 export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
   items,
   selectedId,
+  selectedIds,
   posterPrefs,
   onHover,
   onClick,
@@ -21,6 +22,7 @@ export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
 }: {
   items: Meta[];
   selectedId: string | null;
+  selectedIds?: Set<string>;
   posterPrefs: PosterPrefs;
   onHover: (m: Meta | null) => boolean;
   onClick: (m: Meta) => void;
@@ -116,7 +118,7 @@ export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
             <div key={item.id} style={{ position: 'absolute', left, top, width: posterPrefs.width, height: itemHeight }}>
               <PosterCard
                 meta={item}
-                selected={selectedId === item.id}
+                selected={selectedId === item.id || selectedIds?.has(item.id) === true}
                 posterPrefs={posterPrefs}
                 onHover={onHover}
                 onClick={onClick}
