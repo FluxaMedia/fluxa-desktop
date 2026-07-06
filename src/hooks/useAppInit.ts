@@ -89,6 +89,7 @@ export function useAppInit(
         storedPrefsRef.current = prefs;
         void invoke('player_set_seek_thumbnail_enabled', { enabled: prefBool(prefs, 'seekThumbnailEnabled', false) });
         void invoke('discord_presence_configure', { enabled: prefBool(prefs, 'discordRichPresenceEnabled', true) });
+        void invoke('set_diagnostic_mode', { enabled: prefBool(prefs, 'diagnosticMode', false) });
         setRpdbApiKey(prefString(prefs, 'rpdbApiKey', ''));
         setLanguage(typeof prefs.language === 'string' ? prefs.language : null);
         const startPage = prefString({ ...prefs }, 'startPage', 'home') as NavRoute;

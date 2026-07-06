@@ -114,11 +114,47 @@ impl Default for DesktopState {
     }
 }
 
+static DIAGNOSTIC_MODE: AtomicBool = AtomicBool::new(false);
+
 #[tauri::command]
 fn debug_log(msg: String) {
     if std::env::var_os("FLUXA_DEBUG_LOGS").is_some() {
         println!("[perf] {msg}");
     }
+    log::debug!("[app] {msg}");
+}
+
+#[tauri::command]
+fn set_diagnostic_mode(enabled: bool) {
+    let was = DIAGNOSTIC_MODE.swap(enabled, std::sync::atomic::Ordering::Relaxed);
+    if enabled && !was {
+        log::warn!(
+            "diagnostic mode enabled (fluxa v{}, {} {})",
+            env!("CARGO_PKG_VERSION"),
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        );
+    } else if !enabled && was {
+        log::warn!("diagnostic mode disabled");
+    }
+}
+
+#[tauri::command]
+fn export_diagnostic_log(app: tauri::AppHandle, destination: String) -> Result<(), String> {
+    let log_dir = app.path().app_log_dir().map_err(|e| e.to_string())?;
+    let newest = fs::read_dir(&log_dir)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "log"))
+        .max_by_key(|entry| {
+            entry
+                .metadata()
+                .and_then(|m| m.modified())
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+        })
+        .ok_or_else(|| "no log file found".to_string())?;
+    fs::copy(newest.path(), &destination).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -369,14 +405,17 @@ pub fn run() {
             }
         }))
         .plugin({
-            let log_level = if std::env::var_os("FLUXA_DEBUG_LOGS").is_some() {
-                log::LevelFilter::Debug
-            } else {
-                log::LevelFilter::Warn
-            };
+            if std::env::var_os("FLUXA_DEBUG_LOGS").is_some() {
+                DIAGNOSTIC_MODE.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
 
             tauri_plugin_log::Builder::new()
-                .level(log_level)
+                .level(log::LevelFilter::Debug)
+                .filter(|metadata| {
+                    metadata.level() <= log::Level::Warn
+                        || DIAGNOSTIC_MODE.load(std::sync::atomic::Ordering::Relaxed)
+                })
+                .max_file_size(20 * 1024 * 1024)
                 .level_for("librqbit", log::LevelFilter::Off)
                 .level_for("librqbit_dht", log::LevelFilter::Off)
                 .level_for("librqbit_tracker_comms", log::LevelFilter::Off)
@@ -484,6 +523,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             debug_log,
+            set_diagnostic_mode,
+            export_diagnostic_log,
             engine_init,
             engine_dispatch,
             engine_complete_effect,

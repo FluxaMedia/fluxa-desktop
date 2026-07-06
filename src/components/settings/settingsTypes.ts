@@ -103,6 +103,7 @@ export interface Prefs {
   seekThumbnailEnabled: boolean;
   p2pEnabled: boolean;
   discordRichPresenceEnabled: boolean;
+  diagnosticMode: boolean;
 }
 
 export interface TraktTokenResponse {
@@ -218,6 +219,7 @@ export const DEFAULT_PREFS: Prefs = {
   seekThumbnailEnabled: false,
   p2pEnabled: true,
   discordRichPresenceEnabled: true,
+  diagnosticMode: false,
   rpdbApiKey: '',
   omdbApiKey: '',
   fanartApiKey: '',

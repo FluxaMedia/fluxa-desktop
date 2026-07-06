@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { FileDown } from 'lucide-react';
 import { t } from '../../i18n';
-import { ChoiceTile, ToggleTile, InputTile, SettingsSection } from './SettingsUI';
+import { ChoiceTile, ToggleTile, InputTile, SettingsSection, ActionTile } from './SettingsUI';
 import type { Prefs } from './settingsTypes';
 import { setRpdbApiKey, validateRpdbApiKey } from '../../core/rpdb';
 
@@ -9,9 +11,31 @@ function applyDiscordPresenceConfig(enabled: boolean) {
   void invoke('discord_presence_configure', { enabled });
 }
 
+function applyDiagnosticMode(enabled: boolean) {
+  void invoke('set_diagnostic_mode', { enabled }).catch(() => undefined);
+}
+
 export function GeneralSection({ prefs, setPref }: { prefs: Prefs; setPref: <K extends keyof Prefs>(k: K, v: Prefs[K]) => void }) {
   const [rpdbKeyStatus, setRpdbKeyStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const rpdbCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [diagExportStatus, setDiagExportStatus] = useState<'idle' | 'saved' | 'failed'>('idle');
+  const diagStatusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const exportDiagnostics = async () => {
+    try {
+      const destination = await saveDialog({
+        defaultPath: `fluxa-diagnostics-${new Date().toISOString().slice(0, 10)}.log`,
+        filters: [{ name: 'Log', extensions: ['log'] }],
+      });
+      if (!destination) return;
+      await invoke('export_diagnostic_log', { destination });
+      setDiagExportStatus('saved');
+    } catch {
+      setDiagExportStatus('failed');
+    }
+    if (diagStatusTimer.current) clearTimeout(diagStatusTimer.current);
+    diagStatusTimer.current = setTimeout(() => setDiagExportStatus('idle'), 4000);
+  };
 
   useEffect(() => {
     if (!prefs.rpdbApiKey) { setRpdbKeyStatus('idle'); return; }
@@ -108,6 +132,30 @@ export function GeneralSection({ prefs, setPref }: { prefs: Prefs; setPref: <K e
         value={prefs.fanartApiKey}
         placeholder={t('settings.api_key_placeholder')}
         onChange={(v) => setPref('fanartApiKey', v)}
+      />
+    </SettingsSection>
+    <SettingsSection title={t('settings.diagnostics')} subtitle={t('settings.diagnostics_desc')}>
+      <ToggleTile
+        title={t('settings.diagnostic_mode')}
+        subtitle={t('settings.diagnostic_mode_desc')}
+        checked={prefs.diagnosticMode}
+        onToggle={(v) => {
+          void setPref('diagnosticMode', v);
+          applyDiagnosticMode(v);
+        }}
+      />
+      <ActionTile
+        title={t('settings.diagnostic_export')}
+        subtitle={
+          diagExportStatus === 'saved'
+            ? t('settings.diagnostic_export_saved')
+            : diagExportStatus === 'failed'
+              ? t('settings.diagnostic_export_failed')
+              : t('settings.diagnostic_export_desc')
+        }
+        icon={<FileDown size={20} />}
+        accent={diagExportStatus === 'failed' ? '#ff8a8a' : diagExportStatus === 'saved' ? '#9be89b' : '#FFFFFF'}
+        onClick={() => void exportDiagnostics()}
       />
     </SettingsSection>
     </>
