@@ -16,11 +16,12 @@ async function pushLocalToNuvio(profile: UserProfile): Promise<void> {
       const meta = e.meta as { type?: string } | undefined;
       const timeOffset = Number(e.timeOffset ?? 0);
       const duration = Number(e.duration ?? 0);
-      if (!e.lastVideoId || duration <= 0) return null;
+      if (duration <= 0) return null;
+      const videoId = e.lastVideoId ? String(e.lastVideoId) : contentId;
       return {
         content_id: contentId,
         content_type: String(meta?.type ?? 'movie'),
-        video_id: String(e.lastVideoId),
+        video_id: videoId,
         position: Math.round(timeOffset * 1000),
         duration: Math.round(duration * 1000),
         last_watched: e.savedAt ? new Date(String(e.savedAt)).getTime() : Date.now(),

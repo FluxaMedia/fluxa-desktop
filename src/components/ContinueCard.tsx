@@ -88,7 +88,7 @@ export function ContinueCard({
   }, [artwork, imgLoaded, imgError, meta]);
 
   const progress = lib.timeOffset && lib.duration ? lib.timeOffset / lib.duration : 0;
-  const isUpNext = progress < 0.005 || progress >= 0.995;
+  const isUpNext = meta.type === 'series' && (progress < 0.005 || progress >= 0.995);
   const remainingText = !isUpNext && lib.timeOffset && lib.duration
     ? progressDirection === 'watched'
       ? remainingFormat === 'percent'
