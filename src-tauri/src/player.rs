@@ -493,6 +493,9 @@ pub fn player_apply_preferences(
     state: State<DesktopState>,
     preferences: serde_json::Value,
 ) -> Result<(), String> {
+    if let Some(v) = preferences.get("useChapterSkip").and_then(|v| v.as_bool()) {
+        *state.use_chapter_skip.lock().unwrap() = v;
+    }
     let options = mpv_options_from_preferences(Some(&app), &preferences);
     if options.is_empty() {
         return Ok(());
@@ -762,6 +765,7 @@ pub fn player_get_playback_info(state: State<DesktopState>) -> serde_json::Value
         "nextEpThresholdPercent": *state.next_ep_threshold_percent.lock().unwrap(),
         "autoPlayNextEpisode": *state.auto_play_next_episode.lock().unwrap(),
         "autoPlayCountdownSecs": *state.auto_play_countdown_secs.lock().unwrap(),
+        "autoSkipSegments": *state.auto_skip_segments.lock().unwrap(),
     })
 }
 
@@ -812,6 +816,7 @@ pub fn player_set_skip_info(
     next_ep_threshold_percent: Option<f64>,
     auto_play_next_episode: Option<bool>,
     auto_play_countdown_secs: Option<u32>,
+    auto_skip_segments: Option<bool>,
 ) {
     *state.skip_segments_json.lock().unwrap() =
         if segments_json.trim().is_empty() || segments_json == "[]" {
@@ -829,6 +834,9 @@ pub fn player_set_skip_info(
     }
     if let Some(s) = auto_play_countdown_secs {
         *state.auto_play_countdown_secs.lock().unwrap() = s.max(1);
+    }
+    if let Some(v) = auto_skip_segments {
+        *state.auto_skip_segments.lock().unwrap() = v;
     }
 }
 

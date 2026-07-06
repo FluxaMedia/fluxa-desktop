@@ -253,6 +253,8 @@
   "auto.connect_trakt_tv_account": "İlerlemeni senkronize etmek için bağla.",
   "auto.connect_anilist_account": "Anime takibi için AniList hesabını bağla.",
   "auto.connect_simkl_account": "Filmler, diziler ve animeler için bağla.",
+  "settings.use_chapter_skip": "Atlama için Bölüm İşaretlerini Kullan",
+  "settings.use_chapter_skip_desc": "Çevrimiçi veritabanlarında kayıt yoksa intro ve outro atlama aralıklarını dosyanın bölüm işaretlerinden türet.",
   "calendar.hide_completed": "Bitirilen dizileri gizle",
   "calendar.show_completed": "Bitirilen dizileri göster",
   "calendar.hiding_completed": "Bitirilenler gizli",

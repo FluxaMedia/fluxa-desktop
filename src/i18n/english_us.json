@@ -253,6 +253,8 @@
   "auto.connect_trakt_tv_account": "Connect Trakt.tv account",
   "auto.connect_anilist_account": "Connect AniList account",
   "auto.connect_simkl_account": "Connect Simkl account",
+  "settings.use_chapter_skip": "Use Chapters for Skipping",
+  "settings.use_chapter_skip_desc": "Derive intro and outro skip segments from the file's chapter markers when online databases have none.",
   "calendar.hide_completed": "Hide completed series",
   "calendar.show_completed": "Show completed series",
   "calendar.hiding_completed": "Hiding completed",

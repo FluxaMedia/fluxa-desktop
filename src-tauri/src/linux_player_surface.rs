@@ -426,7 +426,9 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                                                 Some(chapters_to_json(&native));
                                             let skip_already_set =
                                                 state.skip_segments_json.lock().unwrap().is_some();
-                                            if !skip_already_set {
+                                            let chapter_skip_enabled =
+                                                *state.use_chapter_skip.lock().unwrap();
+                                            if !skip_already_set && chapter_skip_enabled {
                                                 let derived = derive_skip_segments_from_chapters(&native);
                                                 if !derived.is_empty() {
                                                     if let Ok(json) = serde_json::to_string(&derived) {
