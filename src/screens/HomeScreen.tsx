@@ -22,6 +22,7 @@ interface Props {
   onNavigateDetail: (meta: Meta) => void;
   onPlay: (meta: Meta) => void;
   onResume: (meta: Meta) => void;
+  onOpenSettings?: () => void;
   // Home stays mounted while hidden (it's the heaviest screen — re-mounting it on every
   // visit was costing a visible stutter), so this tells HeroSection to pause its
   // auto-slide interval rather than keep cycling backdrop images forever in the background.
@@ -47,7 +48,7 @@ async function loadFolderItems(folderCategory: HomeCategory): Promise<Meta[]> {
   return batches.flat();
 }
 
-export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, isActive }: Props) {
+export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, onOpenSettings, isActive }: Props) {
   const home = state.home;
   const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[] } | null>(null);
   const [folderLoading, setFolderLoading] = useState(false);
@@ -177,8 +178,19 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     return <LoadingSkeleton />;
   }
 
+  if (home.error && !billboard && categories.length === 0 && continueWatching.length === 0) {
+    return (
+      <HomeStateMessage
+        title={t('common.error')}
+        body={home.error}
+        primaryLabel={t('common.retry')}
+        onPrimary={() => onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: getLanguage() }))}
+      />
+    );
+  }
+
   if (!home.isLoading && !billboard && categories.length === 0 && continueWatching.length === 0) {
-    return <EmptyHome />;
+    return <EmptyHome onOpenSettings={onOpenSettings} />;
   }
 
   if (viewAllCategory) {
@@ -268,6 +280,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   prev.onNavigateDetail === next.onNavigateDetail &&
   prev.onPlay === next.onPlay &&
   prev.onResume === next.onResume &&
+  prev.onOpenSettings === next.onOpenSettings &&
   prev.isActive === next.isActive,
 );
 
@@ -312,16 +325,31 @@ function LoadingSkeleton() {
   );
 }
 
-function EmptyHome() {
+function HomeStateMessage({ title, body, primaryLabel, onPrimary }: {
+  title: string;
+  body: string;
+  primaryLabel?: string;
+  onPrimary?: () => void;
+}) {
   return (
     <div style={styles.empty}>
-      <p style={styles.emptyTitle}>{t('home.welcome')}</p>
-      <p style={styles.emptyText}>
-        {t('home.install_addon_start')}
-        <br />
-        {t('home.go_to_addons')}
-      </p>
+      <p style={styles.emptyTitle}>{title}</p>
+      <p style={styles.emptyText}>{body}</p>
+      {primaryLabel && onPrimary && (
+        <button style={styles.emptyButton} onClick={onPrimary}>{primaryLabel}</button>
+      )}
     </div>
+  );
+}
+
+function EmptyHome({ onOpenSettings }: { onOpenSettings?: () => void }) {
+  return (
+    <HomeStateMessage
+      title={t('home.no_catalog_providers')}
+      body={t('home.add_catalog_addon')}
+      primaryLabel={onOpenSettings ? t('auto.add_ons') : undefined}
+      onPrimary={onOpenSettings}
+    />
   );
 }
 
@@ -366,5 +394,16 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center',
     lineHeight: 1.6,
     margin: 0,
+  },
+  emptyButton: {
+    height: 42,
+    padding: '0 18px',
+    borderRadius: 999,
+    border: '1px solid rgba(255,255,255,0.14)',
+    background: '#FFFFFF',
+    color: '#000000',
+    fontSize: 13,
+    fontWeight: 850,
+    cursor: 'pointer',
   },
 };
