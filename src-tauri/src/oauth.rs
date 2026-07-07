@@ -46,10 +46,21 @@ pub async fn nuvio_request(
         None if method == "POST" => req.body("{}"),
         None => req,
     };
-    let res = req.send().await.map_err(|e| e.to_string())?;
+    let res = req.send().await.map_err(describe_reqwest_error)?;
     let status = res.status().as_u16();
-    let text = res.text().await.map_err(|e| e.to_string())?;
+    let text = res.text().await.map_err(describe_reqwest_error)?;
     Ok((status, text))
+}
+
+fn describe_reqwest_error(e: reqwest::Error) -> String {
+    let mut message = e.to_string();
+    let mut source = std::error::Error::source(&e);
+    while let Some(err) = source {
+        message.push_str(": ");
+        message.push_str(&err.to_string());
+        source = err.source();
+    }
+    message
 }
 
 fn trakt_client() -> Result<reqwest::Client, String> {
