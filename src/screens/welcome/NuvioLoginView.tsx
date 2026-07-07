@@ -66,9 +66,11 @@ export function NuvioLoginView({ onBack, onImporting, onContinueLocal, localLoad
         case 'server':
           setError(t('auth.error.server'));
           break;
-        case 'network':
-          setError(t('auth.error.network'));
+        case 'network': {
+          const detail = err instanceof Error && err.message ? err.message : '';
+          setError(detail ? `${t('auth.error.network')} (${detail})` : t('auth.error.network'));
           break;
+        }
         default:
           setError(err instanceof Error ? err.message : t('auth.error.network'));
           break;

@@ -41,8 +41,10 @@ function credentialAuthErrorMessage(err: unknown): string {
       return t('auth.error.rate_limited');
     case 'server':
       return t('auth.error.server');
-    case 'network':
-      return t('auth.error.network');
+    case 'network': {
+      const detail = err instanceof Error && err.message ? err.message : '';
+      return detail ? `${t('auth.error.network')} (${detail})` : t('auth.error.network');
+    }
     default:
       return err instanceof Error && err.message ? err.message : t('auth.error.network');
   }
