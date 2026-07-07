@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Info, Play, Plus } from 'lucide-react';
 import { seasonPosterUrl } from '../core/seasonPosters';
 import { youtubeVideoId } from './detail/TrailerCarousel';
+import { resolveYoutubeTrailerUrl } from '../core/engine';
 import type { Meta } from '../core/types';
 import { t } from '../i18n';
 
@@ -66,7 +67,7 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     }
     return null;
   }, [activeMeta.trailers]);
-  const [showTrailer, setShowTrailer] = useState(false);
+  const [trailerStreamUrl, setTrailerStreamUrl] = useState<string | null>(null);
 
   const imdbNum = activeMeta.imdbRating != null ? Number(activeMeta.imdbRating) : NaN;
   const releaseYear = activeMeta.year ?? parseReleaseYear(activeMeta.releaseInfo);
@@ -90,10 +91,15 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
   }, [activeMeta.id, imageUrl, activeMeta.logo]);
 
   useEffect(() => {
-    setShowTrailer(false);
+    setTrailerStreamUrl(null);
     if (!autoplayTrailer || !isActive || paused || !trailerVideoId) return;
-    const id = window.setTimeout(() => setShowTrailer(true), autoplayTrailerDelaySecs * 1000);
-    return () => window.clearTimeout(id);
+    let cancelled = false;
+    const id = window.setTimeout(() => {
+      resolveYoutubeTrailerUrl(trailerVideoId).then((url) => {
+        if (!cancelled && url) setTrailerStreamUrl(url);
+      }).catch(() => {});
+    }, autoplayTrailerDelaySecs * 1000);
+    return () => { cancelled = true; window.clearTimeout(id); };
   }, [activeMeta.id, trailerVideoId, autoplayTrailer, autoplayTrailerDelaySecs, isActive, paused]);
 
   useEffect(() => {
@@ -166,14 +172,16 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
         />
       )}
 
-      {showTrailer && trailerVideoId && (
-        <iframe
-          key={trailerVideoId}
+      {trailerStreamUrl && (
+        <video
+          key={trailerStreamUrl}
           style={styles.trailerFrame}
-          src={`https://www.youtube.com/embed/${trailerVideoId}?autoplay=1&mute=1&controls=0&playsinline=1&rel=0&modestbranding=1&loop=1&playlist=${trailerVideoId}`}
-          title="trailer"
-          allow="autoplay; encrypted-media"
-          frameBorder={0}
+          src={trailerStreamUrl}
+          autoPlay
+          muted
+          loop
+          playsInline
+          onError={() => setTrailerStreamUrl(null)}
         />
       )}
 
@@ -385,6 +393,7 @@ const styles: Record<string, React.CSSProperties> = {
     right: 0,
     width: '100%',
     height: '100%',
+    objectFit: 'cover',
     border: 'none',
     pointerEvents: 'none',
   },

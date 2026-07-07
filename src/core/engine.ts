@@ -53,6 +53,10 @@ export async function httpFetchText(url: string): Promise<{ statusCode: number; 
   return { statusCode: response.status_code, body: response.body };
 }
 
+export async function resolveYoutubeTrailerUrl(videoId: string): Promise<string | null> {
+  return invoke<string | null>('resolve_youtube_trailer_url', { videoId });
+}
+
 export async function storageRead<T>(key: string): Promise<T | null> {
   const raw = await invoke<string | null>('storage_read', { key });
   if (!raw) return null;
