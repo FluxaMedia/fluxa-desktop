@@ -278,6 +278,7 @@ export async function importNuvioProfileData(
           continueWatchingEpisodeResolved: true,
         } : {}),
         savedAt: new Date(entry.last_watched).toISOString(),
+        source: 'nuvio',
       };
       activeRemoteProgressIds.add(entry.video_id);
       if (entry.season != null && entry.episode != null) {
