@@ -597,6 +597,7 @@
   "settings.version_footer": "Version %s (%s)",
   "settings.buffer_cache": "Buffer cache",
   "settings.buffer_cache_desc": "Oynatma ve torrent buffer verisi için tutulabilecek alanı sınırlar.",
+  "settings.buffer_cache_infinite": "Sınırsız",
   "settings.forward_buffer": "İleri buffer",
   "settings.forward_buffer_desc": "Oynatıcının kaç saniye ileriyi hazır tutacağını belirler.",
   "settings.back_buffer": "Geri buffer",

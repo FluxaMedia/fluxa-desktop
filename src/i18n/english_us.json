@@ -597,6 +597,7 @@
   "settings.version_footer": "Version %s (%s)",
   "settings.buffer_cache": "Buffer cache",
   "settings.buffer_cache_desc": "Limits how much playback and torrent buffer data can be kept.",
+  "settings.buffer_cache_infinite": "Infinite",
   "settings.forward_buffer": "Forward buffer",
   "settings.forward_buffer_desc": "How many seconds ahead the player tries to keep ready.",
   "settings.back_buffer": "Back buffer",
