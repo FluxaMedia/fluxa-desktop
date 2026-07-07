@@ -77,6 +77,7 @@ pub struct DesktopState {
     pub downloads: downloads::DownloadsState,
     pub torrent_server_base_url: Mutex<Option<String>>,
     pub torrent_stream_link: Mutex<Option<String>>,
+    pub torrent_generation: Mutex<Option<u64>>,
 }
 
 impl Default for DesktopState {
@@ -112,6 +113,7 @@ impl Default for DesktopState {
             downloads: downloads::DownloadsState::default(),
             torrent_server_base_url: Mutex::new(None),
             torrent_stream_link: Mutex::new(None),
+            torrent_generation: Mutex::new(None),
         }
     }
 }
@@ -211,7 +213,7 @@ fn start_torrent_stream_inner(
     stream_json: String,
     title: Option<String>,
     preferences: Option<Value>,
-) -> Result<(String, String, String), String> {
+) -> Result<(String, String, String, Option<u64>), String> {
     let cache_dir = data_dir.join("torrent-cache");
     let server_json =
         fluxa_streaming_engine::start_torrent_server(&cache_dir.to_string_lossy(), 0, "")
@@ -222,6 +224,7 @@ fn start_torrent_stream_inner(
         .get("url")
         .and_then(Value::as_str)
         .ok_or_else(|| "torrent server did not return url".to_string())?;
+    let generation = server.get("generation").and_then(Value::as_u64);
     apply_torrent_preferences(base_url, preferences.as_ref());
 
     let stream: Value =
@@ -273,7 +276,7 @@ fn start_torrent_stream_inner(
         .and_then(Value::as_str)
         .map(str::to_string)
         .ok_or_else(|| "torrent runtime did not return streamUrl".to_string())?;
-    Ok((stream_url, base_url.to_string(), link.to_string()))
+    Ok((stream_url, base_url.to_string(), link.to_string(), generation))
 }
 
 #[tauri::command]
@@ -289,13 +292,15 @@ async fn start_torrent_stream(
         .unwrap()
         .clone()
         .ok_or_else(|| "app data dir is not ready".to_string())?;
-    let (stream_url, base_url, link) = tauri::async_runtime::spawn_blocking(move || {
-        start_torrent_stream_inner(data_dir, stream_json, title, preferences)
-    })
-    .await
-    .map_err(|e| e.to_string())??;
+    let (stream_url, base_url, link, generation) =
+        tauri::async_runtime::spawn_blocking(move || {
+            start_torrent_stream_inner(data_dir, stream_json, title, preferences)
+        })
+        .await
+        .map_err(|e| e.to_string())??;
     *state.torrent_server_base_url.lock().unwrap() = Some(base_url);
     *state.torrent_stream_link.lock().unwrap() = Some(link);
+    *state.torrent_generation.lock().unwrap() = generation;
     Ok(stream_url)
 }
 
@@ -303,9 +308,14 @@ async fn start_torrent_stream(
 async fn stop_torrent_stream(state: State<'_, DesktopState>) -> Result<bool, String> {
     *state.torrent_server_base_url.lock().unwrap() = None;
     *state.torrent_stream_link.lock().unwrap() = None;
-    Ok(tauri::async_runtime::spawn_blocking(fluxa_streaming_engine::stop_torrent_server)
+    let generation = state.torrent_generation.lock().unwrap().take();
+    Ok(
+        tauri::async_runtime::spawn_blocking(move || {
+            fluxa_streaming_engine::stop_torrent_server(generation)
+        })
         .await
-        .unwrap_or(false))
+        .unwrap_or(false),
+    )
 }
 
 #[tauri::command]

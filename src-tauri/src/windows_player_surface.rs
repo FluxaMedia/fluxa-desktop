@@ -25,7 +25,7 @@ use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetDC};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::ColorSystem::GetICMProfileW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetClientRect, PeekMessageW,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, PeekMessageW,
     RegisterClassExW, SetWindowPos, ShowWindow, TranslateMessage, CS_HREDRAW, CS_OWNDC, CS_VREDRAW,
     HWND_BOTTOM, MSG, PM_REMOVE, SWP_NOACTIVATE, SW_HIDE, SW_SHOW, WNDCLASSEXW, WS_CHILD,
     WS_CLIPCHILDREN,
@@ -358,7 +358,7 @@ fn spawn_install_thread(
         let mut last_render_error: Option<String> = None;
         let mut consecutive_render_errors = 0u32;
 
-        loop {
+        'render: loop {
             unsafe {
                 let mut msg: MSG = std::mem::zeroed();
                 while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) != 0 {
@@ -496,7 +496,6 @@ fn spawn_install_thread(
                             }
                             if consecutive_render_errors >= 30 {
                                 log::error!("player surface: too many render failures; switching to software video rendering");
-                                visible = false;
                                 unsafe { ShowWindow(child_hwnd, SW_HIDE) };
                                 let state = app.state::<DesktopState>();
                                 *state.native_player_surface.lock().unwrap() = None;
@@ -506,6 +505,8 @@ fn spawn_install_thread(
                                     "native-player-software-rendering",
                                     format!("Windows native player render failed repeatedly: {e}"),
                                 );
+                                drop(renderer);
+                                break 'render;
                             }
                         } else {
                             last_render_error = None;
@@ -529,6 +530,10 @@ fn spawn_install_thread(
                 std::thread::sleep(Duration::from_millis(16));
             }
         }
+
+        drop(egl);
+        unsafe { DestroyWindow(child_hwnd) };
+        log::info!("player surface: render thread exiting, ANGLE/EGL context released");
     });
 }
 
