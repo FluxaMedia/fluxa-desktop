@@ -187,7 +187,7 @@ const PosterCard = React.memo(function PosterCard({
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B212B' }}>
             <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 24, fontWeight: 900 }}>
-              {meta.name.slice(0, 2).toUpperCase()}
+              {(meta.name ?? '').slice(0, 2).toUpperCase()}
             </span>
           </div>
         )}

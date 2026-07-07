@@ -156,7 +156,7 @@ export const MovieCard = React.memo(function MovieCard({
                 />
               ) : (
                 <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 32, fontWeight: 900 }}>
-                  {meta.name.slice(0, 2).toUpperCase()}
+                  {(meta.name ?? '').slice(0, 2).toUpperCase()}
                 </span>
               )}
             </div>

@@ -499,7 +499,7 @@ function SearchResultRow({ meta, onClick }: { meta: Meta; onClick: (meta: Meta) 
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 900 }}>
-              {meta.name.slice(0, 2).toUpperCase()}
+              {(meta.name ?? '').slice(0, 2).toUpperCase()}
             </span>
           </div>
         )}
