@@ -92,6 +92,8 @@ export async function readHomeBootstrap(
     JSON.stringify(localContinueWatching),
     JSON.stringify(externalContinueWatching),
     JSON.stringify(progressMap),
+    prefs.syncCwSourceOfTruth as string | undefined,
+    prefs.syncCwRanking as string | undefined,
   );
   const mergedCW = (mergedCWRaw ?? []) as Record<string, unknown>[];
   const continueWatching = await refreshReleasedContinueWatching(mergedCW, library, addons);

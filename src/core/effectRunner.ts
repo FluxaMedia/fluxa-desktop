@@ -109,6 +109,7 @@ export async function executeEffect(
       case 'refreshContinueWatching': {
         const lib = await loadLibrary();
         const addons = await loadAddons();
+        const prefs = await loadPrefs();
         const localCW = (lib.continueWatching as Record<string, unknown>[] | undefined) ?? [];
         const externalCW = (lib.externalContinueWatching as Record<string, unknown>[] | undefined) ?? [];
         const progressMap = (lib.progress as Record<string, unknown> | undefined) ?? {};
@@ -116,6 +117,8 @@ export async function executeEffect(
           JSON.stringify(localCW),
           JSON.stringify(externalCW),
           JSON.stringify(progressMap),
+          prefs.syncCwSourceOfTruth as string | undefined,
+          prefs.syncCwRanking as string | undefined,
         );
         const mergedCW = (mergedCWRaw ?? []) as Record<string, unknown>[];
         const lastWatched = (lib.lastWatchedEpisodes as Record<string, unknown> | undefined) ?? {};

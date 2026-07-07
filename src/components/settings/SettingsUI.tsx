@@ -82,6 +82,24 @@ export function streamSourceOptions() {
   ];
 }
 
+export function cwSourceOfTruthOptions() {
+  return [
+    { value: 'most_recent', label: t('settings.cw_source_of_truth_most_recent') },
+    { value: 'local', label: t('settings.cw_source_of_truth_local') },
+    { value: 'trakt', label: t('settings.cw_source_of_truth_trakt') },
+    { value: 'simkl', label: t('settings.cw_source_of_truth_simkl') },
+    { value: 'anilist', label: t('settings.cw_source_of_truth_anilist') },
+    { value: 'stremio', label: t('settings.cw_source_of_truth_stremio') },
+  ];
+}
+
+export function cwRankingOptions() {
+  return [
+    { value: 'last_watched', label: t('settings.cw_ranking_last_watched') },
+    { value: 'most_recent_episode', label: t('settings.cw_ranking_most_recent_episode') },
+  ];
+}
+
 export function isFeedEnabled(selected: string[], key: string): boolean {
   return selected.length === 0 || selected.includes(key);
 }

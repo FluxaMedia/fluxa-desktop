@@ -9,7 +9,7 @@ import { isTraktConnected, profileColor, saveProfile } from '../../core/profiles
 import { AvatarPreview } from '../../screens/ProfileForm';
 import { syncExternalIntegrationNow } from '../../core/effectRunner';
 import { refreshAnimeTrackingProfile } from '../../core/animeExternalSync';
-import { SettingsSection, SyncServicePopover, SyncServiceRow } from './SettingsUI';
+import { ChoiceTile, SettingsSection, SyncServicePopover, SyncServiceRow, cwRankingOptions, cwSourceOfTruthOptions } from './SettingsUI';
 import type { Prefs, SyncMeta, TraktTokenResponse } from './settingsTypes';
 import { nuvioAuthErrorKind, nuvioSignIn } from '../../core/nuvioApi';
 import { stremioLogin, stremioLogout } from '../../core/stremioApi';
@@ -114,7 +114,7 @@ function CredentialLoginForm({
 
 export function AccountSection({
   prefs,
-  setPref: _setPref,
+  setPref,
   activeProfile,
   onProfileUpdated,
   onSwitchProfile,
@@ -807,6 +807,23 @@ export function AccountSection({
             )}
           </div>
         )}
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.cw_conflict_resolution')} subtitle={t('settings.cw_conflict_resolution_desc')}>
+        <ChoiceTile
+          title={t('settings.cw_source_of_truth')}
+          subtitle={t('settings.cw_source_of_truth_desc')}
+          options={cwSourceOfTruthOptions()}
+          selected={prefs.syncCwSourceOfTruth}
+          onSelect={(v) => setPref('syncCwSourceOfTruth', v)}
+        />
+        <ChoiceTile
+          title={t('settings.cw_ranking')}
+          subtitle={t('settings.cw_ranking_desc')}
+          options={cwRankingOptions()}
+          selected={prefs.syncCwRanking}
+          onSelect={(v) => setPref('syncCwRanking', v)}
+        />
       </SettingsSection>
     </>
   );

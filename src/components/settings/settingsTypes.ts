@@ -101,6 +101,8 @@ export interface Prefs {
   p2pEnabled: boolean;
   discordRichPresenceEnabled: boolean;
   diagnosticMode: boolean;
+  syncCwSourceOfTruth: string;
+  syncCwRanking: string;
 }
 
 export interface TraktTokenResponse {
@@ -217,4 +219,6 @@ export const DEFAULT_PREFS: Prefs = {
   rpdbApiKey: '',
   omdbApiKey: '',
   fanartApiKey: '',
+  syncCwSourceOfTruth: 'most_recent',
+  syncCwRanking: 'last_watched',
 };

@@ -326,8 +326,10 @@ export async function coreMergeContinueWatchingLists(
   localJson: string,
   externalJson: string,
   progressJson: string,
+  sourceOfTruth?: string,
+  rankingMode?: string,
 ): Promise<unknown[] | null> {
-  return coreInvoke('mergeContinueWatchingLists', JSON.stringify({ localJson, externalJson, progressJson }));
+  return coreInvoke('mergeContinueWatchingLists', JSON.stringify({ localJson, externalJson, progressJson, sourceOfTruth, rankingMode }));
 }
 
 export async function coreSimklWatchingToItems(showsJson: string, moviesJson: string): Promise<unknown[] | null> {
@@ -491,8 +493,10 @@ export async function coreReplaceExternalContinueWatching(
   existingJson: string,
   provider: string | null,
   itemsJson: string,
+  sourceOfTruth?: string,
+  rankingMode?: string,
 ): Promise<unknown[]> {
-  return (await coreInvoke<unknown[]>('replaceExternalContinueWatching', JSON.stringify({ existingJson, provider, itemsJson }))) ?? [];
+  return (await coreInvoke<unknown[]>('replaceExternalContinueWatching', JSON.stringify({ existingJson, provider, itemsJson, sourceOfTruth, rankingMode }))) ?? [];
 }
 
 export async function coreResourceKindToResource(

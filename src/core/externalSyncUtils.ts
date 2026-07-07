@@ -61,10 +61,17 @@ export async function enrichWithAddonMeta(items: Record<string, unknown>[]): Pro
 
 export async function replaceExternalContinueWatching(payload: Record<string, unknown>): Promise<unknown> {
   const lib = await loadLibrary();
+  const prefs = await loadPrefs();
   const provider = typeof payload.provider === 'string' ? payload.provider : null;
   const items = Array.isArray(payload.items) ? payload.items : [];
   const existingJson = JSON.stringify((lib.externalContinueWatching as unknown[]) ?? []);
-  const merged = await coreReplaceExternalContinueWatching(existingJson, provider, JSON.stringify(items));
+  const merged = await coreReplaceExternalContinueWatching(
+    existingJson,
+    provider,
+    JSON.stringify(items),
+    prefString(prefs, 'syncCwSourceOfTruth'),
+    prefString(prefs, 'syncCwRanking'),
+  );
   lib.externalContinueWatching = merged;
   await saveLibrary(lib);
   return { count: merged.length };
