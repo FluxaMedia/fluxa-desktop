@@ -130,6 +130,14 @@ fn mpv_options_from_preferences(
             format!("{:.2}", (size / 100.0).clamp(0.5, 2.0)),
         ));
     }
+    if let Some(font) = get("subtitleFont") {
+        if !font.is_empty() && font != "default" {
+            options.push(("sub-font".to_string(), font.to_string()));
+        }
+    }
+    if let Some(delay) = get("subtitleDelay").and_then(|v| v.parse::<f64>().ok()) {
+        options.push(("sub-delay".to_string(), format!("{:.3}", delay.clamp(-300.0, 300.0))));
+    }
     push_anime_upscaling_options(
         &mut options,
         app,
@@ -507,11 +515,15 @@ pub fn player_apply_preferences(
 }
 
 #[tauri::command]
-pub fn player_set_title(state: State<DesktopState>, title: String, episode_title: Option<String>) {
+pub fn player_set_title(app: AppHandle, state: State<DesktopState>, title: String, episode_title: Option<String>) {
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     if let Some(surface) = state.native_player_surface.lock().unwrap().as_ref() {
-        surface.set_title(title, episode_title);
+        surface.set_title(title.clone(), episode_title.clone());
     }
+    let _ = app.emit(
+        "native-player-title",
+        serde_json::json!({ "title": title, "episodeTitle": episode_title }),
+    );
 }
 
 #[tauri::command]

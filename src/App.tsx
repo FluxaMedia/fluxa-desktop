@@ -650,6 +650,8 @@ export default function App() {
             initialPosterUrl={playerPosterUrl}
             initialSubtitleUrl={playerSubtitleUrl}
             initialStreamHeaders={playerStreamHeaders}
+            prefs={prefs}
+            onDispatch={dispatch}
             playbackError={playerPlaybackError}
             softwareVideoActive={softwareVideoActive}
             bannerOffset={bannerOffset}

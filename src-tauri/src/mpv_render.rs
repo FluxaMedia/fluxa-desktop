@@ -295,6 +295,35 @@ pub struct PlayerTrackOption {
     pub id: String,
     pub label: String,
     pub selected: bool,
+    pub lang: Option<String>,
+    pub source: Option<String>,
+    pub external: bool,
+    pub format: Option<String>,
+}
+
+fn subtitle_format_label(codec: &str) -> String {
+    match codec {
+        "subrip" | "srt" => "SRT".to_string(),
+        "ass" => "ASS".to_string(),
+        "ssa" => "SSA".to_string(),
+        "webvtt" => "VTT".to_string(),
+        "mov_text" => "MOV_TEXT".to_string(),
+        "dvd_subtitle" => "VOBSUB".to_string(),
+        "dvb_subtitle" => "DVB".to_string(),
+        "hdmv_pgs_subtitle" | "pgssub" => "PGS".to_string(),
+        other => other.to_uppercase(),
+    }
+}
+
+fn audio_channel_label(channel_count: Option<u32>) -> Option<String> {
+    match channel_count {
+        Some(1) => Some("Mono".to_string()),
+        Some(2) => Some("Stereo".to_string()),
+        Some(6) => Some("5.1".to_string()),
+        Some(8) => Some("7.1".to_string()),
+        Some(n) => Some(format!("{n}ch")),
+        None => None,
+    }
 }
 
 impl PlayerStatus {
@@ -904,6 +933,13 @@ impl MpvRenderer {
                         .map(str::to_string)
                 })
                 .filter(|value| !value.trim().is_empty());
+            let external = self
+                .get_string_property(&format!("track-list/{index}/external"))
+                .map(|value| value == "yes")
+                .unwrap_or(false);
+            let codec = self
+                .get_string_property(&format!("track-list/{index}/codec"))
+                .filter(|value| !value.trim().is_empty());
             let selected = self
                 .get_string_property(&format!("track-list/{index}/selected"))
                 .map(|value| value == "yes")
@@ -913,10 +949,33 @@ impl MpvRenderer {
             } else {
                 format!("Subtitle {}", tracks.len() + 1)
             };
+            let source = if external {
+                title.clone().or_else(|| external_filename.clone())
+            } else {
+                title.clone()
+            };
+            let format = if track_type == "audio" {
+                let channels = self
+                    .get_string_property(&format!("track-list/{index}/demux-channel-count"))
+                    .and_then(|value| value.parse::<u32>().ok());
+                let channel_label = audio_channel_label(channels);
+                match (channel_label, codec.as_deref()) {
+                    (Some(ch), Some(c)) => Some(format!("{ch} · {}", c.to_uppercase())),
+                    (Some(ch), None) => Some(ch),
+                    (None, Some(c)) => Some(c.to_uppercase()),
+                    (None, None) => None,
+                }
+            } else {
+                codec.as_deref().map(subtitle_format_label)
+            };
             tracks.push(PlayerTrackOption {
                 id,
-                label: title.or(external_filename).or(lang).unwrap_or(fallback),
+                label: title.clone().or(external_filename).or(lang.clone()).unwrap_or(fallback),
                 selected,
+                lang,
+                source,
+                external,
+                format,
             });
         }
         tracks

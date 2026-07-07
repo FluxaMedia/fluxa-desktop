@@ -14,6 +14,7 @@ interface CastPopoverProps {
 export function CastPopover({ devices, discovering, activeDeviceId, showEpisodePanel, onSelectDevice, onDisconnect }: CastPopoverProps) {
   return (
     <div
+      className="player-popover"
       style={{ position: 'absolute', bottom: 92, right: showEpisodePanel ? 396 : 14, background: 'rgba(18,22,30,0.97)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '6px 0', minWidth: 220, maxHeight: 300, overflowY: 'auto', zIndex: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -22,6 +23,7 @@ export function CastPopover({ devices, discovering, activeDeviceId, showEpisodeP
       </div>
       {activeDeviceId && (
         <button
+          className="player-popover-row"
           onClick={onDisconnect}
           style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.07)', color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 14px', cursor: 'pointer', textAlign: 'left', marginBottom: 4 }}
         >
@@ -37,10 +39,11 @@ export function CastPopover({ devices, discovering, activeDeviceId, showEpisodeP
       {devices.map((device) => (
         <button
           key={device.id}
+          className="player-popover-row"
           onClick={() => onSelectDevice(device)}
           style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: activeDeviceId === device.id ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: activeDeviceId === device.id ? 600 : 400, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
         >
-          <span style={{ width: 14, color: 'var(--primary-accent-color)' }}>
+          <span style={{ width: 14, flexShrink: 0, color: 'var(--primary-accent-color)' }}>
             {activeDeviceId === device.id ? <Check size={14} /> : device.kind === 'chromecast' ? <Cast size={14} /> : <Tv size={14} />}
           </span>
           {device.name}

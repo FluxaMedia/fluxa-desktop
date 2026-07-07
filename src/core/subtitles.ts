@@ -123,5 +123,5 @@ function normalizeSubtitle(raw: unknown, addonName: string): PlayerSubtitleSourc
     stringValue(object.name) ??
     stringValue(object.attributes?.name) ??
     fallbackLabel;
-  return { url, lang, label };
+  return { url, lang, label, addonName: addonName || undefined };
 }

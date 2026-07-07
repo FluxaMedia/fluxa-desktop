@@ -207,7 +207,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerSubtitleUrl(castableSubtitle?.url);
     await Promise.all(
       subtitles.map((subtitle) =>
-        embeddedMpvAddSubtitle(subtitle.url, subtitle.label, subtitle.lang).catch(() => undefined),
+        embeddedMpvAddSubtitle(subtitle.url, subtitle.addonName ?? subtitle.label, subtitle.lang).catch(() => undefined),
       ),
     );
   }, [stateRef]);

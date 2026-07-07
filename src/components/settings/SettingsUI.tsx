@@ -74,6 +74,20 @@ export function langOptions() {
   ];
 }
 
+export function subtitleFontOptions() {
+  return [
+    { value: 'default', label: t('settings.subtitle_font_default') },
+    { value: 'Arial', label: 'Arial' },
+    { value: 'Verdana', label: 'Verdana' },
+    { value: 'Tahoma', label: 'Tahoma' },
+    { value: 'Trebuchet MS', label: 'Trebuchet MS' },
+    { value: 'Georgia', label: 'Georgia' },
+    { value: 'Times New Roman', label: 'Times New Roman' },
+    { value: 'Courier New', label: 'Courier New' },
+    { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+  ];
+}
+
 export function streamSourceOptions() {
   return [
     { value: 'first', label: t('settings.stream_source_first_available') },

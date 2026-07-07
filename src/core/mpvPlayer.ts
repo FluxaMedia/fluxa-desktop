@@ -217,7 +217,15 @@ export async function playerClearEpisodes(): Promise<void> {
   await invoke('player_clear_episodes');
 }
 
-export type PlayerTrackOption = { id: string; label: string; selected: boolean };
+export type PlayerTrackOption = {
+  id: string;
+  label: string;
+  selected: boolean;
+  lang: string | null;
+  source: string | null;
+  external: boolean;
+  format: string | null;
+};
 
 export type PlayerPlaybackInfo = {
   skipSegmentsJson: string | null;

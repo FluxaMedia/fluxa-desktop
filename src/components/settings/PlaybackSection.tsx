@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { t } from '../../i18n';
-import { ChoiceTile, InputTile, SettingsSection, SliderTile, ToggleTile, langOptions, streamSourceOptions } from './SettingsUI';
+import { ChoiceTile, InputTile, SettingsSection, SliderTile, ToggleTile, langOptions, streamSourceOptions, subtitleFontOptions } from './SettingsUI';
 import { styles, FONT } from './settingsStyles';
 import type { Prefs } from './settingsTypes';
 
@@ -180,6 +180,23 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
       <ChoiceTile title={t('settings.subtitle_outline')} subtitle={t('settings.subtitle_outline_desc')} options={[{ value: '#000000', label: t('auto.black') }, { value: '#FFFFFF', label: t('auto.white') }, { value: '#FFE45C', label: t('auto.yellow') }, { value: '#FF5D5D', label: t('auto.red') }, { value: '#3F7CFF', label: t('auto.blue') }]} selected={prefs.subtitleOutlineColor} onSelect={(v) => setPref('subtitleOutlineColor', v)} />
       <ChoiceTile title={t('settings.subtitle.outline_opacity')} subtitle={t('settings.subtitle_outline_desc')} options={[{ value: '1.0', label: '100%' }, { value: '0.75', label: '75%' }, { value: '0.5', label: '50%' }, { value: '0.25', label: '25%' }, { value: '0.0', label: '0%' }]} selected={prefs.subtitleOutlineOpacity} onSelect={(v) => setPref('subtitleOutlineOpacity', v)} />
       <ToggleTile title={t('settings.subtitle_shadow') || 'Altyazı Gölgesi'} subtitle={t('settings.subtitle_shadow_desc') || 'Altyazı metnine gölge efekti ekle'} checked={prefs.subtitleShadow} onToggle={(v) => setPref('subtitleShadow', v)} />
+      <ChoiceTile
+        title={t('settings.subtitle_font')}
+        subtitle={t('settings.subtitle_font_desc')}
+        options={subtitleFontOptions()}
+        selected={prefs.subtitleFont}
+        onSelect={(v) => setPref('subtitleFont', v)}
+      />
+      <SliderTile
+        title={t('settings.subtitle_delay')}
+        subtitle={t('settings.subtitle_delay_desc')}
+        value={Number(prefs.subtitleDelay)}
+        min={-10}
+        max={10}
+        step={0.1}
+        format={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)}s`}
+        onChange={(v) => setPref('subtitleDelay', v.toFixed(1))}
+      />
     </SettingsSection>
     <div style={styles.settingsGroup}>
       <div style={styles.groupHeading}>

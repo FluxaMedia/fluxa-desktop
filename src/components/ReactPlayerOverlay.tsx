@@ -23,6 +23,7 @@ import {
   Repeat,
   RotateCcw,
   RotateCw,
+  Share2,
   SkipForward,
   Volume1,
   Volume2,
@@ -36,8 +37,10 @@ import { VolumeBar } from './player/VolumeBar';
 import { NextEpCard } from './player/NextEpCard';
 import { EpisodePanel, epLabel } from './player/EpisodePanel';
 import type { EpisodeInfo } from './player/EpisodePanel';
+import type { Video } from '../core/types';
 import { TrackPopover } from './player/TrackPopover';
 import { CastPopover } from './player/CastPopover';
+import { TorrentStatsPopover } from './player/TorrentStatsPopover';
 import { setIdleDiscordPresence, updateDiscordPresence } from '../core/discordPresence';
 import { castDisconnect, castPlay, castPause, castSeek, castSetVolume, discoverCastDevices, proxyMediaUrl, resolveCastMediaUrl, startCasting } from '../core/cast';
 import type { CastDevice } from '../core/cast';
@@ -125,15 +128,19 @@ interface Props {
   onFirstFrame?: () => void;
   initialTitle?: string;
   initialEpisodeTitle?: string;
+  currentEpisode?: Video | null;
+  isTorrentStream?: boolean;
   initialPosterUrl?: string;
   initialSubtitleUrl?: string;
   initialStreamHeaders?: Record<string, string>;
   playbackError?: string | null;
   softwareVideoActive?: boolean;
   bannerOffset?: number;
+  prefs?: Record<string, unknown>;
+  onDispatch?: (actionJson: string) => Promise<void> | void;
 }
 
-export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, initialPosterUrl, initialSubtitleUrl, initialStreamHeaders, playbackError, softwareVideoActive = false, bannerOffset = 0 }: Props) {
+export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, initialSubtitleUrl, initialStreamHeaders, playbackError, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(100);
@@ -160,6 +167,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const preMiniPlayerSizeRef = useRef<PhysicalSize | null>(null);
   const preMiniPlayerPosRef = useRef<PhysicalPosition | null>(null);
   const [castPopoverOpen, setCastPopoverOpen] = useState(false);
+  const [showTorrentPopover, setShowTorrentPopover] = useState(false);
   const [castDevices, setCastDevices] = useState<CastDevice[]>([]);
   const [castDiscovering, setCastDiscovering] = useState(false);
   const [activeCastDeviceId, setActiveCastDeviceId] = useState<string | null>(null);
@@ -554,17 +562,17 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, autoSkipSegments, flashFeedback]);
 
   useEffect(() => {
-    if (!showStats) return;
     const tick = async () => {
-      if (liveStatusRef.current) setStatsSnap({ ...liveStatusRef.current });
-      const ts = await playerTorrentStats().catch(() => null);
+      if (showStats && liveStatusRef.current) setStatsSnap({ ...liveStatusRef.current });
+      const raw = await playerTorrentStats().catch(() => null);
+      const ts = raw && typeof raw.stat === 'number' ? raw : null;
       setTorrentStatsSnap(ts);
       if (ts) setTorrentSpeedHistory((h) => [...h.slice(-(SPARKLINE_MAX_SAMPLES - 1)), ts.download_speed]);
     };
     void tick();
-    const id = setInterval(() => { void tick(); }, 500);
+    const id = setInterval(() => { void tick(); }, (showStats || showTorrentPopover) ? 500 : 1500);
     return () => clearInterval(id);
-  }, [showStats]);
+  }, [showStats, showTorrentPopover]);
 
   useEffect(() => {
     return () => setIdleDiscordPresence();
@@ -885,13 +893,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     if (Math.abs(e.deltaY) < 2) return;
     resetActivity();
     if (e.shiftKey) {
-      sendCmd(`add volume ${e.deltaY < 0 ? 5 : -5}`);
+      startSeekOverlay();
+      const seconds = e.deltaY < 0 ? 5 : -5;
+      flashFeedback(seconds > 0 ? 'seekFwd' : 'seekBack', `${seconds > 0 ? '+' : ''}${seconds}s`);
+      sendCmd(`seek ${seconds} relative`);
       return;
     }
-    startSeekOverlay();
-    const seconds = e.deltaY < 0 ? 5 : -5;
-    flashFeedback(seconds > 0 ? 'seekFwd' : 'seekBack', `${seconds > 0 ? '+' : ''}${seconds}s`);
-    sendCmd(`seek ${seconds} relative`);
+    sendCmd(`add volume ${e.deltaY < 0 ? 5 : -5}`);
   }, [flashFeedback, resetActivity, startSeekOverlay]);
 
   const onSeekMouseDown = useCallback((e: React.MouseEvent) => {
@@ -953,6 +961,48 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     setSubTracks((prev) => prev.map((tr) => ({ ...tr, selected: false })));
     setTrackPopover(null);
   }, []);
+
+  const setSubtitlePref = useCallback(<K extends string>(key: K, value: string) => {
+    void onDispatch?.(JSON.stringify({ type: 'settingsChanged', key, value }));
+  }, [onDispatch]);
+
+  const [subtitleDelay, setSubtitleDelayState] = useState(() => Number(prefs?.subtitleDelay ?? 0) || 0);
+  const [subtitleFont, setSubtitleFontState] = useState(() => String(prefs?.subtitleFont ?? 'default'));
+  const [subtitleSize, setSubtitleSizeState] = useState(() => Number(prefs?.subtitleSize ?? 100) || 100);
+  const [subtitleColor, setSubtitleColorState] = useState(() => String(prefs?.subtitleColor ?? '#FFFFFF'));
+
+  const adjustSubtitleDelay = useCallback((delta: number) => {
+    setSubtitleDelayState((prev) => {
+      const next = Math.round((prev + delta) * 10) / 10;
+      sendCmd(`set sub-delay ${next.toFixed(3)}`);
+      setSubtitlePref('subtitleDelay', next.toFixed(1));
+      return next;
+    });
+  }, [setSubtitlePref]);
+
+  const resetSubtitleDelay = useCallback(() => {
+    sendCmd('set sub-delay 0.000');
+    setSubtitleDelayState(0);
+    setSubtitlePref('subtitleDelay', '0.0');
+  }, [setSubtitlePref]);
+
+  const chooseSubtitleFont = useCallback((font: string) => {
+    sendCmd(`set sub-font "${font === 'default' ? 'sans-serif' : font}"`);
+    setSubtitleFontState(font);
+    setSubtitlePref('subtitleFont', font);
+  }, [setSubtitlePref]);
+
+  const chooseSubtitleSize = useCallback((size: number) => {
+    sendCmd(`set sub-scale ${(size / 100).toFixed(2)}`);
+    setSubtitleSizeState(size);
+    setSubtitlePref('subtitleSize', String(size));
+  }, [setSubtitlePref]);
+
+  const chooseSubtitleColor = useCallback((color: string) => {
+    sendCmd(`set sub-color "${color}"`);
+    setSubtitleColorState(color);
+    setSubtitlePref('subtitleColor', color);
+  }, [setSubtitlePref]);
 
   const openCastPopover = useCallback(async () => {
     resetActivity();
@@ -1335,7 +1385,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       {showEpisodePanel && (
         <EpisodePanel
           episodes={episodes}
-          episodeTitle={episodeTitle}
+          currentEpisode={currentEpisode ?? null}
           onClose={() => { setShowEpisodePanel(false); episodePanelOpenRef.current = false; }}
         />
       )}
@@ -1350,6 +1400,15 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           onSetSpeed={setSpeed}
           onSelectTrack={selectTrack}
           onDisableSubs={disableSubs}
+          subtitleDelay={subtitleDelay}
+          subtitleFont={subtitleFont}
+          subtitleSize={subtitleSize}
+          subtitleColor={subtitleColor}
+          onAdjustSubtitleDelay={adjustSubtitleDelay}
+          onResetSubtitleDelay={resetSubtitleDelay}
+          onChooseSubtitleFont={chooseSubtitleFont}
+          onChooseSubtitleSize={chooseSubtitleSize}
+          onChooseSubtitleColor={chooseSubtitleColor}
         />
       )}
 
@@ -1362,6 +1421,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           onSelectDevice={(device) => void selectCastDevice(device)}
           onDisconnect={disconnectCast}
         />
+      )}
+
+      {showTorrentPopover && (
+        <TorrentStatsPopover stats={torrentStatsSnap} showEpisodePanel={showEpisodePanel} />
       )}
 
       {showShortcutsHelp && (
@@ -1747,6 +1810,16 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
           <div style={{ flex: 1 }} />
 
+          {isTorrentStream && (
+            <button
+              onClick={(e) => { e.stopPropagation(); resetActivity(); setShowTorrentPopover((prev) => !prev); }}
+              className="fluxa-ibtn"
+              style={{ ...styles.iconBtn, color: showTorrentPopover ? 'var(--primary-accent-color)' : '#fff' }}
+              title={t('player.torrent_stats_title')}
+            >
+              <Share2 size={20} />
+            </button>
+          )}
           {nextEpSubtitle && (
             <button onClick={(e) => { e.stopPropagation(); resetActivity(); void emit('native-player-next-episode', null); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.next_label', nextEpSubtitle)}>
               <SkipForward size={22} />

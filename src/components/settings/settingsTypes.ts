@@ -83,6 +83,8 @@ export interface Prefs {
   subtitleBackgroundOpacity: string;
   subtitleOutlineColor: string;
   subtitleOutlineOpacity: string;
+  subtitleFont: string;
+  subtitleDelay: string;
   downloadSourceSelectionMode: string;
   downloadSourceRegexPattern: string;
   downloadSubtitleLanguage: string;
@@ -200,6 +202,8 @@ export const DEFAULT_PREFS: Prefs = {
   subtitleBackgroundOpacity: '0.5',
   subtitleOutlineColor: '#000000',
   subtitleOutlineOpacity: '1.0',
+  subtitleFont: 'default',
+  subtitleDelay: '0.0',
   downloadSourceSelectionMode: 'first',
   downloadSourceRegexPattern: '',
   downloadSubtitleLanguage: 'preferred',

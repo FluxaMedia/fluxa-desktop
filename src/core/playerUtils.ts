@@ -5,6 +5,7 @@ export type PlayerSubtitleSource = {
   url: string;
   label?: string;
   lang?: string;
+  addonName?: string;
 };
 
 export type PlayerDisplayTitle = {
