@@ -26,7 +26,10 @@ export const SourceRow = React.memo(function SourceRow({ stream, onClick }: { st
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <span style={SS.streamName}>{heading}</span>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, width: '100%' }}>
+        <span style={SS.streamName}>{heading}</span>
+        {stream.addonName && <span style={{ ...SS.streamAddon, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>{stream.addonName}</span>}
+      </div>
       {lines.map((line, index) => (
         <span key={`${line}:${index}`} style={SS.streamDesc}>{line}</span>
       ))}
@@ -77,7 +80,7 @@ export function MovieSourcePanel({
 
       {(isLoading || addonNames.length > 0) && (
         <div style={{ ...EP.sourcePills, padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-          <button style={{ ...SS.pill, cursor: 'pointer', border: 'none', opacity: selectedAddon === null ? 1 : 0.7 }} onClick={() => setSelectedAddon(null)}>{t('auto.all')}</button>
+          <button style={{ ...(selectedAddon === null ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none' }} onClick={() => setSelectedAddon(null)}>{t('auto.all')}</button>
           {addonNames.map((addon) => (
             <button
               key={addon}
@@ -160,7 +163,7 @@ export function InlineSourceList({
 
       {(isLoading || addonNames.length > 0) && (
         <div style={{ ...EP.sourcePills, padding: '0 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-          <button style={{ ...SS.pill, cursor: 'pointer', border: 'none', opacity: selectedAddon === null ? 1 : 0.7 }} onClick={() => setSelectedAddon(null)}>{t('auto.all')}</button>
+          <button style={{ ...(selectedAddon === null ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none' }} onClick={() => setSelectedAddon(null)}>{t('auto.all')}</button>
           {addonNames.map((addon) => (
             <button
               key={addon}
