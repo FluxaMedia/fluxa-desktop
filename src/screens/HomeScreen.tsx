@@ -37,8 +37,8 @@ async function loadFolderItems(folderCategory: HomeCategory): Promise<Meta[]> {
       try {
         const res = await httpFetchText(url);
         if (res.statusCode === 200) {
-          const data = JSON.parse(res.body) as { metas?: Meta[] };
-          return data?.metas ?? [];
+          const data = JSON.parse(res.body) as { metas?: unknown };
+          return Array.isArray(data?.metas) ? data.metas as Meta[] : [];
         }
       } catch { /* skip failed source */ }
       return [];

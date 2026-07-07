@@ -113,13 +113,14 @@ export async function readHomeBootstrap(
       const extraJson = feed.genre ? JSON.stringify({ genre: feed.genre }) : undefined;
       const url = await buildResourceUrl(feed.transportUrl, 'catalog', feed.type, feed.id, extraJson);
       const data = (await tryFetchJson(url)) as { metas?: unknown[] } | null;
-      if (!data?.metas?.length) return null;
+      const metas = Array.isArray(data?.metas) ? data.metas : [];
+      if (metas.length === 0) return null;
       return {
         id: feed.key,
         name: feed.homeTitle ?? feed.label,
         semanticName: feed.homeTitle ?? feed.label,
         type: feed.type,
-        items: data.metas,
+        items: metas,
         addonName: feed.label.split(' - ')[0] ?? feed.label,
         transportUrl: feed.transportUrl,
         catalogId: feed.id,
