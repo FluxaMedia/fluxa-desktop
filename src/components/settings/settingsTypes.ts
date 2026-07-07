@@ -18,6 +18,7 @@ export interface Prefs {
   omdbApiKey: string;
   fanartApiKey: string;
   accentColorArgb: string;
+  uiScale: string;
   animationsEnabled: boolean;
   gifAutoplayEnabled: boolean;
   cardCornerPreset: string;
@@ -137,6 +138,7 @@ export const DEFAULT_PREFS: Prefs = {
   tmdbLogosBackdropsEnabled: true,
   tmdbRatingsEnabled: true,
   accentColorArgb: '#FFFFFF',
+  uiScale: '100',
   animationsEnabled: true,
   gifAutoplayEnabled: false,
   navLayout: 'sidebar',

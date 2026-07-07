@@ -6,6 +6,7 @@ import { PlayerLoadingOverlay } from './components/PlayerLoadingOverlay';
 import { ReactPlayerOverlay } from './components/ReactPlayerOverlay';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 
 function debugLog(msg: string) {
   void invoke('debug_log', { msg }).catch(() => {});
@@ -371,6 +372,11 @@ export default function App() {
   }, [guardedPlay]);
 
   const prefs = React.useMemo(() => appPrefs(state), [state.settings?.values]);
+  const uiScale = prefString(prefs, 'uiScale', '100');
+  useEffect(() => {
+    const zoom = (Number(uiScale) || 100) / 100;
+    void getCurrentWebview().setZoom(zoom).catch(() => undefined);
+  }, [uiScale]);
   const accentColor = prefString(prefs, 'accentColorArgb', '#FFFFFF');
   const rootStyle = React.useMemo(() => ({
     ...appStyles.root,

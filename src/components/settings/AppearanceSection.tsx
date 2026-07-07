@@ -1,6 +1,6 @@
 import React from 'react';
 import { t } from '../../i18n';
-import { ChoiceTile, ToggleTile, SettingsSection } from './SettingsUI';
+import { ChoiceTile, SliderTile, ToggleTile, SettingsSection } from './SettingsUI';
 import type { Prefs } from './settingsTypes';
 
 export function AppearanceSection({ prefs, setPref }: { prefs: Prefs; setPref: <K extends keyof Prefs>(k: K, v: Prefs[K]) => void }) {
@@ -20,6 +20,18 @@ export function AppearanceSection({ prefs, setPref }: { prefs: Prefs; setPref: <
           ]}
           selected={prefs.accentColorArgb}
           onSelect={(v) => setPref('accentColorArgb', v)}
+        />
+      </SettingsSection>
+      <SettingsSection title={t('settings.ui_scale')} subtitle={t('settings.ui_scale_desc')}>
+        <SliderTile
+          title={t('settings.ui_scale')}
+          subtitle={t('settings.ui_scale_desc')}
+          value={Number(prefs.uiScale)}
+          min={75}
+          max={150}
+          step={5}
+          format={(v) => `${v}%`}
+          onChange={(v) => setPref('uiScale', String(v))}
         />
       </SettingsSection>
       <SettingsSection title={t('auto.interface_3c5ec842')} subtitle={t('auto.language_theme_startup')}>
