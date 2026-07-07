@@ -66,7 +66,7 @@ async function fetchTmdbSimilarItems({
   return [];
 }
 
-async function fetchTmdbTrailers({ contentType, id, language, apiKey }: TmdbRequest): Promise<unknown[]> {
+export async function fetchTmdbTrailers({ contentType, id, language, apiKey }: TmdbRequest): Promise<unknown[]> {
   if (!apiKey) return [];
   const tmdbId = await resolveTmdbId({ contentType, id, language, apiKey });
   if (!tmdbId) return [];

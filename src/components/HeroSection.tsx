@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Info, Play, Plus } from 'lucide-react';
 import { seasonPosterUrl } from '../core/seasonPosters';
+import { youtubeVideoId } from './detail/TrailerCarousel';
 import type { Meta } from '../core/types';
 import { t } from '../i18n';
 
@@ -12,6 +13,8 @@ interface Props {
   onAddToWatchlist?: (meta: Meta) => void;
   preferSeasonPosters?: boolean;
   isActive?: boolean;
+  autoplayTrailer?: boolean;
+  autoplayTrailerDelaySecs?: number;
 }
 
 const SLIDE_INTERVAL_MS = 6500;
@@ -30,7 +33,7 @@ const keyframes = `
 }
 `;
 
-export const HeroSection = React.memo(function HeroSection({ meta, slides, onPlay, onDetails, onAddToWatchlist, preferSeasonPosters = false, isActive = true }: Props) {
+export const HeroSection = React.memo(function HeroSection({ meta, slides, onPlay, onDetails, onAddToWatchlist, preferSeasonPosters = false, isActive = true, autoplayTrailer = false, autoplayTrailerDelaySecs = 4 }: Props) {
   const items = useMemo(() => {
     const seen = new Set<string>();
     return [meta, ...(slides ?? [])].filter((item) => {
@@ -56,6 +59,14 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
   const imageUrl = (preferSeasonPosters ? seasonPosterUrl(activeMeta) : undefined) ?? activeMeta.background ?? activeMeta.poster;
   const bgUrl = !bgError ? imageUrl : null;
   const logoUrl = !logoError ? activeMeta.logo : null;
+  const trailerVideoId = useMemo(() => {
+    for (const trailer of activeMeta.trailers ?? []) {
+      const id = youtubeVideoId(trailer.url);
+      if (id) return id;
+    }
+    return null;
+  }, [activeMeta.trailers]);
+  const [showTrailer, setShowTrailer] = useState(false);
 
   const imdbNum = activeMeta.imdbRating != null ? Number(activeMeta.imdbRating) : NaN;
   const releaseYear = activeMeta.year ?? parseReleaseYear(activeMeta.releaseInfo);
@@ -77,6 +88,13 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     setBgError(false);
     setLogoError(false);
   }, [activeMeta.id, imageUrl, activeMeta.logo]);
+
+  useEffect(() => {
+    setShowTrailer(false);
+    if (!autoplayTrailer || !isActive || paused || !trailerVideoId) return;
+    const id = window.setTimeout(() => setShowTrailer(true), autoplayTrailerDelaySecs * 1000);
+    return () => window.clearTimeout(id);
+  }, [activeMeta.id, trailerVideoId, autoplayTrailer, autoplayTrailerDelaySecs, isActive, paused]);
 
   useEffect(() => {
     return () => {
@@ -145,6 +163,17 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
           decoding="async"
           style={{ ...styles.backdrop, ...contentStyle, animationPlayState: paused ? 'paused' : 'running' }}
           onError={() => setBgError(true)}
+        />
+      )}
+
+      {showTrailer && trailerVideoId && (
+        <iframe
+          key={trailerVideoId}
+          style={styles.trailerFrame}
+          src={`https://www.youtube.com/embed/${trailerVideoId}?autoplay=1&mute=1&controls=0&playsinline=1&rel=0&modestbranding=1&loop=1&playlist=${trailerVideoId}`}
+          title="trailer"
+          allow="autoplay; encrypted-media"
+          frameBorder={0}
         />
       )}
 
@@ -349,6 +378,15 @@ const styles: Record<string, React.CSSProperties> = {
     pointerEvents: 'none',
     animation: prefersReducedMotion ? 'none' : `heroKenBurns ${SLIDE_INTERVAL_MS + 400}ms ease-out forwards`,
     transformOrigin: 'center 30%',
+  },
+  trailerFrame: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: '100%',
+    height: '100%',
+    border: 'none',
+    pointerEvents: 'none',
   },
   gradientTop: {
     position: 'absolute',

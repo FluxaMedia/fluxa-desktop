@@ -42,6 +42,8 @@ export interface Prefs {
   spoilerHideEpisodeInfo: boolean;
   continueWatchingHideTitles: boolean;
   showHeroSection: boolean;
+  homeHeroAutoplayTrailer: boolean;
+  homeHeroAutoplayTrailerDelaySecs: string;
   heroFeedToggles: string[];
   homeFeedToggles: string[];
   topTenFeedToggles: string[];
@@ -157,6 +159,8 @@ export const DEFAULT_PREFS: Prefs = {
   spoilerHideEpisodeInfo: false,
   continueWatchingHideTitles: false,
   showHeroSection: true,
+  homeHeroAutoplayTrailer: false,
+  homeHeroAutoplayTrailerDelaySecs: '4',
   heroFeedToggles: [],
   homeFeedToggles: [],
   topTenFeedToggles: [],

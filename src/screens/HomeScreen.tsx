@@ -7,10 +7,11 @@ import { ThisWeekRow } from '../components/ThisWeekRow';
 import { partitionThisWeek } from '../core/continueWatchingUtils';
 import { CollectionShelfRow } from '../components/CollectionShelfRow';
 import { posterPrefsFromState } from '../core/posterPrefs';
-import { appPrefs, prefBool } from '../core/appPrefs';
+import { appPrefs, prefBool, prefString } from '../core/appPrefs';
 import { buildResourceUrl } from '../core/addonManifest';
 import { httpFetchText } from '../core/engine';
-import type { AppState, HomeCategory, Meta } from '../core/types';
+import { fetchTmdbTrailers } from '../core/detailEffects';
+import type { AppState, HomeCategory, Meta, Trailer } from '../core/types';
 import { getLanguage, t } from '../i18n';
 
 interface Props {
@@ -105,6 +106,40 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   );
   const posterPrefs = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
   const prefs = useMemo(() => appPrefs(state), [state.settings?.values]);
+  const [heroTrailers, setHeroTrailers] = useState<Record<string, Trailer[]>>({});
+  const fetchedHeroTrailerIds = useRef<Set<string>>(new Set());
+  const autoplayTrailerEnabled = prefBool(prefs, 'homeHeroAutoplayTrailer', false);
+
+  useEffect(() => {
+    const apiKey = prefString(prefs, 'tmdbApiKey');
+    if (!autoplayTrailerEnabled || !prefBool(prefs, 'tmdbTrailersEnabled', true) || !apiKey) return;
+    const targets = [billboard, ...heroSlides].filter(
+      (item): item is Meta => !!item && !item.trailers?.length && !fetchedHeroTrailerIds.current.has(item.id),
+    );
+    if (!targets.length) return;
+    targets.forEach((item) => fetchedHeroTrailerIds.current.add(item.id));
+    let cancelled = false;
+    const language = getLanguage();
+    Promise.all(targets.map(async (item) => {
+      const trailers = await fetchTmdbTrailers({ contentType: item.type, id: item.id, language, apiKey }) as Trailer[];
+      return [item.id, trailers] as const;
+    })).then((results) => {
+      if (cancelled) return;
+      const found = results.filter(([, trailers]) => trailers.length);
+      if (!found.length) return;
+      setHeroTrailers((prev) => ({ ...prev, ...Object.fromEntries(found) }));
+    });
+    return () => { cancelled = true; };
+  }, [billboard, heroSlides, autoplayTrailerEnabled, prefs]);
+
+  const billboardWithTrailer = useMemo(
+    () => withHeroTrailer(billboard, heroTrailers),
+    [billboard, heroTrailers],
+  );
+  const heroSlidesWithTrailers = useMemo(
+    () => heroSlides.map((item) => withHeroTrailer(item, heroTrailers)),
+    [heroSlides, heroTrailers],
+  );
   const addonIconByName = useMemo(() => {
     const map = new Map<string, string>();
     for (const addon of state.addons.installed ?? []) {
@@ -176,15 +211,17 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
 
   return (
     <div ref={scrollRef} style={styles.screen}>
-      {billboard && showHero && (
+      {billboardWithTrailer && showHero && (
         <HeroSection
-          meta={billboard}
-          slides={heroSlides}
+          meta={billboardWithTrailer}
+          slides={heroSlidesWithTrailers}
           preferSeasonPosters={prefBool(prefs, 'homeSeasonPostersOnHero', true)}
           onPlay={onPlay}
           onDetails={onNavigateDetail}
           onAddToWatchlist={handleAddToWatchlist}
           isActive={isActive}
+          autoplayTrailer={autoplayTrailerEnabled}
+          autoplayTrailerDelaySecs={Number(prefString(prefs, 'homeHeroAutoplayTrailerDelaySecs', '4'))}
         />
       )}
 
@@ -253,6 +290,11 @@ function formatCatalogTitle(name: string, type: string): string {
   else if (type) label = type.charAt(0).toUpperCase() + type.slice(1);
   else return name;
   return `${name} - ${label}`;
+}
+
+function withHeroTrailer<T extends Meta | null>(item: T, trailers: Record<string, Trailer[]>): T {
+  if (!item || item.trailers?.length || !trailers[item.id]) return item;
+  return { ...item, trailers: trailers[item.id] };
 }
 
 function buildHeroSlides(billboard: Meta | null, items: Meta[]): Meta[] {

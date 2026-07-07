@@ -135,6 +135,21 @@ export function AppearanceSection({ prefs, setPref }: { prefs: Prefs; setPref: <
           checked={prefs.homeSeasonPostersOnHero}
           onToggle={(v) => setPref('homeSeasonPostersOnHero', v)}
         />
+        <ToggleTile
+          title={t('settings.home_hero_autoplay_trailer')}
+          subtitle={t('settings.home_hero_autoplay_trailer_desc')}
+          checked={prefs.homeHeroAutoplayTrailer}
+          onToggle={(v) => setPref('homeHeroAutoplayTrailer', v)}
+        />
+        {prefs.homeHeroAutoplayTrailer && (
+          <ChoiceTile
+            title={t('settings.home_hero_autoplay_trailer_delay')}
+            subtitle={t('settings.home_hero_autoplay_trailer_delay_desc')}
+            options={[{ value: '2', label: '2s' }, { value: '4', label: '4s' }, { value: '6', label: '6s' }, { value: '10', label: '10s' }]}
+            selected={prefs.homeHeroAutoplayTrailerDelaySecs}
+            onSelect={(v) => setPref('homeHeroAutoplayTrailerDelaySecs', v)}
+          />
+        )}
       </SettingsSection>
       <SettingsSection title={t('settings.appearance_detail_screen')} subtitle={t('settings.appearance_detail_screen_desc')}>
         <ToggleTile title={t('settings.trailer_on_hero')} subtitle={t('settings.trailer_on_hero_desc')} checked={prefs.trailerOnHero} onToggle={(v) => setPref('trailerOnHero', v)} />
