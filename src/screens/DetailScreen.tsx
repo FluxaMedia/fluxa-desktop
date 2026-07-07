@@ -15,6 +15,7 @@ import { MovieSourcePanel } from '../components/detail/SourcePanel';
 import { EpisodePanel, type ProgressEntry } from '../components/detail/EpisodePanel';
 import { ModernDetailLayout } from '../components/detail/ModernDetailLayout';
 import { useSeasonWatched } from '../hooks/useSeasonWatched';
+import { setIdleDiscordPresence, setViewingDiscordPresence } from '../core/discordPresence';
 
 void NAV_RAIL_WIDTH; void TOP_BAR_H;
 
@@ -113,6 +114,11 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   const progressMap = (libRaw?.progress as Record<string, ProgressEntry> | undefined) ?? {};
 
   useEffect(() => { setBgError(false); }, [displayMeta.id, seasonHeroUrl, displayMeta.background, displayMeta.poster, meta.background, meta.poster]);
+
+  useEffect(() => {
+    setViewingDiscordPresence({ title: displayMeta.name, posterUrl: displayMeta.poster ?? meta.poster });
+    return () => setIdleDiscordPresence();
+  }, [displayMeta.id, displayMeta.name, displayMeta.poster, meta.poster]);
 
   useEffect(() => {
     setSelectedSeason(initialEpisodeRef.current?.season ?? 1);

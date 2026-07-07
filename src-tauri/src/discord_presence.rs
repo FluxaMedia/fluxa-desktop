@@ -74,6 +74,30 @@ pub fn discord_presence_update(
 }
 
 #[tauri::command]
+pub fn discord_presence_set_viewing(
+    state: State<DiscordPresenceState>,
+    title: String,
+    poster_url: Option<String>,
+) {
+    let mut guard = state.client.lock().unwrap();
+    let Some(client) = guard.as_mut() else { return };
+    let large_image = poster_url
+        .filter(|u| !u.is_empty())
+        .unwrap_or_else(|| "logo".to_string());
+    let act = activity::Activity::new()
+        .details(&title)
+        .state("Viewing details")
+        .assets(
+            activity::Assets::new()
+                .large_image(&large_image)
+                .large_text(&title)
+                .small_image("logo")
+                .small_text("Fluxa"),
+        );
+    let _ = client.set_activity(act);
+}
+
+#[tauri::command]
 pub fn discord_presence_set_idle(state: State<DiscordPresenceState>) {
     let mut guard = state.client.lock().unwrap();
     let Some(client) = guard.as_mut() else { return };
