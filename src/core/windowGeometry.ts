@@ -21,6 +21,14 @@ export async function restoreWindowGeometry(): Promise<void> {
   } catch { /* ignore */ }
 }
 
+export async function toggleWindowFullscreen(): Promise<void> {
+  const win = getCurrentWindow();
+  try {
+    const isFullscreen = await win.isFullscreen();
+    await win.setFullscreen(!isFullscreen);
+  } catch { /* ignore */ }
+}
+
 export function watchWindowGeometry(): () => void {
   const win = getCurrentWindow();
   let timer: ReturnType<typeof setTimeout> | null = null;

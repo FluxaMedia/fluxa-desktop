@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { BookMarked, Calendar, ChevronLeft, ChevronRight, Compass, Settings, Home } from 'lucide-react';
 import { t } from '../i18n';
+import { toggleWindowFullscreen } from '../core/windowGeometry';
+
+function onChromeDoubleClick(e: React.MouseEvent) {
+  if (e.target === e.currentTarget) void toggleWindowFullscreen();
+}
 
 export type NavRoute = 'home' | 'search' | 'library' | 'discover' | 'calendar' | 'settings';
 export type NavBarPosition = 'left' | 'right' | 'top' | 'bottom';
@@ -144,6 +149,7 @@ export const NavSidebar = React.memo(function NavSidebar({ activeRoute, onNaviga
           minHeight: isHorizontal ? 58 : undefined,
           maxHeight: isHorizontal ? undefined : 'calc(100vh - 80px)',
         }}
+        onDoubleClick={onChromeDoubleClick}
       >
         {ROUTES.map((route) => (
           <NavItem
@@ -221,6 +227,7 @@ export const TopBar = React.memo(function TopBar({ activeRoute, onNavigate, tran
         boxShadow: transparent ? 'none' : '0 8px 32px rgba(0,0,0,0.35)',
         maxHeight: isVertical ? 'calc(100vh - 48px)' : undefined,
       }}
+      onDoubleClick={onChromeDoubleClick}
     >
       {TOP_ROUTES.map((route) => (
         <TopBarItem
