@@ -21,6 +21,7 @@ export const CORE_METHODS = [
   'catalogSupportsExtra',
   'computeContinueWatchingBadges',
   'continueWatchingCardFields',
+  'core.drainErrorLog',
   'coreCapabilities',
   'detailEpisodePlan',
   'detailSeasonLoadPlan',
