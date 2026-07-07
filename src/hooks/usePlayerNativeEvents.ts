@@ -110,11 +110,36 @@ export function usePlayerNativeEvents({
       if (closingPlayerRef.current) return;
       const episodeId = event.payload;
       const meta = playingMetaRef.current;
-      const stream = playingStreamRef.current;
-      if (!meta || !stream) return;
+      const currentStream = playingStreamRef.current;
+      if (!meta || !currentStream) return;
       const ep = meta.videos?.find((v) => v.id === episodeId) ?? null;
       if (!ep) return;
-      void handlePlay(stream, meta, ep);
+
+      void (async () => {
+        void embeddedMpvStop().catch(() => undefined);
+        const nextTitle = playerDisplayTitle(meta, ep, currentStream);
+        const nextArtwork = playerArtwork(meta, ep);
+        void embeddedMpvSetTitle(nextTitle.contentTitle, nextTitle.episodeLine).catch(() => undefined);
+        void embeddedMpvSetLoadingArtwork(
+          nextTitle.contentTitle ?? 'Fluxa',
+          nextTitle.episodeLine,
+          nextArtwork.background,
+          nextArtwork.logo,
+        ).catch(() => undefined);
+
+        const prefs = appPrefs(stateRef.current);
+        let chosenStream: Stream = currentStream;
+        try {
+          const timeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('stream fetch timeout')), 8000));
+          const result = await Promise.race([fetchStreamsForEpisode(ep.id, meta.type), timeout]);
+          const streams = result.streams as Stream[];
+          if (streams.length > 0) {
+            chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs))) as Stream | null ?? currentStream;
+          }
+        } catch {}
+        try { await handlePlay(chosenStream, meta, ep); } catch {}
+      })();
     })
       .then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); })
       .catch(() => undefined);
