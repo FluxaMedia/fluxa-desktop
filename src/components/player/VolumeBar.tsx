@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-export function VolumeBar({ value, max, onChange }: { value: number; max: number; onChange: (v: number) => void }) {
+export function VolumeBar({ value, max, onChange, forceTooltip }: { value: number; max: number; onChange: (v: number) => void; forceTooltip?: boolean }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const fillRef = useRef<HTMLDivElement>(null);
   const dotRef = useRef<HTMLDivElement>(null);
@@ -65,6 +65,11 @@ export function VolumeBar({ value, max, onChange }: { value: number; max: number
     if (fillRef.current) fillRef.current.style.width = pct;
     if (dotRef.current) dotRef.current.style.left = pct;
   }, [value, max, setTooltip]);
+
+  useEffect(() => {
+    if (forceTooltip) setTooltipVisible(true);
+    else if (!hovering.current && !dragging.current) setTooltipVisible(false);
+  }, [forceTooltip, setTooltipVisible]);
 
   const initPct = `${Math.min(100, (value / max) * 100).toFixed(2)}%`;
   return (

@@ -173,6 +173,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [feedback, setFeedback] = useState<FeedbackFlash | null>(null);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const volumeHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [volumeScrolling, setVolumeScrolling] = useState(false);
+  const volumeScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showSeekOverlay, setShowSeekOverlay] = useState(false);
   const seekOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -1714,6 +1716,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
               e.stopPropagation();
               resetActivity();
               sendCmd(`add volume ${e.deltaY < 0 ? 5 : -5}`);
+              setShowVolumeSlider(true);
+              setVolumeScrolling(true);
+              if (volumeScrollTimer.current) clearTimeout(volumeScrollTimer.current);
+              volumeScrollTimer.current = setTimeout(() => setVolumeScrolling(false), 700);
             }}
           >
             <button onClick={(e) => { e.stopPropagation(); resetActivity(); setMuted((prev) => !prev); sendCmd('cycle mute'); }} className="fluxa-ibtn" style={styles.iconBtn} title={muted ? t('player.unmute') : t('player.mute')}>
@@ -1723,6 +1729,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
               <VolumeBar
                 value={muted ? 0 : volumeLevel}
                 max={130}
+                forceTooltip={volumeScrolling}
                 onChange={(v) => {
                   resetActivity();
                   if (activeCastDeviceIdRef.current) { castSetVolume(v / 100); return; }
