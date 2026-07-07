@@ -227,13 +227,35 @@ interface FanartArtwork {
   hdBackdrop?: string;
 }
 
+async function resolveTvdbId(tmdbId: string, apiKey: string, language: string): Promise<string | null> {
+  const response = await tryFetchJson(
+    tmdbUrl(`3/tv/${tmdbId}/external_ids`, apiKey, language),
+  ) as { tvdb_id?: number | null } | null;
+  return response?.tvdb_id != null ? String(response.tvdb_id) : null;
+}
+
 async function fetchFanartArtwork(
   { contentType, id, language, apiKey }: TmdbRequest,
   fanartApiKey: string,
 ): Promise<FanartArtwork | null> {
-  if (!fanartApiKey || !apiKey || contentType === 'series') return null;
+  if (!fanartApiKey || !apiKey) return null;
   const tmdbId = await resolveTmdbId({ contentType, id, language, apiKey });
   if (!tmdbId) return null;
+
+  if (contentType === 'series') {
+    const tvdbId = await resolveTvdbId(tmdbId, apiKey, language);
+    if (!tvdbId) return null;
+    const response = await tryFetchJson(`https://webservice.fanart.tv/v3/tv/${tvdbId}?api_key=${fanartApiKey}`) as {
+      hdtvlogo?: { url?: string }[];
+      showbackground?: { url?: string }[];
+    } | null;
+    if (!response) return null;
+    const hdLogo = response.hdtvlogo?.[0]?.url;
+    const hdBackdrop = response.showbackground?.[0]?.url;
+    if (!hdLogo && !hdBackdrop) return null;
+    return { hdLogo, hdBackdrop };
+  }
+
   const response = await tryFetchJson(`https://webservice.fanart.tv/v3/movies/${tmdbId}?api_key=${fanartApiKey}`) as {
     hdmovielogo?: { url?: string }[];
     moviebackground?: { url?: string }[];

@@ -548,7 +548,7 @@
   "settings.omdb_api_key": "OMDB API Anahtarı",
   "settings.omdb_api_key_desc": "Rotten Tomatoes ve Metascore puanlarını ekler. Ücretsiz anahtar: omdbapi.com/apikey.aspx.",
   "settings.fanart_api_key": "Fanart.tv API Anahtarı",
-  "settings.fanart_api_key_desc": "Filmler için HD logo ve arka plan ekler. Ücretsiz anahtar: fanart.tv/get-an-api-key.",
+  "settings.fanart_api_key_desc": "Filmler ve diziler için HD logo ve arka plan ekler. Ücretsiz anahtar: fanart.tv/get-an-api-key.",
   "settings.alert_new_episodes": "Yeni bölümlerde uyar",
   "settings.alert_new_episodes_desc": "Yaklaşan bölümler cihaz saat diliminde yayınlandığında bildirir.",
   "settings.default_player_desc": "Yayınların varsayılan olarak hangi oynatıcıda açılacağını seçer.",

@@ -548,7 +548,7 @@
   "settings.omdb_api_key": "OMDB API Key",
   "settings.omdb_api_key_desc": "Adds Rotten Tomatoes and Metascore ratings. Get a free key at omdbapi.com/apikey.aspx.",
   "settings.fanart_api_key": "Fanart.tv API Key",
-  "settings.fanart_api_key_desc": "Adds HD logos and backdrops for movies. Get a free key at fanart.tv/get-an-api-key.",
+  "settings.fanart_api_key_desc": "Adds HD logos and backdrops for movies and TV shows. Get a free key at fanart.tv/get-an-api-key.",
   "settings.alert_new_episodes": "Alert me on new episodes",
   "settings.alert_new_episodes_desc": "Notifies when upcoming episodes are released in your device timezone.",
   "settings.default_player_desc": "Chooses which player opens streams by default.",
