@@ -1,12 +1,16 @@
-import { loadLibrary, saveLibrary } from './libraryOps';
-import { fetchMetaDetail } from './detailEffects';
+import { loadLibrary, saveLibrary, loadPrefs } from './libraryOps';
+import { fetchMetaDetail, fetchTmdbPosterFallback } from './detailEffects';
 import { coreReplaceExternalContinueWatching } from './engine';
+import { prefString } from './appPrefs';
 
 export async function enrichWithAddonMeta(items: Record<string, unknown>[]): Promise<Record<string, unknown>[]> {
   if (items.length === 0) return items;
   const CONCURRENCY = 4;
   const results: Record<string, unknown>[] = new Array(items.length);
   let cursor = 0;
+  const prefs = await loadPrefs();
+  const tmdbApiKey = prefString(prefs, 'tmdbApiKey');
+  const language = prefString(prefs, 'language', 'en');
 
   async function worker() {
     while (cursor < items.length) {
@@ -18,12 +22,16 @@ export async function enrichWithAddonMeta(items: Record<string, unknown>[]): Pro
       if (!id) { results[i] = item; continue; }
       try {
         const meta = await fetchMetaDetail({ id, contentType }) as Record<string, unknown> | null;
-        if (!meta) { results[i] = item; continue; }
-        const poster = typeof meta.poster === 'string' ? meta.poster : undefined;
-        const background = typeof meta.background === 'string' ? meta.background : undefined;
-        const logo = typeof meta.logo === 'string' ? meta.logo : undefined;
+        let poster = meta && typeof meta.poster === 'string' ? meta.poster : undefined;
+        let background = meta && typeof meta.background === 'string' ? meta.background : undefined;
+        const logo = meta && typeof meta.logo === 'string' ? meta.logo : undefined;
+        if (!poster && !background) {
+          const tmdbFallback = await fetchTmdbPosterFallback({ contentType, id, language, apiKey: tmdbApiKey });
+          poster = tmdbFallback?.poster;
+          background = tmdbFallback?.background;
+        }
         let lastEpisodeThumbnail = typeof item.lastEpisodeThumbnail === 'string' ? item.lastEpisodeThumbnail : undefined;
-        if (!lastEpisodeThumbnail && contentType === 'series' && Array.isArray(meta.videos)) {
+        if (!lastEpisodeThumbnail && meta && contentType === 'series' && Array.isArray(meta.videos)) {
           const season = typeof item.lastEpisodeSeason === 'number' ? item.lastEpisodeSeason : undefined;
           const epNum = typeof item.lastEpisodeNumber === 'number' ? item.lastEpisodeNumber : undefined;
           if (season != null && epNum != null) {

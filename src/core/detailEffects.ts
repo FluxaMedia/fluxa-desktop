@@ -1,5 +1,6 @@
 import {
   coreDetailSeriesLookupId,
+  coreTmdbImageUrl,
   coreTmdbMetaToMeta,
   coreTmdbVideoToTrailer,
   dispatchAction,
@@ -85,6 +86,25 @@ async function resolveTmdbId({ contentType, id, language, apiKey }: TmdbRequest)
   const key = contentType === 'series' ? 'tv_results' : 'movie_results';
   const result = ((response as Record<string, TmdbMetaResult[]> | null)?.[key] ?? [])[0];
   return result?.id != null ? String(result.id) : null;
+}
+
+export async function fetchTmdbPosterFallback({
+  contentType,
+  id,
+  language,
+  apiKey,
+}: TmdbRequest): Promise<{ poster?: string; background?: string } | null> {
+  if (!apiKey) return null;
+  const tmdbId = await resolveTmdbId({ contentType, id, language, apiKey });
+  if (!tmdbId) return null;
+  const response = await tryFetchJson(
+    tmdbUrl(`3/${tmdbContentType(contentType)}/${tmdbId}`, apiKey, language),
+  ) as TmdbMetaResult | null;
+  if (!response) return null;
+  const poster = await coreTmdbImageUrl(response.poster_path ?? null, 'w500');
+  const background = await coreTmdbImageUrl(response.backdrop_path ?? null, 'w1280');
+  if (!poster && !background) return null;
+  return { poster: poster ?? undefined, background: background ?? undefined };
 }
 
 function tmdbUrl(path: string, apiKey: string, language: string, extra: Record<string, string> = {}): string {
