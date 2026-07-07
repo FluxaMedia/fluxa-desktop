@@ -774,11 +774,9 @@ pub fn player_track_options(
     state: State<DesktopState>,
     track_type: String,
 ) -> Vec<mpv_render::PlayerTrackOption> {
-    state
-        .player_renderer
-        .try_lock()
+    with_renderer_retry(&state, 80, |renderer| Ok(renderer.track_options(&track_type)))
         .ok()
-        .and_then(|g| g.as_ref().map(|r| r.track_options(&track_type)))
+        .flatten()
         .unwrap_or_default()
 }
 
