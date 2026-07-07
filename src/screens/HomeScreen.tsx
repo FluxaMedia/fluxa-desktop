@@ -91,7 +91,10 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   }, []);
 
   const continueWatching = useMemo(() => (home.continueWatching ?? []) as Meta[], [home.continueWatching]);
-  const categories = useMemo(() => home.categories ?? [], [home.categories]);
+  const categories = useMemo(
+    () => (home.categories ?? []).map((c) => (Array.isArray(c.items) ? c : { ...c, items: [] })),
+    [home.categories],
+  );
   const contentCategories = useMemo(
     () => categories.filter((c) => c.type !== 'collection' && c.type !== 'collection_folder'),
     [categories],
