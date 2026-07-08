@@ -43,7 +43,10 @@
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkwMTE2RTg4MzgwRTJDRjcKUldUM0xBNDRpRzRSa0dobkJZZlN5LzdWWi9GR1h2UTVqMXV5cHBGS1JZYmJiTXZ6NCtmU1BIb1MK",
       "endpoints": [
         "https://github.com/FluxaMedia/fluxa-desktop/releases/latest/download/latest.json"
-      ]
+      ],
+      "windows": {
+        "installMode": "quiet"
+      }
     },
     "deep-link": {
       "mobile": [],

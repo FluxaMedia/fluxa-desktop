@@ -1,6 +1,7 @@
 import React from 'react';
 import { check as checkUpdate, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { t } from '../i18n';
 
 export type UpdateState =
   | { phase: 'idle' }
@@ -8,6 +9,7 @@ export type UpdateState =
   | { phase: 'up-to-date' }
   | { phase: 'available'; update: Update }
   | { phase: 'downloading'; progress: number }
+  | { phase: 'installing' }
   | { phase: 'error'; message: string };
 
 interface Props {
@@ -46,6 +48,8 @@ export async function installUpdate(
         downloaded += event.data.chunkLength ?? 0;
         const pct = total > 0 ? Math.round((downloaded / total) * 100) : 0;
         setState({ phase: 'downloading', progress: pct });
+      } else if (event.event === 'Finished') {
+        setState({ phase: 'installing' });
       }
     });
     await relaunch();
@@ -57,7 +61,7 @@ export async function installUpdate(
 export function UpdateModal({ state, onClose }: Props) {
   if (state.phase === 'idle') return null;
 
-  const canClose = state.phase !== 'downloading';
+  const canClose = state.phase !== 'downloading' && state.phase !== 'installing';
 
   return (
     <div style={overlay} onClick={canClose ? onClose : undefined}>
@@ -66,6 +70,7 @@ export function UpdateModal({ state, onClose }: Props) {
         {state.phase === 'up-to-date' && <UpToDateView onClose={onClose} />}
         {state.phase === 'available' && <AvailableView update={state.update} onClose={onClose} />}
         {state.phase === 'downloading' && <DownloadingView progress={state.progress} />}
+        {state.phase === 'installing' && <InstallingView />}
         {state.phase === 'error' && <ErrorView message={state.message} onClose={onClose} />}
       </div>
     </div>
@@ -106,6 +111,9 @@ function AvailableView({ update, onClose }: { update: Update; onClose: () => voi
   if (installState.phase === 'downloading') {
     return <DownloadingView progress={(installState as { phase: 'downloading'; progress: number }).progress} />;
   }
+  if (installState.phase === 'installing') {
+    return <InstallingView />;
+  }
   if (installState.phase === 'error') {
     return <ErrorView message={(installState as { phase: 'error'; message: string }).message} onClose={onClose} />;
   }
@@ -137,6 +145,16 @@ function DownloadingView({ progress }: { progress: number }) {
         <div style={{ ...progressBar, width: `${progress}%` }} />
       </div>
       <Subtitle style={{ marginTop: '0.5rem' }}>{progress}%</Subtitle>
+    </>
+  );
+}
+
+function InstallingView() {
+  return (
+    <>
+      <Title>{t('update.installing')}</Title>
+      <Subtitle>{t('update.installing_subtitle')}</Subtitle>
+      <Spinner />
     </>
   );
 }

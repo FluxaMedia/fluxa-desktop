@@ -704,6 +704,8 @@
   "update.download_failed": "Indirme basarisiz oldu.",
   "update.update_now": "SIMDI GUNCELLE",
   "update.skip": "ATLA",
+  "update.installing": "Guncelleme kuruluyor…",
+  "update.installing_subtitle": "Kurulum bitince Fluxa otomatik olarak yeniden baslayacak.",
   "profiles.new_profile": "Yeni Profil",
   "settings.subtitle_preview": "Altyazi onizleme",
   "auto.unknown": "Bilinmeyen",

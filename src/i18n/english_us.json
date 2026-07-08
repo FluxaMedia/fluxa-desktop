@@ -704,6 +704,8 @@
   "update.download_failed": "Download failed.",
   "update.update_now": "UPDATE NOW",
   "update.skip": "SKIP",
+  "update.installing": "Installing update…",
+  "update.installing_subtitle": "Fluxa will restart automatically when it's done.",
   "profiles.new_profile": "New Profile",
   "settings.subtitle_preview": "Subtitle preview",
   "auto.unknown": "Unknown",
