@@ -15,6 +15,7 @@ import { buildContinueWatching } from './libraryOps';
 import { storageRead, storageWrite } from './engine';
 import type { UserProfile } from './types';
 import { saveProfile } from './profiles';
+import { fetchPlannedResources } from './fetchPlanning';
 
 export type NuvioImportStep = 'addons' | 'library' | 'progress' | 'history' | 'collections' | 'settings';
 
@@ -168,11 +169,13 @@ export async function importNuvioProfileData(
 
   let addonList: NuvioAddon[] = [];
   let manifestIdByUrl = new Map<string, string>();
+  let addonDescriptors: Array<Record<string, unknown>> = [];
   try {
     const addons = await nuvioPullAddons(token, profileIdx);
     const fetched = await fetchAddonManifests(addons);
     addonList = fetched.addonList;
     manifestIdByUrl = fetched.manifestIdByUrl;
+    addonDescriptors = fetched.descriptors;
     await storageWrite(`addons_${suffix}`, fetched.descriptors);
     onStep?.('addons', true);
   } catch (err) {
@@ -228,22 +231,19 @@ export async function importNuvioProfileData(
       (e) => e.content_type === 'series' || !libraryByContentId.has(e.content_id)
     );
     const addonMetaMap = new Map<string, AddonMeta>();
-    if (needsAddonMeta.length > 0 && addonList.length > 0) {
-      const candidates = addonList.filter((a) => a.enabled).sort((a, b) => a.sort_order - b.sort_order);
+    if (needsAddonMeta.length > 0 && addonDescriptors.length > 0) {
       await Promise.allSettled(
         needsAddonMeta.map(async (e) => {
-          for (const addon of candidates) {
-            try {
-              const base = addon.url.replace(/\/manifest\.json$/, '');
-              const res = await platformFetch(`${base}/meta/${e.content_type}/${e.content_id}.json`);
-              if (!res.ok) continue;
-              const data = await res.json() as { meta?: AddonMeta };
-              if (data.meta?.name) {
-                addonMetaMap.set(e.content_id, data.meta);
-                break;
-              }
-            } catch {}
-          }
+          try {
+            const values = await fetchPlannedResources({
+              kind: 'metaDetail',
+              addons: addonDescriptors,
+              contentType: e.content_type,
+              id: e.content_id,
+            });
+            const meta = (values.find((value) => (value as { meta?: unknown }).meta) as { meta?: AddonMeta } | undefined)?.meta;
+            if (meta?.name) addonMetaMap.set(e.content_id, meta);
+          } catch {}
         })
       );
     }
