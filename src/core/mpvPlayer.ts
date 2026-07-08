@@ -157,6 +157,10 @@ export async function embeddedMpvHide(): Promise<void> {
   await invoke('player_hide');
 }
 
+export async function embeddedMpvSetCursorVisible(visible: boolean): Promise<void> {
+  await invoke('player_set_cursor_visible', { visible });
+}
+
 export async function embeddedMpvShowLoading(title?: string, episodeTitle?: string | null): Promise<void> {
   await invoke('player_show_loading', {
     title: title ?? 'Fluxa',

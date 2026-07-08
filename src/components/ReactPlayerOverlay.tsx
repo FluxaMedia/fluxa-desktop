@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { setSuppressWindowGeometrySave } from '../core/windowGeometry';
 import type { EmbeddedMpvStatus, TorrentStats } from '../core/mpvPlayer';
-import { embeddedMpvRenderFrame, playerGetPlaybackInfo, playerGetTrackOptions, playerTorrentStats } from '../core/mpvPlayer';
+import { embeddedMpvRenderFrame, embeddedMpvSetCursorVisible, playerGetPlaybackInfo, playerGetTrackOptions, playerTorrentStats } from '../core/mpvPlayer';
 import type { PlayerTrackOption } from '../core/mpvPlayer';
 import { VolumeBar } from './player/VolumeBar';
 import { NextEpCard } from './player/NextEpCard';
@@ -247,6 +247,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       setControlsVisible(true);
       if (overlayRef.current) overlayRef.current.classList.remove('fluxa-cursor-hidden');
       getCurrentWindow().setCursorVisible(true).catch(() => {});
+      embeddedMpvSetCursorVisible(true).catch(() => {});
     }
   }, []);
 
@@ -545,6 +546,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           setControlsVisible(false);
           if (overlayRef.current) overlayRef.current.classList.add('fluxa-cursor-hidden');
           getCurrentWindow().setCursorVisible(false).catch(() => {});
+          embeddedMpvSetCursorVisible(false).catch(() => {});
         }
       }
 
@@ -885,6 +887,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   useEffect(() => {
     return () => {
       getCurrentWindow().setCursorVisible(true).catch(() => {});
+      embeddedMpvSetCursorVisible(true).catch(() => {});
     };
   }, []);
 

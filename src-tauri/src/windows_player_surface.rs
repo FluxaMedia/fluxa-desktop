@@ -11,12 +11,12 @@
 
 use crate::windows_egl::{self, EglContext};
 use crate::DesktopState;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
-use windows_sys::Win32::Foundation::{FALSE, HWND, RECT};
+use windows_sys::Win32::Foundation::{FALSE, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Dwm::{
     DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND,
 };
@@ -25,11 +25,26 @@ use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetDC};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::ColorSystem::GetICMProfileW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, PeekMessageW,
-    RegisterClassExW, SetWindowPos, ShowWindow, TranslateMessage, CS_HREDRAW, CS_OWNDC, CS_VREDRAW,
-    HWND_BOTTOM, MSG, PM_REMOVE, SWP_NOACTIVATE, SW_HIDE, SW_SHOW, WNDCLASSEXW, WS_CHILD,
-    WS_CLIPCHILDREN,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, LoadCursorW,
+    PeekMessageW, RegisterClassExW, SetCursor, SetWindowPos, ShowWindow, TranslateMessage,
+    CS_HREDRAW, CS_OWNDC, CS_VREDRAW, HWND_BOTTOM, IDC_ARROW, MSG, PM_REMOVE, SWP_NOACTIVATE,
+    SW_HIDE, SW_SHOW, WM_SETCURSOR, WNDCLASSEXW, WS_CHILD, WS_CLIPCHILDREN,
 };
+
+static CURSOR_HIDDEN: AtomicBool = AtomicBool::new(false);
+
+unsafe extern "system" fn player_wnd_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if msg == WM_SETCURSOR && CURSOR_HIDDEN.load(Ordering::Acquire) {
+        SetCursor(0);
+        return 1;
+    }
+    DefWindowProcW(hwnd, msg, wparam, lparam)
+}
 
 unsafe fn set_window_blur_behind(hwnd: HWND, enable: bool) {
     let region = if enable {
@@ -118,6 +133,7 @@ enum SurfaceCommand {
         total_duration: Option<u64>,
     },
     Hide,
+    SetCursorVisible(bool),
     ShowLoading {
         title: String,
         episode_title: Option<String>,
@@ -156,6 +172,9 @@ impl NativePlayerSurface {
     }
     pub fn hide(&self) {
         let _ = self.sender.send(SurfaceCommand::Hide);
+    }
+    pub fn set_cursor_visible(&self, visible: bool) {
+        let _ = self.sender.send(SurfaceCommand::SetCursorVisible(visible));
     }
     pub fn show_loading(&self, title: String, episode_title: Option<String>) {
         let _ = self.sender.send(SurfaceCommand::ShowLoading {
@@ -270,7 +289,7 @@ fn spawn_install_thread(
             let mut wc: WNDCLASSEXW = unsafe { std::mem::zeroed() };
             wc.cbSize = std::mem::size_of::<WNDCLASSEXW>() as u32;
             wc.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
-            wc.lpfnWndProc = Some(DefWindowProcW);
+            wc.lpfnWndProc = Some(player_wnd_proc);
             wc.hInstance = unsafe { GetModuleHandleW(std::ptr::null()) };
             wc.lpszClassName = class_name.as_ptr();
             unsafe { RegisterClassExW(&wc) };
@@ -461,6 +480,16 @@ fn spawn_install_thread(
                     SurfaceCommand::SetArtwork { title, .. } => {
                         let _ =
                             app.emit("native-player-title", serde_json::json!({ "title": title }));
+                    }
+                    SurfaceCommand::SetCursorVisible(cursor_visible) => {
+                        CURSOR_HIDDEN.store(!cursor_visible, Ordering::Release);
+                        unsafe {
+                            SetCursor(if cursor_visible {
+                                LoadCursorW(0, IDC_ARROW)
+                            } else {
+                                0
+                            });
+                        }
                     }
                 }
             }

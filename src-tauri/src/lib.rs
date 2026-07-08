@@ -641,6 +641,7 @@ pub fn run() {
             player_show_loading,
             player_hide,
             player_set_title,
+            player_set_cursor_visible,
             player_set_loading_artwork,
             player_prefetch_artwork,
             enqueue_offline_download,
