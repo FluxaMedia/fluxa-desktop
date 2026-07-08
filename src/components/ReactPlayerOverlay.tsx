@@ -1326,7 +1326,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           ref={castBtnRef}
           onClick={(e) => { e.stopPropagation(); void openCastPopover(); }}
           className="fluxa-ibtn"
-          style={{ ...styles.iconBtn, color: activeCastDeviceId ? 'var(--primary-accent-color)' : undefined }}
+          style={{ ...styles.iconBtn, color: '#fff' }}
           title={t('player.cast')}
         >
           <Cast size={20} />
@@ -1334,7 +1334,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         <button
           onClick={(e) => { e.stopPropagation(); resetActivity(); void toggleMiniPlayer(); }}
           className="fluxa-ibtn"
-          style={{ ...styles.iconBtn, color: miniPlayerActive ? 'var(--primary-accent-color)' : undefined }}
+          style={{ ...styles.iconBtn, color: '#fff' }}
           title={t('player.picture_in_picture')}
         >
           <PictureInPicture2 size={20} />
