@@ -42,6 +42,12 @@ import { usePlayer } from './hooks/usePlayer';
 import { useAppInit } from './hooks/useAppInit';
 import type { AppState, LibraryItem, Meta, Stream, Video, UserProfile } from './core/types';
 
+function computeAutoUiScale(): number {
+  const width = window.screen.width || 1920;
+  const raw = Math.round((width / 1920) * 100 / 5) * 5;
+  return Math.min(150, Math.max(75, raw));
+}
+
 function accentForegroundColor(hex: string): string {
   const c = hex.replace('#', '');
   const r = parseInt(c.substring(0, 2), 16) / 255;
@@ -376,6 +382,20 @@ export default function App() {
     const scale = (Number(uiScale) || 100) / 100;
     document.documentElement.style.fontSize = `${scale * 16}px`;
   }, [uiScale]);
+  useEffect(() => {
+    void (async () => {
+      const applied = await storageRead<boolean>('ui_scale_auto_applied').catch(() => false);
+      if (applied) return;
+      const current = (await storageRead<Record<string, unknown>>('prefs').catch(() => null)) ?? {};
+      if (typeof current.uiScale !== 'string') {
+        const updated = { ...current, uiScale: String(computeAutoUiScale()) };
+        await storageWrite('prefs', updated);
+        storedPrefsRef.current = updated;
+        updateState({ settings: { values: updated } });
+      }
+      await storageWrite('ui_scale_auto_applied', true);
+    })();
+  }, [updateState]);
   const accentColor = prefString(prefs, 'accentColorArgb', '#FFFFFF');
   const rootStyle = React.useMemo(() => ({
     ...appStyles.root,
