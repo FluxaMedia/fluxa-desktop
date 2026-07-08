@@ -154,6 +154,10 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     loadAddons().then((a) => setInstalledAddons(a));
   }, []);
 
+  const reloadInstalledAddons = async () => {
+    setInstalledAddons(await loadAddons());
+  };
+
   useEffect(() => {
     const url = initialAddonUrl?.trim();
     if (!url) return;
@@ -354,6 +358,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
             onProfileUpdated={onProfileUpdated}
             onSwitchProfile={onSwitchProfile}
             onDispatch={onDispatch}
+            onNuvioSyncComplete={reloadInstalledAddons}
           />
         )}
         {tab === 'general' && <GeneralSection prefs={prefs} setPref={setPref} />}

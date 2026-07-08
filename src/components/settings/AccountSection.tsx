@@ -176,13 +176,15 @@ export function AccountSection({
   onProfileUpdated,
   onSwitchProfile,
   onDispatch,
+  onNuvioSyncComplete,
 }: {
   prefs: Prefs;
   setPref: <K extends keyof Prefs>(k: K, v: Prefs[K]) => void;
   activeProfile: UserProfile | null;
   onProfileUpdated: (profile: UserProfile) => void;
   onSwitchProfile: () => void;
-  onDispatch: (actionJson: string) => void;
+  onDispatch: (actionJson: string) => void | Promise<void>;
+  onNuvioSyncComplete?: () => void | Promise<void>;
 }) {
   const [traktBusy, setTraktBusy] = useState(false);
   const [traktError, setTraktError] = useState<string | null>(null);
@@ -593,14 +595,16 @@ export function AccountSection({
         const meta: SyncMeta = { lastSyncAt: Date.now(), continueWatchingCount: 0, watchlistCount: 0 };
         setNuvioSyncMeta(meta);
         await storageWrite('nuvio_sync_meta', meta);
+        await onNuvioSyncComplete?.();
+        await onDispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false, profile: activeProfile }));
       }
     } catch (error) {
       setNuvioError(error instanceof Error ? error.message : String(error));
     } finally {
       setNuvioBusy(false);
     }
-    onDispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
-    onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: prefs.language }));
+    await onDispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
+    await onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: prefs.language }));
   };
 
   const handleStremioSyncNow = async () => {
