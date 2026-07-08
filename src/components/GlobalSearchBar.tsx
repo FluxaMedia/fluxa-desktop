@@ -21,6 +21,7 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
   const [expanded, setExpanded] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -62,6 +63,7 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
   }, [state.search.categories, state.search.query, inputValue]);
 
   const suggestions = networkSuggestions.length > 0 ? networkSuggestions : localSuggestions;
+  const showDropdown = focused && (recentSearches.length > 0 || suggestions.length > 0);
 
   const open = () => {
     setExpanded(true);
@@ -83,17 +85,22 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
     inputRef.current?.blur();
   };
 
+  const clearOrClose = () => {
+    if (inputValue) {
+      setInputValue('');
+      onSearch('');
+      inputRef.current?.focus();
+    } else {
+      close();
+    }
+  };
+
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && inputValue.trim().length >= 1) {
       submit(inputValue);
     }
     if (e.key === 'Escape') {
-      if (inputValue) {
-        setInputValue('');
-        onSearch('');
-      } else {
-        close();
-      }
+      clearOrClose();
     }
   };
 
@@ -149,8 +156,6 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
     );
   }
 
-  const showDropdown = recentSearches.length > 0 || suggestions.length > 0;
-
   return (
     <div style={{ position: 'relative', width: '22.5rem', pointerEvents: 'auto' }}>
       <div
@@ -175,7 +180,8 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
           placeholder={t('search.placeholder_expanded')}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKey}
-          onBlur={() => { if (!inputValue) close(); }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => { setFocused(false); if (!inputValue) close(); }}
           style={{
             flex: 1,
             background: 'transparent',
@@ -188,7 +194,7 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
         />
         <button
           style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}
-          onMouseDown={(e) => { e.preventDefault(); close(); }}
+          onMouseDown={(e) => { e.preventDefault(); clearOrClose(); }}
         >
           <X size={17} />
         </button>
