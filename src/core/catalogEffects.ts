@@ -10,8 +10,20 @@ export async function fetchCatalogPage(payload: Record<string, unknown>): Promis
   return { metas };
 }
 
+const searchResultsCache = new Map<string, unknown>();
+let searchAbortController: AbortController | null = null;
+
 export async function runSearch(payload: Record<string, unknown>): Promise<unknown> {
   const query = payload.query as string;
+  const language = payload.language as string | undefined;
+  const cacheKey = `${language ?? ''}|${query}`;
+  const cached = searchResultsCache.get(cacheKey);
+  if (cached) return cached;
+
+  searchAbortController?.abort();
+  const abortController = new AbortController();
+  searchAbortController = abortController;
+
   const addons = await loadAddons();
   const plan = await coreResourceFetchPlan({ kind: 'search', query, addons });
   const categories: Array<{
@@ -33,6 +45,8 @@ export async function runSearch(payload: Record<string, unknown>): Promise<unkno
       await resourceForPlannedRequest(request.kind, undefined, request.resource),
       request.kind,
       request.addonName,
+      undefined,
+      abortController.signal,
     );
     const items = ((parsed?.items as unknown[] | undefined) ?? []);
     if (!items.length) return;
@@ -49,7 +63,9 @@ export async function runSearch(payload: Record<string, unknown>): Promise<unkno
   }));
 
   const grouping = await coreSearchResultGrouping({ query, results });
-  return { results, categories, grouping };
+  const value = { results, categories, grouping };
+  if (searchAbortController === abortController) searchResultsCache.set(cacheKey, value);
+  return value;
 }
 
 let _discoverPartialHandler: ((items: unknown[]) => void) | null = null;
@@ -58,7 +74,13 @@ export function setDiscoverPartialHandler(fn: ((items: unknown[]) => void) | nul
   _discoverPartialHandler = fn;
 }
 
+let discoverAbortController: AbortController | null = null;
+
 export async function runDiscover(payload: Record<string, unknown>): Promise<unknown> {
+  discoverAbortController?.abort();
+  const abortController = new AbortController();
+  discoverAbortController = abortController;
+
   const contentType = payload.contentType as string;
   const filters = payload.filters as Record<string, string> | undefined;
   const genre = (payload.genre as string | null | undefined) ?? filters?.genre;
@@ -67,9 +89,11 @@ export async function runDiscover(payload: Record<string, unknown>): Promise<unk
   const values = await fetchPlannedResources(
     { kind: 'discover', contentType, genre, addons },
     (partial) => {
+      if (discoverAbortController !== abortController) return;
       const items = (partial as { items?: unknown[] })?.items ?? [];
       if (items.length > 0) _discoverPartialHandler?.(items);
     },
+    abortController.signal,
   );
   const results = values.flatMap((value) => ((value as { items?: unknown[] })?.items ?? []));
   // Dedup before sending to Rust, not just after: with enough addons installed, raw

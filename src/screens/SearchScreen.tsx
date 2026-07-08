@@ -28,23 +28,33 @@ const GENRE_CHIPS = [
 
 const NAV_RAIL_WIDTH = 6.5;
 
+const searchResultsCache = new Map<string, HomeCategory[]>();
+
 export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch, onNavigateDetail, query, onQueryChange, onBack }: Props) {
   const [typeFilter, setTypeFilter] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const search = state.search;
   const posterPrefs = posterPrefsFromState(state, 0.85);
+  const trimmedQuery = query.trim();
 
   useEffect(() => {
     loadRecentSearches().then(setRecentSearches);
   }, []);
 
   useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed.length >= 2) {
-      setRecentSearches((current) => addRecentSearch(trimmed, current));
-      onDispatch(JSON.stringify({ type: 'searchRequested', query: trimmed, language: getLanguage() }));
-    }
-  }, [query, onDispatch]);
+    if (trimmedQuery.length < 2) return;
+    setRecentSearches((current) => addRecentSearch(trimmedQuery, current));
+    if (searchResultsCache.has(trimmedQuery)) return;
+    onDispatch(JSON.stringify({ type: 'searchRequested', query: trimmedQuery, language: getLanguage() }));
+  }, [trimmedQuery, onDispatch]);
+
+  const resultsMatchCurrentQuery = search.query === trimmedQuery;
+  if (resultsMatchCurrentQuery && (search.categories?.length ?? 0) > 0) {
+    searchResultsCache.set(trimmedQuery, search.categories as HomeCategory[]);
+  }
+  const cachedCategories = searchResultsCache.get(trimmedQuery) ?? null;
+  const rawCategories = resultsMatchCurrentQuery ? (search.categories ?? cachedCategories ?? []) : (cachedCategories ?? []);
+  const isLoading = search.isLoading && !cachedCategories;
 
   const handleGenreClick = (genreKey: string) => {
     onQueryChange(t(genreKey));
@@ -64,7 +74,7 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
 
   const categories = useMemo(
     () =>
-      ((search.categories ?? []) as HomeCategory[])
+      rawCategories
         .map((category) => ({
           ...category,
           items: typeFilter
@@ -72,7 +82,7 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
             : category.items,
         }))
         .filter((category) => category.items.length > 0),
-    [search.categories, typeFilter],
+    [rawCategories, typeFilter],
   );
   const resultCount = useMemo(
     () => categories.reduce((sum, category) => sum + category.items.length, 0),
@@ -90,7 +100,7 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
         <div style={styles.header}>
           <p style={styles.eyebrow}>{t('auto.search_results')}</p>
           <h1 style={styles.title}>{query.trim() ? query.trim() : t('auto.search')}</h1>
-          {query.trim().length >= 2 && !search.isLoading && (
+          {query.trim().length >= 2 && !isLoading && (
             <p style={styles.subtitle}>{t('search.results_across_catalogs', resultCount, categories.length)}</p>
           )}
         </div>
@@ -136,24 +146,27 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
           </>
         )}
 
-        {search.isLoading && (
+        {isLoading && (
           <LoadingShelves />
         )}
 
-        {!search.isLoading && search.error && query.trim().length >= 2 && (
+        {!isLoading && search.error && query.trim().length >= 2 && (
           <div style={styles.emptyState}>
             <p style={styles.emptyTitle}>{t('common.error')}</p>
             <p style={styles.emptyHint}>{search.error}</p>
             <button
               style={styles.retryBtn}
-              onClick={() => onDispatch(JSON.stringify({ type: 'searchRequested', query: query.trim(), language: getLanguage() }))}
+              onClick={() => {
+                searchResultsCache.delete(trimmedQuery);
+                onDispatch(JSON.stringify({ type: 'searchRequested', query: trimmedQuery, language: getLanguage() }));
+              }}
             >
               {t('common.retry')}
             </button>
           </div>
         )}
 
-        {!search.isLoading && !search.error && query.length >= 2 && resultCount === 0 && (
+        {!isLoading && !search.error && query.length >= 2 && resultCount === 0 && (
           <div style={styles.emptyState}>
             <p style={styles.emptyTitle}>{t('format.no_results_for', query)}</p>
             <p style={styles.emptyHint}>{t('search.try_shorter_or_genre')}</p>
@@ -165,7 +178,7 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
           </div>
         )}
 
-        {!search.isLoading && !search.error && categories.length > 0 && (
+        {!isLoading && !search.error && categories.length > 0 && (
           <div style={styles.categoryList}>
             {categories.map((category) => (
               <SearchCategoryRow
