@@ -9,7 +9,7 @@ import { isTraktConnected, profileColor, saveProfile } from '../../core/profiles
 import { AvatarPreview } from '../../screens/ProfileForm';
 import { syncExternalIntegrationNow } from '../../core/effectRunner';
 import { refreshAnimeTrackingProfile } from '../../core/animeExternalSync';
-import { ChoiceTile, SettingsSection, SyncServicePopover, SyncServiceRow, cwRankingOptions, cwSourceOfTruthOptions } from './SettingsUI';
+import { ChoiceTile, SettingsSection, SyncServicePopover, SyncServiceRow, cwRankingOptions, cwSourceOfTruthOptions, similarTitlesSourceOptions } from './SettingsUI';
 import type { Prefs, SyncMeta, TraktTokenResponse } from './settingsTypes';
 import { nuvioAuthErrorKind, nuvioSignIn } from '../../core/nuvioApi';
 import { stremioLogin, stremioLoginWithAuthKey, stremioLogout } from '../../core/stremioApi';
@@ -930,6 +930,13 @@ export function AccountSection({
           options={cwRankingOptions()}
           selected={prefs.syncCwRanking}
           onSelect={(v) => setPref('syncCwRanking', v)}
+        />
+        <ChoiceTile
+          title={t('settings.similar_titles_source')}
+          subtitle={t('settings.similar_titles_source_desc')}
+          options={similarTitlesSourceOptions()}
+          selected={prefs.similarTitlesSource}
+          onSelect={(v) => setPref('similarTitlesSource', v)}
         />
       </SettingsSection>
     </>

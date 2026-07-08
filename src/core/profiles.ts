@@ -83,3 +83,7 @@ export function isTraktConnected(profile: UserProfile | null | undefined): boole
   if (profile.traktTokenExpiresAt && Date.now() / 1000 > profile.traktTokenExpiresAt) return false;
   return true;
 }
+
+export function isSimklConnected(profile: UserProfile | null | undefined): boolean {
+  return !!profile?.simklAccessToken;
+}

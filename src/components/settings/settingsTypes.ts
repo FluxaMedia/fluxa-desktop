@@ -107,6 +107,7 @@ export interface Prefs {
   diagnosticMode: boolean;
   syncCwSourceOfTruth: string;
   syncCwRanking: string;
+  similarTitlesSource: string;
 }
 
 export interface TraktTokenResponse {
@@ -229,4 +230,5 @@ export const DEFAULT_PREFS: Prefs = {
   fanartApiKey: '',
   syncCwSourceOfTruth: 'most_recent',
   syncCwRanking: 'last_watched',
+  similarTitlesSource: 'auto',
 };

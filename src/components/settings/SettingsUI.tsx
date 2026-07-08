@@ -117,6 +117,15 @@ export function cwRankingOptions() {
   ];
 }
 
+export function similarTitlesSourceOptions() {
+  return [
+    { value: 'auto', label: t('settings.similar_titles_source_auto') },
+    { value: 'trakt', label: t('settings.similar_titles_source_trakt') },
+    { value: 'simkl', label: t('settings.similar_titles_source_simkl') },
+    { value: 'tmdb', label: t('settings.similar_titles_source_tmdb') },
+  ];
+}
+
 export function isFeedEnabled(selected: string[], key: string): boolean {
   return selected.length === 0 || selected.includes(key);
 }

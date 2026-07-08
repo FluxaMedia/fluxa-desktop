@@ -5,9 +5,11 @@ import {
   coreTmdbVideoToTrailer,
   dispatchAction,
 } from './engine';
-import { loadAddons, loadPrefs } from './libraryOps';
+import { loadAddons, loadActiveProfile, loadPrefs } from './libraryOps';
 import { fetchPlannedResources } from './fetchPlanning';
 import { tryFetchJson } from './httpClient';
+import { fetchTraktSimilarItems, fetchSimklSimilarItems } from './similarTitles';
+import { isTraktConnected, isSimklConnected } from './profiles';
 import type { AppState, Video } from './types';
 import { DEFAULT_APP_PREFS, prefBool, prefString } from './appPrefs';
 
@@ -267,6 +269,52 @@ async function fetchFanartArtwork(
   return { hdLogo, hdBackdrop };
 }
 
+async function fetchSimilarItems({
+  contentType,
+  id,
+  language,
+  apiKey,
+  source,
+  recommendationsEnabled,
+  similarEnabled,
+}: TmdbRequest & { source: string; recommendationsEnabled: boolean; similarEnabled: boolean }): Promise<unknown[]> {
+  const tmdbFallback = () => fetchTmdbSimilarItems({
+    contentType,
+    id,
+    language,
+    apiKey,
+    recommendationsEnabled,
+    similarEnabled,
+  });
+
+  if (source === 'tmdb') return tmdbFallback();
+
+  const profile = await loadActiveProfile();
+  const traktAvailable = source !== 'simkl' && isTraktConnected(profile);
+  const simklAvailable = source !== 'trakt' && isSimklConnected(profile);
+
+  if (source === 'trakt' && !traktAvailable) return tmdbFallback();
+  if (source === 'simkl' && !simklAvailable) return tmdbFallback();
+
+  if (traktAvailable) {
+    const items = await fetchTraktSimilarItems({ id, contentType });
+    if (items.length) return items;
+    if (simklAvailable) {
+      const simklItems = await fetchSimklSimilarItems({ id, contentType });
+      if (simklItems.length) return simklItems;
+    }
+    return tmdbFallback();
+  }
+
+  if (simklAvailable) {
+    const items = await fetchSimklSimilarItems({ id, contentType });
+    if (items.length) return items;
+    return tmdbFallback();
+  }
+
+  return tmdbFallback();
+}
+
 export async function fetchDetailSecondary(payload: Record<string, unknown>): Promise<unknown> {
   const prefs = { ...DEFAULT_APP_PREFS, ...(await loadPrefs()) };
   const contentType = String(payload.contentType ?? payload.type ?? 'movie');
@@ -277,14 +325,17 @@ export async function fetchDetailSecondary(payload: Record<string, unknown>): Pr
   const fanartApiKey = prefString(prefs, 'fanartApiKey');
 
   const [similarItems, trailers, omdbRatings, fanartArtwork] = await Promise.all([
-    fetchTmdbSimilarItems({
-      contentType,
-      id,
-      language,
-      apiKey,
-      recommendationsEnabled: prefBool(prefs, 'tmdbRecommendationsEnabled', true),
-      similarEnabled: prefBool(prefs, 'tmdbSimilarResultsEnabled', true),
-    }),
+    (prefBool(prefs, 'tmdbRecommendationsEnabled', true) || prefBool(prefs, 'tmdbSimilarResultsEnabled', true))
+      ? fetchSimilarItems({
+          contentType,
+          id,
+          language,
+          apiKey,
+          source: prefString(prefs, 'similarTitlesSource', 'auto'),
+          recommendationsEnabled: prefBool(prefs, 'tmdbRecommendationsEnabled', true),
+          similarEnabled: prefBool(prefs, 'tmdbSimilarResultsEnabled', true),
+        })
+      : Promise.resolve([]),
     prefBool(prefs, 'tmdbTrailersEnabled', true)
       ? fetchTmdbTrailers({ contentType, id, language, apiKey })
       : Promise.resolve([]),
