@@ -67,7 +67,6 @@ export interface Prefs {
   playerBufferCacheMb: string;
   playerForwardBufferSeconds: string;
   playerBackBufferSeconds: string;
-  audioDecoderMode: string;
   autoSkipIntro: boolean;
   useIntroDb: boolean;
   useAniSkip: boolean;
@@ -86,7 +85,6 @@ export interface Prefs {
   subtitleOutlineColor: string;
   subtitleOutlineOpacity: string;
   subtitleFont: string;
-  subtitleDelay: string;
   downloadSourceSelectionMode: string;
   downloadSourceRegexPattern: string;
   downloadSubtitleLanguage: string;
@@ -188,7 +186,6 @@ export const DEFAULT_PREFS: Prefs = {
   playerBufferCacheMb: '100',
   playerForwardBufferSeconds: '120',
   playerBackBufferSeconds: '30',
-  audioDecoderMode: 'hw_prefer',
   autoSkipIntro: false,
   useIntroDb: true,
   useAniSkip: true,
@@ -207,7 +204,6 @@ export const DEFAULT_PREFS: Prefs = {
   subtitleOutlineColor: '#000000',
   subtitleOutlineOpacity: '1.0',
   subtitleFont: 'default',
-  subtitleDelay: '0.0',
   downloadSourceSelectionMode: 'first',
   downloadSourceRegexPattern: '',
   downloadSubtitleLanguage: 'preferred',

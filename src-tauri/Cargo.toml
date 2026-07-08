@@ -43,6 +43,7 @@ tauri-plugin-process = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"
 discord-rich-presence = "1"
+ttf-parser = "0.25"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"

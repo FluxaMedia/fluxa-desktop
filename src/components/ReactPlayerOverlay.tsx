@@ -41,6 +41,7 @@ import type { Video } from '../core/types';
 import { TrackPopover } from './player/TrackPopover';
 import { CastPopover } from './player/CastPopover';
 import { TorrentStatsPopover } from './player/TorrentStatsPopover';
+import { Popover } from './ui/Popover';
 import { setIdleDiscordPresence, updateDiscordPresence } from '../core/discordPresence';
 import { castDisconnect, castPlay, castPause, castSeek, castSetVolume, discoverCastDevices, proxyMediaUrl, resolveCastMediaUrl, startCasting } from '../core/cast';
 import type { CastDevice } from '../core/cast';
@@ -207,7 +208,11 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [seekbarHovered, setSeekbarHovered] = useState(false);
   const softwareCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const subTrackBtnRef = useRef<HTMLButtonElement>(null);
+  const audioTrackBtnRef = useRef<HTMLButtonElement>(null);
+  const speedBtnRef = useRef<HTMLButtonElement>(null);
+  const castBtnRef = useRef<HTMLButtonElement>(null);
+  const torrentBtnRef = useRef<HTMLButtonElement>(null);
   const segFillRefs = useRef<(HTMLDivElement | null)[]>([]);
   const segBufRefs = useRef<(HTMLDivElement | null)[]>([]);
   const skipFillRef = useRef<HTMLDivElement>(null);
@@ -883,20 +888,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     };
   }, []);
 
-  useEffect(() => {
-    if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    const onMouseDown = (e: MouseEvent) => {
-      if (contextMenuRef.current?.contains(e.target as Node)) return;
-      close();
-    };
-    window.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('blur', close);
-    return () => {
-      window.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('blur', close);
-    };
-  }, [contextMenu]);
 
   useEffect(() => {
     const onMove = () => resetActivity();
@@ -981,7 +972,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     void onDispatch?.(JSON.stringify({ type: 'settingsChanged', key, value }));
   }, [onDispatch]);
 
-  const [subtitleDelay, setSubtitleDelayState] = useState(() => Number(prefs?.subtitleDelay ?? 0) || 0);
+  const [subtitleDelay, setSubtitleDelayState] = useState(0);
   const [subtitleFont, setSubtitleFontState] = useState(() => String(prefs?.subtitleFont ?? 'default'));
   const [subtitleSize, setSubtitleSizeState] = useState(() => Number(prefs?.subtitleSize ?? 100) || 100);
   const [subtitleColor, setSubtitleColorState] = useState(() => String(prefs?.subtitleColor ?? '#FFFFFF'));
@@ -990,16 +981,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     setSubtitleDelayState((prev) => {
       const next = Math.round((prev + delta) * 10) / 10;
       sendCmd(`set sub-delay ${next.toFixed(3)}`);
-      setSubtitlePref('subtitleDelay', next.toFixed(1));
       return next;
     });
-  }, [setSubtitlePref]);
+  }, []);
 
   const resetSubtitleDelay = useCallback(() => {
     sendCmd('set sub-delay 0.000');
     setSubtitleDelayState(0);
-    setSubtitlePref('subtitleDelay', '0.0');
-  }, [setSubtitlePref]);
+  }, []);
 
   const chooseSubtitleFont = useCallback((font: string) => {
     sendCmd(`set sub-font "${font === 'default' ? 'sans-serif' : font}"`);
@@ -1230,8 +1219,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         />
       )}
 
-      <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '8.75rem', background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '14.375rem', background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.5) 45%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '8.75rem', background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)', zIndex: 1, opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.4s ease', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '14.375rem', background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.5) 45%, transparent 100%)', zIndex: 1, opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.4s ease', pointerEvents: 'none' }} />
 
       {playbackError && (
         <div
@@ -1331,6 +1320,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           </button>
         )}
         <button
+          ref={castBtnRef}
           onClick={(e) => { e.stopPropagation(); void openCastPopover(); }}
           className="fluxa-ibtn"
           style={{ ...styles.iconBtn, color: activeCastDeviceId ? 'var(--primary-accent-color)' : undefined }}
@@ -1409,7 +1399,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           audioTracks={audioTracks}
           subTracks={subTracks}
           playbackSpeed={playbackSpeed}
-          showEpisodePanel={showEpisodePanel}
+          anchorRef={trackPopover === 'audio' ? audioTrackBtnRef : trackPopover === 'sub' ? subTrackBtnRef : speedBtnRef}
+          onClose={() => setTrackPopover(null)}
           onSetSpeed={setSpeed}
           onSelectTrack={selectTrack}
           onDisableSubs={disableSubs}
@@ -1430,14 +1421,15 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           devices={castDevices}
           discovering={castDiscovering}
           activeDeviceId={activeCastDeviceId}
-          showEpisodePanel={showEpisodePanel}
+          anchorRef={castBtnRef}
+          onClose={() => setCastPopoverOpen(false)}
           onSelectDevice={(device) => void selectCastDevice(device)}
           onDisconnect={disconnectCast}
         />
       )}
 
       {showTorrentPopover && (
-        <TorrentStatsPopover stats={torrentStatsSnap} showEpisodePanel={showEpisodePanel} />
+        <TorrentStatsPopover stats={torrentStatsSnap} anchorRef={torrentBtnRef} onClose={() => setShowTorrentPopover(false)} />
       )}
 
       {showShortcutsHelp && (
@@ -1647,25 +1639,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       )}
 
       {contextMenu && (
-        <div
-          ref={contextMenuRef}
-          style={{
-            position: 'fixed',
-            top: contextMenu.y,
-            left: contextMenu.x,
-            background: 'rgba(18,22,30,0.97)',
-            backdropFilter: 'blur(1rem)',
-            border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: '0.625rem',
-            padding: '0.375rem 0',
-            minWidth: '11.25rem',
-            zIndex: 20,
-            boxShadow: '0 0.5rem 2rem rgba(0,0,0,0.6)',
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-        >
+        <Popover open onClose={() => setContextMenu(null)} point={contextMenu} width="11.25rem">
           <button
+            className="ui-popover-row"
             onClick={() => { cycleAbLoop(); setContextMenu(null); }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: abLoopStage !== 'none' ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
@@ -1673,6 +1649,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             {abLoopStage === 'none' ? t('player.ab_loop') : abLoopStage === 'a' ? t('player.ab_loop_a_set') : t('player.ab_loop_active')}
           </button>
           <button
+            className="ui-popover-row"
             onClick={() => { void copyTimestamp(); setContextMenu(null); }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
@@ -1680,6 +1657,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             {t('player.copy_timestamp')}
           </button>
           <button
+            className="ui-popover-row"
             onClick={() => { setShowStats((s) => !s); setContextMenu(null); }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: showStats ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
@@ -1687,6 +1665,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             {t('player.stats')}
           </button>
           <button
+            className="ui-popover-row"
             onClick={() => { setShowShortcutsHelp((s) => !s); setContextMenu(null); }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
@@ -1694,6 +1673,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             {t('player.shortcuts_help')}
           </button>
           <button
+            className="ui-popover-row"
             onClick={() => { void openTrackPopover('audio'); setContextMenu(null); }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
@@ -1701,13 +1681,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             {t('player.track_info')}
           </button>
           <button
+            className="ui-popover-row"
             onClick={() => { void takeScreenshot(); setContextMenu(null); }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
             <Camera size={15} />
             {t('player.screenshot')}
           </button>
-        </div>
+        </Popover>
       )}
 
       <div
@@ -1804,7 +1785,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             <button onClick={(e) => { e.stopPropagation(); resetActivity(); setMuted((prev) => !prev); sendCmd('cycle mute'); }} className="fluxa-ibtn" style={styles.iconBtn} title={muted ? t('player.unmute') : t('player.mute')}>
               <IconVolume muted={muted} level={volumeLevel} />
             </button>
-            <div style={{ position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)', opacity: showVolumeSlider ? 1 : 0, pointerEvents: showVolumeSlider ? 'auto' : 'none', transition: 'opacity 0.18s ease', display: 'flex', alignItems: 'center', paddingLeft: '0.25rem', paddingRight: '0.5rem' }}>
+            <div style={{ width: showVolumeSlider ? '5.75rem' : 0, opacity: showVolumeSlider ? 1 : 0, pointerEvents: showVolumeSlider ? 'auto' : 'none', transition: 'width 0.18s ease, opacity 0.18s ease', overflow: 'hidden', display: 'flex', alignItems: 'center', paddingLeft: showVolumeSlider ? '0.25rem' : 0 }}>
               <VolumeBar
                 value={muted ? 0 : volumeLevel}
                 max={130}
@@ -1828,6 +1809,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
           {isTorrentStream && (
             <button
+              ref={torrentBtnRef}
               onClick={(e) => { e.stopPropagation(); resetActivity(); setShowTorrentPopover((prev) => !prev); }}
               className="fluxa-ibtn"
               style={{ ...styles.iconBtn, color: showTorrentPopover ? 'var(--primary-accent-color)' : '#fff' }}
@@ -1857,13 +1839,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
               <GalleryVerticalEnd size={22} />
             </button>
           )}
-          <button onClick={(e) => { e.stopPropagation(); void openTrackPopover('sub'); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.subtitles')}>
+          <button ref={subTrackBtnRef} onClick={(e) => { e.stopPropagation(); void openTrackPopover('sub'); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.subtitles')}>
             <Captions size={22} />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); void openTrackPopover('audio'); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.audio')}>
+          <button ref={audioTrackBtnRef} onClick={(e) => { e.stopPropagation(); void openTrackPopover('audio'); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.audio')}>
             <AudioLines size={22} />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); void openTrackPopover('speed'); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.speed_label', playbackSpeed === 1 ? t('player.normal') : `${playbackSpeed}×`)}>
+          <button ref={speedBtnRef} onClick={(e) => { e.stopPropagation(); void openTrackPopover('speed'); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.speed_label', playbackSpeed === 1 ? t('player.normal') : `${playbackSpeed}×`)}>
             <Gauge size={22} />
           </button>
           <button onClick={(e) => { e.stopPropagation(); resetActivity(); void toggleFullscreen(); }} className="fluxa-ibtn" style={styles.iconBtn} title={t('player.fullscreen')}>

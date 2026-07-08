@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, type RefObject } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 import {
   ArrowLeft,
@@ -14,6 +14,7 @@ import {
 import { t } from '../../i18n';
 import { styles, FONT } from './settingsStyles';
 import type { SyncMeta } from './settingsTypes';
+import { Popover } from '../ui/Popover';
 
 export function AccountIcon() {
   return <User size={22} />;
@@ -74,7 +75,7 @@ export function langOptions() {
   ];
 }
 
-export function subtitleFontOptions() {
+export function subtitleFontOptions(customFontFamilies: string[] = []) {
   return [
     { value: 'default', label: t('settings.subtitle_font_default') },
     { value: 'Arial', label: 'Arial' },
@@ -85,6 +86,7 @@ export function subtitleFontOptions() {
     { value: 'Times New Roman', label: 'Times New Roman' },
     { value: 'Courier New', label: 'Courier New' },
     { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+    ...customFontFamilies.map((family) => ({ value: family, label: family })),
   ];
 }
 
@@ -433,21 +435,13 @@ export function Dropdown({
   onSelect: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const selectedLabel = options.find((opt) => opt.value === selected)?.label ?? selected;
 
-  useEffect(() => {
-    if (!open) return;
-    const handlePointer = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handlePointer);
-    return () => document.removeEventListener('mousedown', handlePointer);
-  }, [open]);
-
   return (
-    <div ref={ref} style={{ ...styles.dropdownWrap, zIndex: open ? 1000 : 2 }}>
+    <div style={styles.dropdownWrap}>
       <button
+        ref={btnRef}
         type="button"
         aria-label={ariaLabel}
         aria-expanded={open}
@@ -465,32 +459,31 @@ export function Dropdown({
           </svg>
         </span>
       </button>
-      {open && (
-        <div style={{ ...styles.dropdownMenu, zIndex: 1001 }}>
-          {options.map((option) => {
-            const active = option.value === selected;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                style={{
-                  ...styles.dropdownItem,
-                  background: active ? 'rgba(255,255,255,0.1)' : 'transparent',
-                  color: active ? '#FFFFFF' : 'rgba(255,255,255,0.72)',
-                }}
-                onClick={() => { onSelect(option.value); setOpen(false); }}
-              >
-                <span style={styles.dropdownItemLabel}>{option.label}</span>
-                {active && (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
-                    <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <Popover open={open} onClose={() => setOpen(false)} anchorRef={btnRef} placement="bottom-start" matchWidth maxHeight="15rem" padding="0.25rem">
+        {options.map((option) => {
+          const active = option.value === selected;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              className="ui-popover-row"
+              style={{
+                ...styles.dropdownItem,
+                background: active ? 'rgba(255,255,255,0.1)' : 'transparent',
+                color: active ? '#FFFFFF' : 'rgba(255,255,255,0.72)',
+              }}
+              onClick={() => { onSelect(option.value); setOpen(false); }}
+            >
+              <span style={styles.dropdownItemLabel}>{option.label}</span>
+              {active && (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+                  <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                </svg>
+              )}
+            </button>
+          );
+        })}
+      </Popover>
     </div>
   );
 }
@@ -678,6 +671,8 @@ export function SyncServiceRow({
 }
 
 export function SyncServicePopover({
+  open,
+  anchorRef,
   serviceName,
   meta,
   busy,
@@ -688,6 +683,8 @@ export function SyncServicePopover({
   onDisconnect,
   onClose,
 }: {
+  open: boolean;
+  anchorRef: RefObject<HTMLElement | null>;
   serviceName: string;
   meta: SyncMeta | null;
   busy: boolean;
@@ -698,21 +695,6 @@ export function SyncServicePopover({
   onDisconnect: () => void;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handlePointer = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('mousedown', handlePointer);
-    window.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handlePointer);
-      window.removeEventListener('keydown', handleKey);
-    };
-  }, [onClose]);
-
   const isOutOfSync = !meta || Date.now() - meta.lastSyncAt > 6 * 60 * 60 * 1000;
   const effectiveStatus = statusLabel ?? `${isOutOfSync ? t('settings.out_of_sync') : t('settings.synced')}${meta ? ` · ${timeAgo(meta.lastSyncAt)}` : ''}`;
   const effectiveStatusColor = statusColor ?? (isOutOfSync ? '#FF9500' : '#54D17A');
@@ -722,7 +704,7 @@ export function SyncServicePopover({
   ].filter(Boolean).join(' · ');
 
   return (
-    <div ref={ref} style={{ ...styles.dropdownMenu, top: 'calc(100% + 0.3125rem)', padding: 0, zIndex: 30 }}>
+    <Popover open={open} onClose={onClose} anchorRef={anchorRef} placement="bottom-start" matchWidth padding="0">
       <div style={{ padding: '0.6875rem 1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
           <span style={{ width: '0.3125rem', height: '0.3125rem', borderRadius: '50%', background: effectiveStatusColor, flexShrink: 0 }} />
@@ -740,7 +722,7 @@ export function SyncServicePopover({
         onClick={() => { onDisconnect(); onClose(); }}
         color="#FF5A5A"
       />
-    </div>
+    </Popover>
   );
 }
 

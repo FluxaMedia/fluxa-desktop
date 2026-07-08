@@ -1,9 +1,11 @@
-import { useEffect, useState, type CSSProperties } from 'react';
-import { Check, ChevronLeft, Settings } from 'lucide-react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { Check, ChevronDown, ChevronLeft, Settings } from 'lucide-react';
 import { t } from '../../i18n';
 import type { PlayerTrackOption } from '../../core/mpvPlayer';
+import { Popover } from '../ui/Popover';
+import { BUILTIN_SUBTITLE_FONTS } from '../../core/subtitleFonts';
+import { listCustomFonts } from '../../core/customFonts';
 
-const SUBTITLE_FONTS = ['default', 'Arial', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Georgia', 'Times New Roman', 'Courier New', 'Comic Sans MS'];
 const SUBTITLE_SIZES = [75, 100, 125, 150, 200];
 const SUBTITLE_COLORS: { value: string; labelKey: string }[] = [
   { value: '#FFFFFF', labelKey: 'auto.white' },
@@ -83,6 +85,16 @@ const LANG_NAMES: Record<string, string> = {
   cy: 'Welsh', wel: 'Welsh', cym: 'Welsh',
 };
 
+function ColorOption({ color }: { color: string }) {
+  const label = SUBTITLE_COLORS.find((c) => c.value === color)?.labelKey;
+  return (
+    <>
+      <span style={{ width: '0.75rem', height: '0.75rem', borderRadius: '50%', background: color, border: '1px solid rgba(255,255,255,0.25)', flexShrink: 0 }} />
+      {label ? t(label) : color}
+    </>
+  );
+}
+
 function langDisplayName(code: string | null): string {
   if (!code) return t('player.unknown_language');
   return LANG_NAMES[code.toLowerCase()] ?? code.toUpperCase();
@@ -124,12 +136,51 @@ const rowBtn: CSSProperties = {
   color: 'rgba(255,255,255,0.7)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left',
 };
 
+function StyleDropdown<T extends string>({ value, options, renderTrigger, renderOption, onChange }: {
+  value: T;
+  options: T[];
+  renderTrigger: (value: T) => ReactNode;
+  renderOption: (value: T) => ReactNode;
+  onChange: (value: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '0.375rem', color: '#fff', fontSize: '0.8125rem', padding: '0.4375rem 0.5rem', cursor: 'pointer' }}
+      >
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>{renderTrigger(value)}</span>
+        <ChevronDown size={14} style={{ flexShrink: 0, color: 'rgba(255,255,255,0.45)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.14s' }} />
+      </button>
+      <Popover open={open} onClose={() => setOpen(false)} anchorRef={btnRef} placement="bottom-start" matchWidth maxHeight="12rem" padding="0.25rem" zIndex={10001}>
+        {options.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            className="ui-popover-row"
+            onClick={() => { onChange(opt); setOpen(false); }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: opt === value ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', borderRadius: '0.375rem', color: opt === value ? '#fff' : 'rgba(255,255,255,0.72)', fontSize: '0.8125rem', padding: '0.4375rem 0.625rem', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>{renderOption(opt)}</span>
+            {opt === value && <Check size={14} style={{ flexShrink: 0, color: 'var(--primary-accent-color)' }} />}
+          </button>
+        ))}
+      </Popover>
+    </>
+  );
+}
+
 interface TrackPopoverProps {
   type: 'audio' | 'sub' | 'speed';
   audioTracks: PlayerTrackOption[];
   subTracks: PlayerTrackOption[];
   playbackSpeed: number;
-  showEpisodePanel: boolean;
+  anchorRef: RefObject<HTMLElement | null>;
+  onClose: () => void;
   onSetSpeed: (speed: number) => void;
   onSelectTrack: (type: 'audio' | 'sub', id: string) => void;
   onDisableSubs: () => void;
@@ -145,14 +196,17 @@ interface TrackPopoverProps {
 }
 
 export function TrackPopover({
-  type, audioTracks, subTracks, playbackSpeed, showEpisodePanel,
+  type, audioTracks, subTracks, playbackSpeed, anchorRef, onClose,
   onSetSpeed, onSelectTrack, onDisableSubs,
   subtitleDelay = 0, subtitleFont = 'default', subtitleSize = 100, subtitleColor = '#FFFFFF',
   onAdjustSubtitleDelay, onResetSubtitleDelay, onChooseSubtitleFont, onChooseSubtitleSize, onChooseSubtitleColor,
 }: TrackPopoverProps) {
   const [showStyle, setShowStyle] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [customFontFamilies, setCustomFontFamilies] = useState<string[]>([]);
   useEffect(() => { setShowStyle(false); setOpenGroup(null); }, [type]);
+  useEffect(() => { void listCustomFonts().then((fonts) => setCustomFontFamilies(fonts.map((f) => f.family))); }, []);
+  const fontOptions = [...BUILTIN_SUBTITLE_FONTS, ...customFontFamilies];
 
   const tracks = type === 'audio' ? audioTracks : subTracks;
   const noSubSelected = !subTracks.some((tr) => tr.selected);
@@ -172,16 +226,19 @@ export function TrackPopover({
   };
 
   return (
-    <div
-      className="player-popover"
-      style={{ position: 'absolute', bottom: '5.75rem', right: showEpisodePanel ? 396 : 14, background: 'rgba(18,22,30,0.97)', backdropFilter: 'blur(1rem)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '0.625rem', padding: '0.375rem 0', width: type === 'speed' ? 150 : 260, maxHeight: '22.5rem', overflowY: 'auto', zIndex: 10, boxShadow: '0 0.5rem 2rem rgba(0,0,0,0.6)' }}
-      onClick={(e) => e.stopPropagation()}
+    <Popover
+      open
+      onClose={onClose}
+      anchorRef={anchorRef}
+      placement="top"
+      width={type === 'speed' ? 150 : 260}
+      maxHeight="22.5rem"
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', justifyContent: 'space-between', padding: '0.25rem 0.875rem 0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', minWidth: 0 }}>
           {activeGroup && !showStyle && (
             <button
-              className="player-popover-icon"
+              className="ui-popover-icon"
               onClick={() => setOpenGroup(null)}
               style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: '0.1875rem', display: 'flex' }}
               title={t('player.back')}
@@ -199,7 +256,7 @@ export function TrackPopover({
         </div>
         {type === 'sub' && !activeGroup && (
           <button
-            className="player-popover-icon"
+            className="ui-popover-icon"
             onClick={() => setShowStyle((v) => !v)}
             style={{ background: 'none', border: 'none', color: showStyle ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: '0.1875rem', display: 'flex', flexShrink: 0 }}
             title={t('player.subtitle_settings')}
@@ -212,30 +269,27 @@ export function TrackPopover({
         <div style={{ padding: '0 0.875rem 0.625rem' }}>
           <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_delay')}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-            <button className="player-popover-chip" onClick={() => onAdjustSubtitleDelay?.(-0.1)} style={styleBtn}>−0.1s</button>
+            <button className="ui-popover-chip" onClick={() => onAdjustSubtitleDelay?.(-0.5)} style={styleBtn}>−0.5s</button>
             <span style={{ color: '#fff', fontSize: '0.8125rem', minWidth: '3.25rem', textAlign: 'center' }}>{subtitleDelay > 0 ? '+' : ''}{subtitleDelay.toFixed(1)}s</span>
-            <button className="player-popover-chip" onClick={() => onAdjustSubtitleDelay?.(0.1)} style={styleBtn}>+0.1s</button>
-            <button className="player-popover-chip" onClick={() => onResetSubtitleDelay?.()} style={{ ...styleBtn, marginLeft: 'auto' }}>{t('player.subtitle_reset')}</button>
+            <button className="ui-popover-chip" onClick={() => onAdjustSubtitleDelay?.(0.5)} style={styleBtn}>+0.5s</button>
+            <button className="ui-popover-chip" onClick={() => onResetSubtitleDelay?.()} style={{ ...styleBtn, marginLeft: 'auto' }}>{t('player.subtitle_reset')}</button>
           </div>
           <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_font')}</div>
-          <select
-            className="player-popover-select"
-            value={subtitleFont}
-            onChange={(e) => onChooseSubtitleFont?.(e.target.value)}
-            style={{ width: '100%', marginBottom: '0.75rem', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '0.375rem', color: '#fff', fontSize: '0.8125rem', padding: '0.4375rem 0.5rem' }}
-          >
-            {SUBTITLE_FONTS.map((font) => (
-              <option key={font} value={font} style={{ background: '#171b24', fontFamily: font === 'default' ? undefined : font }}>
-                {font === 'default' ? t('settings.subtitle_font_default') : font}
-              </option>
-            ))}
-          </select>
+          <div style={{ marginBottom: '0.75rem' }}>
+            <StyleDropdown
+              value={subtitleFont}
+              options={fontOptions}
+              onChange={(font) => onChooseSubtitleFont?.(font)}
+              renderTrigger={(font) => <span style={{ fontFamily: font === 'default' ? undefined : font }}>{font === 'default' ? t('settings.subtitle_font_default') : font}</span>}
+              renderOption={(font) => <span style={{ fontFamily: font === 'default' ? undefined : font }}>{font === 'default' ? t('settings.subtitle_font_default') : font}</span>}
+            />
+          </div>
           <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_size')}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '0.75rem' }}>
             {SUBTITLE_SIZES.map((size) => (
               <button
                 key={size}
-                className="player-popover-chip"
+                className="ui-popover-chip"
                 onClick={() => onChooseSubtitleSize?.(size)}
                 style={{ ...styleBtn, background: subtitleSize === size ? 'rgba(255,255,255,0.16)' : styleBtn.background }}
               >
@@ -244,24 +298,19 @@ export function TrackPopover({
             ))}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_color')}</div>
-          <select
-            className="player-popover-select"
+          <StyleDropdown
             value={subtitleColor}
-            onChange={(e) => onChooseSubtitleColor?.(e.target.value)}
-            style={{ width: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '0.375rem', color: '#fff', fontSize: '0.8125rem', padding: '0.4375rem 0.5rem' }}
-          >
-            {SUBTITLE_COLORS.map((color) => (
-              <option key={color.value} value={color.value} style={{ background: '#171b24' }}>
-                {t(color.labelKey)}
-              </option>
-            ))}
-          </select>
+            options={SUBTITLE_COLORS.map((c) => c.value)}
+            onChange={(color) => onChooseSubtitleColor?.(color)}
+            renderTrigger={(color) => <ColorOption color={color} />}
+            renderOption={(color) => <ColorOption color={color} />}
+          />
         </div>
       ) : type === 'speed' ? (
         [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((s) => (
           <button
             key={s}
-            className="player-popover-row"
+            className="ui-popover-row"
             onClick={() => onSetSpeed(s)}
             style={{ ...rowBtn, color: playbackSpeed === s ? '#fff' : rowBtn.color, fontWeight: playbackSpeed === s ? 700 : 400 }}
           >
@@ -273,7 +322,7 @@ export function TrackPopover({
         activeGroup.tracks.map((track) => (
           <button
             key={track.id}
-            className="player-popover-row"
+            className="ui-popover-row"
             onClick={() => selectFromGroup(activeGroup, track)}
             style={{ ...rowBtn, color: track.selected ? '#fff' : rowBtn.color, fontWeight: track.selected ? 600 : 400, justifyContent: 'space-between' }}
           >
@@ -292,7 +341,7 @@ export function TrackPopover({
         <>
           {type === 'sub' && (
             <button
-              className="player-popover-row"
+              className="ui-popover-row"
               onClick={onDisableSubs}
               style={{ ...rowBtn, borderBottom: '1px solid rgba(255,255,255,0.07)', color: noSubSelected ? '#fff' : rowBtn.color, fontWeight: noSubSelected ? 600 : 400, marginBottom: '0.25rem' }}
             >
@@ -307,7 +356,7 @@ export function TrackPopover({
             return (
               <button
                 key={group.key}
-                className="player-popover-row"
+                className="ui-popover-row"
                 onClick={() => openOrSelectGroup(group)}
                 style={{ ...rowBtn, color: groupSelected ? '#fff' : rowBtn.color, fontWeight: groupSelected ? 600 : 400, justifyContent: 'space-between' }}
               >
@@ -326,6 +375,6 @@ export function TrackPopover({
           )}
         </>
       )}
-    </div>
+    </Popover>
   );
 }

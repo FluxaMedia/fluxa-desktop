@@ -2,6 +2,7 @@ use crate::artwork::{
     artwork_bg_decoded, artwork_logo_decoded, fetch_player_artwork_bytes_owned, normalize_url,
     scale_artwork_cover, scale_artwork_fit,
 };
+use crate::custom_fonts;
 use crate::mpv_render;
 use crate::DesktopState;
 use fluxa_core::FluxaCore;
@@ -135,8 +136,11 @@ fn mpv_options_from_preferences(
             options.push(("sub-font".to_string(), font.to_string()));
         }
     }
-    if let Some(delay) = get("subtitleDelay").and_then(|v| v.parse::<f64>().ok()) {
-        options.push(("sub-delay".to_string(), format!("{:.3}", delay.clamp(-300.0, 300.0))));
+    if let Some(app) = app {
+        let state = app.state::<DesktopState>();
+        if let Ok(dir) = custom_fonts::fonts_dir(&state) {
+            options.push(("sub-fonts-dir".to_string(), dir.to_string_lossy().into_owned()));
+        }
     }
     push_anime_upscaling_options(
         &mut options,
@@ -236,17 +240,6 @@ fn mpv_options_from_preferences(
                     options.push((name.to_string(), value.to_string()));
                 }
             }
-        }
-    }
-    if let Some(mode) = get("audioDecoderMode") {
-        let hwdec = match mode {
-            "hw_prefer" => "auto-safe",
-            "hw_only" => "auto",
-            "sw_only" => "no",
-            _ => "",
-        };
-        if !hwdec.is_empty() {
-            options.push(("hwdec".to_string(), hwdec.to_string()));
         }
     }
     options

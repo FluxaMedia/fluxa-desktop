@@ -107,20 +107,19 @@ body {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.player-popover {
-  animation: popoverIn 0.14s ease-out;
-  transform-origin: bottom right;
+.ui-popover {
+  animation: popoverIn 0.12s ease-out;
 }
 
-.player-popover-row {
+.ui-popover-row {
   transition: background-color 0.1s ease;
 }
 
-.player-popover-row:hover {
+.ui-popover-row:hover {
   background: rgba(255,255,255,0.06) !important;
 }
 
-.player-popover-row:active {
+.ui-popover-row:active {
   background: rgba(255,255,255,0.1) !important;
 }
 
@@ -136,30 +135,22 @@ body {
   background: rgba(255,255,255,0.16) !important;
 }
 
-.player-popover-icon {
+.ui-popover-icon {
   border-radius: 0.25rem;
   transition: background-color 0.1s ease, color 0.1s ease;
 }
 
-.player-popover-icon:hover {
+.ui-popover-icon:hover {
   background: rgba(255,255,255,0.08) !important;
 }
 
-.player-popover-chip {
+.ui-popover-chip {
   transition: background-color 0.1s ease, border-color 0.1s ease;
 }
 
-.player-popover-chip:hover {
+.ui-popover-chip:hover {
   border-color: rgba(255,255,255,0.22) !important;
   background: rgba(255,255,255,0.12) !important;
-}
-
-.player-popover-select {
-  cursor: pointer;
-}
-
-.player-popover-select:hover {
-  border-color: rgba(255,255,255,0.22) !important;
 }
 
 .movie-card .mc-dim {

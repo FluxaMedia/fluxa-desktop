@@ -189,6 +189,7 @@ export function AccountSection({
   const [traktBusy, setTraktBusy] = useState(false);
   const [traktError, setTraktError] = useState<string | null>(null);
   const [traktPopoverOpen, setTraktPopoverOpen] = useState(false);
+  const traktRowRef = useRef<HTMLDivElement>(null);
   const [traktSyncMeta, setTraktSyncMeta] = useState<SyncMeta | null>(null);
   const traktStateRef = useRef<string | null>(null);
   const anilistStateRef = useRef<string | null>(null);
@@ -196,19 +197,23 @@ export function AccountSection({
   const [anilistBusy, setAnilistBusy] = useState(false);
   const [anilistError, setAnilistError] = useState<string | null>(null);
   const [anilistPopoverOpen, setAnilistPopoverOpen] = useState(false);
+  const anilistRowRef = useRef<HTMLDivElement>(null);
   const [anilistSyncMeta, setAnilistSyncMeta] = useState<SyncMeta | null>(null);
   const [simklBusy, setSimklBusy] = useState(false);
   const [simklError, setSimklError] = useState<string | null>(null);
   const [simklPopoverOpen, setSimklPopoverOpen] = useState(false);
+  const simklRowRef = useRef<HTMLDivElement>(null);
   const [simklSyncMeta, setSimklSyncMeta] = useState<SyncMeta | null>(null);
   const [nuvioBusy, setNuvioBusy] = useState(false);
   const [nuvioError, setNuvioError] = useState<string | null>(null);
   const [nuvioPopoverOpen, setNuvioPopoverOpen] = useState(false);
+  const nuvioRowRef = useRef<HTMLDivElement>(null);
   const [nuvioSyncMeta, setNuvioSyncMeta] = useState<SyncMeta | null>(null);
   const [nuvioFormOpen, setNuvioFormOpen] = useState(false);
   const [stremioBusy, setStremioBusy] = useState(false);
   const [stremioError, setStremioError] = useState<string | null>(null);
   const [stremioPopoverOpen, setStremioPopoverOpen] = useState(false);
+  const stremioRowRef = useRef<HTMLDivElement>(null);
   const [stremioSyncMeta, setStremioSyncMeta] = useState<SyncMeta | null>(null);
   const [stremioFormOpen, setStremioFormOpen] = useState(false);
   const [stremioAuthKeyMode, setStremioAuthKeyMode] = useState(false);
@@ -692,7 +697,7 @@ export function AccountSection({
           </div>
         )}
         {traktConnected && (
-          <div style={{ position: 'relative' }}>
+          <div ref={traktRowRef} style={{ position: 'relative' }}>
             <SyncServiceRow
               icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(237,28,36,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/trakt.svg" alt="Trakt" style={{ width: '1.625rem', height: '1.625rem', objectFit: 'contain' }} /></div>}
               title="Trakt.tv"
@@ -702,16 +707,16 @@ export function AccountSection({
               busy={traktBusy}
               expanded={traktPopoverOpen}
             />
-            {traktPopoverOpen && (
-              <SyncServicePopover
-                serviceName="Trakt.tv"
-                meta={traktSyncMeta}
-                busy={traktBusy}
-                onSyncNow={() => void handleTraktSyncNow()}
-                onDisconnect={() => void handleTraktDisconnect()}
-                onClose={() => setTraktPopoverOpen(false)}
-              />
-            )}
+            <SyncServicePopover
+              open={traktPopoverOpen}
+              anchorRef={traktRowRef}
+              serviceName="Trakt.tv"
+              meta={traktSyncMeta}
+              busy={traktBusy}
+              onSyncNow={() => void handleTraktSyncNow()}
+              onDisconnect={() => void handleTraktDisconnect()}
+              onClose={() => setTraktPopoverOpen(false)}
+            />
           </div>
         )}
 
@@ -732,7 +737,7 @@ export function AccountSection({
           </div>
         )}
         {anilistConnected && (
-          <div style={{ position: 'relative' }}>
+          <div ref={anilistRowRef} style={{ position: 'relative' }}>
             <SyncServiceRow
               icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(2,169,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/anilist.svg" alt="AniList" style={{ width: '1.625rem', height: '1.625rem', objectFit: 'contain' }} /></div>}
               title="AniList"
@@ -742,19 +747,19 @@ export function AccountSection({
               busy={anilistBusy}
               expanded={anilistPopoverOpen}
             />
-            {anilistPopoverOpen && (
-              <SyncServicePopover
-                serviceName="AniList"
-                meta={anilistSyncMeta}
-                busy={anilistBusy}
-                statusLabel={anilistSyncMeta ? `${t('settings.anime_tracking_enabled')} · ${new Date(anilistSyncMeta.lastSyncAt).toLocaleString()}` : t('settings.anime_tracking_enabled')}
-                statusColor="#54D17A"
-                syncLabel={t('settings.sync_now')}
-                onSyncNow={() => void handleAnilistSyncNow()}
-                onDisconnect={() => void handleAnilistDisconnect()}
-                onClose={() => setAnilistPopoverOpen(false)}
-              />
-            )}
+            <SyncServicePopover
+              open={anilistPopoverOpen}
+              anchorRef={anilistRowRef}
+              serviceName="AniList"
+              meta={anilistSyncMeta}
+              busy={anilistBusy}
+              statusLabel={anilistSyncMeta ? `${t('settings.anime_tracking_enabled')} · ${new Date(anilistSyncMeta.lastSyncAt).toLocaleString()}` : t('settings.anime_tracking_enabled')}
+              statusColor="#54D17A"
+              syncLabel={t('settings.sync_now')}
+              onSyncNow={() => void handleAnilistSyncNow()}
+              onDisconnect={() => void handleAnilistDisconnect()}
+              onClose={() => setAnilistPopoverOpen(false)}
+            />
           </div>
         )}
 
@@ -775,7 +780,7 @@ export function AccountSection({
           </div>
         )}
         {simklConnected && (
-          <div style={{ position: 'relative' }}>
+          <div ref={simklRowRef} style={{ position: 'relative' }}>
             <SyncServiceRow
               icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.svg" alt="Simkl" style={{ width: '1.625rem', height: '1.625rem', objectFit: 'contain' }} /></div>}
               title="Simkl"
@@ -785,16 +790,16 @@ export function AccountSection({
               busy={simklBusy}
               expanded={simklPopoverOpen}
             />
-            {simklPopoverOpen && (
-              <SyncServicePopover
-                serviceName="Simkl"
-                meta={simklSyncMeta}
-                busy={simklBusy}
-                onSyncNow={() => void handleSimklSyncNow()}
-                onDisconnect={() => void handleSimklDisconnect()}
-                onClose={() => setSimklPopoverOpen(false)}
-              />
-            )}
+            <SyncServicePopover
+              open={simklPopoverOpen}
+              anchorRef={simklRowRef}
+              serviceName="Simkl"
+              meta={simklSyncMeta}
+              busy={simklBusy}
+              onSyncNow={() => void handleSimklSyncNow()}
+              onDisconnect={() => void handleSimklDisconnect()}
+              onClose={() => setSimklPopoverOpen(false)}
+            />
           </div>
         )}
 
@@ -822,7 +827,7 @@ export function AccountSection({
           </div>
         )}
         {nuvioConnected && (
-          <div style={{ position: 'relative' }}>
+          <div ref={nuvioRowRef} style={{ position: 'relative' }}>
             <SyncServiceRow
               icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="https://nuvio.tv//assets/Logo_1080x1080.png" alt="Nuvio" style={{ width: '1.5rem', height: '1.5rem', objectFit: 'contain' }} /></div>}
               title="Nuvio"
@@ -832,16 +837,16 @@ export function AccountSection({
               busy={nuvioBusy}
               expanded={nuvioPopoverOpen}
             />
-            {nuvioPopoverOpen && (
-              <SyncServicePopover
-                serviceName="Nuvio"
-                meta={nuvioSyncMeta}
-                busy={nuvioBusy}
-                onSyncNow={() => void handleNuvioSyncNow()}
-                onDisconnect={() => void handleNuvioDisconnect()}
-                onClose={() => setNuvioPopoverOpen(false)}
-              />
-            )}
+            <SyncServicePopover
+              open={nuvioPopoverOpen}
+              anchorRef={nuvioRowRef}
+              serviceName="Nuvio"
+              meta={nuvioSyncMeta}
+              busy={nuvioBusy}
+              onSyncNow={() => void handleNuvioSyncNow()}
+              onDisconnect={() => void handleNuvioDisconnect()}
+              onClose={() => setNuvioPopoverOpen(false)}
+            />
           </div>
         )}
 
@@ -887,7 +892,7 @@ export function AccountSection({
           </div>
         )}
         {stremioConnected && (
-          <div style={{ position: 'relative' }}>
+          <div ref={stremioRowRef} style={{ position: 'relative' }}>
             <SyncServiceRow
               icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(123,91,245,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/stremio.svg" alt="Stremio" style={{ width: '1.5rem', height: '1.5rem', objectFit: 'contain' }} /></div>}
               title="Stremio"
@@ -897,16 +902,16 @@ export function AccountSection({
               busy={stremioBusy}
               expanded={stremioPopoverOpen}
             />
-            {stremioPopoverOpen && (
-              <SyncServicePopover
-                serviceName="Stremio"
-                meta={stremioSyncMeta}
-                busy={stremioBusy}
-                onSyncNow={() => void handleStremioSyncNow()}
-                onDisconnect={() => void handleStremioDisconnect()}
-                onClose={() => setStremioPopoverOpen(false)}
-              />
-            )}
+            <SyncServicePopover
+              open={stremioPopoverOpen}
+              anchorRef={stremioRowRef}
+              serviceName="Stremio"
+              meta={stremioSyncMeta}
+              busy={stremioBusy}
+              onSyncNow={() => void handleStremioSyncNow()}
+              onDisconnect={() => void handleStremioDisconnect()}
+              onClose={() => setStremioPopoverOpen(false)}
+            />
           </div>
         )}
       </SettingsSection>

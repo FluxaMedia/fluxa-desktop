@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { AvatarPreview } from '../screens/ProfileForm';
 import { PinPrompt } from './PinPrompt';
 import type { UserProfile } from '../core/types';
 import { t } from '../i18n';
+import { Popover } from './ui/Popover';
 
 interface Props {
   profile: UserProfile;
@@ -16,25 +17,14 @@ interface Props {
 export function ProfileChip({ profile, allProfiles, onSwitchProfile, onSwitchToProfile, onOpenSettings, onEditProfile }: Props) {
   const [open, setOpen] = useState(false);
   const [pinProfile, setPinProfile] = useState<UserProfile | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+  const avatarBtnRef = useRef<HTMLButtonElement>(null);
 
   const close = () => setOpen(false);
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', zIndex: 50, flexShrink: 0 }}>
-      {/* Avatar button */}
+    <div style={{ position: 'relative', flexShrink: 0 }}>
       <button
+        ref={avatarBtnRef}
         onClick={() => setOpen((v) => !v)}
         style={{
           width: '2.625rem',
@@ -56,54 +46,38 @@ export function ProfileChip({ profile, allProfiles, onSwitchProfile, onSwitchToP
         <AvatarPreview profile={profile} size={42} circular />
       </button>
 
-      {/* Dropdown panel */}
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 0.625rem)',
-            right: 0,
-            width: '13.75rem',
-            background: '#1A1A1A',
-            border: '1px solid rgba(255,255,255,0.09)',
-            borderRadius: '0.75rem',
-            boxShadow: '0 1.5rem 4rem rgba(0,0,0,0.75)',
-            overflow: 'hidden',
-            zIndex: 200,
-          }}
-        >
-          <div style={{ padding: '0.375rem 0' }}>
-            {allProfiles.map((p) => (
-              <ProfileRow
-                key={p.id}
-                profile={p}
-                active={p.id === profile.id}
-                onClick={() => {
-                  if (p.id !== profile.id) {
-                    if (p.pinHash) { setPinProfile(p); } else { onSwitchToProfile(p); }
-                  }
-                  close();
-                }}
-              />
-            ))}
-          </div>
-
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.07)' }} />
-
-          <div style={{ padding: '0.375rem 0' }}>
-            <DropdownItem
-              icon={<ManageIcon />}
-              label={t('profiles.manage')}
-              onClick={() => { close(); onEditProfile(); }}
+      <Popover open={open} onClose={close} anchorRef={avatarBtnRef} placement="bottom-end" gap={10} width="13.75rem">
+        <div style={{ padding: '0.375rem 0' }}>
+          {allProfiles.map((p) => (
+            <ProfileRow
+              key={p.id}
+              profile={p}
+              active={p.id === profile.id}
+              onClick={() => {
+                if (p.id !== profile.id) {
+                  if (p.pinHash) { setPinProfile(p); } else { onSwitchToProfile(p); }
+                }
+                close();
+              }}
             />
-            <DropdownItem
-              icon={<GearIcon />}
-              label={t('nav.settings')}
-              onClick={() => { close(); onOpenSettings(); }}
-            />
-          </div>
+          ))}
         </div>
-      )}
+
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.07)' }} />
+
+        <div style={{ padding: '0.375rem 0' }}>
+          <DropdownItem
+            icon={<ManageIcon />}
+            label={t('profiles.manage')}
+            onClick={() => { close(); onEditProfile(); }}
+          />
+          <DropdownItem
+            icon={<GearIcon />}
+            label={t('nav.settings')}
+            onClick={() => { close(); onOpenSettings(); }}
+          />
+        </div>
+      </Popover>
 
       {pinProfile && (
         <PinPrompt

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { emit } from '@tauri-apps/api/event';
 import { ChevronDown } from 'lucide-react';
 import { t } from '../../i18n';
+import { Popover } from '../ui/Popover';
 
 export type EpisodeInfo = {
   id: string;
@@ -50,6 +51,7 @@ export function EpisodePanel({ episodes, currentEpisode, onClose }: EpisodePanel
 
   const [activeSeason, setActiveSeason] = useState(() => currentEpisode?.season ?? seasons[0] ?? 1);
   const [showSeasonDropdown, setShowSeasonDropdown] = useState(false);
+  const seasonBtnRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div
@@ -62,25 +64,25 @@ export function EpisodePanel({ episodes, currentEpisode, onClose }: EpisodePanel
           {seasons.length > 1 && (
             <div style={{ position: 'relative' }}>
               <button
+                ref={seasonBtnRef}
                 onClick={() => setShowSeasonDropdown((p) => !p)}
                 style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '0.375rem', color: '#fff', fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
               >
                 {t('player.season_n', activeSeason)}
                 <ChevronDown size={12} />
               </button>
-              {showSeasonDropdown && (
-                <div style={{ position: 'absolute', top: 'calc(100% + 0.25rem)', right: 0, background: '#12161e', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '0.5rem', overflow: 'hidden', zIndex: 20, minWidth: '7.5rem', boxShadow: '0 0.5rem 1.5rem rgba(0,0,0,0.7)' }}>
-                  {seasons.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => { setActiveSeason(s); setShowSeasonDropdown(false); }}
-                      style={{ display: 'block', width: '100%', background: s === activeSeason ? 'rgba(255,255,255,0.08)' : 'none', border: 'none', color: s === activeSeason ? '#fff' : 'rgba(255,255,255,0.65)', fontSize: '0.75rem', fontWeight: s === activeSeason ? 700 : 400, padding: '0.5rem 0.75rem', cursor: 'pointer', textAlign: 'left' }}
-                    >
-                      {t('player.season_n', s)}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <Popover open={showSeasonDropdown} onClose={() => setShowSeasonDropdown(false)} anchorRef={seasonBtnRef} placement="bottom-end" width="7.5rem">
+                {seasons.map((s) => (
+                  <button
+                    key={s}
+                    className="ui-popover-row"
+                    onClick={() => { setActiveSeason(s); setShowSeasonDropdown(false); }}
+                    style={{ display: 'block', width: '100%', background: s === activeSeason ? 'rgba(255,255,255,0.08)' : 'none', border: 'none', color: s === activeSeason ? '#fff' : 'rgba(255,255,255,0.65)', fontSize: '0.75rem', fontWeight: s === activeSeason ? 700 : 400, padding: '0.5rem 0.75rem', cursor: 'pointer', textAlign: 'left' }}
+                  >
+                    {t('player.season_n', s)}
+                  </button>
+                ))}
+              </Popover>
             </div>
           )}
           <button

@@ -4,6 +4,7 @@ mod artwork;
 mod cast;
 mod cast_proxy;
 mod chromecast;
+mod custom_fonts;
 mod discord_presence;
 mod downloads;
 #[cfg(target_os = "linux")]
@@ -25,6 +26,7 @@ use airplay::*;
 use cast::*;
 use cast_proxy::*;
 use chromecast::*;
+use custom_fonts::*;
 use discord_presence::*;
 use downloads::*;
 use oauth::*;
@@ -651,6 +653,9 @@ pub fn run() {
             player_set_seek_thumbnail_enabled,
             player_get_seek_thumbnail,
             player_screenshot,
+            custom_fonts_list,
+            custom_fonts_add,
+            custom_fonts_remove,
             player_set_chapters,
             player_clear_chapters,
             player_set_skip_info,

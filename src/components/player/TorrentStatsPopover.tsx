@@ -1,9 +1,12 @@
+import { type RefObject } from 'react';
 import { t } from '../../i18n';
 import type { TorrentStats } from '../../core/mpvPlayer';
+import { Popover } from '../ui/Popover';
 
 interface TorrentStatsPopoverProps {
   stats: TorrentStats | null;
-  showEpisodePanel: boolean;
+  anchorRef: RefObject<HTMLElement | null>;
+  onClose: () => void;
 }
 
 function formatSpeed(bytesPerSec: number): string {
@@ -20,13 +23,9 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function TorrentStatsPopover({ stats, showEpisodePanel }: TorrentStatsPopoverProps) {
+export function TorrentStatsPopover({ stats, anchorRef, onClose }: TorrentStatsPopoverProps) {
   return (
-    <div
-      className="player-popover"
-      style={{ position: 'absolute', bottom: '5.75rem', right: showEpisodePanel ? 396 : 14, background: 'rgba(18,22,30,0.97)', backdropFilter: 'blur(1rem)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '0.625rem', padding: '0.75rem 1rem', minWidth: '15rem', zIndex: 10, boxShadow: '0 0.5rem 2rem rgba(0,0,0,0.6)' }}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <Popover open onClose={onClose} anchorRef={anchorRef} placement="top" width="15rem" padding="0.75rem 1rem">
       <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.05rem', marginBottom: '0.625rem', textTransform: 'uppercase' }}>
         {t('player.torrent_stats_title')}
       </div>
@@ -40,6 +39,6 @@ export function TorrentStatsPopover({ stats, showEpisodePanel }: TorrentStatsPop
           <Row label={t('player.torrent_progress')} value={`${stats.progress}%`} />
         </div>
       )}
-    </div>
+    </Popover>
   );
 }

@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Type, X } from 'lucide-react';
 import { t } from '../../i18n';
-import { ChoiceTile, InputTile, SettingsSection, SliderTile, ToggleTile, langOptions, streamSourceOptions, subtitleFontOptions } from './SettingsUI';
+import { ActionTile, ChoiceTile, InputTile, SettingsSection, SliderTile, ToggleTile, langOptions, streamSourceOptions, subtitleFontOptions } from './SettingsUI';
 import { styles, FONT } from './settingsStyles';
 import type { Prefs } from './settingsTypes';
+import { listCustomFonts, pickAndAddCustomFont, removeCustomFont, type CustomFont } from '../../core/customFonts';
 
 export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K extends keyof Prefs>(k: K, v: Prefs[K]) => void }) {
   const [mpvScriptsDir, setMpvScriptsDir] = useState<string | null>(null);
@@ -13,6 +15,24 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
       if (dir) setMpvScriptsDir(`${dir}/mpv/scripts`);
     }).catch(() => {});
   }, []);
+
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+  const [fontUploadError, setFontUploadError] = useState<string | null>(null);
+  const refreshCustomFonts = () => { void listCustomFonts().then(setCustomFonts); };
+  useEffect(() => { refreshCustomFonts(); }, []);
+  const uploadCustomFont = async () => {
+    setFontUploadError(null);
+    try {
+      const added = await pickAndAddCustomFont();
+      if (added) refreshCustomFonts();
+    } catch (e) {
+      setFontUploadError(String(e));
+    }
+  };
+  const removeFont = async (fileName: string) => {
+    await removeCustomFont(fileName).catch(() => {});
+    refreshCustomFonts();
+  };
 
   const scriptsDirCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (scriptsDirCopiedTimerRef.current) clearTimeout(scriptsDirCopiedTimerRef.current); }, []);
@@ -154,8 +174,6 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
       <ChoiceTile title={t('settings.forward_buffer')} subtitle={t('settings.forward_buffer_desc')} options={[{ value: '30', label: '30s' }, { value: '60', label: '60s' }, { value: '120', label: '120s' }, { value: '300', label: '300s' }, { value: '600', label: '600s' }]} selected={prefs.playerForwardBufferSeconds} onSelect={(v) => setPref('playerForwardBufferSeconds', v)} />
       <ChoiceTile title={t('settings.back_buffer')} subtitle={t('settings.back_buffer_desc')} options={[{ value: '0', label: '0s' }, { value: '15', label: '15s' }, { value: '30', label: '30s' }, { value: '60', label: '60s' }, { value: '120', label: '120s' }, { value: '300', label: '300s' }]} selected={prefs.playerBackBufferSeconds} onSelect={(v) => setPref('playerBackBufferSeconds', v)} />
     </SettingsSection>
-    <SettingsSection title={t('settings.decoder')} subtitle={t('settings.audio_decoder_mode_desc')}>
-      <ChoiceTile title={t('settings.audio_decoder_mode')} subtitle={t('settings.audio_decoder_mode_desc')} options={[{ value: 'hw_prefer', label: t('settings.audio_decoder_hw_prefer') }, { value: 'hw_only', label: t('settings.audio_decoder_hw_only') }, { value: 'sw_only', label: t('settings.audio_decoder_sw_only') }]} selected={prefs.audioDecoderMode} onSelect={(v) => setPref('audioDecoderMode', v)} />    </SettingsSection>
     <SettingsSection title={t('settings.skip_segments')} subtitle={t('settings.use_introdb_desc')}>
       <ToggleTile title={t('settings.use_introdb')} subtitle={t('settings.use_introdb_desc')} checked={prefs.useIntroDb} onToggle={(v) => setPref('useIntroDb', v)} />
       <ToggleTile title={t('settings.use_aniskip')} subtitle={t('settings.use_aniskip_desc')} checked={prefs.useAniSkip} onToggle={(v) => setPref('useAniSkip', v)} />
@@ -184,20 +202,30 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
       <ChoiceTile
         title={t('settings.subtitle_font')}
         subtitle={t('settings.subtitle_font_desc')}
-        options={subtitleFontOptions()}
+        options={subtitleFontOptions(customFonts.map((f) => f.family))}
         selected={prefs.subtitleFont}
         onSelect={(v) => setPref('subtitleFont', v)}
       />
-      <SliderTile
-        title={t('settings.subtitle_delay')}
-        subtitle={t('settings.subtitle_delay_desc')}
-        value={Number(prefs.subtitleDelay)}
-        min={-10}
-        max={10}
-        step={0.1}
-        format={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)}s`}
-        onChange={(v) => setPref('subtitleDelay', v.toFixed(1))}
+      <ActionTile
+        title={t('settings.upload_custom_font')}
+        subtitle={fontUploadError ?? t('settings.upload_custom_font_desc')}
+        icon={<Type size={18} />}
+        onClick={() => void uploadCustomFont()}
+        accent={fontUploadError ? '#FF5D5D' : '#FFFFFF'}
       />
+      {customFonts.map((font) => (
+        <div key={font.fileName} style={{ width: '100%', minHeight: '2.75rem', borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 1rem 0.5rem 2.875rem', boxSizing: 'border-box', gap: '0.75rem' }}>
+          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.75)', fontFamily: FONT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{font.family}</span>
+          <button
+            type="button"
+            onClick={() => void removeFont(font.fileName)}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: '0.25rem', display: 'flex', flexShrink: 0 }}
+            title={t('auto.remove')}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      ))}
     </SettingsSection>
     <div style={styles.settingsGroup}>
       <div style={styles.groupHeading}>
