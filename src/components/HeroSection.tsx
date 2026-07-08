@@ -196,6 +196,20 @@ export const HeroSection = React.memo(function HeroSection({
   }, [trailerStreamUrl]);
 
   useEffect(() => {
+    if (!trailerStreamUrl) return;
+    const el = trailerVideoRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (entry?.isIntersecting && el.paused && !el.ended) {
+        el.play().catch(() => {});
+      }
+    }, { threshold: 0.05 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [trailerStreamUrl]);
+
+  useEffect(() => {
     return () => {
       if (pendingRef.current) clearTimeout(pendingRef.current);
     };
