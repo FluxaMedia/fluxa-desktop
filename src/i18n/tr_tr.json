@@ -718,7 +718,7 @@
   "addons.installed": "Kurulu Addonlar",
   "addons.no_addons": "Kurulu addon yok.",
   "addons.installed_dialog_title": "Addon Eklendi",
-  "addons.installed_dialog_body": "%s addonlarınıza eklendi.",
+  "addons.installed_dialog_body": "\"%s\" addonlarınıza eklendi.",
   "profiles.add": "Profil Ekle",
   "profiles.edit": "Profili Düzenle",
   "profiles.manage": "Profilleri Yönet",

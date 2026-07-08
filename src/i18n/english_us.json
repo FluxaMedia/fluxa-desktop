@@ -718,7 +718,7 @@
   "addons.installed": "Installed Addons",
   "addons.no_addons": "No addons installed.",
   "addons.installed_dialog_title": "Addon Added",
-  "addons.installed_dialog_body": "%s has been added to your addons.",
+  "addons.installed_dialog_body": "\"%s\" has been added to your addons.",
   "profiles.add": "Add Profile",
   "profiles.edit": "Edit Profile",
   "profiles.manage": "Manage Profiles",
