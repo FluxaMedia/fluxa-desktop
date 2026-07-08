@@ -276,7 +276,12 @@ fn start_torrent_stream_inner(
         .and_then(Value::as_str)
         .map(str::to_string)
         .ok_or_else(|| "torrent runtime did not return streamUrl".to_string())?;
-    Ok((stream_url, base_url.to_string(), link.to_string(), generation))
+    let stats_link = runtime
+        .get("normalizedLink")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| link.to_string());
+    Ok((stream_url, base_url.to_string(), stats_link, generation))
 }
 
 #[tauri::command]
