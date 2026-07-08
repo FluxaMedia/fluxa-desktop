@@ -204,6 +204,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const currentTimeRef = useRef<HTMLSpanElement>(null);
   const durationRef = useRef<HTMLSpanElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
+  const [seekbarHovered, setSeekbarHovered] = useState(false);
   const softwareCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
@@ -1218,10 +1219,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         .fluxa-skip-btn:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.22) !important; }
         .fluxa-skip-btn:focus-visible { outline: 0.125rem solid rgba(255,255,255,0.4); outline-offset: 0.125rem; }
         .fluxa-cursor-hidden, .fluxa-cursor-hidden * { cursor: none !important; }
-        .fluxa-seek-track { height: 0.1875rem; transition: height 0.15s ease; }
-        .fluxa-seekbar:hover .fluxa-seek-track { height: 0.3125rem; }
-        .fluxa-seek-dot { width: 0.6875rem; height: 0.6875rem; transition: width 0.15s, height 0.15s; }
-        .fluxa-seekbar:hover .fluxa-seek-dot { width: 0.875rem; height: 0.875rem; }
+        .fluxa-seek-track { transition: height 0.15s ease; }
+        .fluxa-seek-dot { transition: width 0.15s, height 0.15s; }
       `}</style>
 
       {softwareVideoActive && (
@@ -1728,8 +1727,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           className="fluxa-seekbar"
           style={{ position: 'relative', width: '100%', height: '2.25rem', cursor: 'pointer', overflow: 'visible', display: 'flex', alignItems: 'center' }}
           onMouseDown={onSeekMouseDown}
+          onMouseEnter={() => setSeekbarHovered(true)}
+          onMouseLeave={() => setSeekbarHovered(false)}
         >
-          <div className="fluxa-seek-track" style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.22)', borderRadius: '0.1875rem' }} />
+          <div className="fluxa-seek-track" style={{ position: 'absolute', left: 0, right: 0, top: '50%', height: seekbarHovered ? '0.3125rem' : '0.1875rem', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.22)', borderRadius: '0.1875rem' }} />
           {!chapterSegments && skipMarkers.map((seg, i) => (
             <div
               key={`${seg.start}-${seg.end}-${i}`}
@@ -1739,6 +1740,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
                 left: `${seg.start * 100}%`,
                 width: `${(seg.end - seg.start) * 100}%`,
                 top: '50%',
+                height: seekbarHovered ? '0.3125rem' : '0.1875rem',
                 transform: 'translateY(-50%)',
                 background: 'color-mix(in srgb, var(--primary-accent-color) 20%, transparent)',
                 borderRadius: '0.1875rem',
@@ -1749,22 +1751,22 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
           {chapterSegments ? (
             chapterSegments.map((seg, i) => (
-              <div key={i} className="fluxa-seek-track" style={{ position: 'absolute', left: `calc(${seg.start * 100}% + 0.125rem)`, width: `calc(${(seg.end - seg.start) * 100}% - 0.25rem)`, top: '50%', transform: 'translateY(-50%)', overflow: 'hidden', background: 'rgba(255,255,255,0.18)', borderRadius: '0.125rem' }}>
+              <div key={i} className="fluxa-seek-track" style={{ position: 'absolute', left: `calc(${seg.start * 100}% + 0.125rem)`, width: `calc(${(seg.end - seg.start) * 100}% - 0.25rem)`, top: '50%', height: seekbarHovered ? '0.3125rem' : '0.1875rem', transform: 'translateY(-50%)', overflow: 'hidden', background: 'rgba(255,255,255,0.18)', borderRadius: '0.125rem' }}>
                 <div ref={(el) => { segBufRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'rgba(255,255,255,0.3)' }} />
                 <div ref={(el) => { segFillRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'var(--primary-accent-color)' }} />
               </div>
             ))
           ) : (
             <>
-              <div ref={seekBufferRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'rgba(255,255,255,0.3)', borderRadius: '0.1875rem' }} />
-              <div ref={seekFillRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'var(--primary-accent-color)', borderRadius: '0.1875rem' }} />
+              <div ref={seekBufferRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', height: seekbarHovered ? '0.3125rem' : '0.1875rem', transform: 'translateY(-50%)', width: '0%', background: 'rgba(255,255,255,0.3)', borderRadius: '0.1875rem' }} />
+              <div ref={seekFillRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', height: seekbarHovered ? '0.3125rem' : '0.1875rem', transform: 'translateY(-50%)', width: '0%', background: 'var(--primary-accent-color)', borderRadius: '0.1875rem' }} />
             </>
           )}
 
           <div
             ref={seekDotRef}
             className="fluxa-seek-dot"
-            style={{ position: 'absolute', left: '0%', top: '50%', borderRadius: '50%', background: 'var(--primary-accent-color)', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 0.375rem rgba(0,0,0,0.7)', pointerEvents: 'none' }}
+            style={{ position: 'absolute', left: '0%', top: '50%', width: seekbarHovered ? '0.875rem' : '0.6875rem', height: seekbarHovered ? '0.875rem' : '0.6875rem', borderRadius: '50%', background: 'var(--primary-accent-color)', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 0.375rem rgba(0,0,0,0.7)', pointerEvents: 'none' }}
           />
 
           <SeekPreview barRef={seekbarRef} durRef={durRef} chaptersRef={chaptersRef} />
