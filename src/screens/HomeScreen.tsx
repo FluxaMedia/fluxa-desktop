@@ -9,7 +9,7 @@ import { CollectionShelfRow } from '../components/CollectionShelfRow';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefBool, prefString } from '../core/appPrefs';
 import { buildResourceUrl } from '../core/addonManifest';
-import { httpFetchText } from '../core/engine';
+import { httpFetchText, prewarmYoutubeTrailerConfig } from '../core/engine';
 import { fetchTmdbTrailers } from '../core/detailEffects';
 import type { AppState, HomeCategory, Meta, Trailer } from '../core/types';
 import { getLanguage, t } from '../i18n';
@@ -112,6 +112,11 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const [heroTrailers, setHeroTrailers] = useState<Record<string, Trailer[]>>({});
   const fetchedHeroTrailerIds = useRef<Set<string>>(new Set());
   const autoplayTrailerEnabled = prefBool(prefs, 'homeHeroAutoplayTrailer', false);
+
+  useEffect(() => {
+    if (!autoplayTrailerEnabled) return;
+    prewarmYoutubeTrailerConfig().catch((err) => console.error('prewarmYoutubeTrailerConfig failed', err));
+  }, [autoplayTrailerEnabled]);
 
   useEffect(() => {
     const apiKey = prefString(prefs, 'tmdbApiKey');

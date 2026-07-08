@@ -57,6 +57,10 @@ export async function resolveYoutubeTrailerUrl(videoId: string): Promise<string 
   return invoke<string | null>('resolve_youtube_trailer_url', { videoId });
 }
 
+export async function prewarmYoutubeTrailerConfig(): Promise<void> {
+  return invoke<void>('prewarm_youtube_trailer_config');
+}
+
 export async function storageRead<T>(key: string): Promise<T | null> {
   const raw = await invoke<string | null>('storage_read', { key });
   if (!raw) return null;

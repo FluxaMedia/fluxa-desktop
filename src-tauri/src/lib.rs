@@ -347,6 +347,24 @@ async fn resolve_youtube_trailer_url(
 }
 
 #[tauri::command]
+async fn prewarm_youtube_trailer_config(state: State<'_, DesktopState>) -> Result<(), String> {
+    let data_dir = state
+        .data_dir
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "app data dir is not ready".to_string())?;
+    let cache_dir = data_dir.join("youtube-trailer-cache");
+    let _ = fs::create_dir_all(&cache_dir);
+    tauri::async_runtime::spawn_blocking(move || {
+        fluxa_streaming_engine::prewarm_youtube_watch_config(&cache_dir.to_string_lossy());
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn player_torrent_stats(state: State<'_, DesktopState>) -> Result<Option<Value>, String> {
     let base_url = state.torrent_server_base_url.lock().unwrap().clone();
     let link = state.torrent_stream_link.lock().unwrap().clone();
@@ -579,6 +597,7 @@ pub fn run() {
             start_torrent_stream,
             stop_torrent_stream,
             resolve_youtube_trailer_url,
+            prewarm_youtube_trailer_config,
             player_init,
             player_apply_preferences,
             player_set_http_headers,
