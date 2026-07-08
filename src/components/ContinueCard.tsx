@@ -9,6 +9,20 @@ import {
 } from '../core/continueWatchingUtils';
 import { t } from '../i18n';
 
+const MAX_ARTWORK_RETRIES = 2;
+
+function retryImageUrl(url: string, retryKey: number): string {
+  if (retryKey <= 0 || url.startsWith('data:') || url.startsWith('blob:')) return url;
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set('__fluxa_img_retry', String(retryKey));
+    return parsed.toString();
+  } catch {
+    const joiner = url.includes('?') ? '&' : '?';
+    return `${url}${joiner}__fluxa_img_retry=${retryKey}`;
+  }
+}
+
 function resolveBadge(
   badge: string | undefined,
   type: string,
@@ -56,7 +70,11 @@ export function ContinueCard({
   const [imgError, setImgError] = React.useState(false);
   const [imgLoaded, setImgLoaded] = React.useState(false);
   const [artworkOverride, setArtworkOverride] = React.useState<string | null>(null);
+  const [artworkRetryKey, setArtworkRetryKey] = React.useState(0);
+  const artworkRetriesRef = React.useRef(0);
+  const artworkRetryTimersRef = React.useRef<number[]>([]);
   const artwork = artworkOverride ?? artworkProp;
+  const artworkSrc = artwork ? retryImageUrl(artwork, artworkRetryKey) : null;
 
   const lib = meta as unknown as LibraryItem & {
     lastEpisodeName?: string;
@@ -71,21 +89,51 @@ export function ContinueCard({
   };
 
   React.useEffect(() => {
-    setImgError(false);
-    setImgLoaded(false);
     setArtworkOverride(null);
   }, [artworkProp]);
 
   React.useEffect(() => {
+    setImgError(false);
+    setImgLoaded(false);
+    artworkRetriesRef.current = 0;
+    setArtworkRetryKey(0);
+    artworkRetryTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    artworkRetryTimersRef.current = [];
+  }, [artwork]);
+
+  React.useEffect(() => {
+    return () => {
+      artworkRetryTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      artworkRetryTimersRef.current = [];
+    };
+  }, []);
+
+  const fallbackToSeriesArt = React.useCallback(() => {
+    const m = meta as unknown as { poster?: string | null; background?: string | null };
+    const fallback = m.poster || m.background || null;
+    if (fallback && fallback !== artwork) setArtworkOverride(fallback);
+    else setImgError(true);
+  }, [artwork, meta]);
+
+  const handleArtworkError = React.useCallback(() => {
+    if (artworkRetriesRef.current < MAX_ARTWORK_RETRIES) {
+      artworkRetriesRef.current += 1;
+      const retry = artworkRetriesRef.current;
+      const timer = window.setTimeout(() => {
+        artworkRetryTimersRef.current = artworkRetryTimersRef.current.filter((id) => id !== timer);
+        setArtworkRetryKey(retry);
+      }, 400 * retry);
+      artworkRetryTimersRef.current.push(timer);
+    } else {
+      fallbackToSeriesArt();
+    }
+  }, [fallbackToSeriesArt]);
+
+  React.useEffect(() => {
     if (!artwork || imgLoaded || imgError) return;
-    const timer = setTimeout(() => {
-      const m = meta as unknown as { poster?: string | null; background?: string | null };
-      const fallback = m.poster || m.background || null;
-      if (fallback && fallback !== artwork) setArtworkOverride(fallback);
-      else setImgError(true);
-    }, 6000);
+    const timer = setTimeout(fallbackToSeriesArt, 12000);
     return () => clearTimeout(timer);
-  }, [artwork, imgLoaded, imgError, meta]);
+  }, [artwork, imgLoaded, imgError, fallbackToSeriesArt]);
 
   const progress = lib.timeOffset && lib.duration ? lib.timeOffset / lib.duration : 0;
   const isUpNext = meta.type === 'series' && (progress < 0.005 || progress >= 0.995);
@@ -134,11 +182,7 @@ export function ContinueCard({
     >
       <div style={cwStyles.imageArea}>
         {artwork && !imgError ? (
-          <img src={artwork} alt={meta.name} loading="lazy" decoding="async" style={{ ...cwStyles.artwork, opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.22s ease' }} onLoad={() => setImgLoaded(true)} onError={() => {
-            const m = meta as unknown as { poster?: string | null; background?: string | null };
-            const fallback = m.poster || m.background || null;
-            if (fallback && fallback !== artwork) { setArtworkOverride(fallback); } else { setImgError(true); }
-          }} />
+          <img key={artworkRetryKey} src={artworkSrc ?? undefined} alt={meta.name} loading="lazy" decoding="async" style={{ ...cwStyles.artwork, opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.22s ease' }} onLoad={() => setImgLoaded(true)} onError={handleArtworkError} />
         ) : (
           <div style={cwStyles.thumbPlaceholder}>
             <span style={cwStyles.placeholderText}>{meta.name.slice(0, 1).toUpperCase()}</span>
