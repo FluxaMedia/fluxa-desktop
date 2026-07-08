@@ -68,6 +68,9 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     return null;
   }, [activeMeta.trailers]);
   const [trailerStreamUrl, setTrailerStreamUrl] = useState<string | null>(null);
+  const [trailerReady, setTrailerReady] = useState(false);
+  const [trailerProgress, setTrailerProgress] = useState(0);
+  const trailerActive = !!trailerStreamUrl && trailerReady;
 
   const imdbNum = activeMeta.imdbRating != null ? Number(activeMeta.imdbRating) : NaN;
   const releaseYear = activeMeta.year ?? parseReleaseYear(activeMeta.releaseInfo);
@@ -92,6 +95,8 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
 
   useEffect(() => {
     setTrailerStreamUrl(null);
+    setTrailerReady(false);
+    setTrailerProgress(0);
     if (!autoplayTrailer || !isActive || paused || !trailerVideoId) return;
     let cancelled = false;
     const id = window.setTimeout(() => {
@@ -120,12 +125,12 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
   }
 
   useEffect(() => {
-    if (!canSlide || !isActive || paused) return;
+    if (!canSlide || !isActive || paused || trailerActive) return;
     const id = window.setInterval(() => {
       slideToIndex(activeIndexRef.current + 1);
     }, SLIDE_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [canSlide, items.length, isActive, paused]);
+  }, [canSlide, items.length, isActive, paused, trailerActive]);
 
   useEffect(() => {
     if (!canSlide) return;
@@ -167,7 +172,13 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
           src={bgUrl}
           alt=""
           decoding="async"
-          style={{ ...styles.backdrop, ...contentStyle, animationPlayState: paused ? 'paused' : 'running' }}
+          style={{
+            ...styles.backdrop,
+            ...contentStyle,
+            opacity: visible ? (trailerActive ? 0 : 1) : 0,
+            transition: 'opacity 0.6s ease',
+            animationPlayState: paused ? 'paused' : 'running',
+          }}
           onError={() => setBgError(true)}
         />
       )}
@@ -175,18 +186,23 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
       {trailerStreamUrl && (
         <video
           key={trailerStreamUrl}
-          style={styles.trailerFrame}
+          style={{ ...styles.trailerFrame, opacity: trailerReady ? 1 : 0, transition: 'opacity 0.6s ease' }}
           src={trailerStreamUrl}
           autoPlay
           muted
-          loop
           playsInline
+          onPlaying={() => setTrailerReady(true)}
+          onTimeUpdate={(e) => {
+            const el = e.currentTarget;
+            if (el.duration > 0) setTrailerProgress(el.currentTime / el.duration);
+          }}
+          onEnded={() => setTrailerStreamUrl(null)}
           onError={() => setTrailerStreamUrl(null)}
         />
       )}
 
       <div style={styles.gradientTop} />
-      <div style={styles.gradientLeft} />
+      <div style={{ ...styles.gradientLeft, opacity: trailerActive ? 0.45 : 1, transition: 'opacity 0.6s ease' }} />
       <div style={styles.gradientBottom} />
 
       <div style={{ ...styles.panel, ...contentStyle }}>
@@ -202,34 +218,43 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
           <h1 style={styles.title}>{String(activeMeta.name ?? '')}</h1>
         )}
 
-        {tagline && <p style={styles.tagline}>{tagline}</p>}
+        <div
+          style={{
+            maxHeight: trailerActive ? 0 : 600,
+            opacity: trailerActive ? 0 : 1,
+            overflow: 'hidden',
+            transition: 'max-height 0.5s ease, opacity 0.3s ease',
+          }}
+        >
+          {tagline && <p style={styles.tagline}>{tagline}</p>}
 
-        {metaParts.length > 0 && (
-          <p style={styles.metaLine}>{metaParts.join(' · ')}</p>
-        )}
+          {metaParts.length > 0 && (
+            <p style={styles.metaLine}>{metaParts.join(' · ')}</p>
+          )}
 
-        {(!isNaN(imdbNum) || certification || genreLine.length > 0) && (
-          <div style={styles.metaRow}>
-            {!isNaN(imdbNum) && (
-              <span style={styles.imdbBadge}>
-                <img src="/imdb.svg" alt="IMDb" style={styles.imdbLogo} />
-                <span style={styles.imdbScore}>{imdbNum.toFixed(1)}</span>
-              </span>
-            )}
-            {certification && (
-              <span style={styles.certBadge}>{certification}</span>
-            )}
-            {genreLine.length > 0 && (
-              <span style={styles.genreText}>{genreLine.join('  ·  ')}</span>
-            )}
-          </div>
-        )}
+          {(!isNaN(imdbNum) || certification || genreLine.length > 0) && (
+            <div style={styles.metaRow}>
+              {!isNaN(imdbNum) && (
+                <span style={styles.imdbBadge}>
+                  <img src="/imdb.svg" alt="IMDb" style={styles.imdbLogo} />
+                  <span style={styles.imdbScore}>{imdbNum.toFixed(1)}</span>
+                </span>
+              )}
+              {certification && (
+                <span style={styles.certBadge}>{certification}</span>
+              )}
+              {genreLine.length > 0 && (
+                <span style={styles.genreText}>{genreLine.join('  ·  ')}</span>
+              )}
+            </div>
+          )}
 
-        {activeMeta.description && (
-          <p style={styles.description}>{activeMeta.description}</p>
-        )}
+          {activeMeta.description && (
+            <p style={styles.description}>{activeMeta.description}</p>
+          )}
 
-        {awards && <p style={styles.awards}>{awards}</p>}
+          {awards && <p style={styles.awards}>{awards}</p>}
+        </div>
 
         <div style={styles.actions}>
           <button style={styles.watchBtn} onClick={() => onPlay?.(activeMeta)}>
@@ -249,30 +274,36 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
         <>
           <NavArrow direction="left" onClick={() => goTo(activeIndex - 1)} />
           <NavArrow direction="right" onClick={() => goTo(activeIndex + 1)} />
-          <div style={styles.indicators}>
-            {items.map((item, i) => (
-              <button
-                key={item.id || item.name}
-                aria-label={`Show ${item.name}`}
-                style={styles.indicatorTrack}
-                onClick={() => goTo(i)}
-              >
-                <span
-                  key={i === activeIndex ? `${activeIndex}-${cycle}` : `${i}-static`}
-                  style={{
-                    ...styles.indicatorFill,
-                    ...(i < activeIndex ? styles.indicatorFillDone : null),
-                    ...(i === activeIndex
-                      ? {
-                          animation: `heroIndicatorFill ${SLIDE_INTERVAL_MS}ms linear forwards`,
-                          animationPlayState: paused ? 'paused' : 'running',
-                        }
-                      : null),
-                  }}
-                />
-              </button>
-            ))}
-          </div>
+          {trailerActive ? (
+            <div style={styles.trailerProgressTrack}>
+              <span style={{ ...styles.trailerProgressFill, width: `${trailerProgress * 100}%` }} />
+            </div>
+          ) : (
+            <div style={styles.indicators}>
+              {items.map((item, i) => (
+                <button
+                  key={item.id || item.name}
+                  aria-label={`Show ${item.name}`}
+                  style={styles.indicatorTrack}
+                  onClick={() => goTo(i)}
+                >
+                  <span
+                    key={i === activeIndex ? `${activeIndex}-${cycle}` : `${i}-static`}
+                    style={{
+                      ...styles.indicatorFill,
+                      ...(i < activeIndex ? styles.indicatorFillDone : null),
+                      ...(i === activeIndex
+                        ? {
+                            animation: `heroIndicatorFill ${SLIDE_INTERVAL_MS}ms linear forwards`,
+                            animationPlayState: paused ? 'paused' : 'running',
+                          }
+                        : null),
+                    }}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -603,5 +634,23 @@ const styles: Record<string, React.CSSProperties> = {
   },
   indicatorFillDone: {
     width: '100%',
+  },
+  trailerProgressTrack: {
+    position: 'absolute',
+    bottom: 24,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: 220,
+    height: 3,
+    borderRadius: 999,
+    background: 'rgba(255,255,255,0.25)',
+    overflow: 'hidden',
+    zIndex: 10,
+  },
+  trailerProgressFill: {
+    display: 'block',
+    height: '100%',
+    background: 'rgba(255,255,255,0.90)',
+    borderRadius: 999,
   },
 };
