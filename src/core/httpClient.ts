@@ -31,7 +31,16 @@ export async function fetchJson(url: string, init?: RequestInit): Promise<unknow
 export async function tryFetchJson(url: string): Promise<unknown | null> {
   try {
     return await fetchJson(url);
-  } catch {
+  } catch (err) {
+    console.error(`tryFetchJson failed for ${redactSecrets(url)}`, err);
     return null;
   }
+}
+
+function redactSecrets(url: string): string {
+  const parsed = new URL(url);
+  for (const key of ['api_key', 'token', 'access_token']) {
+    if (parsed.searchParams.has(key)) parsed.searchParams.set(key, '***');
+  }
+  return parsed.toString();
 }

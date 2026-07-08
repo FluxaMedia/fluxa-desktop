@@ -131,7 +131,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
       const found = results.filter(([, trailers]) => trailers.length);
       if (!found.length) return;
       setHeroTrailers((prev) => ({ ...prev, ...Object.fromEntries(found) }));
-    });
+    }).catch((err) => console.error('hero trailer fetch failed', err));
     return () => { cancelled = true; };
   }, [billboard, heroSlides, autoplayTrailerEnabled, prefs]);
 

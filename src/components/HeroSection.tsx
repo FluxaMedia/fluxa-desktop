@@ -97,7 +97,7 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     const id = window.setTimeout(() => {
       resolveYoutubeTrailerUrl(trailerVideoId).then((url) => {
         if (!cancelled && url) setTrailerStreamUrl(url);
-      }).catch(() => {});
+      }).catch((err) => console.error('resolveYoutubeTrailerUrl failed', err));
     }, autoplayTrailerDelaySecs * 1000);
     return () => { cancelled = true; window.clearTimeout(id); };
   }, [activeMeta.id, trailerVideoId, autoplayTrailer, autoplayTrailerDelaySecs, isActive, paused]);
