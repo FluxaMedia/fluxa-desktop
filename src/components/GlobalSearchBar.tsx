@@ -22,6 +22,7 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
   const [inputValue, setInputValue] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [focused, setFocused] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -64,6 +65,12 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
 
   const suggestions = networkSuggestions.length > 0 ? networkSuggestions : localSuggestions;
   const showDropdown = focused && (recentSearches.length > 0 || suggestions.length > 0);
+  const showingRecent = !inputValue.trim();
+  const listItems = showingRecent ? recentSearches : (inputValue.trim().length >= 2 ? suggestions : []);
+
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [inputValue, expanded, showingRecent, suggestions.length]);
 
   const open = () => {
     setExpanded(true);
@@ -96,8 +103,27 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && inputValue.trim().length >= 1) {
-      submit(inputValue);
+    if (e.key === 'ArrowDown' && listItems.length > 0) {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, listItems.length - 1));
+      return;
+    }
+    if (e.key === 'ArrowUp' && listItems.length > 0) {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+      return;
+    }
+    if (e.key === 'Enter') {
+      if (activeIndex >= 0 && activeIndex < listItems.length) {
+        if (showingRecent) {
+          handleRecentClick(recentSearches[activeIndex]);
+        } else {
+          handleSuggestionClick(suggestions[activeIndex]);
+        }
+      } else if (inputValue.trim().length >= 1) {
+        submit(inputValue);
+      }
+      return;
     }
     if (e.key === 'Escape') {
       clearOrClose();
@@ -223,12 +249,12 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
                   {t('search.clear_history')}
                 </button>
               </div>
-              {recentSearches.map((item) => (
+              {recentSearches.map((item, index) => (
                 <button
                   key={item}
-                  style={dropdownStyles.row}
+                  style={{ ...dropdownStyles.row, background: activeIndex === index ? 'rgba(255,255,255,0.06)' : 'transparent' }}
                   onMouseDown={(e) => { e.preventDefault(); handleRecentClick(item); }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
+                  onMouseEnter={(e) => { setActiveIndex(index); (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                 >
                   <Clock size={15} color="rgba(255,255,255,0.4)" style={{ flexShrink: 0 }} />
@@ -243,12 +269,12 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
               <div style={{ padding: '0.25rem 0.5rem 0.5rem' }}>
                 <span style={dropdownStyles.sectionLabel}>{t('search.suggestions')}</span>
               </div>
-              {suggestions.map((meta) => (
+              {suggestions.map((meta, index) => (
                 <button
                   key={meta.id}
-                  style={dropdownStyles.row}
+                  style={{ ...dropdownStyles.row, background: activeIndex === index ? 'rgba(255,255,255,0.06)' : 'transparent' }}
                   onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(meta); }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
+                  onMouseEnter={(e) => { setActiveIndex(index); (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                 >
                   <SearchIcon size={15} color="rgba(255,255,255,0.4)" style={{ flexShrink: 0 }} />
