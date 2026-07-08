@@ -5,7 +5,7 @@ import { cardImageUrl } from '../core/imageSizes';
 import { useInViewport } from '../hooks/useInViewport';
 import { useGifSlot } from '../hooks/useGifSlot';
 
-const ROW_PADDING_LEFT = 32;
+const ROW_PADDING_LEFT = '2rem';
 
 const SCROLL_GAP = 12;
 const BUFFER = 3;
@@ -100,7 +100,7 @@ export const CollectionShelfRow = React.memo(function CollectionShelfRow({
     <div style={collStyles.section}>
       <div style={headerStyles.header}>
         <p style={headerStyles.title}>{title}</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
           <button
             style={{ ...headerStyles.arrowBtn, opacity: canScrollLeft ? 1 : 0.28, cursor: canScrollLeft ? 'pointer' : 'default' }}
             onClick={() => canScrollLeft && scroll('left')}
@@ -157,10 +157,10 @@ const FolderTileCard = React.memo(function FolderTileCard({
   const w = cardWidth(folder);
 
   const imgStyle: React.CSSProperties = isWide
-    ? { width: w, minWidth: w, height: 158 }
+    ? { width: w, minWidth: w, height: '9.875rem' }
     : isSquare
-    ? { width: w, minWidth: w, height: 150 }
-    : { width: w, minWidth: w, height: 234 };
+    ? { width: w, minWidth: w, height: '9.375rem' }
+    : { width: w, minWidth: w, height: '14.625rem' };
 
   const staticUrl = cardImageUrl(folder.poster) ?? cardImageUrl(folder.background, 'backdrop');
   const hasStatic = !!staticUrl && !staticImgError;
@@ -228,12 +228,12 @@ const headerStyles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingLeft: ROW_PADDING_LEFT,
-    paddingRight: 32,
-    marginBottom: 12,
+    paddingRight: '2rem',
+    marginBottom: '0.75rem',
   },
   title: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: '1.125rem',
     fontWeight: 700,
     margin: 0,
     letterSpacing: '-0.01em',
@@ -242,9 +242,9 @@ const headerStyles: Record<string, React.CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 28,
-    height: 28,
-    borderRadius: 999,
+    width: '1.75rem',
+    height: '1.75rem',
+    borderRadius: '62.4375rem',
     border: '1px solid rgba(255,255,255,0.10)',
     background: 'rgba(255,255,255,0.06)',
     color: 'rgba(255,255,255,0.76)',
@@ -257,32 +257,32 @@ const collStyles: Record<string, React.CSSProperties> = {
   section: {
     position: 'relative',
     zIndex: 1,
-    paddingTop: 8,
-    marginBottom: 4,
+    paddingTop: '0.5rem',
+    marginBottom: '0.25rem',
     contain: 'layout style',
   },
   scroll: {
     display: 'flex',
-    gap: 12,
+    gap: '0.75rem',
     overflowX: 'auto',
     paddingLeft: ROW_PADDING_LEFT,
-    paddingRight: 40,
-    paddingBottom: 16,
-    paddingTop: 4,
+    paddingRight: '2.5rem',
+    paddingBottom: '1rem',
+    paddingTop: '0.25rem',
     scrollbarWidth: 'none',
     willChange: 'transform',
   },
   tileWrapper: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: '0.375rem',
     cursor: 'pointer',
     outline: 'none',
     flexShrink: 0,
   },
   card: {
     position: 'relative',
-    borderRadius: 8,
+    borderRadius: '0.5rem',
     overflow: 'hidden',
     background: '#141922',
   },
@@ -302,12 +302,12 @@ const collStyles: Record<string, React.CSSProperties> = {
   },
   namePlaceholderText: {
     color: 'rgba(255,255,255,0.22)',
-    fontSize: 48,
+    fontSize: '3rem',
     fontWeight: 900,
   },
   folderName: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: '0.8125rem',
     fontWeight: 700,
     margin: 0,
     overflow: 'hidden',

@@ -6,7 +6,6 @@ import { PlayerLoadingOverlay } from './components/PlayerLoadingOverlay';
 import { ReactPlayerOverlay } from './components/ReactPlayerOverlay';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
-import { getCurrentWebview } from '@tauri-apps/api/webview';
 
 function debugLog(msg: string) {
   void invoke('debug_log', { msg }).catch(() => {});
@@ -374,8 +373,8 @@ export default function App() {
   const prefs = React.useMemo(() => appPrefs(state), [state.settings?.values]);
   const uiScale = prefString(prefs, 'uiScale', '100');
   useEffect(() => {
-    const zoom = (Number(uiScale) || 100) / 100;
-    void getCurrentWebview().setZoom(zoom).catch(() => undefined);
+    const scale = (Number(uiScale) || 100) / 100;
+    document.documentElement.style.fontSize = `${scale * 16}px`;
   }, [uiScale]);
   const accentColor = prefString(prefs, 'accentColorArgb', '#FFFFFF');
   const rootStyle = React.useMemo(() => ({
@@ -505,7 +504,7 @@ export default function App() {
             zIndex: 46,
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            gap: '0.5rem',
             pointerEvents: 'none',
           }}
         >
@@ -697,7 +696,7 @@ const appStyles: Record<string, React.CSSProperties> = {
   },
   loadingText: {
     color: '#FFFFFF',
-    fontSize: 40,
+    fontSize: '2.5rem',
     fontWeight: 900,
     fontFamily: "'Montserrat', sans-serif",
     letterSpacing: 0,

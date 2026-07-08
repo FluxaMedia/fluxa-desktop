@@ -94,11 +94,11 @@ function FeedToggleList({
               />
             </div>
             {onOrderChange && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '0 8px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', padding: '0 0.5rem', flexShrink: 0 }}>
                 <button
                   disabled={idx === 0}
                   onClick={() => onOrderChange(moveFeedInOrder(feeds, order ?? [], feed.key, -1))}
-                  style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.55)', padding: '2px 4px', lineHeight: 1 }}
+                  style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.55)', padding: '0.125rem 0.25rem', lineHeight: 1 }}
                   title={t('common.move_up')}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14l5-5 5 5z"/></svg>
@@ -106,7 +106,7 @@ function FeedToggleList({
                 <button
                   disabled={idx === orderedFeeds.length - 1}
                   onClick={() => onOrderChange(moveFeedInOrder(feeds, order ?? [], feed.key, 1))}
-                  style={{ background: 'none', border: 'none', cursor: idx === orderedFeeds.length - 1 ? 'default' : 'pointer', color: idx === orderedFeeds.length - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.55)', padding: '2px 4px', lineHeight: 1 }}
+                  style={{ background: 'none', border: 'none', cursor: idx === orderedFeeds.length - 1 ? 'default' : 'pointer', color: idx === orderedFeeds.length - 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.55)', padding: '0.125rem 0.25rem', lineHeight: 1 }}
                   title={t('common.move_down')}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>

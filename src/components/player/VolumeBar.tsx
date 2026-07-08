@@ -75,7 +75,7 @@ export function VolumeBar({ value, max, onChange, forceTooltip }: { value: numbe
   return (
     <div
       ref={trackRef}
-      style={{ position: 'relative', width: 80, height: 20, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+      style={{ position: 'relative', width: '5rem', height: '1.25rem', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}
       onMouseDown={(e) => { e.stopPropagation(); dragging.current = true; applyX(e.clientX); }}
       onMouseEnter={() => { hovering.current = true; setTooltipVisible(true); }}
       onMouseLeave={() => { hovering.current = false; if (!dragging.current) setTooltipVisible(false); }}
@@ -87,22 +87,22 @@ export function VolumeBar({ value, max, onChange, forceTooltip }: { value: numbe
           position: 'absolute',
           bottom: '100%',
           left: initPct,
-          transform: 'translate(-50%, -8px)',
+          transform: 'translate(-50%, -0.5rem)',
           background: 'rgba(20,20,20,0.92)',
           color: '#fff',
-          fontSize: 11,
+          fontSize: '0.6875rem',
           fontWeight: 600,
-          padding: '2px 6px',
-          borderRadius: 4,
+          padding: '0.125rem 0.375rem',
+          borderRadius: '0.25rem',
           whiteSpace: 'nowrap',
           pointerEvents: 'none',
           opacity: 0,
           transition: 'opacity 0.12s ease',
         }}
       />
-      <div style={{ position: 'absolute', left: 0, right: 0, height: 3, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.2)', borderRadius: 2 }} />
-      <div ref={fillRef} style={{ position: 'absolute', left: 0, width: initPct, height: 3, top: '50%', transform: 'translateY(-50%)', background: '#fff', borderRadius: 2 }} />
-      <div ref={dotRef} style={{ position: 'absolute', left: initPct, top: '50%', width: 11, height: 11, borderRadius: '50%', background: '#fff', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 4px rgba(0,0,0,0.6)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, height: '0.1875rem', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.2)', borderRadius: '0.125rem' }} />
+      <div ref={fillRef} style={{ position: 'absolute', left: 0, width: initPct, height: '0.1875rem', top: '50%', transform: 'translateY(-50%)', background: '#fff', borderRadius: '0.125rem' }} />
+      <div ref={dotRef} style={{ position: 'absolute', left: initPct, top: '50%', width: '0.6875rem', height: '0.6875rem', borderRadius: '50%', background: '#fff', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 0.25rem rgba(0,0,0,0.6)', pointerEvents: 'none' }} />
     </div>
   );
 }

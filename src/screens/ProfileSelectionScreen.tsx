@@ -126,7 +126,7 @@ function ProfileCard({ profile, onSelect, onDelete, onEdit }: {
         </div>
         <span style={S.profileName}>{profile.name ?? t('auto.profile')}</span>
       </button>
-      <div style={{ display: 'flex', gap: 4 }}>
+      <div style={{ display: 'flex', gap: '0.25rem' }}>
         <button
           style={{ ...S.editPencilBtn, opacity: hovered ? 1 : 0.55 }}
           onClick={(e) => { e.stopPropagation(); onEdit(); }}
@@ -172,24 +172,24 @@ const FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
 
 const S: Record<string, React.CSSProperties> = {
   root: { position: 'fixed', inset: 0, zIndex: 9999, background: '#0C0C0C', color: colors.white, overflow: 'auto', fontFamily: FONT },
-  topBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 44px', zIndex: 2 },
-  logo: { margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: 2, fontFamily: FONT },
-  kicker: { margin: '2px 0 0', color: 'rgba(255,255,255,0.28)', fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.09em', fontFamily: FONT },
-  main: { minHeight: '100%', width: 'min(1100px, calc(100vw - 56px))', margin: '0 auto', padding: '110px 0 56px' },
-  mainSelect: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 40px 60px' },
-  selectTitle: { margin: '0 0 52px', fontSize: 38, fontWeight: 700, letterSpacing: '-0.03em', textAlign: 'center', fontFamily: FONT },
-  hero: { marginBottom: 32, maxWidth: 600 },
-  eyebrow: { color: 'rgba(255,255,255,0.40)', fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.09em', margin: '0 0 14px', fontFamily: FONT },
-  title: { margin: 0, fontSize: 40, lineHeight: 1.05, fontWeight: 700, letterSpacing: '-0.03em', fontFamily: FONT },
-  subtitle: { margin: '12px 0 0', color: 'rgba(255,255,255,0.45)', fontSize: 14, lineHeight: 1.65, maxWidth: 520, fontFamily: FONT },
-  profileGrid: { display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 40, alignItems: 'flex-start', justifyContent: 'center' },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, height: '4.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2.75rem', zIndex: 2 },
+  logo: { margin: 0, fontSize: '1.375rem', fontWeight: 700, letterSpacing: '0.125rem', fontFamily: FONT },
+  kicker: { margin: '0.125rem 0 0', color: 'rgba(255,255,255,0.28)', fontSize: '0.625rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.09em', fontFamily: FONT },
+  main: { minHeight: '100%', width: 'min(68.75rem, calc(100vw - 3.5rem))', margin: '0 auto', padding: '6.875rem 0 3.5rem' },
+  mainSelect: { minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 2.5rem 3.75rem' },
+  selectTitle: { margin: '0 0 3.25rem', fontSize: '2.375rem', fontWeight: 700, letterSpacing: '-0.03em', textAlign: 'center', fontFamily: FONT },
+  hero: { marginBottom: '2rem', maxWidth: '37.5rem' },
+  eyebrow: { color: 'rgba(255,255,255,0.40)', fontSize: '0.6875rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.09em', margin: '0 0 0.875rem', fontFamily: FONT },
+  title: { margin: 0, fontSize: '2.5rem', lineHeight: 1.05, fontWeight: 700, letterSpacing: '-0.03em', fontFamily: FONT },
+  subtitle: { margin: '0.75rem 0 0', color: 'rgba(255,255,255,0.45)', fontSize: '0.875rem', lineHeight: 1.65, maxWidth: '32.5rem', fontFamily: FONT },
+  profileGrid: { display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '2.5rem', alignItems: 'flex-start', justifyContent: 'center' },
   profileCard: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, background: 'transparent', border: 'none' },
   profileSelectButton: { width: 'auto', border: 'none', background: 'transparent', color: colors.white, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', cursor: 'pointer', padding: 0, outline: 'none' },
-  avatarCircleWrap: { borderRadius: '50%', overflow: 'hidden', transition: 'opacity 0.15s, transform 0.15s', width: 130, height: 130, flexShrink: 0 },
-  profileName: { marginTop: 14, maxWidth: 140, color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT },
-  editPencilBtn: { marginTop: 8, border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.15s', outline: 'none' },
-  addCircle: { width: 130, height: 130, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s, transform 0.15s', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.10)' },
-  addLabel: { marginTop: 14, color: 'rgba(255,255,255,0.35)', fontSize: 14, fontWeight: 500, fontFamily: FONT },
-  emptyState: { gridColumn: '1 / -1', height: 60, borderRadius: 8, border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 13, fontFamily: FONT },
-  closeButton: { width: 36, height: 36, borderRadius: 8, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' },
+  avatarCircleWrap: { borderRadius: '50%', overflow: 'hidden', transition: 'opacity 0.15s, transform 0.15s', width: '8.125rem', height: '8.125rem', flexShrink: 0 },
+  profileName: { marginTop: '0.875rem', maxWidth: '8.75rem', color: 'rgba(255,255,255,0.85)', fontSize: '0.875rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: FONT },
+  editPencilBtn: { marginTop: '0.5rem', border: 'none', background: 'transparent', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', padding: '0.25rem 0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'opacity 0.15s', outline: 'none' },
+  addCircle: { width: '8.125rem', height: '8.125rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s, transform 0.15s', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.10)' },
+  addLabel: { marginTop: '0.875rem', color: 'rgba(255,255,255,0.35)', fontSize: '0.875rem', fontWeight: 500, fontFamily: FONT },
+  emptyState: { gridColumn: '1 / -1', height: '3.75rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.625rem', fontSize: '0.8125rem', fontFamily: FONT },
+  closeButton: { width: '2.25rem', height: '2.25rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' },
 };

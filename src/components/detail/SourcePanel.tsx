@@ -21,12 +21,12 @@ export const SourceRow = React.memo(function SourceRow({ stream, onClick }: { st
     });
   return (
     <button
-      style={{ ...SS.streamRow, background: hovered ? '#181818' : '#101010', color: '#FFF', boxShadow: hovered ? '0 0 0 2px rgba(255,255,255,0.22)' : 'none' }}
+      style={{ ...SS.streamRow, background: hovered ? '#181818' : '#101010', color: '#FFF', boxShadow: hovered ? '0 0 0 0.125rem rgba(255,255,255,0.22)' : 'none' }}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
         <span style={SS.streamName}>{heading}</span>
         {stream.addonName && <span style={{ ...SS.streamAddon, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>{stream.addonName}</span>}
       </div>
@@ -64,11 +64,11 @@ export function MovieSourcePanel({
 
   return (
     <div style={rootStyle}>
-      <div style={{ padding: '14px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ padding: '0.875rem 1rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
         <div>
           {meta.logo
-            ? <img src={meta.logo} alt="" style={{ display: 'block', maxWidth: 140, maxHeight: 44, objectFit: 'contain', objectPosition: 'left', marginBottom: 2 }} />
-            : <h3 style={{ ...EP.sourceTitle, margin: '0 0 2px' }}>{meta.name ?? meta.id}</h3>
+            ? <img src={meta.logo} alt="" style={{ display: 'block', maxWidth: '8.75rem', maxHeight: '2.75rem', objectFit: 'contain', objectPosition: 'left', marginBottom: '0.125rem' }} />
+            : <h3 style={{ ...EP.sourceTitle, margin: '0 0 0.125rem' }}>{meta.name ?? meta.id}</h3>
           }
         </div>
         {onClose && (
@@ -79,7 +79,7 @@ export function MovieSourcePanel({
       </div>
 
       {(isLoading || addonNames.length > 0) && (
-        <div style={{ ...EP.sourcePills, padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+        <div style={{ ...EP.sourcePills, padding: '0.625rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
           <button style={{ ...(selectedAddon === null ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none' }} onClick={() => setSelectedAddon(null)}>{t('auto.all')}</button>
           {addonNames.map((addon) => (
             <button
@@ -142,27 +142,27 @@ export function InlineSourceList({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-      <div style={{ padding: '13px 16px 0', flexShrink: 0 }}>
+      <div style={{ padding: '0.8125rem 1rem 0', flexShrink: 0 }}>
         <button style={EP.backToEpisodesBtn} onClick={onBack}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
             <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
           </svg>
           <span>{t('auto.episodes')}</span>
         </button>
-        <div style={{ ...EP.sourceHeader, padding: '10px 0 14px' }}>
+        <div style={{ ...EP.sourceHeader, padding: '0.625rem 0 0.875rem' }}>
           {meta.logo
-            ? <img src={meta.logo} alt="" style={{ display: 'block', maxWidth: 140, maxHeight: 44, objectFit: 'contain', objectPosition: 'left', marginBottom: 6 }} />
-            : <h3 style={{ ...EP.sourceTitle, margin: '0 0 6px' }}>{meta.name ?? meta.id}</h3>
+            ? <img src={meta.logo} alt="" style={{ display: 'block', maxWidth: '8.75rem', maxHeight: '2.75rem', objectFit: 'contain', objectPosition: 'left', marginBottom: '0.375rem' }} />
+            : <h3 style={{ ...EP.sourceTitle, margin: '0 0 0.375rem' }}>{meta.name ?? meta.id}</h3>
           }
           <p style={EP.sourceSubtitle}>{episodeLabel}</p>
           {episode.overview && (
-            <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: 12, fontWeight: 400, margin: '5px 0 0', lineHeight: '17px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{episode.overview}</p>
+            <p style={{ color: 'rgba(255,255,255,0.42)', fontSize: '0.75rem', fontWeight: 400, margin: '0.3125rem 0 0', lineHeight: '1.0625rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{episode.overview}</p>
           )}
         </div>
       </div>
 
       {(isLoading || addonNames.length > 0) && (
-        <div style={{ ...EP.sourcePills, padding: '0 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+        <div style={{ ...EP.sourcePills, padding: '0 1rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
           <button style={{ ...(selectedAddon === null ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none' }} onClick={() => setSelectedAddon(null)}>{t('auto.all')}</button>
           {addonNames.map((addon) => (
             <button

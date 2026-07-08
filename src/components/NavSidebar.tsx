@@ -67,15 +67,15 @@ function normalizeAlign(value?: string): NavItemsAlign {
 function edgeContainerStyle(position: NavBarPosition): React.CSSProperties {
   const offset = 18;
   if (position === 'top') {
-    return { top: offset, left: '50%', transform: 'translateX(-50%)', paddingBottom: 24 };
+    return { top: offset, left: '50%', transform: 'translateX(-50%)', paddingBottom: '1.5rem' };
   }
   if (position === 'bottom') {
-    return { bottom: offset, left: '50%', transform: 'translateX(-50%)', paddingTop: 24 };
+    return { bottom: offset, left: '50%', transform: 'translateX(-50%)', paddingTop: '1.5rem' };
   }
   if (position === 'right') {
-    return { top: '50%', right: 0, transform: 'translateY(-50%)', paddingLeft: 24 };
+    return { top: '50%', right: 0, transform: 'translateY(-50%)', paddingLeft: '1.5rem' };
   }
-  return { top: '50%', left: 0, transform: 'translateY(-50%)', paddingRight: 24 };
+  return { top: '50%', left: 0, transform: 'translateY(-50%)', paddingRight: '1.5rem' };
 }
 
 function panelJustify(position: NavBarPosition, align: NavItemsAlign): React.CSSProperties['justifyContent'] {
@@ -85,10 +85,10 @@ function panelJustify(position: NavBarPosition, align: NavItemsAlign): React.CSS
 }
 
 function sidebarPanelRadius(position: NavBarPosition): string {
-  if (position === 'right') return '16px 0 0 16px';
-  if (position === 'top') return '0 0 16px 16px';
-  if (position === 'bottom') return '16px 16px 0 0';
-  return '0 16px 16px 0';
+  if (position === 'right') return '1rem 0 0 1rem';
+  if (position === 'top') return '0 0 1rem 1rem';
+  if (position === 'bottom') return '1rem 1rem 0 0';
+  return '0 1rem 1rem 0';
 }
 
 function sidebarBorder(position: NavBarPosition): React.CSSProperties {
@@ -100,10 +100,10 @@ function sidebarBorder(position: NavBarPosition): React.CSSProperties {
 
 function sidebarClosedTransform(position: NavBarPosition, isOpen: boolean): string {
   if (isOpen) return 'translate(0, 0)';
-  if (position === 'right') return 'translateX(78px)';
-  if (position === 'top') return 'translateY(-78px)';
-  if (position === 'bottom') return 'translateY(78px)';
-  return 'translateX(-78px)';
+  if (position === 'right') return 'translateX(4.875rem)';
+  if (position === 'top') return 'translateY(-4.875rem)';
+  if (position === 'bottom') return 'translateY(4.875rem)';
+  return 'translateX(-4.875rem)';
 }
 
 export const NavSidebar = React.memo(function NavSidebar({ activeRoute, onNavigate, position: positionValue = 'left', itemsAlign: alignValue = 'center', topOffset = 0, alwaysOpen = false }: SidebarProps) {
@@ -138,16 +138,16 @@ export const NavSidebar = React.memo(function NavSidebar({ activeRoute, onNaviga
           display: 'flex',
           flexDirection: isHorizontal ? 'row' : 'column',
           justifyContent: panelJustify(position, itemsAlign),
-          gap: 4,
-          padding: '8px 10px 12px',
+          gap: '0.25rem',
+          padding: '0.5rem 0.625rem 0.75rem',
           background: '#141414',
           borderRadius: sidebarPanelRadius(position),
           border: '1px solid rgba(255,255,255,0.08)',
           ...sidebarBorder(position),
-          boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-          width: isHorizontal ? 'min(620px, calc(100vw - 48px))' : 96,
+          boxShadow: '0 0.5rem 2rem rgba(0,0,0,0.35)',
+          width: isHorizontal ? 'min(38.75rem, calc(100vw - 3rem))' : 96,
           minHeight: isHorizontal ? 58 : undefined,
-          maxHeight: isHorizontal ? undefined : 'calc(100vh - 80px)',
+          maxHeight: isHorizontal ? undefined : 'calc(100vh - 5rem)',
         }}
         onDoubleClick={onChromeDoubleClick}
       >
@@ -177,7 +177,7 @@ export const NavSidebar = React.memo(function NavSidebar({ activeRoute, onNaviga
           justifyContent: 'center',
           width: position === 'top' || position === 'bottom' ? 36 : 20,
           height: position === 'top' || position === 'bottom' ? 20 : 36,
-          borderRadius: position === 'right' ? '8px 0 0 8px' : position === 'top' ? '0 0 8px 8px' : position === 'bottom' ? '8px 8px 0 0' : '0 8px 8px 0',
+          borderRadius: position === 'right' ? '0.5rem 0 0 0.5rem' : position === 'top' ? '0 0 0.5rem 0.5rem' : position === 'bottom' ? '0.5rem 0.5rem 0 0' : '0 0.5rem 0.5rem 0',
           border: '1px solid rgba(255,255,255,0.08)',
           ...sidebarBorder(position),
           background: '#141414',
@@ -185,7 +185,7 @@ export const NavSidebar = React.memo(function NavSidebar({ activeRoute, onNaviga
           cursor: 'pointer',
           transition: 'left 0.25s ease, right 0.25s ease, top 0.25s ease, bottom 0.25s ease, color 0.15s',
           padding: 0,
-          boxShadow: '2px 0 8px rgba(0,0,0,0.3)',
+          boxShadow: '0.125rem 0 0.5rem rgba(0,0,0,0.3)',
         }}
         onMouseEnter={(e) => (e.currentTarget.style.color = '#FFFFFF')}
         onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
@@ -219,13 +219,13 @@ export const TopBar = React.memo(function TopBar({ activeRoute, onNavigate, tran
         flexDirection: isVertical ? 'column' : 'row',
         alignItems: 'center',
         justifyContent: panelJustify(position, itemsAlign),
-        gap: 2,
+        gap: '0.125rem',
         background: transparent ? 'transparent' : 'rgba(10, 12, 20, 0.96)',
         border: transparent ? 'none' : '1px solid rgba(255,255,255,0.10)',
         borderRadius: transparent ? 0 : 999,
-        padding: transparent ? '14px 6px 8px' : '5px 6px',
-        boxShadow: transparent ? 'none' : '0 8px 32px rgba(0,0,0,0.35)',
-        maxHeight: isVertical ? 'calc(100vh - 48px)' : undefined,
+        padding: transparent ? '0.875rem 0.375rem 0.5rem' : '0.3125rem 0.375rem',
+        boxShadow: transparent ? 'none' : '0 0.5rem 2rem rgba(0,0,0,0.35)',
+        maxHeight: isVertical ? 'calc(100vh - 3rem)' : undefined,
       }}
       onDoubleClick={onChromeDoubleClick}
     >
@@ -263,10 +263,10 @@ function NavItem({
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 5,
-        width: 76,
-        padding: '12px 6px',
-        borderRadius: 10,
+        gap: '0.3125rem',
+        width: '4.75rem',
+        padding: '0.75rem 0.375rem',
+        borderRadius: '0.625rem',
         border: 'none',
         background: isActive
           ? 'rgba(255,255,255,0.12)'
@@ -290,9 +290,9 @@ function NavItem({
             right: 0,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 3,
-            height: 24,
-            borderRadius: '999px 0 0 999px',
+            width: '0.1875rem',
+            height: '1.5rem',
+            borderRadius: '62.4375rem 0 0 62.4375rem',
             background: '#FFFFFF',
           }}
         />
@@ -300,7 +300,7 @@ function NavItem({
       <NavIcon route={route} active={isActive} />
       <span
         style={{
-          fontSize: 11,
+          fontSize: '0.6875rem',
           fontWeight: isActive ? 600 : 400,
           opacity: isActive ? 1 : 0.65,
           lineHeight: 1,
@@ -332,18 +332,18 @@ function TopBarItem({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
-        height: 36,
-        padding: '0 12px',
-        borderRadius: 999,
+        gap: '0.375rem',
+        height: '2.25rem',
+        padding: '0 0.75rem',
+        borderRadius: '62.4375rem',
         border: 'none',
         background: hovered ? 'rgba(255,255,255,0.10)' : 'transparent',
         color: isActive ? '#FFFFFF' : hovered ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.65)',
-        textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+        textShadow: '0 1px 0.25rem rgba(0,0,0,0.8)',
         cursor: 'pointer',
         outline: 'none',
         transition: 'background 0.15s, color 0.15s',
-        fontSize: 13,
+        fontSize: '0.8125rem',
         fontWeight: isActive ? 700 : 600,
         whiteSpace: 'nowrap',
         flexShrink: 0,

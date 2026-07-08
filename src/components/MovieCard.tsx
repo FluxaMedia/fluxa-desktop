@@ -155,7 +155,7 @@ export const MovieCard = React.memo(function MovieCard({
                   style={{ width: '48%', height: '48%', objectFit: 'contain', opacity: 0.35 }}
                 />
               ) : (
-                <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 32, fontWeight: 900 }}>
+                <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '2rem', fontWeight: 900 }}>
                   {(meta.name ?? '').slice(0, 2).toUpperCase()}
                 </span>
               )}
@@ -177,7 +177,7 @@ export const MovieCard = React.memo(function MovieCard({
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 10,
+              gap: '0.625rem',
               pointerEvents: 'none',
             }}
           >
@@ -185,9 +185,9 @@ export const MovieCard = React.memo(function MovieCard({
             <span
               style={{
                 color: '#FFFFFF',
-                fontSize: 13,
+                fontSize: '0.8125rem',
                 fontWeight: 700,
-                letterSpacing: '0.5px',
+                letterSpacing: '0.0313rem',
               }}
             >
               {t('auto.watched')}
@@ -203,7 +203,7 @@ export const MovieCard = React.memo(function MovieCard({
               bottom: 0,
               left: 0,
               right: 0,
-              height: 3,
+              height: '0.1875rem',
               background: 'rgba(255,255,255,0.22)',
             }}
           >
@@ -212,7 +212,7 @@ export const MovieCard = React.memo(function MovieCard({
                 height: '100%',
                 width: `${Math.min(progressRatio, 1) * 100}%`,
                 background: '#E85D3F',
-                borderRadius: '0 2px 2px 0',
+                borderRadius: '0 0.125rem 0.125rem 0',
               }}
             />
           </div>
@@ -223,19 +223,19 @@ export const MovieCard = React.memo(function MovieCard({
           <div
             style={{
               position: 'absolute',
-              top: 8,
-              right: 8,
+              top: '0.5rem',
+              right: '0.5rem',
               background: 'rgba(0,0,0,0.72)',
-              borderRadius: 5,
-              padding: '2px 7px',
+              borderRadius: '0.3125rem',
+              padding: '0.125rem 0.4375rem',
             }}
           >
             <span
               style={{
                 color: 'rgba(255,255,255,0.7)',
-                fontSize: 10,
+                fontSize: '0.625rem',
                 fontWeight: 700,
-                letterSpacing: '0.5px',
+                letterSpacing: '0.0313rem',
               }}
             >
               UPCOMING
@@ -248,20 +248,20 @@ export const MovieCard = React.memo(function MovieCard({
       {!hideTitle && (
         <div
           style={{
-            margin: '8px 0 0',
+            margin: '0.5rem 0 0',
             marginLeft: topTenRank != null ? Math.round(rankNumWidth - rankOverlap) : 0,
             width: topTenRank != null ? width : '100%',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'flex-start',
-            gap: 2,
+            gap: '0.125rem',
             minWidth: 0,
           }}
         >
           <p
             style={{
               color: '#FFFFFF',
-              fontSize: 13,
+              fontSize: '0.8125rem',
               fontWeight: 700,
               margin: 0,
               overflow: 'hidden',
@@ -276,7 +276,7 @@ export const MovieCard = React.memo(function MovieCard({
             {meta.name}
           </p>
           {meta.year && (
-            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: 400, margin: 0, lineHeight: 1.3 }}>
+            <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.6875rem', fontWeight: 400, margin: 0, lineHeight: 1.3 }}>
               {meta.year}
             </p>
           )}
@@ -304,13 +304,13 @@ function WatchedCheckmark() {
   return (
     <div
       style={{
-        width: 32,
-        height: 20,
-        borderLeft: '4px solid #FFFFFF',
-        borderBottom: '4px solid #FFFFFF',
+        width: '2rem',
+        height: '1.25rem',
+        borderLeft: '0.25rem solid #FFFFFF',
+        borderBottom: '0.25rem solid #FFFFFF',
         transform: 'rotate(-45deg)',
         boxSizing: 'border-box',
-        marginBottom: 4,
+        marginBottom: '0.25rem',
       }}
     />
   );

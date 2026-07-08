@@ -137,7 +137,7 @@ export function SidebarItem({
     <button
       style={{
         width: '100%',
-        minHeight: 46,
+        minHeight: '2.875rem',
         background: selected
           ? 'rgba(255,255,255,0.08)'
           : hovered
@@ -145,12 +145,12 @@ export function SidebarItem({
           : 'transparent',
         color: '#FFFFFF',
         border: 'none',
-        borderRadius: 9,
+        borderRadius: '0.5625rem',
         cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        padding: '9px 12px',
+        gap: '0.625rem',
+        padding: '0.5625rem 0.75rem',
         fontFamily: FONT,
         transition: 'background 0.12s',
         textAlign: 'left',
@@ -168,9 +168,9 @@ export function SidebarItem({
           left: 0,
           top: '50%',
           transform: 'translateY(-50%)',
-          width: 3,
-          height: 18,
-          borderRadius: '0 2px 2px 0',
+          width: '0.1875rem',
+          height: '1.125rem',
+          borderRadius: '0 0.125rem 0.125rem 0',
           background: '#FFFFFF',
         }} />
       )}
@@ -179,8 +179,8 @@ export function SidebarItem({
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        width: 22,
-        height: 22,
+        width: '1.375rem',
+        height: '1.375rem',
         color: selected ? '#FFFFFF' : 'rgba(255,255,255,0.40)',
         transition: 'color 0.12s',
       }}>
@@ -189,7 +189,7 @@ export function SidebarItem({
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{
           display: 'block',
-          fontSize: 14,
+          fontSize: '0.875rem',
           fontWeight: selected ? 600 : 500,
           color: selected ? '#FFFFFF' : 'rgba(255,255,255,0.65)',
           overflow: 'hidden',
@@ -202,7 +202,7 @@ export function SidebarItem({
         {subtitle && (
           <span style={{
             display: 'block',
-            fontSize: 11,
+            fontSize: '0.6875rem',
             color: 'rgba(255,255,255,0.30)',
             marginTop: 1,
             overflow: 'hidden',
@@ -226,7 +226,7 @@ export function SettingsDetailHeader({ title }: { title: string }) {
 }
 
 export function SidebarDivider() {
-  return <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '10px 0' }} />;
+  return <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '0.625rem 0' }} />;
 }
 
 export function SettingsSection({
@@ -258,10 +258,10 @@ export function SettingsPanel({ children }: { children: React.ReactNode }) {
         borderRadius: 0,
         background: 'transparent',
         borderBottom: '1px solid rgba(255,255,255,0.055)',
-        padding: '14px 16px',
+        padding: '0.875rem 1rem',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>{children}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4375rem' }}>{children}</div>
     </div>
   );
 }
@@ -292,22 +292,22 @@ export function SliderTile({
       style={{
         width: '100%',
         borderBottom: '1px solid rgba(255,255,255,0.055)',
-        padding: '14px 16px',
+        padding: '0.875rem 1rem',
         boxSizing: 'border-box',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ flex: 1, paddingRight: 12, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+        <div style={{ flex: 1, paddingRight: '0.75rem', minWidth: 0 }}>
           <p style={styles.rowTitle}>{title}</p>
           <p style={styles.rowSubtitle}>{subtitle}</p>
         </div>
-        <span style={{ color: 'var(--primary-accent-color)', fontSize: 13, fontWeight: 600, fontFamily: FONT, flexShrink: 0, minWidth: 38, textAlign: 'right' }}>
+        <span style={{ color: 'var(--primary-accent-color)', fontSize: '0.8125rem', fontWeight: 600, fontFamily: FONT, flexShrink: 0, minWidth: '2.375rem', textAlign: 'right' }}>
           {label}
         </span>
       </div>
-      <div style={{ position: 'relative', height: 20, display: 'flex', alignItems: 'center' }}>
-        <div style={{ position: 'absolute', left: 0, right: 0, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.10)' }} />
-        <div style={{ position: 'absolute', left: 0, width: `${pct}%`, height: 3, borderRadius: 2, background: 'var(--primary-accent-color)', transition: 'width 0.05s' }} />
+      <div style={{ position: 'relative', height: '1.25rem', display: 'flex', alignItems: 'center' }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, height: '0.1875rem', borderRadius: '0.125rem', background: 'rgba(255,255,255,0.10)' }} />
+        <div style={{ position: 'absolute', left: 0, width: `${pct}%`, height: '0.1875rem', borderRadius: '0.125rem', background: 'var(--primary-accent-color)', transition: 'width 0.05s' }} />
         <input
           type="range"
           min={min}
@@ -315,17 +315,17 @@ export function SliderTile({
           step={step}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={{ position: 'absolute', left: 0, right: 0, width: '100%', margin: 0, opacity: 0, cursor: 'pointer', height: 20 }}
+          style={{ position: 'absolute', left: 0, right: 0, width: '100%', margin: 0, opacity: 0, cursor: 'pointer', height: '1.25rem' }}
         />
         <div
           style={{
             position: 'absolute',
-            left: `calc(${pct}% - 8px)`,
-            width: 16,
-            height: 16,
+            left: `calc(${pct}% - 0.5rem)`,
+            width: '1rem',
+            height: '1rem',
             borderRadius: '50%',
             background: 'var(--primary-accent-color)',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
+            boxShadow: '0 1px 0.25rem rgba(0,0,0,0.5)',
             transition: 'left 0.05s',
             pointerEvents: 'none',
           }}
@@ -351,14 +351,14 @@ export function ToggleTile({
     <div
       style={{
         width: '100%',
-        minHeight: 60,
+        minHeight: '3.75rem',
         borderRadius: 0,
         background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
         border: 'none',
         borderBottom: '1px solid rgba(255,255,255,0.055)',
         display: 'flex',
         alignItems: 'center',
-        padding: '12px 16px',
+        padding: '0.75rem 1rem',
         boxSizing: 'border-box',
         justifyContent: 'space-between',
         cursor: 'pointer',
@@ -368,15 +368,15 @@ export function ToggleTile({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div style={{ flex: 1, paddingRight: 16 }}>
+      <div style={{ flex: 1, paddingRight: '1rem' }}>
         <p style={styles.rowTitle}>{title}</p>
         <p style={styles.rowSubtitle}>{subtitle}</p>
       </div>
       <div
         onClick={(e) => { e.stopPropagation(); onToggle(!checked); }}
-        style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, background: checked ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.14)', position: 'relative', transition: 'background 0.18s', cursor: 'pointer', boxSizing: 'border-box' }}
+        style={{ flexShrink: 0, width: '2.75rem', height: '1.625rem', borderRadius: '62.4375rem', background: checked ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.14)', position: 'relative', transition: 'background 0.18s', cursor: 'pointer', boxSizing: 'border-box' }}
       >
-        <div style={{ position: 'absolute', top: 3, left: checked ? 21 : 3, width: 20, height: 20, borderRadius: '50%', background: checked ? '#000000' : 'rgba(255,255,255,0.80)', transition: 'left 0.18s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
+        <div style={{ position: 'absolute', top: '0.1875rem', left: checked ? 21 : 3, width: '1.25rem', height: '1.25rem', borderRadius: '50%', background: checked ? '#000000' : 'rgba(255,255,255,0.80)', transition: 'left 0.18s', boxShadow: '0 1px 0.1875rem rgba(0,0,0,0.4)' }} />
       </div>
     </div>
   );
@@ -399,13 +399,13 @@ export function ChoiceTile({
   return (
     <div style={{
       width: '100%',
-      minHeight: 60,
+      minHeight: '3.75rem',
       borderBottom: '1px solid rgba(255,255,255,0.055)',
       display: 'flex',
       alignItems: 'center',
-      padding: '12px 16px',
+      padding: '0.75rem 1rem',
       boxSizing: 'border-box',
-      gap: 16,
+      gap: '1rem',
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={styles.rowTitle}>{title}</p>
@@ -517,11 +517,11 @@ export function InputTile({
     boxSizing: 'border-box',
     background: 'rgba(255,255,255,0.045)',
     border: '1px solid rgba(255,255,255,0.10)',
-    borderRadius: 8,
+    borderRadius: '0.5rem',
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: '0.8125rem',
     fontFamily: FONT,
-    padding: '10px 12px',
+    padding: '0.625rem 0.75rem',
     outline: 'none',
     resize: 'vertical',
     lineHeight: '1.5',
@@ -530,11 +530,11 @@ export function InputTile({
     <div style={{
       width: '100%',
       borderBottom: '1px solid rgba(255,255,255,0.055)',
-      padding: '14px 16px',
+      padding: '0.875rem 1rem',
       boxSizing: 'border-box',
     }}>
       <p style={styles.rowTitle}>{title}</p>
-      <p style={{ ...styles.rowSubtitle, marginBottom: 10 }}>{subtitle}</p>
+      <p style={{ ...styles.rowSubtitle, marginBottom: '0.625rem' }}>{subtitle}</p>
       {multiline ? (
         <textarea value={value} placeholder={placeholder} rows={5} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
       ) : (
@@ -563,7 +563,7 @@ export function ActionTile({
     <div
       style={{
         width: '100%',
-        minHeight: 58,
+        minHeight: '3.625rem',
         borderRadius: 0,
         border: 'none',
         borderBottom: '1px solid rgba(255,255,255,0.055)',
@@ -574,9 +574,9 @@ export function ActionTile({
           : 'transparent',
         display: 'flex',
         alignItems: 'center',
-        padding: '12px 16px',
+        padding: '0.75rem 1rem',
         boxSizing: 'border-box',
-        gap: 12,
+        gap: '0.75rem',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'background 0.12s',
       }}
@@ -597,13 +597,13 @@ export function InfoTile({ title, value, icon }: { title: string; value: string;
   return (
     <div style={{
       width: '100%',
-      minHeight: 60,
+      minHeight: '3.75rem',
       borderBottom: '1px solid rgba(255,255,255,0.055)',
       display: 'flex',
       alignItems: 'center',
-      padding: '12px 16px',
+      padding: '0.75rem 1rem',
       boxSizing: 'border-box',
-      gap: 12,
+      gap: '0.75rem',
     }}>
       <span style={styles.rowIcon}>{icon}</span>
       <div>
@@ -638,14 +638,14 @@ export function SyncServiceRow({
     <div
       style={{
         width: '100%',
-        minHeight: 62,
+        minHeight: '3.875rem',
         borderBottom: '1px solid rgba(255,255,255,0.055)',
         background: hovered && onClick ? (destructive ? 'rgba(255,80,80,0.05)' : 'rgba(255,255,255,0.03)') : 'transparent',
         display: 'flex',
         alignItems: 'center',
-        padding: '12px 16px',
+        padding: '0.75rem 1rem',
         boxSizing: 'border-box',
-        gap: 12,
+        gap: '0.75rem',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'background 0.12s',
         opacity: busy ? 0.55 : 1,
@@ -656,11 +656,11 @@ export function SyncServiceRow({
     >
       <div style={{ flexShrink: 0 }}>{icon}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ color: destructive ? '#FF5A5A' : 'rgba(255,255,255,0.90)', fontSize: 14, fontWeight: 600, margin: 0, fontFamily: FONT, lineHeight: 1.25 }}>
+        <p style={{ color: destructive ? '#FF5A5A' : 'rgba(255,255,255,0.90)', fontSize: '0.875rem', fontWeight: 600, margin: 0, fontFamily: FONT, lineHeight: 1.25 }}>
           {title}
         </p>
         {value && (
-          <p style={{ color: valueColor ?? 'rgba(255,255,255,0.40)', fontSize: 12, margin: '2px 0 0', fontFamily: FONT, lineHeight: '15px', fontWeight: 400 }}>
+          <p style={{ color: valueColor ?? 'rgba(255,255,255,0.40)', fontSize: '0.75rem', margin: '0.125rem 0 0', fontFamily: FONT, lineHeight: '0.9375rem', fontWeight: 400 }}>
             {value}
           </p>
         )}
@@ -722,13 +722,13 @@ export function SyncServicePopover({
   ].filter(Boolean).join(' · ');
 
   return (
-    <div ref={ref} style={{ ...styles.dropdownMenu, top: 'calc(100% + 5px)', padding: 0, zIndex: 30 }}>
-      <div style={{ padding: '11px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: effectiveStatusColor, flexShrink: 0 }} />
-          <span style={{ color: effectiveStatusColor, fontSize: 12, fontWeight: 500, fontFamily: FONT }}>{effectiveStatus}</span>
+    <div ref={ref} style={{ ...styles.dropdownMenu, top: 'calc(100% + 0.3125rem)', padding: 0, zIndex: 30 }}>
+      <div style={{ padding: '0.6875rem 1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+          <span style={{ width: '0.3125rem', height: '0.3125rem', borderRadius: '50%', background: effectiveStatusColor, flexShrink: 0 }} />
+          <span style={{ color: effectiveStatusColor, fontSize: '0.75rem', fontWeight: 500, fontFamily: FONT }}>{effectiveStatus}</span>
         </div>
-        {counts && <p style={{ ...styles.rowSubtitle, marginTop: 4 }}>{counts}</p>}
+        {counts && <p style={{ ...styles.rowSubtitle, marginTop: '0.25rem' }}>{counts}</p>}
       </div>
       <PopoverActionButton
         label={busy ? '…' : syncLabel ?? t('settings.sync_now')}

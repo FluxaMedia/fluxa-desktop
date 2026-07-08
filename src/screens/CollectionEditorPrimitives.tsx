@@ -50,13 +50,13 @@ export function UtilButton({
       onMouseLeave={() => setHovered(false)}
       style={{
         width: fullWidth ? '100%' : undefined,
-        height: 36,
-        padding: '0 14px',
+        height: '2.25rem',
+        padding: '0 0.875rem',
         border: `1px solid ${accent}${disabled ? '3f' : 'aa'}`,
-        borderRadius: 8,
+        borderRadius: '0.5rem',
         background: hovered && !disabled ? `${accent}22` : `${accent}11`,
         color: disabled ? 'rgba(255,255,255,0.3)' : accent,
-        fontSize: 12,
+        fontSize: '0.75rem',
         fontWeight: 700,
         cursor: disabled ? 'default' : 'pointer',
         transition: 'background 0.15s',
@@ -90,12 +90,12 @@ export function SaveButton({
       onMouseLeave={() => setHovered(false)}
       style={{
         width: '100%',
-        height: 46,
+        height: '2.875rem',
         border: 'none',
-        borderRadius: 8,
+        borderRadius: '0.5rem',
         background: disabled ? 'rgba(255,255,255,0.12)' : hovered ? `${accent}dd` : accent,
         color: disabled ? 'rgba(255,255,255,0.4)' : contrastOn(accent),
-        fontSize: 14,
+        fontSize: '0.875rem',
         fontWeight: 900,
         cursor: disabled ? 'default' : 'pointer',
         transition: 'background 0.15s',
@@ -124,13 +124,13 @@ export function FieldInput({
       onChange={(e) => onChange(e.target.value)}
       style={{
         width: '100%',
-        height: 42,
-        padding: '0 12px',
+        height: '2.625rem',
+        padding: '0 0.75rem',
         background: 'rgba(255,255,255,0.05)',
         border: `1px solid ${accent}55`,
-        borderRadius: 8,
+        borderRadius: '0.5rem',
         color: '#fff',
-        fontSize: 14,
+        fontSize: '0.875rem',
         outline: 'none',
         boxSizing: 'border-box',
       }}
@@ -151,9 +151,9 @@ export function Toggle({
     <div
       onClick={() => onChange(!checked)}
       style={{
-        width: 42,
-        height: 24,
-        borderRadius: 12,
+        width: '2.625rem',
+        height: '1.5rem',
+        borderRadius: '0.75rem',
         background: checked ? accent : 'rgba(255,255,255,0.18)',
         position: 'relative',
         cursor: 'pointer',
@@ -164,10 +164,10 @@ export function Toggle({
       <div
         style={{
           position: 'absolute',
-          top: 2,
+          top: '0.125rem',
           left: checked ? 20 : 2,
-          width: 20,
-          height: 20,
+          width: '1.25rem',
+          height: '1.25rem',
           borderRadius: '50%',
           background: '#fff',
           transition: 'left 0.2s',
@@ -194,18 +194,18 @@ export function FolderRow({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
-        padding: '8px 10px',
+        gap: '0.75rem',
+        padding: '0.5rem 0.625rem',
         background: 'rgba(255,255,255,0.05)',
-        borderRadius: 8,
+        borderRadius: '0.5rem',
         cursor: 'pointer',
       }}
     >
       <div
         style={{
-          width: 50,
-          height: 50,
-          borderRadius: 6,
+          width: '3.125rem',
+          height: '3.125rem',
+          borderRadius: '0.375rem',
           background: 'rgba(255,255,255,0.08)',
           flexShrink: 0,
           overflow: 'hidden',
@@ -226,7 +226,7 @@ export function FolderRow({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 24,
+              fontSize: '1.5rem',
             }}
           >
             {folder.coverEmoji}
@@ -238,7 +238,7 @@ export function FolderRow({
           style={{
             color: '#fff',
             fontWeight: 700,
-            fontSize: 14,
+            fontSize: '0.875rem',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -249,7 +249,7 @@ export function FolderRow({
         <div
           style={{
             color: 'rgba(255,255,255,0.5)',
-            fontSize: 11,
+            fontSize: '0.6875rem',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -261,7 +261,7 @@ export function FolderRow({
       <div
         style={{
           color: accent,
-          fontSize: 10,
+          fontSize: '0.625rem',
           fontWeight: 900,
           flexShrink: 0,
         }}
@@ -277,9 +277,9 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
     <p
       style={{
         color: 'rgba(255,255,255,0.42)',
-        fontSize: 11,
+        fontSize: '0.6875rem',
         fontWeight: 600,
-        margin: '0 0 8px 4px',
+        margin: '0 0 0.5rem 0.25rem',
         textTransform: 'uppercase',
         letterSpacing: '0.07em',
       }}
@@ -294,14 +294,14 @@ export function Card({ children }: { children: React.ReactNode }) {
     <div
       style={{
         width: '100%',
-        borderRadius: 12,
+        borderRadius: '0.75rem',
         background: '#1A1A1A',
         border: '1px solid rgba(255,255,255,0.10)',
         boxSizing: 'border-box',
-        padding: 14,
+        padding: '0.875rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
+        gap: '0.75rem',
       }}
     >
       {children}
@@ -328,12 +328,12 @@ export function Chip({
       onMouseLeave={() => setHovered(false)}
       style={{
         border: 'none',
-        borderRadius: 16,
-        padding: '7px 14px',
+        borderRadius: '1rem',
+        padding: '0.4375rem 0.875rem',
         background: selected ? accent : hovered ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.06)',
         color: selected ? contrastOn(accent) : '#fff',
         fontWeight: 700,
-        fontSize: 12,
+        fontSize: '0.75rem',
         cursor: 'pointer',
         whiteSpace: 'nowrap',
         transition: 'background 0.12s',
@@ -356,16 +356,16 @@ export function ImagePreviewField({
   accent: string;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
       {value.trim() && (
         <img
           src={value.trim()}
           alt=""
           style={{
             width: '100%',
-            height: 130,
+            height: '8.125rem',
             objectFit: 'cover',
-            borderRadius: 8,
+            borderRadius: '0.5rem',
           }}
         />
       )}

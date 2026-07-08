@@ -99,7 +99,7 @@ const TrailerCard = React.memo(function TrailerCard({ trailer, index, metadata }
 
   return (
     <button
-      style={{ ...S.trailerCard, transform: hovered ? 'translateY(-2px)' : 'translateY(0)', borderColor: hovered ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)' }}
+      style={{ ...S.trailerCard, transform: hovered ? 'translateY(-0.125rem)' : 'translateY(0)', borderColor: hovered ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)' }}
       onClick={() => shellOpen(trailer.url).catch(() => {})}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}

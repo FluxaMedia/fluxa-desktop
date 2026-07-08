@@ -4,7 +4,7 @@ import { continueWatchingCardFields } from '../core/continueWatchingUtils';
 import { ContinueCard } from './ContinueCard';
 import { t } from '../i18n';
 
-const ROW_PADDING_LEFT = 32;
+const ROW_PADDING_LEFT = '2rem';
 
 export const ThisWeekRow = React.memo(function ThisWeekRow({
   items,
@@ -53,7 +53,7 @@ export const ThisWeekRow = React.memo(function ThisWeekRow({
     <div style={twStyles.section}>
       <div style={twStyles.header}>
         <p style={twStyles.title}>{t('auto.this_week')}</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
           {canScrollLeft && (
             <button style={twStyles.arrowBtn} onClick={() => scroll('left')} aria-label={t('common.scroll_left')}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15 18l-6-6 6-6v12z" /></svg>
@@ -90,9 +90,9 @@ export const ThisWeekRow = React.memo(function ThisWeekRow({
 });
 
 const twStyles: Record<string, React.CSSProperties> = {
-  section: { position: 'relative', zIndex: 1, paddingTop: 8, marginBottom: 0 },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: ROW_PADDING_LEFT, paddingRight: 32, marginBottom: 12 },
-  title: { color: '#FFFFFF', fontSize: 18, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' },
-  arrowBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 999, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.76)', transition: 'opacity 0.15s', padding: 0 },
-  scroll: { display: 'flex', gap: 18, overflowX: 'auto', paddingLeft: ROW_PADDING_LEFT, paddingRight: 40, paddingBottom: 16, paddingTop: 4, scrollbarWidth: 'none' },
+  section: { position: 'relative', zIndex: 1, paddingTop: '0.5rem', marginBottom: 0 },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: ROW_PADDING_LEFT, paddingRight: '2rem', marginBottom: '0.75rem' },
+  title: { color: '#FFFFFF', fontSize: '1.125rem', fontWeight: 700, margin: 0, letterSpacing: '-0.01em' },
+  arrowBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '1.75rem', height: '1.75rem', borderRadius: '62.4375rem', border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.76)', transition: 'opacity 0.15s', padding: 0 },
+  scroll: { display: 'flex', gap: '1.125rem', overflowX: 'auto', paddingLeft: ROW_PADDING_LEFT, paddingRight: '2.5rem', paddingBottom: '1rem', paddingTop: '0.25rem', scrollbarWidth: 'none' },
 };

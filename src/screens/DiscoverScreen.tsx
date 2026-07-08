@@ -241,7 +241,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
         {discover.isLoading && filteredResults.length === 0 ? (
           <div style={S.loadingGrid}>
             {Array.from({ length: 24 }).map((_, i) => (
-              <div key={i} style={{ borderRadius: 10, background: '#1B212B', aspectRatio: '2/3', animation: 'pulse 1.6s ease-in-out infinite', animationDelay: `${(i % 8) * 0.07}s` }} />
+              <div key={i} style={{ borderRadius: '0.625rem', background: '#1B212B', aspectRatio: '2/3', animation: 'pulse 1.6s ease-in-out infinite', animationDelay: `${(i % 8) * 0.07}s` }} />
             ))}
           </div>
         ) : filteredResults.length === 0 ? (
@@ -276,18 +276,18 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
 }
 
 const S: Record<string, React.CSSProperties> = {
-  screen: { display: 'flex', width: 'calc(100% - 104px)', height: 'calc(100% - 52px)', marginLeft: 104, marginTop: 52, background: '#09091280', overflow: 'hidden' },
+  screen: { display: 'flex', width: 'calc(100% - 6.5rem)', height: 'calc(100% - 3.25rem)', marginLeft: '6.5rem', marginTop: '3.25rem', background: '#09091280', overflow: 'hidden' },
   left: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  filterBar: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 24px', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.05)' },
-  resultCount: { marginLeft: 'auto', color: 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: 600, letterSpacing: '0.3px' },
-  loadingDot: { marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', animation: 'pulse 1.2s ease-in-out infinite', flexShrink: 0 },
-  loadingGrid: { flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '28px 18px', padding: '20px 24px 60px', alignContent: 'start', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent', contain: 'layout paint style' },
-  empty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0 },
-  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, textAlign: 'center' },
-  right: { width: 300, flexShrink: 0, background: '#0C0D18', borderLeft: '1px solid rgba(255,255,255,0.06)', overflowY: 'auto', scrollbarWidth: 'none', display: 'flex', flexDirection: 'column' },
-  panelEmpty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  panelEmptyText: { color: 'rgba(255,255,255,0.28)', fontSize: 13, textAlign: 'center', margin: 0 },
+  filterBar: { display: 'flex', alignItems: 'center', gap: '0.625rem', padding: '0.625rem 1.5rem', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.05)' },
+  resultCount: { marginLeft: 'auto', color: 'rgba(255,255,255,0.3)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.0187rem' },
+  loadingDot: { marginLeft: 'auto', width: '0.375rem', height: '0.375rem', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', animation: 'pulse 1.2s ease-in-out infinite', flexShrink: 0 },
+  loadingGrid: { flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(9.375rem, 1fr))', gap: '1.75rem 1.125rem', padding: '1.25rem 1.5rem 3.75rem', alignContent: 'start', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent', contain: 'layout paint style' },
+  empty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.625rem' },
+  emptyTitle: { color: '#FFFFFF', fontSize: '1.25rem', fontWeight: 700, margin: 0 },
+  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: '0.875rem', margin: 0, textAlign: 'center' },
+  right: { width: '18.75rem', flexShrink: 0, background: '#0C0D18', borderLeft: '1px solid rgba(255,255,255,0.06)', overflowY: 'auto', scrollbarWidth: 'none', display: 'flex', flexDirection: 'column' },
+  panelEmpty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '1.5rem' },
+  panelEmptyText: { color: 'rgba(255,255,255,0.28)', fontSize: '0.8125rem', textAlign: 'center', margin: 0 },
 };
 
 export const DiscoverScreen = memo(DiscoverScreenInner, (prev, next) =>

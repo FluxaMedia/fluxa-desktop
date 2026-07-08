@@ -22,17 +22,17 @@ export function NuvioStatusBanner({ serverDown, justRecovered, dismissed, onDism
       left: 0,
       right: 0,
       zIndex: 99999,
-      height: 36,
+      height: '2.25rem',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 8,
+      gap: '0.5rem',
       background: isGreen ? 'rgba(22, 163, 74, 0.94)' : 'rgba(185, 28, 28, 0.94)',
-      backdropFilter: 'blur(8px)',
+      backdropFilter: 'blur(0.5rem)',
       transition: 'background 0.3s',
-      padding: '0 16px',
+      padding: '0 1rem',
     }}>
-      <span style={{ fontSize: 12, fontWeight: 500, color: '#fff', letterSpacing: '0.01em' }}>
+      <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#fff', letterSpacing: '0.01em' }}>
         {isGreen ? t('nuvio.status.online') : t('nuvio.status.offline')}
       </span>
       {!isGreen && (
@@ -40,12 +40,12 @@ export function NuvioStatusBanner({ serverDown, justRecovered, dismissed, onDism
           onClick={onDismiss}
           style={{
             position: 'absolute',
-            right: 12,
+            right: '0.75rem',
             background: 'transparent',
             border: 'none',
             color: 'rgba(255,255,255,0.7)',
             cursor: 'pointer',
-            padding: 4,
+            padding: '0.25rem',
             display: 'flex',
             alignItems: 'center',
           }}

@@ -62,7 +62,7 @@ export function AuthView({ tab, onTabChange, onBack, onSubmit, onNuvioClick, onC
             <img
               src="https://nuvio.tv//assets/Logo_1080x1080.png"
               alt="Nuvio"
-              style={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }}
+              style={{ width: '1.375rem', height: '1.375rem', objectFit: 'contain', flexShrink: 0 }}
             />
             <span>{t('auth.continue_with_nuvio')}</span>
           </button>
@@ -120,7 +120,7 @@ export function AuthView({ tab, onTabChange, onBack, onSubmit, onNuvioClick, onC
             )}
 
             {tab === 'login' && (
-              <div style={{ textAlign: 'right', marginTop: -4 }}>
+              <div style={{ textAlign: 'right', marginTop: '-0.25rem' }}>
                 <button type="button" style={S.forgotBtn}>
                   {t('auth.forgot_password')}
                 </button>
@@ -141,7 +141,7 @@ export function AuthView({ tab, onTabChange, onBack, onSubmit, onNuvioClick, onC
           </form>
 
           <button
-            style={{ ...S.localBtn, marginTop: 20, opacity: localLoading ? 0.4 : 1 }}
+            style={{ ...S.localBtn, marginTop: '1.25rem', opacity: localLoading ? 0.4 : 1 }}
             onClick={onContinueLocal}
             disabled={localLoading || submitting}
           >

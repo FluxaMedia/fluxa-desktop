@@ -26,7 +26,7 @@ const GENRE_CHIPS = [
   'genre.horror', 'genre.animation', 'genre.documentary', 'genre.romance', 'genre.crime',
 ];
 
-const NAV_RAIL_WIDTH = 104;
+const NAV_RAIL_WIDTH = 6.5;
 const RECENT_SEARCHES_KEY = 'recent_searches';
 const MAX_RECENT_SEARCHES = 8;
 
@@ -166,7 +166,7 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
           <div style={styles.emptyState}>
             <p style={styles.emptyTitle}>{t('format.no_results_for', query)}</p>
             <p style={styles.emptyHint}>{t('search.try_shorter_or_genre')}</p>
-            <div style={{ ...styles.genreGrid, marginTop: 24 }}>
+            <div style={{ ...styles.genreGrid, marginTop: '1.5rem' }}>
               {GENRE_CHIPS.slice(0, 6).map((g) => (
                 <GenreCard key={g} genre={t(g)} onClick={() => handleGenreClick(g)} />
               ))}
@@ -302,7 +302,7 @@ function SearchScrollArrow({ direction, onClick }: { direction: 'left' | 'right'
         top: 0,
         bottom: 0,
         [direction]: 0,
-        width: 90,
+        width: '5.625rem',
         zIndex: 3,
         display: 'flex',
         alignItems: 'center',
@@ -315,8 +315,8 @@ function SearchScrollArrow({ direction, onClick }: { direction: 'left' | 'right'
     >
       <button
         style={{
-          width: 38,
-          height: 38,
+          width: '2.375rem',
+          height: '2.375rem',
           borderRadius: '50%',
           border: '1px solid rgba(255,255,255,0.16)',
           background: hovered ? 'rgba(255,255,255,0.18)' : 'rgba(14,15,22,0.9)',
@@ -326,10 +326,10 @@ function SearchScrollArrow({ direction, onClick }: { direction: 'left' | 'right'
           alignItems: 'center',
           justifyContent: 'center',
           pointerEvents: 'auto',
-          margin: isLeft ? '0 0 0 10px' : '0 10px 0 0',
+          margin: isLeft ? '0 0 0 0.625rem' : '0 0.625rem 0 0',
           transition: 'background 0.15s',
           flexShrink: 0,
-          boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
+          boxShadow: '0 0.125rem 0.75rem rgba(0,0,0,0.5)',
           padding: 0,
         }}
         onClick={onClick}
@@ -412,13 +412,13 @@ function TypeChip({ label, selected, onClick }: { label: string; selected: boole
   return (
     <button
       style={{
-        height: 34,
-        padding: '0 16px',
-        borderRadius: 999,
+        height: '2.125rem',
+        padding: '0 1rem',
+        borderRadius: '62.4375rem',
         border: selected ? 'none' : '1px solid rgba(255,255,255,0.12)',
         background: selected ? '#FFFFFF' : hovered ? 'rgba(255,255,255,0.08)' : 'transparent',
         color: selected ? '#000000' : '#FFFFFF',
-        fontSize: 13,
+        fontSize: '0.8125rem',
         fontWeight: 700,
         cursor: 'pointer',
         transition: 'background 0.15s, color 0.15s',
@@ -438,19 +438,19 @@ function GenreCard({ genre, onClick }: { genre: string; onClick: () => void }) {
   return (
     <button
       style={{
-        height: 64,
-        borderRadius: 12,
+        height: '4rem',
+        borderRadius: '0.75rem',
         border: '1px solid rgba(255,255,255,0.08)',
         background: hovered ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)',
         color: '#FFFFFF',
-        fontSize: 14,
+        fontSize: '0.875rem',
         fontWeight: 700,
         cursor: 'pointer',
         transition: 'background 0.15s',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        boxShadow: hovered ? '0 0 0 1.5px rgba(255,255,255,0.3)' : 'none',
+        boxShadow: hovered ? '0 0 0 0.0938rem rgba(255,255,255,0.3)' : 'none',
       }}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
@@ -475,9 +475,9 @@ function SearchResultRow({ meta, onClick }: { meta: Meta; onClick: (meta: Meta) 
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 16,
-        padding: '10px 12px',
-        borderRadius: 12,
+        gap: '1rem',
+        padding: '0.625rem 0.75rem',
+        borderRadius: '0.75rem',
         cursor: 'pointer',
         background: hovered ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)',
         border: '1px solid rgba(255,255,255,0.05)',
@@ -488,7 +488,7 @@ function SearchResultRow({ meta, onClick }: { meta: Meta; onClick: (meta: Meta) 
       onMouseLeave={() => setHovered(false)}
     >
       {/* Poster */}
-      <div style={{ width: 54, height: 78, borderRadius: 8, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.05)' }}>
+      <div style={{ width: '3.375rem', height: '4.875rem', borderRadius: '0.5rem', overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.05)' }}>
         {meta.poster && !imgErr ? (
           <img
             src={meta.poster}
@@ -498,7 +498,7 @@ function SearchResultRow({ meta, onClick }: { meta: Meta; onClick: (meta: Meta) 
           />
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 900 }}>
+            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '1rem', fontWeight: 900 }}>
               {(meta.name ?? '').slice(0, 2).toUpperCase()}
             </span>
           </div>
@@ -507,10 +507,10 @@ function SearchResultRow({ meta, onClick }: { meta: Meta; onClick: (meta: Meta) 
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ color: '#FFFFFF', fontSize: 15, fontWeight: 700, margin: '0 0 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <p style={{ color: '#FFFFFF', fontSize: '0.9375rem', fontWeight: 700, margin: '0 0 0.3125rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {meta.name}
         </p>
-        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: 600, margin: 0 }}>
+        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.8125rem', fontWeight: 600, margin: 0 }}>
           {metaChips.join('  ·  ')}
         </p>
       </div>
@@ -529,18 +529,18 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
   },
   topBar: {
-    padding: '24px 32px 16px',
+    padding: '1.5rem 2rem 1rem',
     flexShrink: 0,
   },
   searchBox: {
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
-    height: 52,
+    gap: '0.75rem',
+    height: '3.25rem',
     background: 'rgba(255,255,255,0.06)',
     border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 14,
-    padding: '0 16px',
+    borderRadius: '0.875rem',
+    padding: '0 1rem',
   },
   input: {
     flex: 1,
@@ -548,12 +548,12 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     outline: 'none',
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: '1rem',
     fontWeight: 600,
   },
   clearBtn: {
-    width: 28,
-    height: 28,
+    width: '1.75rem',
+    height: '1.75rem',
     background: 'transparent',
     border: 'none',
     borderRadius: '50%',
@@ -567,76 +567,76 @@ const styles: Record<string, React.CSSProperties> = {
   content: {
     flex: 1,
     overflowY: 'auto',
-    padding: `34px 36px 44px ${NAV_RAIL_WIDTH + 42}px`,
+    padding: `2.125rem 2.25rem 2.75rem ${NAV_RAIL_WIDTH + 2.625}rem`,
     scrollbarWidth: 'none',
   },
   header: {
-    marginBottom: 22,
+    marginBottom: '1.375rem',
   },
   backBtn: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 7,
-    height: 34,
-    padding: '0 12px',
-    borderRadius: 999,
+    gap: '0.4375rem',
+    height: '2.125rem',
+    padding: '0 0.75rem',
+    borderRadius: '62.4375rem',
     border: '1px solid rgba(255,255,255,0.1)',
     background: 'rgba(255,255,255,0.06)',
     color: 'rgba(255,255,255,0.76)',
-    fontSize: 12,
+    fontSize: '0.75rem',
     fontWeight: 750,
-    marginBottom: 18,
+    marginBottom: '1.125rem',
   },
   eyebrow: {
     color: 'rgba(255,255,255,0.46)',
-    fontSize: 12,
+    fontSize: '0.75rem',
     fontWeight: 800,
-    margin: '0 0 6px',
+    margin: '0 0 0.375rem',
     textTransform: 'uppercase',
-    letterSpacing: '0.8px',
+    letterSpacing: '0.05rem',
   },
   title: {
     color: '#FFFFFF',
-    fontSize: 34,
-    lineHeight: '39px',
+    fontSize: '2.125rem',
+    lineHeight: '2.4375rem',
     fontWeight: 900,
     margin: 0,
   },
   subtitle: {
     color: 'rgba(255,255,255,0.52)',
-    fontSize: 13,
+    fontSize: '0.8125rem',
     fontWeight: 600,
-    margin: '8px 0 0',
+    margin: '0.5rem 0 0',
   },
   typeRow: {
     display: 'flex',
-    gap: 8,
-    marginBottom: 28,
+    gap: '0.5rem',
+    marginBottom: '1.75rem',
     flexWrap: 'wrap',
   },
   sectionLabel: {
     color: 'rgba(255,255,255,0.55)',
-    fontSize: 13,
+    fontSize: '0.8125rem',
     fontWeight: 700,
-    margin: '0 0 14px',
+    margin: '0 0 0.875rem',
     textTransform: 'uppercase',
-    letterSpacing: '0.5px',
+    letterSpacing: '0.0313rem',
   },
   sectionHeaderRow: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 16,
-    marginBottom: 14,
+    gap: '1rem',
+    marginBottom: '0.875rem',
   },
   clearRecentBtn: {
-    height: 28,
-    padding: '0 10px',
+    height: '1.75rem',
+    padding: '0 0.625rem',
     border: '1px solid rgba(255,255,255,0.1)',
     background: 'rgba(255,255,255,0.04)',
     color: 'rgba(255,255,255,0.58)',
-    borderRadius: 999,
-    fontSize: 12,
+    borderRadius: '62.4375rem',
+    fontSize: '0.75rem',
     fontWeight: 700,
     cursor: 'pointer',
   },
@@ -644,25 +644,25 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 32,
+    gap: '0.625rem',
+    marginBottom: '2rem',
   },
   recentChip: {
-    height: 38,
+    height: '2.375rem',
     display: 'flex',
     alignItems: 'center',
     border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 999,
+    borderRadius: '62.4375rem',
     transition: 'background 0.15s, border-color 0.15s',
-    maxWidth: 280,
+    maxWidth: '17.5rem',
   },
   recentChipMain: {
     minWidth: 0,
     height: '100%',
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    padding: '0 8px 0 13px',
+    gap: '0.5rem',
+    padding: '0 0.5rem 0 0.8125rem',
     background: 'transparent',
     border: 'none',
     color: '#fff',
@@ -673,13 +673,13 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    fontSize: 13,
+    fontSize: '0.8125rem',
     fontWeight: 700,
   },
   recentChipRemove: {
-    width: 30,
-    height: 30,
-    marginRight: 4,
+    width: '1.875rem',
+    height: '1.875rem',
+    marginRight: '0.25rem',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -692,76 +692,76 @@ const styles: Record<string, React.CSSProperties> = {
   },
   genreGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-    gap: 10,
-    marginBottom: 32,
+    gridTemplateColumns: 'repeat(auto-fill, minmax(8.75rem, 1fr))',
+    gap: '0.625rem',
+    marginBottom: '2rem',
   },
   resultList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: '0.5rem',
   },
   categoryList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 4,
-    paddingBottom: 36,
+    gap: '0.25rem',
+    paddingBottom: '2.25rem',
   },
   category: {
-    paddingTop: 12,
+    paddingTop: '0.75rem',
   },
   categoryTitle: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: '1.25rem',
     fontWeight: 800,
-    margin: '0 0 12px',
+    margin: '0 0 0.75rem',
   },
   categoryScroll: {
     display: 'flex',
-    gap: 14,
+    gap: '0.875rem',
     overflowX: 'auto',
     overflowY: 'visible',
-    padding: '8px 36px 28px 0',
+    padding: '0.5rem 2.25rem 1.75rem 0',
     scrollbarWidth: 'none',
   },
   skeletonTitle: {
-    height: 20,
-    borderRadius: 6,
+    height: '1.25rem',
+    borderRadius: '0.375rem',
     background: 'rgba(255,255,255,0.05)',
-    marginBottom: 14,
+    marginBottom: '0.875rem',
     animation: 'pulse 1.6s ease-in-out infinite',
   },
   skeletonCard: {
-    width: 132,
-    height: 198,
-    borderRadius: 12,
+    width: '8.25rem',
+    height: '12.375rem',
+    borderRadius: '0.75rem',
     background: 'rgba(255,255,255,0.045)',
     flexShrink: 0,
     animation: 'pulse 1.6s ease-in-out infinite',
   },
   emptyState: {
-    paddingTop: 40,
+    paddingTop: '2.5rem',
   },
   emptyTitle: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: '1.125rem',
     fontWeight: 700,
-    margin: '0 0 6px',
+    margin: '0 0 0.375rem',
   },
   emptyHint: {
     color: 'rgba(255,255,255,0.4)',
-    fontSize: 14,
+    fontSize: '0.875rem',
     margin: 0,
   },
   retryBtn: {
-    height: 36,
-    marginTop: 16,
-    padding: '0 14px',
-    borderRadius: 999,
+    height: '2.25rem',
+    marginTop: '1rem',
+    padding: '0 0.875rem',
+    borderRadius: '62.4375rem',
     border: '1px solid rgba(255,255,255,0.14)',
     background: '#FFFFFF',
     color: '#000000',
-    fontSize: 13,
+    fontSize: '0.8125rem',
     fontWeight: 800,
     cursor: 'pointer',
   },

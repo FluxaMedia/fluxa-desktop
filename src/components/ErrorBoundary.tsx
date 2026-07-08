@@ -19,7 +19,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
   render() {
     if (this.state.error) {
       return (
-        <div style={{ background: '#0a0a0a', color: '#ff4444', padding: 24, fontFamily: 'monospace', fontSize: 13, whiteSpace: 'pre-wrap', overflow: 'auto', height: '100vh' }}>
+        <div style={{ background: '#0a0a0a', color: '#ff4444', padding: '1.5rem', fontFamily: 'monospace', fontSize: '0.8125rem', whiteSpace: 'pre-wrap', overflow: 'auto', height: '100vh' }}>
           {'React render error: ' + this.state.error.message + '\n\n' + this.state.error.stack}
         </div>
       );

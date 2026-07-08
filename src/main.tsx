@@ -12,6 +12,6 @@ try {
   );
 } catch (err) {
   const root = document.getElementById('root')!;
-  root.style.cssText = 'background:#0a0a0a;color:#ff4444;padding:24px;font-family:monospace;font-size:13px;white-space:pre-wrap;overflow:auto';
+  root.style.cssText = 'background:#0a0a0a;color:#ff4444;padding:1.5rem;font-family:monospace;font-size:0.8125rem;white-space:pre-wrap;overflow:auto';
   root.textContent = 'React mount error:\n' + (err instanceof Error ? err.stack : String(err));
 }

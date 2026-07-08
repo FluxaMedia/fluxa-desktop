@@ -59,8 +59,8 @@ function ActionBtn({ onClick, title, children }: { onClick: () => void; title: s
         border: 'none',
         color: hovered ? '#FFFFFF' : 'rgba(255,255,255,0.45)',
         cursor: 'pointer',
-        padding: 7,
-        borderRadius: 7,
+        padding: '0.4375rem',
+        borderRadius: '0.4375rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -97,9 +97,9 @@ function DownloadItemRow({ item, onDelete, onPause, onResume }: {
         background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
         display: 'flex',
         alignItems: 'center',
-        padding: '13px 16px',
+        padding: '0.8125rem 1rem',
         boxSizing: 'border-box',
-        gap: 12,
+        gap: '0.75rem',
         transition: 'background 0.15s',
       }}
       onMouseEnter={() => setHovered(true)}
@@ -119,7 +119,7 @@ function DownloadItemRow({ item, onDelete, onPause, onResume }: {
                 : t('downloads.status_downloading', progressPct ?? 0)}
               {item.totalBytes ? ` · ${formatBytes(item.downloadedBytes ?? 0)} / ${formatBytes(item.totalBytes)}` : ''}
             </p>
-            <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.08)', marginTop: 6, overflow: 'hidden' }}>
+            <div style={{ height: '0.1875rem', borderRadius: '0.125rem', background: 'rgba(255,255,255,0.08)', marginTop: '0.375rem', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${progressPct ?? 0}%`, background: 'rgba(255,255,255,0.5)', transition: 'width 0.2s' }} />
             </div>
           </>
@@ -139,8 +139,8 @@ function DownloadItemRow({ item, onDelete, onPause, onResume }: {
           border: 'none',
           color: deleteHovered ? 'rgba(255,120,120,0.9)' : 'rgba(255,255,255,0.25)',
           cursor: 'pointer',
-          padding: 7,
-          borderRadius: 7,
+          padding: '0.4375rem',
+          borderRadius: '0.4375rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -172,8 +172,8 @@ function RefreshButton({ onClick }: { onClick: () => void }) {
         border: 'none',
         color: hovered ? '#FFFFFF' : 'rgba(255,255,255,0.35)',
         cursor: 'pointer',
-        padding: 6,
-        borderRadius: 7,
+        padding: '0.375rem',
+        borderRadius: '0.4375rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -214,9 +214,9 @@ function DownloadDirRow({ value, onChange }: { value: string; onChange: (v: stri
         background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
         display: 'flex',
         alignItems: 'center',
-        padding: '12px 16px',
+        padding: '0.75rem 1rem',
         boxSizing: 'border-box',
-        gap: 16,
+        gap: '1rem',
         transition: 'background 0.12s',
       }}
       onMouseEnter={() => setHovered(true)}
@@ -226,13 +226,13 @@ function DownloadDirRow({ value, onChange }: { value: string; onChange: (v: stri
         <p style={styles.rowTitle}>{t('settings.download_dir')}</p>
         <p style={styles.rowSubtitle}>{t('settings.download_dir_desc')}</p>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
         <span
           style={{
             color: 'rgba(255,255,255,0.38)',
-            fontSize: 12,
+            fontSize: '0.75rem',
             fontFamily: FONT,
-            maxWidth: 340,
+            maxWidth: '21.25rem',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -246,14 +246,14 @@ function DownloadDirRow({ value, onChange }: { value: string; onChange: (v: stri
           onMouseEnter={() => setBtnHovered(true)}
           onMouseLeave={() => setBtnHovered(false)}
           style={{
-            height: 32,
-            padding: '0 14px',
+            height: '2rem',
+            padding: '0 0.875rem',
             background: btnHovered ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)',
             border: 'none',
             outline: 'none',
-            borderRadius: 8,
+            borderRadius: '0.5rem',
             color: '#FFFFFF',
-            fontSize: 12,
+            fontSize: '0.75rem',
             fontWeight: 500,
             fontFamily: FONT,
             cursor: 'pointer',
@@ -272,10 +272,10 @@ function DownloadDirRow({ value, onChange }: { value: string; onChange: (v: stri
               border: 'none',
               color: 'rgba(255,255,255,0.28)',
               cursor: 'pointer',
-              padding: 4,
+              padding: '0.25rem',
               display: 'flex',
               alignItems: 'center',
-              borderRadius: 5,
+              borderRadius: '0.3125rem',
             }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -376,8 +376,8 @@ export function DownloadsSection({ prefs, setPref }: { prefs: Prefs; setPref: <K
         />
       </SettingsSection>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 24 }}>
-        <div style={{ paddingLeft: 4, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem', marginBottom: '1.5rem' }}>
+        <div style={{ paddingLeft: '0.25rem', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <p style={styles.groupTitle}>{t('settings.downloads_list_desc')}</p>
             {downloads.length > 0 && (
@@ -389,8 +389,8 @@ export function DownloadsSection({ prefs, setPref }: { prefs: Prefs; setPref: <K
 
         <div style={styles.settingsCard}>
           {downloads.length === 0 ? (
-            <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-              <p style={{ color: 'rgba(255,255,255,0.30)', fontSize: 13, margin: 0, fontFamily: FONT }}>{t('downloads.empty')}</p>
+            <div style={{ padding: '1.75rem 1rem', textAlign: 'center' }}>
+              <p style={{ color: 'rgba(255,255,255,0.30)', fontSize: '0.8125rem', margin: 0, fontFamily: FONT }}>{t('downloads.empty')}</p>
             </div>
           ) : (
             downloads.map((item) => (

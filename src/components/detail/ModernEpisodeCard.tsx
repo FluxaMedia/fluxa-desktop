@@ -54,7 +54,7 @@ export function ModernEpisodeCard({ episode, number, isWatched, progressPct, min
     >
       <div style={MS.epThumb}>
         {episode.thumbnail && !thumbErr ? (
-          <img src={episode.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: isWatched ? 0.48 : 1, transition: 'opacity 0.2s', filter: hideInfo && !hovered ? 'blur(16px)' : undefined, transform: hideInfo && !hovered ? 'scale(1.1)' : undefined }} onError={() => setThumbErr(true)} />
+          <img src={episode.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: isWatched ? 0.48 : 1, transition: 'opacity 0.2s', filter: hideInfo && !hovered ? 'blur(1rem)' : undefined, transform: hideInfo && !hovered ? 'scale(1.1)' : undefined }} onError={() => setThumbErr(true)} />
         ) : (
           <div style={MS.epThumbPlaceholder}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="rgba(255,255,255,0.07)">
@@ -70,14 +70,14 @@ export function ModernEpisodeCard({ episode, number, isWatched, progressPct, min
         )}
         {cwBadge && !minutesRemaining && (
           <div style={{
-            position: 'absolute', top: 7, left: 7, zIndex: 3,
+            position: 'absolute', top: '0.4375rem', left: '0.4375rem', zIndex: 3,
             background: cwBadge === 'newEpisode' ? 'var(--primary-accent-color)' : 'rgba(0,0,0,0.68)',
             color: cwBadge === 'newEpisode' ? 'var(--primary-accent-foreground-color, #fff)' : '#fff',
-            backdropFilter: cwBadge !== 'newEpisode' ? 'blur(4px)' : undefined,
-            fontSize: 11, fontWeight: 800,
-            padding: '3px 7px', borderRadius: 4,
-            textShadow: cwBadge === 'newEpisode' ? 'none' : '0 1px 4px rgba(0,0,0,0.8)',
-            letterSpacing: '0.2px',
+            backdropFilter: cwBadge !== 'newEpisode' ? 'blur(0.25rem)' : undefined,
+            fontSize: '0.6875rem', fontWeight: 800,
+            padding: '0.1875rem 0.4375rem', borderRadius: '0.25rem',
+            textShadow: cwBadge === 'newEpisode' ? 'none' : '0 1px 0.25rem rgba(0,0,0,0.8)',
+            letterSpacing: '0.0125rem',
           }}>
             {cwBadge === 'newEpisode' ? t('auto.new_episode')
               : cwBadge === 'upNext' ? t('auto.up_next')
@@ -86,20 +86,20 @@ export function ModernEpisodeCard({ episode, number, isWatched, progressPct, min
           </div>
         )}
         {isWatched && !hovered && (
-          <div style={{ position: 'absolute', top: 7, right: 7, zIndex: 3, pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', top: '0.4375rem', right: '0.4375rem', zIndex: 3, pointerEvents: 'none' }}>
             <CheckCircle2 size={18} color="rgba(255,255,255,0.7)" />
           </div>
         )}
         {hovered && (
           <div style={MS.epHoverOverlay}>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Play size={22} fill="currentColor" strokeWidth={0} color="white" style={{ marginLeft: 2 }} />
+            <div style={{ width: '3.25rem', height: '3.25rem', borderRadius: '50%', background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(0.375rem)', border: '1px solid rgba(255,255,255,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Play size={22} fill="currentColor" strokeWidth={0} color="white" style={{ marginLeft: '0.125rem' }} />
             </div>
           </div>
         )}
         {onToggleWatched && hovered && (
           <button
-            style={{ position: 'absolute', top: 5, right: 5, width: 32, height: 32, borderRadius: '50%', border: 'none', padding: 0, background: 'rgba(0,0,0,0.52)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 4, flexShrink: 0 }}
+            style={{ position: 'absolute', top: '0.3125rem', right: '0.3125rem', width: '2rem', height: '2rem', borderRadius: '50%', border: 'none', padding: 0, background: 'rgba(0,0,0,0.52)', backdropFilter: 'blur(0.25rem)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 4, flexShrink: 0 }}
             onClick={(e) => { e.stopPropagation(); onToggleWatched(); }}
             onMouseEnter={(e) => { e.stopPropagation(); setWatchBtnHovered(true); }}
             onMouseLeave={(e) => { e.stopPropagation(); setWatchBtnHovered(false); }}

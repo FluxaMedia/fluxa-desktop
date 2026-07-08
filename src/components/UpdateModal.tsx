@@ -136,7 +136,7 @@ function DownloadingView({ progress }: { progress: number }) {
       <div style={progressTrack}>
         <div style={{ ...progressBar, width: `${progress}%` }} />
       </div>
-      <Subtitle style={{ marginTop: 8 }}>{progress}%</Subtitle>
+      <Subtitle style={{ marginTop: '0.5rem' }}>{progress}%</Subtitle>
     </>
   );
 }
@@ -199,7 +199,7 @@ function Btn({ children, onClick, primary, disabled }: {
 const overlay: React.CSSProperties = {
   position: 'fixed', inset: 0,
   background: 'rgba(0,0,0,0.72)',
-  backdropFilter: 'blur(8px)',
+  backdropFilter: 'blur(0.5rem)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   zIndex: 9999,
 };
@@ -207,24 +207,24 @@ const overlay: React.CSSProperties = {
 const card: React.CSSProperties = {
   background: '#13141a',
   border: '1px solid rgba(255,255,255,0.08)',
-  borderRadius: 16,
-  padding: '32px 28px',
-  width: 420,
-  maxWidth: 'calc(100vw - 48px)',
-  boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+  borderRadius: '1rem',
+  padding: '2rem 1.75rem',
+  width: '26.25rem',
+  maxWidth: 'calc(100vw - 3rem)',
+  boxShadow: '0 1.5rem 4rem rgba(0,0,0,0.6)',
 };
 
 const titleStyle: React.CSSProperties = {
   color: '#fff',
-  fontSize: 18,
+  fontSize: '1.125rem',
   fontWeight: 700,
-  margin: '0 0 6px',
+  margin: '0 0 0.375rem',
 };
 
 const subtitleStyle: React.CSSProperties = {
   color: 'rgba(255,255,255,0.5)',
-  fontSize: 13,
-  margin: '0 0 20px',
+  fontSize: '0.8125rem',
+  margin: '0 0 1.25rem',
   lineHeight: 1.5,
 };
 
@@ -232,28 +232,28 @@ const tagStyle: React.CSSProperties = {
   display: 'inline-block',
   background: 'rgba(99,102,241,0.18)',
   color: '#a5b4fc',
-  fontSize: 11,
+  fontSize: '0.6875rem',
   fontWeight: 700,
   letterSpacing: '0.06em',
   textTransform: 'uppercase',
-  padding: '3px 8px',
-  borderRadius: 6,
-  marginBottom: 10,
+  padding: '0.1875rem 0.5rem',
+  borderRadius: '0.375rem',
+  marginBottom: '0.625rem',
 };
 
 const changelogBox: React.CSSProperties = {
   background: 'rgba(255,255,255,0.04)',
   border: '1px solid rgba(255,255,255,0.07)',
-  borderRadius: 8,
-  padding: '12px 14px',
-  maxHeight: 220,
+  borderRadius: '0.5rem',
+  padding: '0.75rem 0.875rem',
+  maxHeight: '13.75rem',
   overflowY: 'auto',
-  marginBottom: 24,
+  marginBottom: '1.5rem',
 };
 
 const changelogText: React.CSSProperties = {
   color: 'rgba(255,255,255,0.65)',
-  fontSize: 12,
+  fontSize: '0.75rem',
   margin: 0,
   fontFamily: 'monospace',
   lineHeight: 1.7,
@@ -263,36 +263,36 @@ const changelogText: React.CSSProperties = {
 
 const progressTrack: React.CSSProperties = {
   background: 'rgba(255,255,255,0.08)',
-  borderRadius: 99,
-  height: 6,
+  borderRadius: '6.1875rem',
+  height: '0.375rem',
   overflow: 'hidden',
-  margin: '20px 0 4px',
+  margin: '1.25rem 0 0.25rem',
 };
 
 const progressBar: React.CSSProperties = {
   background: '#6366f1',
   height: '100%',
-  borderRadius: 99,
+  borderRadius: '6.1875rem',
   transition: 'width 0.2s',
 };
 
 const spinnerWrap: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'center',
-  padding: '24px 0 16px',
+  padding: '1.5rem 0 1rem',
 };
 
 const btnRow: React.CSSProperties = {
   display: 'flex',
-  gap: 10,
+  gap: '0.625rem',
   justifyContent: 'flex-end',
-  marginTop: 4,
+  marginTop: '0.25rem',
 };
 
 const btnBase: React.CSSProperties = {
-  padding: '9px 20px',
-  borderRadius: 8,
-  fontSize: 13,
+  padding: '0.5625rem 1.25rem',
+  borderRadius: '0.5rem',
+  fontSize: '0.8125rem',
   fontWeight: 600,
   cursor: 'pointer',
   border: 'none',

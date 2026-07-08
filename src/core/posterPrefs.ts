@@ -19,14 +19,15 @@ export function posterPrefsFromState(state: AppState, scale = 1): PosterPrefs {
   const densityScale = density === 'small' ? 0.92 : density === 'large' ? 1.08 : 1;
   const landscape =
     values.posterLandscapeMode === true || cardLayout === 'horizontal' || cardLayout === 'episode';
+  const uiScale = (Number(values.uiScale) || 100) / 100;
 
   const width = landscape ? horizontalPosterWidth(widthPreset) : verticalPosterWidth(widthPreset);
   const height = landscape ? Math.round(width * 0.56) : Math.round(width * 1.5);
 
   return {
     layout: landscape ? 'horizontal' : 'vertical',
-    width: Math.round(width * scale * densityScale),
-    height: Math.round(height * scale * densityScale),
+    width: Math.round(width * scale * densityScale * uiScale),
+    height: Math.round(height * scale * densityScale * uiScale),
     radius: posterCornerRadius(cornerPreset),
     hideTitles: values.posterHideTitles === true,
   };

@@ -220,7 +220,7 @@ export function ModernDetailLayout({
           </div>
 
           {castMembers.length > 0 && (
-            <div style={{ ...S.castRow, marginBottom: 26 }}>
+            <div style={{ ...S.castRow, marginBottom: '1.625rem' }}>
               {directorLinks.slice(0, 1).map((l) => (
                 <CastAvatar key={`dir-${l.name}`} name={l.name} role={t('detail.director')} imageUrl={peopleImages[l.name]} />
               ))}
@@ -252,18 +252,18 @@ export function ModernDetailLayout({
 
               {prevSeasonDialog && (
                 <div style={MS.overlayBackdrop} onClick={() => setPrevSeasonDialog(null)}>
-                  <div style={{ ...MS.overlaySheet, maxWidth: 400, padding: 28 }} onClick={(e) => e.stopPropagation()}>
-                    <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: '0 0 10px' }}>
+                  <div style={{ ...MS.overlaySheet, maxWidth: '25rem', padding: '1.75rem' }} onClick={(e) => e.stopPropagation()}>
+                    <p style={{ color: '#fff', fontSize: '0.9375rem', fontWeight: 700, margin: '0 0 0.625rem' }}>
                       {t('detail.prev_seasons_dialog_title')}
                     </p>
-                    <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, margin: '0 0 24px', lineHeight: '20px' }}>
+                    <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8125rem', margin: '0 0 1.5rem', lineHeight: '1.25rem' }}>
                       {t('detail.prev_seasons_dialog_body', prevSeasonDialog.unwatchedPrev.map((s) => seasonLabel(s)).join(', '))}
                     </p>
-                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                      <button style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }} onClick={() => { dispatchMarkSeason([prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
+                    <div style={{ display: 'flex', gap: '0.625rem', justifyContent: 'flex-end' }}>
+                      <button style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', borderRadius: '0.5rem', padding: '0.5625rem 1.25rem', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }} onClick={() => { dispatchMarkSeason([prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
                         {t('detail.prev_seasons_dialog_no')}
                       </button>
-                      <button style={{ background: 'var(--primary-accent-color)', border: 'none', color: 'var(--primary-accent-foreground-color, #fff)', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }} onClick={() => { dispatchMarkSeason([...prevSeasonDialog.unwatchedPrev, prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
+                      <button style={{ background: 'var(--primary-accent-color)', border: 'none', color: 'var(--primary-accent-foreground-color, #fff)', borderRadius: '0.5rem', padding: '0.5625rem 1.25rem', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }} onClick={() => { dispatchMarkSeason([...prevSeasonDialog.unwatchedPrev, prevSeasonDialog.season], true); setPrevSeasonDialog(null); }}>
                         {t('detail.prev_seasons_dialog_yes')}
                       </button>
                     </div>
@@ -278,9 +278,9 @@ export function ModernDetailLayout({
               />
 
               {activeTab === 'episodes' && (
-                <div style={{ ...MS.episodeSection, minHeight: 200 }}>
+                <div style={{ ...MS.episodeSection, minHeight: '12.5rem' }}>
                   {detail.isLoading && filteredEps.length === 0 ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}><div style={spinnerStyle} /></div>
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '2.5rem' }}><div style={spinnerStyle} /></div>
                   ) : (
                     <>
                       <p style={MS.episodeCount}>{t('format.episode_count', filteredEps.length)}</p>
@@ -318,7 +318,7 @@ export function ModernDetailLayout({
               )}
 
               {activeTab === 'related' && (
-                <div style={{ ...MS.relatedSection, minHeight: 200 }}>
+                <div style={{ ...MS.relatedSection, minHeight: '12.5rem' }}>
                   {similarItems.length === 0 ? (
                     <p style={MS.episodeCount}>{t('auto.no_similar_titles')}</p>
                   ) : (
@@ -332,7 +332,7 @@ export function ModernDetailLayout({
               )}
 
               {activeTab === 'details' && (
-                <div style={{ ...MS.detailsTab, minHeight: 200 }}>
+                <div style={{ ...MS.detailsTab, minHeight: '12.5rem' }}>
                   {displayMeta.description && (
                     <div style={MS.detailsSection}>
                       <h3 style={MS.detailsSectionTitle}>{t('detail.summary')}</h3>
@@ -374,7 +374,7 @@ export function ModernDetailLayout({
               />
 
               {(activeTab === 'related' || activeTab === 'episodes') && (
-                <div style={{ ...MS.relatedSection, minHeight: 200 }}>
+                <div style={{ ...MS.relatedSection, minHeight: '12.5rem' }}>
                   {similarItems.length === 0 ? (
                     <p style={MS.episodeCount}>{t('auto.no_similar_titles')}</p>
                   ) : (
@@ -388,7 +388,7 @@ export function ModernDetailLayout({
               )}
 
               {activeTab === 'details' && (
-                <div style={{ ...MS.detailsTab, minHeight: 200 }}>
+                <div style={{ ...MS.detailsTab, minHeight: '12.5rem' }}>
                   {displayMeta.description && (
                     <div style={MS.detailsSection}>
                       <h3 style={MS.detailsSectionTitle}>{t('detail.summary')}</h3>

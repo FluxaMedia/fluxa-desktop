@@ -115,9 +115,9 @@ export function ContinueCard({
       style={{
         ...(isHorizontal ? cwStyles.landscapeCard : cwStyles.posterCard),
         opacity: (dismissing || pending) ? 0 : 1,
-        transform: dismissing ? 'translateX(-12px)' : hovered ? 'translateY(-2px)' : 'translateY(0)',
+        transform: dismissing ? 'translateX(-0.75rem)' : hovered ? 'translateY(-0.125rem)' : 'translateY(0)',
         transition: dismissing ? 'opacity 0.22s ease, transform 0.22s ease' : 'opacity 0.22s ease, transform 0.16s ease',
-        boxShadow: hovered && !dismissing && !pending ? '0 0 0 2px rgba(255,255,255,0.44)' : 'none',
+        boxShadow: hovered && !dismissing && !pending ? '0 0 0 0.125rem rgba(255,255,255,0.44)' : 'none',
         pointerEvents: (dismissing || pending) ? 'none' : undefined,
       }}
       onMouseEnter={() => setHovered(true)}
@@ -159,8 +159,8 @@ export function ContinueCard({
         )}
 
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', opacity: hovered && !dismissing && !pending ? 1 : 0, transition: 'opacity 0.16s ease' }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="white" style={{ marginLeft: 3 }}><path d="M8 5v14l11-7z" /></svg>
+          <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '50%', background: 'rgba(255,255,255,0.14)', backdropFilter: 'blur(0.375rem)', border: '1px solid rgba(255,255,255,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="white" style={{ marginLeft: '0.1875rem' }}><path d="M8 5v14l11-7z" /></svg>
           </div>
         </div>
       </div>
@@ -198,22 +198,22 @@ export function ContinueCard({
 }
 
 const cwStyles: Record<string, React.CSSProperties> = {
-  landscapeCard: { position: 'relative', width: 318, minWidth: 318, height: 218, borderRadius: 2, overflow: 'hidden', background: '#050506', cursor: 'pointer', outline: 'none' },
-  posterCard: { position: 'relative', width: 128, minWidth: 128, height: 218, borderRadius: 3, overflow: 'hidden', background: '#141922', cursor: 'pointer', outline: 'none' },
-  imageArea: { position: 'relative', width: '100%', height: 161, overflow: 'hidden', background: '#141922' },
+  landscapeCard: { position: 'relative', width: '19.875rem', minWidth: '19.875rem', height: '13.625rem', borderRadius: '0.125rem', overflow: 'hidden', background: '#050506', cursor: 'pointer', outline: 'none' },
+  posterCard: { position: 'relative', width: '8rem', minWidth: '8rem', height: '13.625rem', borderRadius: '0.1875rem', overflow: 'hidden', background: '#141922', cursor: 'pointer', outline: 'none' },
+  imageArea: { position: 'relative', width: '100%', height: '10.0625rem', overflow: 'hidden', background: '#141922' },
   artwork: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   thumbPlaceholder: { width: '100%', height: '100%', background: '#1B212B', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  placeholderText: { color: 'rgba(255,255,255,0.22)', fontSize: 48, fontWeight: 900 },
-  footer: { height: 57, padding: '9px 10px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#050506' },
+  placeholderText: { color: 'rgba(255,255,255,0.22)', fontSize: '3rem', fontWeight: 900 },
+  footer: { height: '3.5625rem', padding: '0.5625rem 0.625rem 0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', background: '#050506' },
   metaStack: { flex: 1, minWidth: 0 },
-  imageProgressBg: { position: 'absolute', left: 10, right: 10, bottom: 8, height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.25)' },
-  progressBar: { height: '100%', borderRadius: 999, background: 'var(--primary-accent-color)' },
-  remainingBadge: { position: 'absolute', top: 8, right: 9, color: '#FFFFFF', fontSize: 12, fontWeight: 800, textShadow: '0 1px 5px rgba(0,0,0,0.88)', background: 'rgba(0,0,0,0.42)', borderRadius: 4, padding: '3px 6px' },
+  imageProgressBg: { position: 'absolute', left: '0.625rem', right: '0.625rem', bottom: '0.5rem', height: '0.25rem', borderRadius: '62.4375rem', background: 'rgba(255,255,255,0.25)' },
+  progressBar: { height: '100%', borderRadius: '62.4375rem', background: 'var(--primary-accent-color)' },
+  remainingBadge: { position: 'absolute', top: '0.5rem', right: '0.5625rem', color: '#FFFFFF', fontSize: '0.75rem', fontWeight: 800, textShadow: '0 1px 0.3125rem rgba(0,0,0,0.88)', background: 'rgba(0,0,0,0.42)', borderRadius: '0.25rem', padding: '0.1875rem 0.375rem' },
   newEpisodeBadge: { background: 'var(--primary-accent-color)', color: 'var(--primary-accent-foreground-color)', textShadow: 'none' },
-  cornerBadge: { position: 'absolute', top: 8, left: 9, color: '#FFFFFF', fontSize: 12, fontWeight: 800, textShadow: '0 1px 5px rgba(0,0,0,0.88)', background: 'rgba(0,0,0,0.42)', borderRadius: 4, padding: '3px 6px' },
+  cornerBadge: { position: 'absolute', top: '0.5rem', left: '0.5625rem', color: '#FFFFFF', fontSize: '0.75rem', fontWeight: 800, textShadow: '0 1px 0.3125rem rgba(0,0,0,0.88)', background: 'rgba(0,0,0,0.42)', borderRadius: '0.25rem', padding: '0.1875rem 0.375rem' },
 
-  episodeName: { color: 'rgba(255,255,255,0.68)', fontSize: 13, fontWeight: 600, margin: '4px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  name: { color: '#FFFFFF', fontSize: 15, fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.12 },
-  hoverActions: { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
-  actionBtn: { width: 27, height: 27, borderRadius: 999, border: '1.5px solid rgba(255,255,255,0.5)', background: 'transparent', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 },
+  episodeName: { color: 'rgba(255,255,255,0.68)', fontSize: '0.8125rem', fontWeight: 600, margin: '0.25rem 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  name: { color: '#FFFFFF', fontSize: '0.9375rem', fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.12 },
+  hoverActions: { display: 'flex', alignItems: 'center', gap: '0.375rem', flexShrink: 0 },
+  actionBtn: { width: '1.6875rem', height: '1.6875rem', borderRadius: '62.4375rem', border: '0.0938rem solid rgba(255,255,255,0.5)', background: 'transparent', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 },
 };

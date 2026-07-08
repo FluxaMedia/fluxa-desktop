@@ -44,31 +44,31 @@ const S: Record<string, React.CSSProperties> = {
     position: 'fixed', inset: 0, zIndex: 99998,
     background: 'rgba(0,0,0,0.72)', display: 'flex',
     alignItems: 'center', justifyContent: 'center',
-    backdropFilter: 'blur(4px)',
+    backdropFilter: 'blur(0.25rem)',
   },
   dialog: {
     background: '#18191f', border: '1px solid rgba(255,255,255,0.10)',
-    borderRadius: 12, padding: '28px 28px 24px', maxWidth: 400, width: '90%',
+    borderRadius: '0.75rem', padding: '1.75rem 1.75rem 1.5rem', maxWidth: '25rem', width: '90%',
     fontFamily: FONT,
   },
   title: {
-    margin: '0 0 12px', fontSize: 16, fontWeight: 600, color: '#fff',
+    margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600, color: '#fff',
   },
   body: {
-    margin: '0 0 24px', fontSize: 13, color: 'rgba(255,255,255,0.55)',
+    margin: '0 0 1.5rem', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.55)',
     lineHeight: 1.6,
   },
   actions: {
-    display: 'flex', gap: 10, justifyContent: 'flex-end',
+    display: 'flex', gap: '0.625rem', justifyContent: 'flex-end',
   },
   cancelBtn: {
-    padding: '9px 18px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)',
+    padding: '0.5625rem 1.125rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.12)',
     background: 'transparent', color: 'rgba(255,255,255,0.60)',
-    fontSize: 13, fontFamily: FONT, cursor: 'pointer',
+    fontSize: '0.8125rem', fontFamily: FONT, cursor: 'pointer',
   },
   confirmBtn: {
-    padding: '9px 18px', borderRadius: 8, border: 'none',
+    padding: '0.5625rem 1.125rem', borderRadius: '0.5rem', border: 'none',
     background: '#fff', color: '#000',
-    fontSize: 13, fontWeight: 600, fontFamily: FONT, cursor: 'pointer',
+    fontSize: '0.8125rem', fontWeight: 600, fontFamily: FONT, cursor: 'pointer',
   },
 };

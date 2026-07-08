@@ -55,8 +55,8 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props)
         onClick={open}
         title={t('auto.search')}
         style={{
-          width: 42,
-          height: 42,
+          width: '2.625rem',
+          height: '2.625rem',
           borderRadius: '50%',
           background: 'rgba(10,12,20,0.88)',
           border: '1px solid rgba(255,255,255,0.12)',
@@ -64,7 +64,7 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props)
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          boxShadow: '0 0.25rem 1.25rem rgba(0,0,0,0.3)',
           pointerEvents: 'auto',
           padding: 0,
           transition: 'background 0.15s, border-color 0.15s',
@@ -89,14 +89,14 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props)
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        width: 360,
-        height: 42,
+        gap: '0.625rem',
+        width: '22.5rem',
+        height: '2.625rem',
         background: 'rgba(10,12,20,0.97)',
         border: '1px solid rgba(255,255,255,0.25)',
-        borderRadius: 999,
-        padding: '0 16px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(232,93,63,0.15)',
+        borderRadius: '62.4375rem',
+        padding: '0 1rem',
+        boxShadow: '0 0.5rem 2rem rgba(0,0,0,0.4), 0 0 0 1px rgba(232,93,63,0.15)',
         pointerEvents: 'auto',
       }}
     >
@@ -115,7 +115,7 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props)
           border: 'none',
           outline: 'none',
           color: '#FFFFFF',
-          fontSize: 15,
+          fontSize: '0.9375rem',
           fontWeight: 500,
         }}
       />

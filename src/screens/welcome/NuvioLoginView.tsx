@@ -85,15 +85,15 @@ export function NuvioLoginView({ onBack, onImporting, onContinueLocal, localLoad
 
       <main style={S.authMain}>
         <div style={S.card}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.75rem' }}>
             <img
               src="https://nuvio.tv//assets/Logo_1080x1080.png"
               alt="Nuvio"
-              style={{ width: 36, height: 36, objectFit: 'contain' }}
+              style={{ width: '2.25rem', height: '2.25rem', objectFit: 'contain' }}
             />
             <div>
-              <p style={{ margin: 0, fontSize: 16, fontWeight: 600, fontFamily: FONT }}>{t('auth.nuvio.title')}</p>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.40)', fontFamily: FONT }}>{t('auth.nuvio.subtitle')}</p>
+              <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, fontFamily: FONT }}>{t('auth.nuvio.title')}</p>
+              <p style={{ margin: '0.125rem 0 0', fontSize: '0.75rem', color: 'rgba(255,255,255,0.40)', fontFamily: FONT }}>{t('auth.nuvio.subtitle')}</p>
             </div>
           </div>
 
@@ -118,7 +118,7 @@ export function NuvioLoginView({ onBack, onImporting, onContinueLocal, localLoad
             />
             <button
               type="submit"
-              style={{ ...S.submitBtn, marginTop: 8, opacity: submitting ? 0.6 : 1 }}
+              style={{ ...S.submitBtn, marginTop: '0.5rem', opacity: submitting ? 0.6 : 1 }}
               disabled={submitting}
             >
               {submitting ? t('auth.nuvio.signing_in') : t('auth.nuvio.sign_in')}

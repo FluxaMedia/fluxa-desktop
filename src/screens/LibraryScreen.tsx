@@ -15,7 +15,7 @@ import { CollectionsTab } from '../components/library/CollectionsTab';
 
 type Tab = 'watchlist' | 'watching' | 'completed' | 'dropped' | 'collections' | 'airing' | 'rated' | 'history';
 
-const NAV_RAIL_WIDTH = 104;
+const NAV_RAIL_WIDTH = 6.5;
 const PX = 58;
 
 interface Props {
@@ -146,7 +146,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   if (editingCollection !== null) {
     const initial = editingCollection === 'new' ? null : editingCollection;
     return (
-      <div style={{ position: 'relative', height: '100%', paddingLeft: NAV_RAIL_WIDTH, background: '#040508', boxSizing: 'border-box' }}>
+      <div style={{ position: 'relative', height: '100%', paddingLeft: `${NAV_RAIL_WIDTH}rem`, background: '#040508', boxSizing: 'border-box' }}>
         <CollectionEditorScreen
           accent={accent}
           initial={initial}
@@ -367,7 +367,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
         </div>
       )}
 
-      <div style={{ height: 8 }} />
+      <div style={{ height: '0.5rem' }} />
 
       {tab === 'collections' ? (
         <div ref={collectionsScrollRef} style={styles.collectionsScroll}>
@@ -524,8 +524,8 @@ function TabChip({ active, onClick, children }: { active: boolean; onClick: () =
       style={{
         background: active ? '#FFFFFF' : hovered ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
         color: active ? '#000000' : '#FFFFFF',
-        border: 'none', borderRadius: 20, padding: '8px 20px',
-        fontSize: 14, fontWeight: 700, cursor: 'pointer',
+        border: 'none', borderRadius: '1.25rem', padding: '0.5rem 1.25rem',
+        fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer',
         transition: 'background 0.15s, color 0.15s',
       }}
       onClick={onClick}
@@ -538,83 +538,83 @@ function TabChip({ active, onClick, children }: { active: boolean; onClick: () =
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  screen: { background: '#040508', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingLeft: NAV_RAIL_WIDTH },
-  header: { display: 'flex', alignItems: 'center', gap: 24, padding: '40px 58px', flexShrink: 0 },
-  controls: { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 },
+  screen: { background: '#040508', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingLeft: `${NAV_RAIL_WIDTH}rem` },
+  header: { display: 'flex', alignItems: 'center', gap: '1.5rem', padding: '2.5rem 3.625rem', flexShrink: 0 },
+  controls: { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.625rem' },
   bulkToggle: {
-    height: 36,
+    height: '2.25rem',
     display: 'flex',
     alignItems: 'center',
-    gap: 7,
-    padding: '0 12px',
+    gap: '0.4375rem',
+    padding: '0 0.75rem',
     border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 8,
-    fontSize: 13,
+    borderRadius: '0.5rem',
+    fontSize: '0.8125rem',
     fontWeight: 800,
     cursor: 'pointer',
   },
   searchWrap: {
-    display: 'flex', alignItems: 'center', gap: 7, height: 36, padding: '0 12px', width: 220,
-    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
+    display: 'flex', alignItems: 'center', gap: '0.4375rem', height: '2.25rem', padding: '0 0.75rem', width: '13.75rem',
+    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem',
   },
   searchInput: {
     flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none',
-    color: '#fff', fontSize: 13, fontWeight: 600,
+    color: '#fff', fontSize: '0.8125rem', fontWeight: 600,
   },
-  collectionsScroll: { flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 80 },
-  title: { color: '#FFFFFF', fontSize: 32, fontWeight: 900, margin: '0 0 4px', letterSpacing: '2px' },
-  subtitle: { color: 'rgba(255,255,255,0.5)', fontSize: 14, margin: 0, lineHeight: 1.4 },
-  tabRow: { display: 'flex', alignItems: 'center', gap: 10, paddingLeft: PX, paddingRight: PX, flexShrink: 0, flexWrap: 'wrap' },
+  collectionsScroll: { flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: '5rem' },
+  title: { color: '#FFFFFF', fontSize: '2rem', fontWeight: 900, margin: '0 0 0.25rem', letterSpacing: '0.125rem' },
+  subtitle: { color: 'rgba(255,255,255,0.5)', fontSize: '0.875rem', margin: 0, lineHeight: 1.4 },
+  tabRow: { display: 'flex', alignItems: 'center', gap: '0.625rem', paddingLeft: PX, paddingRight: PX, flexShrink: 0, flexWrap: 'wrap' },
   bulkBar: {
-    margin: '14px 58px 0',
-    minHeight: 44,
-    padding: '7px 8px',
-    borderRadius: 10,
+    margin: '0.875rem 3.625rem 0',
+    minHeight: '2.75rem',
+    padding: '0.4375rem 0.5rem',
+    borderRadius: '0.625rem',
     border: '1px solid rgba(255,255,255,0.1)',
     background: 'rgba(255,255,255,0.06)',
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: '0.5rem',
     flexShrink: 0,
   },
-  bulkCount: { color: 'rgba(255,255,255,0.62)', fontSize: 13, fontWeight: 800 },
+  bulkCount: { color: 'rgba(255,255,255,0.62)', fontSize: '0.8125rem', fontWeight: 800 },
   bulkBtn: {
-    height: 30,
-    padding: '0 10px',
-    borderRadius: 7,
+    height: '1.875rem',
+    padding: '0 0.625rem',
+    borderRadius: '0.4375rem',
     border: '1px solid rgba(255,255,255,0.1)',
     background: 'rgba(255,255,255,0.08)',
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: '0.75rem',
     fontWeight: 800,
     cursor: 'pointer',
   },
   bulkDangerBtn: {
-    height: 30,
-    padding: '0 10px',
-    borderRadius: 7,
+    height: '1.875rem',
+    padding: '0 0.625rem',
+    borderRadius: '0.4375rem',
     border: '1px solid rgba(255,80,80,0.22)',
     background: 'rgba(255,80,80,0.14)',
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: '0.75rem',
     fontWeight: 800,
     cursor: 'pointer',
   },
   bulkGhostBtn: {
-    height: 30,
-    padding: '0 10px',
-    borderRadius: 7,
+    height: '1.875rem',
+    padding: '0 0.625rem',
+    borderRadius: '0.4375rem',
     border: '1px solid rgba(255,255,255,0.1)',
     background: 'transparent',
     color: 'rgba(255,255,255,0.78)',
-    fontSize: 12,
+    fontSize: '0.75rem',
     fontWeight: 800,
     cursor: 'pointer',
   },
   bulkIconBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 7,
+    width: '1.875rem',
+    height: '1.875rem',
+    borderRadius: '0.4375rem',
     border: 'none',
     background: 'transparent',
     color: 'rgba(255,255,255,0.7)',
@@ -624,56 +624,56 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   errorBanner: {
-    margin: '14px 58px 0',
-    padding: '12px 14px',
-    borderRadius: 10,
+    margin: '0.875rem 3.625rem 0',
+    padding: '0.75rem 0.875rem',
+    borderRadius: '0.625rem',
     border: '1px solid rgba(255,255,255,0.1)',
     background: 'rgba(255,255,255,0.055)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 16,
+    gap: '1rem',
     flexShrink: 0,
   },
-  errorTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: 850, margin: '0 0 3px' },
-  errorText: { color: 'rgba(255,255,255,0.52)', fontSize: 12, fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  errorTitle: { color: '#FFFFFF', fontSize: '0.8125rem', fontWeight: 850, margin: '0 0 0.1875rem' },
+  errorText: { color: 'rgba(255,255,255,0.52)', fontSize: '0.75rem', fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   errorBtn: {
-    height: 32,
-    padding: '0 12px',
-    borderRadius: 999,
+    height: '2rem',
+    padding: '0 0.75rem',
+    borderRadius: '62.4375rem',
     border: '1px solid rgba(255,255,255,0.14)',
     background: '#FFFFFF',
     color: '#000000',
-    fontSize: 12,
+    fontSize: '0.75rem',
     fontWeight: 850,
     cursor: 'pointer',
     flexShrink: 0,
   },
-  empty: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 10 },
-  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0 },
-  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 },
-  historyScroll: { flex: 1, overflowY: 'auto', padding: '10px 58px 80px', display: 'flex', flexDirection: 'column', gap: 8 },
+  empty: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: '5rem', gap: '0.625rem' },
+  emptyTitle: { color: '#FFFFFF', fontSize: '1.25rem', fontWeight: 700, margin: 0 },
+  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: '0.875rem', margin: 0, textAlign: 'center', maxWidth: '20rem', lineHeight: 1.5 },
+  historyScroll: { flex: 1, overflowY: 'auto', padding: '0.625rem 3.625rem 5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' },
   historyRow: {
     width: '100%',
-    minHeight: 76,
+    minHeight: '4.75rem',
     border: '1px solid rgba(255,255,255,0.08)',
     background: 'rgba(255,255,255,0.035)',
-    borderRadius: 10,
+    borderRadius: '0.625rem',
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
-    padding: '10px 12px',
+    gap: '0.75rem',
+    padding: '0.625rem 0.75rem',
     cursor: 'pointer',
     textAlign: 'left',
   },
-  historyDate: { width: 44, display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 },
-  historyDay: { color: '#FFFFFF', fontSize: 18, fontWeight: 900, lineHeight: '20px' },
-  historyMonth: { color: 'rgba(255,255,255,0.42)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' },
-  historyPoster: { width: 38, height: 56, objectFit: 'cover', borderRadius: 6, flexShrink: 0 },
+  historyDate: { width: '2.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 },
+  historyDay: { color: '#FFFFFF', fontSize: '1.125rem', fontWeight: 900, lineHeight: '1.25rem' },
+  historyMonth: { color: 'rgba(255,255,255,0.42)', fontSize: '0.6875rem', fontWeight: 800, textTransform: 'uppercase' },
+  historyPoster: { width: '2.375rem', height: '3.5rem', objectFit: 'cover', borderRadius: '0.375rem', flexShrink: 0 },
   historyInfo: { flex: 1, minWidth: 0 },
-  historyTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: 850, margin: '0 0 5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  historyMeta: { color: 'rgba(255,255,255,0.48)', fontSize: 12, fontWeight: 650, margin: 0 },
-  historyTime: { color: 'rgba(255,255,255,0.38)', fontSize: 12, fontWeight: 750, flexShrink: 0 },
-  historyProgressTrack: { width: 160, maxWidth: '100%', height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.1)', marginTop: 9, overflow: 'hidden' },
-  historyProgressFill: { height: '100%', borderRadius: 999, background: 'var(--primary-accent-color)' },
+  historyTitle: { color: '#FFFFFF', fontSize: '0.9375rem', fontWeight: 850, margin: '0 0 0.3125rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  historyMeta: { color: 'rgba(255,255,255,0.48)', fontSize: '0.75rem', fontWeight: 650, margin: 0 },
+  historyTime: { color: 'rgba(255,255,255,0.38)', fontSize: '0.75rem', fontWeight: 750, flexShrink: 0 },
+  historyProgressTrack: { width: '10rem', maxWidth: '100%', height: '0.25rem', borderRadius: '62.4375rem', background: 'rgba(255,255,255,0.1)', marginTop: '0.5625rem', overflow: 'hidden' },
+  historyProgressFill: { height: '100%', borderRadius: '62.4375rem', background: 'var(--primary-accent-color)' },
 };

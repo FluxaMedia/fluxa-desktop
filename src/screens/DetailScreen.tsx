@@ -388,20 +388,20 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
           <div style={S.scrollArea}>
             <button style={S.backBtn} onClick={onBack}>
               <ArrowLeft size={18} color="rgba(255,255,255,0.85)" />
-              <span style={{ marginLeft: 6 }}>{t('auto.back')}</span>
+              <span style={{ marginLeft: '0.375rem' }}>{t('auto.back')}</span>
             </button>
 
             {detail.isLoading && !displayMeta.description ? (
-              <div style={{ marginTop: 32 }}>
-                <div style={{ width: 280, height: 80, background: 'rgba(255,255,255,0.06)', borderRadius: 6, marginBottom: 18 }} />
-                <div style={{ width: 160, height: 14, background: 'rgba(255,255,255,0.05)', borderRadius: 4, marginBottom: 10 }} />
-                <div style={{ width: '100%', maxWidth: 460, height: 14, background: 'rgba(255,255,255,0.05)', borderRadius: 4, marginBottom: 8 }} />
-                <div style={{ width: '80%', maxWidth: 370, height: 14, background: 'rgba(255,255,255,0.05)', borderRadius: 4, marginBottom: 8 }} />
-                <div style={{ width: '60%', maxWidth: 280, height: 14, background: 'rgba(255,255,255,0.05)', borderRadius: 4 }} />
+              <div style={{ marginTop: '2rem' }}>
+                <div style={{ width: '17.5rem', height: '5rem', background: 'rgba(255,255,255,0.06)', borderRadius: '0.375rem', marginBottom: '1.125rem' }} />
+                <div style={{ width: '10rem', height: '0.875rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.25rem', marginBottom: '0.625rem' }} />
+                <div style={{ width: '100%', maxWidth: '28.75rem', height: '0.875rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.25rem', marginBottom: '0.5rem' }} />
+                <div style={{ width: '80%', maxWidth: '23.125rem', height: '0.875rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.25rem', marginBottom: '0.5rem' }} />
+                <div style={{ width: '60%', maxWidth: '17.5rem', height: '0.875rem', background: 'rgba(255,255,255,0.05)', borderRadius: '0.25rem' }} />
               </div>
             ) : (
               <>
-                <div style={{ marginTop: 28, marginBottom: 8 }}>
+                <div style={{ marginTop: '1.75rem', marginBottom: '0.5rem' }}>
                   {(fanartArtwork?.hdLogo || displayMeta.logo) ? (
                     <img src={fanartArtwork?.hdLogo || displayMeta.logo} alt={displayMeta.name} style={S.logo} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                   ) : (
@@ -410,7 +410,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
                 </div>
 
                 {(metaLine || displayMeta.imdbRating || omdbRatings) && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                     {metaLine && <span style={S.metaLine}>{metaLine}</span>}
                     {displayMeta.imdbRating && (
                       <span style={S.imdbBadge}>
@@ -434,13 +434,13 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
                 )}
 
                 {trailerOnHero && displayTrailers.length > 0 && (
-                  <div style={{ maxWidth: 620, marginBottom: 22 }}>
+                  <div style={{ maxWidth: '38.75rem', marginBottom: '1.375rem' }}>
                     <TrailerCarousel trailers={displayTrailers.slice(0, 4)} trailerMetadata={trailerMetadata} />
                   </div>
                 )}
 
                 {displayMeta.genres && displayMeta.genres.length > 0 && (
-                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 22 }}>
+                  <div style={{ display: 'flex', gap: '0.4375rem', flexWrap: 'wrap', marginBottom: '1.375rem' }}>
                     {displayMeta.genres.slice(0, 6).map((g) => <span key={g} style={S.genrePill}>{g}</span>)}
                   </div>
                 )}
@@ -450,14 +450,14 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
                 )}
 
                 {displayMeta.awards && (
-                  <div style={{ marginBottom: 24 }}>
+                  <div style={{ marginBottom: '1.5rem' }}>
                     <p style={S.sectionLabel}>{t('detail.awards')}</p>
                     <p style={S.awardsText}>{displayMeta.awards}</p>
                   </div>
                 )}
 
                 {(castMembers.length > 0 || directorLinks.length > 0) && (
-                  <div style={{ marginBottom: 20 }}>
+                  <div style={{ marginBottom: '1.25rem' }}>
                     <p style={S.sectionLabel}>{t('detail.cast_crew')}</p>
                     <div style={S.castRow}>
                       {directorLinks.map((l) => <CastAvatar key={`dir-${l.name}`} name={l.name} role={t('detail.director')} imageUrl={peopleImages[l.name]} />)}
@@ -577,7 +577,7 @@ function LegacyPlayButton({ isSeries, selectedEpisode, filteredEps, episodes, op
         }
       }}
     >
-      <Play size={16} fill="currentColor" strokeWidth={0} style={{ marginRight: 7 }} />
+      <Play size={16} fill="currentColor" strokeWidth={0} style={{ marginRight: '0.4375rem' }} />
       {t('common.play')}
     </button>
   );
@@ -589,14 +589,14 @@ function DescriptionBlock({ description }: { description: string }) {
   const lines = description.split('\n');
   const needsClamp = lines.length > CLAMP || description.length > 320;
   return (
-    <div style={{ marginBottom: 24 }}>
+    <div style={{ marginBottom: '1.5rem' }}>
       <p style={S.sectionLabel}>{t('detail.summary')}</p>
       <p style={{ ...S.descText, display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: expanded ? undefined : CLAMP, overflow: expanded ? 'visible' : 'hidden' }}>
         {description}
       </p>
       {needsClamp && (
         <button
-          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '4px 0 0', display: 'block' }}
+          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: '0.25rem 0 0', display: 'block' }}
           onClick={() => setExpanded((e) => !e)}
         >
           {expanded ? t('auto.read_less') : t('auto.read_more')}
@@ -625,23 +625,23 @@ function ResumeDialog({ timeOffset, onContinue, onStartOver, onClose }: {
 }) {
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 99998, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 99998, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(0.25rem)' }}
       onClick={onClose}
     >
       <div
-        style={{ background: '#18191f', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 12, padding: '28px 28px 24px', maxWidth: 360, width: '90%', fontFamily: FONT }}
+        style={{ background: '#18191f', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '0.75rem', padding: '1.75rem 1.75rem 1.5rem', maxWidth: '22.5rem', width: '90%', fontFamily: FONT }}
         onClick={(e) => e.stopPropagation()}
       >
-        <p style={{ margin: '0 0 24px', fontSize: 16, fontWeight: 600, color: '#fff' }}>{t('detail.resume_dialog_title')}</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p style={{ margin: '0 0 1.5rem', fontSize: '1rem', fontWeight: 600, color: '#fff' }}>{t('detail.resume_dialog_title')}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
           <button
-            style={{ padding: '11px 18px', borderRadius: 8, border: 'none', background: '#fff', color: '#000', fontSize: 13, fontWeight: 600, fontFamily: FONT, cursor: 'pointer', textAlign: 'left' }}
+            style={{ padding: '0.6875rem 1.125rem', borderRadius: '0.5rem', border: 'none', background: '#fff', color: '#000', fontSize: '0.8125rem', fontWeight: 600, fontFamily: FONT, cursor: 'pointer', textAlign: 'left' }}
             onClick={onContinue}
           >
             {t('detail.resume_dialog_continue', formatTimestamp(timeOffset))}
           </button>
           <button
-            style={{ padding: '11px 18px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.70)', fontSize: 13, fontFamily: FONT, cursor: 'pointer', textAlign: 'left' }}
+            style={{ padding: '0.6875rem 1.125rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: 'rgba(255,255,255,0.70)', fontSize: '0.8125rem', fontFamily: FONT, cursor: 'pointer', textAlign: 'left' }}
             onClick={onStartOver}
           >
             {t('detail.resume_dialog_start_over')}

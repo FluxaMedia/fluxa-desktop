@@ -101,15 +101,15 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
           onClick={onBack}
           style={{
             position: 'absolute',
-            top: 16,
-            left: 16,
+            top: '1rem',
+            left: '1rem',
             zIndex: 1,
             background: 'rgba(0,0,0,0.45)',
-            backdropFilter: 'blur(6px)',
+            backdropFilter: 'blur(0.375rem)',
             border: 'none',
-            borderRadius: 10,
-            width: 42,
-            height: 42,
+            borderRadius: '0.625rem',
+            width: '2.625rem',
+            height: '2.625rem',
             color: '#fff',
             cursor: 'pointer',
             display: 'flex',
@@ -143,9 +143,9 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
           pointerEvents: 'none',
         }}
       />
-      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '0 40px' }}>
+      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '0 2.5rem' }}>
         {logo ? (
-          <div style={{ position: 'relative', width: 480, maxWidth: '100%', height: 160, margin: '0 auto' }}>
+          <div style={{ position: 'relative', width: '30rem', maxWidth: '100%', height: '10rem', margin: '0 auto' }}>
             <img
               src={logo}
               alt={title ?? ''}
@@ -159,8 +159,8 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
                 opacity: failed ? 0.55 : hasMeasuredProgress ? 0.35 : breatheOpacity,
                 transform: failed || hasMeasuredProgress ? undefined : `scale(${breatheScale.toFixed(4)})`,
                 filter: failed || hasMeasuredProgress
-                  ? 'drop-shadow(0 4px 24px rgba(0,0,0,0.8)) brightness(0.72)'
-                  : 'drop-shadow(0 4px 24px rgba(0,0,0,0.8))',
+                  ? 'drop-shadow(0 0.25rem 1.5rem rgba(0,0,0,0.8)) brightness(0.72)'
+                  : 'drop-shadow(0 0.25rem 1.5rem rgba(0,0,0,0.8))',
               }}
             />
             {!failed && hasMeasuredProgress && (
@@ -181,7 +181,7 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
                     width: '100%',
                     height: '100%',
                     objectFit: 'contain',
-                    filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.8))',
+                    filter: 'drop-shadow(0 0.25rem 1.5rem rgba(0,0,0,0.8))',
                   }}
                 />
               </div>
@@ -192,11 +192,11 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
             className={failed ? undefined : 'fluxa-loading-logo-breathe fluxa-loading-motion'}
             style={{
               color: '#fff',
-              fontSize: 36,
+              fontSize: '2.25rem',
               fontWeight: 900,
               fontFamily: "'Montserrat', sans-serif",
-              letterSpacing: '-0.5px',
-              textShadow: '0 2px 16px rgba(0,0,0,0.8)',
+              letterSpacing: '-0.0313rem',
+              textShadow: '0 0.125rem 1rem rgba(0,0,0,0.8)',
               opacity: failed ? 0.75 : breatheOpacity,
               transform: failed ? undefined : `scale(${breatheScale.toFixed(4)})`,
               display: 'inline-block',
@@ -209,9 +209,9 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
           <p
             style={{
               color: 'rgba(255,255,255,0.65)',
-              fontSize: 15,
-              marginTop: 12,
-              textShadow: '0 1px 8px rgba(0,0,0,0.8)',
+              fontSize: '0.9375rem',
+              marginTop: '0.75rem',
+              textShadow: '0 1px 0.5rem rgba(0,0,0,0.8)',
             }}
           >
             {episodeLine}
@@ -221,11 +221,11 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
           <p
             style={{
               color: 'rgba(255,255,255,0.4)',
-              fontSize: 12.5,
+              fontSize: '0.7813rem',
               fontWeight: 600,
-              letterSpacing: 0.2,
-              marginTop: 10,
-              textShadow: '0 1px 8px rgba(0,0,0,0.8)',
+              letterSpacing: '0.0125rem',
+              marginTop: '0.625rem',
+              textShadow: '0 1px 0.5rem rgba(0,0,0,0.8)',
             }}
           >
             {status}
@@ -234,12 +234,12 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
         {failed && (
           <div
             style={{
-              marginTop: 26,
+              marginTop: '1.625rem',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 14,
-              width: 'min(520px, 100%)',
+              gap: '0.875rem',
+              width: 'min(32.5rem, 100%)',
               marginLeft: 'auto',
               marginRight: 'auto',
             }}
@@ -250,19 +250,19 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
                 boxSizing: 'border-box',
                 background: 'rgba(18,18,22,0.72)',
                 border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 14,
-                backdropFilter: 'blur(16px)',
-                boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
-                padding: '16px 18px',
+                borderRadius: '0.875rem',
+                backdropFilter: 'blur(1rem)',
+                boxShadow: '0 1rem 3rem rgba(0,0,0,0.5)',
+                padding: '1rem 1.125rem',
                 textAlign: 'left',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <span
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
+                    width: '2.25rem',
+                    height: '2.25rem',
+                    borderRadius: '0.625rem',
                     background: 'rgba(255,90,90,0.13)',
                     display: 'flex',
                     alignItems: 'center',
@@ -273,14 +273,14 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
                   <TriangleAlert size={18} color="#ff7b7b" />
                 </span>
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ color: '#fff', fontSize: 15, fontWeight: 700, margin: 0, letterSpacing: 0.1 }}>
+                  <p style={{ color: '#fff', fontSize: '0.9375rem', fontWeight: 700, margin: 0, letterSpacing: '0.0063rem' }}>
                     {t('player.playback_error') || 'Playback failed'}
                   </p>
                   <p
                     style={{
                       color: 'rgba(255,255,255,0.6)',
-                      fontSize: 13,
-                      margin: '3px 0 0',
+                      fontSize: '0.8125rem',
+                      margin: '0.1875rem 0 0',
                       lineHeight: 1.4,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -299,12 +299,12 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
                       background: 'none',
                       border: 'none',
                       padding: 0,
-                      marginTop: 12,
+                      marginTop: '0.75rem',
                       color: 'rgba(255,255,255,0.45)',
-                      fontSize: 12,
+                      fontSize: '0.75rem',
                       fontWeight: 600,
                       cursor: 'pointer',
-                      letterSpacing: 0.2,
+                      letterSpacing: '0.0125rem',
                     }}
                   >
                     {detailsOpen ? t('player.error_hide_details') : t('player.error_show_details')}
@@ -312,18 +312,18 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
                   {detailsOpen && (
                     <pre
                       style={{
-                        margin: '10px 0 0',
-                        padding: '10px 12px',
+                        margin: '0.625rem 0 0',
+                        padding: '0.625rem 0.75rem',
                         background: 'rgba(0,0,0,0.4)',
                         border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: 8,
+                        borderRadius: '0.5rem',
                         color: 'rgba(255,255,255,0.55)',
-                        fontSize: 11.5,
+                        fontSize: '0.7188rem',
                         fontFamily: "'Cascadia Mono', 'Consolas', monospace",
                         lineHeight: 1.55,
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word',
-                        maxHeight: 140,
+                        maxHeight: '8.75rem',
                         overflowY: 'auto',
                       }}
                     >
@@ -333,17 +333,17 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
                 </>
               )}
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: '0.625rem' }}>
               {onBack && (
                 <button
                   onClick={onBack}
                   style={{
                     background: '#fff',
                     border: 'none',
-                    borderRadius: 10,
-                    padding: '10px 28px',
+                    borderRadius: '0.625rem',
+                    padding: '0.625rem 1.75rem',
                     color: '#000',
-                    fontSize: 13.5,
+                    fontSize: '0.8438rem',
                     fontWeight: 700,
                     cursor: 'pointer',
                   }}
@@ -356,13 +356,13 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
                 style={{
                   background: 'rgba(255,255,255,0.08)',
                   border: '1px solid rgba(255,255,255,0.14)',
-                  borderRadius: 10,
-                  padding: '10px 20px',
+                  borderRadius: '0.625rem',
+                  padding: '0.625rem 1.25rem',
                   color: 'rgba(255,255,255,0.85)',
-                  fontSize: 13.5,
+                  fontSize: '0.8438rem',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  backdropFilter: 'blur(6px)',
+                  backdropFilter: 'blur(0.375rem)',
                 }}
               >
                 {copied ? t('player.error_copied') : t('player.error_copy')}
@@ -383,7 +383,7 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
         }
         .fluxa-player-loading-overlay .fluxa-loading-logo-dim {
           opacity: 0.35;
-          filter: drop-shadow(0 4px 24px rgba(0,0,0,0.8)) brightness(0.72) !important;
+          filter: drop-shadow(0 0.25rem 1.5rem rgba(0,0,0,0.8)) brightness(0.72) !important;
           transition: opacity 0.2s ease, filter 0.2s ease !important;
         }
         .fluxa-player-loading-overlay .fluxa-loading-logo-reveal {

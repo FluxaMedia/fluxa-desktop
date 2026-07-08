@@ -84,7 +84,7 @@ export function SeasonDropdown({
       <button style={{ ...EP.seasonBtn, ...buttonStyle }} onClick={() => setOpen((o) => !o)}>
         <span>{seasonLabel(selected)}</span>
         {seasonWatched && !hideButtonIndicator && (
-          <span style={{ display: 'flex', alignItems: 'center', marginLeft: 2 }}>
+          <span style={{ display: 'flex', alignItems: 'center', marginLeft: '0.125rem' }}>
             {selectedIsWatched ? (
               <Check size={14} color="rgba(255,255,255,0.85)" />
             ) : (
@@ -101,7 +101,7 @@ export function SeasonDropdown({
             return (
               <button
                 key={s}
-                style={{ ...EP.seasonMenuItem, background: s === selected ? 'rgba(255,255,255,0.14)' : 'transparent', fontWeight: s === selected ? 700 : 500, display: 'flex', alignItems: 'center', gap: 8 }}
+                style={{ ...EP.seasonMenuItem, background: s === selected ? 'rgba(255,255,255,0.14)' : 'transparent', fontWeight: s === selected ? 700 : 500, display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                 onClick={() => { onChange(s); setOpen(false); }}
               >
                 <span style={{ flex: 1 }}>{seasonLabel(s)}</span>
@@ -159,8 +159,8 @@ export function EpisodeRow({
           </div>
         )}
         {progressPct > 0 && (
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: 'rgba(0,0,0,0.4)' }}>
-            <div style={{ height: '100%', width: `${progressPct}%`, background: '#F5C518', borderRadius: '0 2px 2px 0' }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '0.1875rem', background: 'rgba(0,0,0,0.4)' }}>
+            <div style={{ height: '100%', width: `${progressPct}%`, background: '#F5C518', borderRadius: '0 0.125rem 0.125rem 0' }} />
           </div>
         )}
         {(hovered || selected) && (
@@ -169,15 +169,15 @@ export function EpisodeRow({
           </div>
         )}
       </div>
-      <div style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+      <div style={{ flex: 1, minWidth: 0, paddingRight: '0.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.25rem' }}>
           <p style={EP.epTitle}>{number}. {title}</p>
           <div style={{ ...EP.epMetaRight, alignItems: 'center' }}>
             {rating && <ImdbBadge rating={rating} compact />}
             {dateStr && <span style={EP.epDate}>{dateStr}</span>}
             {onToggleWatched && (
               <button
-                style={{ background: 'none', border: 'none', padding: '2px 4px', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                style={{ background: 'none', border: 'none', padding: '0.125rem 0.25rem', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}
                 title={isWatched ? t('detail.mark_unwatched') : t('detail.mark_watched')}
                 onClick={(e) => { e.stopPropagation(); onToggleWatched(); }}
               >
@@ -325,7 +325,7 @@ export function EpisodePanel({
           <div style={EP.list}>
             {filtered.length === 0 ? (
               isLoadingEpisodes
-                ? <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}><div style={spinnerStyle} /></div>
+                ? <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><div style={spinnerStyle} /></div>
                 : <div style={EP.empty}>{t('detail.no_episodes_found')}</div>
             ) : (
               filtered.map((ep, i) => {

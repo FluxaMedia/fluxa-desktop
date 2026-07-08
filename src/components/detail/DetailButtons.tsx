@@ -15,7 +15,7 @@ export function ModernPlayButton({ continueLabel, hasProgress, onClick }: { cont
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Play size={18} fill="currentColor" strokeWidth={0} style={{ marginRight: 10, flexShrink: 0 }} />
+      <Play size={18} fill="currentColor" strokeWidth={0} style={{ marginRight: '0.625rem', flexShrink: 0 }} />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
     </button>
   );
@@ -27,8 +27,8 @@ export function ModernIconBtn({ title, active, onClick, children }: { title: str
     <button
       title={title}
       style={{
-        width: 44, height: 44, borderRadius: '50%',
-        border: `2px solid rgba(255,255,255,${hovered || active ? 0.7 : 0.28})`,
+        width: '2.75rem', height: '2.75rem', borderRadius: '50%',
+        border: `0.125rem solid rgba(255,255,255,${hovered || active ? 0.7 : 0.28})`,
         background: active ? 'rgba(255,255,255,0.12)' : 'transparent',
         color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: 'pointer', padding: 0, flexShrink: 0,

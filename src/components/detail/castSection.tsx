@@ -102,11 +102,11 @@ export const CastAvatar = React.memo(function CastAvatar({ name, role, imageUrl 
   const initials = name.split(' ').slice(0, 2).map((w) => w[0] ?? '').join('').toUpperCase();
   const showImage = imageUrl && !imageFailed;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 104, flexShrink: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', width: '6.5rem', flexShrink: 0 }}>
       <div
         style={{
-          width: 70,
-          height: 70,
+          width: '4.375rem',
+          height: '4.375rem',
           borderRadius: showImage ? 8 : '50%',
           background: showImage ? 'transparent' : 'rgba(255,255,255,0.1)',
           display: 'flex',
@@ -119,11 +119,11 @@ export const CastAvatar = React.memo(function CastAvatar({ name, role, imageUrl 
         {showImage ? (
           <img src={imageUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={() => setImageFailed(true)} />
         ) : (
-          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16, fontWeight: 600 }}>{initials}</span>
+          <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '1rem', fontWeight: 600 }}>{initials}</span>
         )}
       </div>
-      <p style={{ color: '#FFFFFF', fontSize: 12, fontWeight: 750, lineHeight: '14px', margin: '2px 0 0', textAlign: 'center', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{name}</p>
-      <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: 10, margin: '1px 0 0', textAlign: 'center', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{role}</p>
+      <p style={{ color: '#FFFFFF', fontSize: '0.75rem', fontWeight: 750, lineHeight: '0.875rem', margin: '0.125rem 0 0', textAlign: 'center', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{name}</p>
+      <p style={{ color: 'rgba(255,255,255,0.38)', fontSize: '0.625rem', margin: '1px 0 0', textAlign: 'center', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{role}</p>
     </div>
   );
 });

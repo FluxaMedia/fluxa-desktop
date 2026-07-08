@@ -75,19 +75,19 @@ export function FolderEditorPage({ initial, accent, catalogOptions, onDismiss, o
         zIndex: 30,
         background: '#080b12',
         overflowY: 'auto',
-        padding: '24px 32px 120px',
+        padding: '1.5rem 2rem 7.5rem',
         boxSizing: 'border-box',
         display: 'flex',
         justifyContent: 'center',
       }}
     >
-      <div style={{ width: '100%', maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 22 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 18, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ width: '100%', maxWidth: '40rem', display: 'flex', flexDirection: 'column', gap: '1.375rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1.125rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <button
             onClick={onDismiss}
             style={{
-              width: 36,
-              height: 36,
+              width: '2.25rem',
+              height: '2.25rem',
               borderRadius: '50%',
               border: 'none',
               background: 'rgba(255,255,255,0.06)',
@@ -101,7 +101,7 @@ export function FolderEditorPage({ initial, accent, catalogOptions, onDismiss, o
           >
             <ArrowBack size={20} />
           </button>
-          <span style={{ color: '#fff', fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em' }}>
+          <span style={{ color: '#fff', fontSize: '1.375rem', fontWeight: 700, letterSpacing: '-0.025em' }}>
             {t('library.folder')}
           </span>
         </div>
@@ -110,20 +110,20 @@ export function FolderEditorPage({ initial, accent, catalogOptions, onDismiss, o
           <SectionLabel>{t('auto.collection_name')}</SectionLabel>
           <Card>
             <FieldInput value={title} placeholder={t('library.folder_name')} onChange={setTitle} accent={accent} />
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
               {(['poster', 'square', 'wide'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => setShape(s)}
                   style={{
                     flex: 1,
-                    height: 36,
+                    height: '2.25rem',
                     border: 'none',
-                    borderRadius: 8,
+                    borderRadius: '0.5rem',
                     background: shape === s ? accent : 'rgba(255,255,255,0.08)',
                     color: shape === s ? contrastOn(accent) : '#fff',
                     fontWeight: 700,
-                    fontSize: 12,
+                    fontSize: '0.75rem',
                     cursor: 'pointer',
                     textTransform: 'capitalize',
                   }}
@@ -138,7 +138,7 @@ export function FolderEditorPage({ initial, accent, catalogOptions, onDismiss, o
         <div>
           <SectionLabel>{t('library.catalog')}</SectionLabel>
           <Card>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
               {browsableCatalogs.map((catalog) => (
                 <Chip
                   key={catalog.id}
@@ -152,7 +152,7 @@ export function FolderEditorPage({ initial, accent, catalogOptions, onDismiss, o
             {genreOptions.length > 0 && (
               <>
                 <SectionLabel>{t('auto.genre')}</SectionLabel>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                   {genreOptions.map((g) => (
                     <Chip
                       key={g}

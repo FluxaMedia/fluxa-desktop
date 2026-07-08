@@ -37,18 +37,18 @@ export function ProfileChip({ profile, allProfiles, onSwitchProfile, onSwitchToP
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
-          width: 42,
-          height: 42,
+          width: '2.625rem',
+          height: '2.625rem',
           borderRadius: '50%',
           background: 'transparent',
-          border: open ? '2px solid rgba(255,255,255,0.75)' : '2px solid rgba(255,255,255,0.15)',
+          border: open ? '0.125rem solid rgba(255,255,255,0.75)' : '0.125rem solid rgba(255,255,255,0.15)',
           padding: 0,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           overflow: 'hidden',
-          boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+          boxShadow: '0 0.25rem 0.875rem rgba(0,0,0,0.4)',
           transition: 'border-color 0.18s, box-shadow 0.18s',
           flexShrink: 0,
         }}
@@ -61,18 +61,18 @@ export function ProfileChip({ profile, allProfiles, onSwitchProfile, onSwitchToP
         <div
           style={{
             position: 'absolute',
-            top: 'calc(100% + 10px)',
+            top: 'calc(100% + 0.625rem)',
             right: 0,
-            width: 220,
+            width: '13.75rem',
             background: '#1A1A1A',
             border: '1px solid rgba(255,255,255,0.09)',
-            borderRadius: 12,
-            boxShadow: '0 24px 64px rgba(0,0,0,0.75)',
+            borderRadius: '0.75rem',
+            boxShadow: '0 1.5rem 4rem rgba(0,0,0,0.75)',
             overflow: 'hidden',
             zIndex: 200,
           }}
         >
-          <div style={{ padding: '6px 0' }}>
+          <div style={{ padding: '0.375rem 0' }}>
             {allProfiles.map((p) => (
               <ProfileRow
                 key={p.id}
@@ -90,7 +90,7 @@ export function ProfileChip({ profile, allProfiles, onSwitchProfile, onSwitchToP
 
           <div style={{ height: 1, background: 'rgba(255,255,255,0.07)' }} />
 
-          <div style={{ padding: '6px 0' }}>
+          <div style={{ padding: '0.375rem 0' }}>
             <DropdownItem
               icon={<ManageIcon />}
               label={t('profiles.manage')}
@@ -130,13 +130,13 @@ function ProfileRow({ profile, active, onClick }: { profile: UserProfile; active
       onMouseLeave={() => setHovered(false)}
       style={{
         width: '100%',
-        height: 44,
+        height: '2.75rem',
         background: hovered ? 'rgba(255,255,255,0.07)' : 'transparent',
         border: 'none',
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        padding: '0 14px',
+        gap: '0.625rem',
+        padding: '0 0.875rem',
         cursor: active ? 'default' : 'pointer',
         transition: 'background 0.12s',
       }}
@@ -148,7 +148,7 @@ function ProfileRow({ profile, active, onClick }: { profile: UserProfile; active
         style={{
           flex: 1,
           color: active ? '#FFFFFF' : 'rgba(255,255,255,0.7)',
-          fontSize: 13.5,
+          fontSize: '0.8438rem',
           fontWeight: active ? 600 : 400,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
@@ -186,16 +186,16 @@ function DropdownItem({
       onMouseLeave={() => setHovered(false)}
       style={{
         width: '100%',
-        height: 40,
+        height: '2.5rem',
         background: hovered ? 'rgba(255,255,255,0.07)' : 'transparent',
         border: 'none',
         display: 'flex',
         alignItems: 'center',
-        gap: 11,
-        padding: '0 16px',
+        gap: '0.6875rem',
+        padding: '0 1rem',
         cursor: 'pointer',
         color: danger ? '#FF6B6B' : hovered ? '#FFFFFF' : 'rgba(255,255,255,0.75)',
-        fontSize: 13.5,
+        fontSize: '0.8438rem',
         fontWeight: 550,
         transition: 'background 0.12s, color 0.12s',
         textAlign: 'left',

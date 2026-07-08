@@ -32,13 +32,13 @@ export function CollectionsTab({
       <div style={S.empty}>
         <p style={S.emptyTitle}>No collections yet</p>
         <p style={S.emptyHint}>Create a collection to organize your catalogs into custom shelves.</p>
-        <div style={{ height: 16 }} />
+        <div style={{ height: '1rem' }} />
         <button
           onClick={onNewCollection}
           style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 20px', background: accent, border: 'none', borderRadius: 24,
-            color: contrastOn(accent), fontWeight: 700, fontSize: 14, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.625rem 1.25rem', background: accent, border: 'none', borderRadius: '1.5rem',
+            color: contrastOn(accent), fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer',
           }}
         >
           <Plus size={18} />
@@ -49,14 +49,14 @@ export function CollectionsTab({
   }
 
   return (
-    <div style={{ paddingLeft: 58, paddingRight: 58, paddingBottom: 80 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+    <div style={{ paddingLeft: '3.625rem', paddingRight: '3.625rem', paddingBottom: '5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '1.25rem' }}>
         {collections.some((c) => !c.showOnHome) && (
           <button
             onClick={onShowAllOnHome}
             style={{
-              padding: '8px 16px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.18)',
-              borderRadius: 20, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.18)',
+              borderRadius: '1.25rem', color: '#fff', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer',
             }}
           >
             Show all on Home
@@ -66,9 +66,9 @@ export function CollectionsTab({
         <button
           onClick={onNewCollection}
           style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '8px 16px', background: accent, border: 'none', borderRadius: 20,
-            color: contrastOn(accent), fontWeight: 700, fontSize: 13, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: '0.375rem',
+            padding: '0.5rem 1rem', background: accent, border: 'none', borderRadius: '1.25rem',
+            color: contrastOn(accent), fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer',
           }}
         >
           <Plus size={16} />
@@ -107,9 +107,9 @@ function CollectionSection({
   const folders = collection.folders ?? [];
 
   return (
-    <div style={{ marginBottom: 32 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <span style={{ flex: 1, color: '#fff', fontSize: 18, fontWeight: 900 }}>
+    <div style={{ marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.875rem' }}>
+        <span style={{ flex: 1, color: '#fff', fontSize: '1.125rem', fontWeight: 900 }}>
           {collection.title}
         </span>
         <button onClick={onEdit} style={S.actionBtn}>Edit</button>
@@ -126,11 +126,11 @@ function CollectionSection({
       </div>
 
       {folders.length === 0 ? (
-        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, fontStyle: 'italic' }}>
+        <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.8125rem', fontStyle: 'italic' }}>
           No folders. Edit to add some.
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
+        <div style={{ display: 'flex', gap: '0.875rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
           {folders.map((folder) => (
             <FolderTile
               key={folder.id}
@@ -158,34 +158,34 @@ function FolderTile({ folder, accent, onClick }: { folder: UserCollectionFolder;
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: tileW, flexShrink: 0, cursor: 'pointer',
+        width: `${tileW / 16}rem`, flexShrink: 0, cursor: 'pointer',
         opacity: hovered ? 0.85 : 1,
         transition: 'opacity 0.15s, transform 0.15s',
         transform: hovered ? 'scale(1.02)' : 'none',
       }}
     >
-      <div style={{ width: '100%', height: tileH, borderRadius: 8, background: 'rgba(255,255,255,0.06)', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ width: '100%', height: `${tileH / 16}rem`, borderRadius: '0.5rem', background: 'rgba(255,255,255,0.06)', overflow: 'hidden', position: 'relative' }}>
         {imgUrl ? (
           <img src={imgUrl} alt={folder.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : folder.coverEmoji ? (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
             {folder.coverEmoji}
           </div>
         ) : (
           <div style={{ width: '100%', height: '100%', background: `${accent}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: accent, fontSize: 11, fontWeight: 700 }}>
+            <span style={{ color: accent, fontSize: '0.6875rem', fontWeight: 700 }}>
               {folder.title.charAt(0).toUpperCase()}
             </span>
           </div>
         )}
       </div>
       {!folder.hideTitle && (
-        <div style={{ marginTop: 6, color: '#fff', fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ marginTop: '0.375rem', color: '#fff', fontSize: '0.75rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {folder.title}
         </div>
       )}
       {folder.catalogTitle && (
-        <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.6875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {folder.catalogTitle}
         </div>
       )}
@@ -196,18 +196,18 @@ function FolderTile({ folder, accent, onClick }: { folder: UserCollectionFolder;
 const S: Record<string, React.CSSProperties> = {
   empty: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
-    justifyContent: 'center', paddingTop: 80, gap: 10,
+    justifyContent: 'center', paddingTop: '5rem', gap: '0.625rem',
   },
-  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 700, margin: 0 },
-  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 },
+  emptyTitle: { color: '#FFFFFF', fontSize: '1.25rem', fontWeight: 700, margin: 0 },
+  emptyHint: { color: 'rgba(255,255,255,0.4)', fontSize: '0.875rem', margin: 0, textAlign: 'center', maxWidth: '20rem', lineHeight: 1.5 },
   actionBtn: {
-    background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 16,
-    color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 700,
-    padding: '5px 12px', cursor: 'pointer',
+    background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '1rem',
+    color: 'rgba(255,255,255,0.7)', fontSize: '0.75rem', fontWeight: 700,
+    padding: '0.3125rem 0.75rem', cursor: 'pointer',
   },
   actionBtnDim: {
-    background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 16,
-    color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: 700,
-    padding: '5px 12px', cursor: 'pointer',
+    background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '1rem',
+    color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', fontWeight: 700,
+    padding: '0.3125rem 0.75rem', cursor: 'pointer',
   },
 };

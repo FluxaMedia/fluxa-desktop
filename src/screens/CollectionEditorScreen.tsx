@@ -75,19 +75,19 @@ function CollectionEditorPage({
         zIndex: 20,
         background: '#060810',
         overflowY: 'auto',
-        padding: '24px 32px 120px',
+        padding: '1.5rem 2rem 7.5rem',
         boxSizing: 'border-box',
         display: 'flex',
         justifyContent: 'center',
       }}
     >
-      <div style={{ width: '100%', maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 22 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 18, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ width: '100%', maxWidth: '40rem', display: 'flex', flexDirection: 'column', gap: '1.375rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1.125rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <button
             onClick={onDismiss}
             style={{
-              width: 36,
-              height: 36,
+              width: '2.25rem',
+              height: '2.25rem',
               borderRadius: '50%',
               border: 'none',
               background: 'rgba(255,255,255,0.06)',
@@ -101,7 +101,7 @@ function CollectionEditorPage({
           >
             <ArrowBack size={20} />
           </button>
-          <span style={{ flex: 1, color: '#fff', fontSize: 22, fontWeight: 700, letterSpacing: '-0.025em' }}>
+          <span style={{ flex: 1, color: '#fff', fontSize: '1.375rem', fontWeight: 700, letterSpacing: '-0.025em' }}>
             {initial.title ? t('auto.edit_collection') : t('auto.new_collection')}
           </span>
         </div>
@@ -111,8 +111,8 @@ function CollectionEditorPage({
           <Card>
             <FieldInput value={title} placeholder={t('auto.collection_name')} onChange={setTitle} accent={accent} />
             <ImagePreviewField label={t('library.collection_image')} value={imageUrl} onChange={setImageUrl} accent={accent} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ flex: 1, color: '#fff', fontWeight: 600, fontSize: 13 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ flex: 1, color: '#fff', fontWeight: 600, fontSize: '0.8125rem' }}>
                 {t('library.show_above_continue_watching')}
               </span>
               <Toggle checked={showOnHome} onChange={setShowOnHome} accent={accent} />
@@ -124,7 +124,7 @@ function CollectionEditorPage({
           <SectionLabel>{`${t('library.folder')} · ${folders.length}/10`}</SectionLabel>
           <Card>
             {folders.length === 0 && (
-              <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, textAlign: 'center', padding: '8px 0' }}>
+              <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.8125rem', textAlign: 'center', padding: '0.5rem 0' }}>
                 {t('library.no_folders_yet')}
               </div>
             )}
@@ -142,13 +142,13 @@ function CollectionEditorPage({
               }
               style={{
                 width: '100%',
-                height: 44,
+                height: '2.75rem',
                 border: `1px dashed ${folders.length >= 10 ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)'}`,
-                borderRadius: 8,
+                borderRadius: '0.5rem',
                 background: 'transparent',
                 color: folders.length >= 10 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.7)',
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: '0.875rem',
                 cursor: folders.length >= 10 ? 'default' : 'pointer',
               }}
             >
@@ -167,7 +167,7 @@ function CollectionEditorPage({
         <div>
           <SectionLabel>{t('settings.advanced')}</SectionLabel>
           <Card>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
               <UtilButton label={t('library.import_collections')} accent={accent} onClick={onImportClick} fullWidth />
               <UtilButton
                 label={t('library.export_collections')}

@@ -15,12 +15,12 @@ function AddonToggle({ enabled, onChange }: { enabled: boolean; onChange: () => 
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
+        width: '2.75rem', height: '1.625rem', borderRadius: '0.8125rem', border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
         background: enabled ? (hovered ? '#e0e0e0' : '#ffffff') : (hovered ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.14)'),
         transition: 'background 0.18s', position: 'relative', outline: 'none',
       }}
     >
-      <div style={{ position: 'absolute', top: 3, left: enabled ? 21 : 3, width: 20, height: 20, borderRadius: '50%', background: enabled ? '#111' : 'rgba(255,255,255,0.6)', transition: 'left 0.18s' }} />
+      <div style={{ position: 'absolute', top: '0.1875rem', left: enabled ? 21 : 3, width: '1.25rem', height: '1.25rem', borderRadius: '50%', background: enabled ? '#111' : 'rgba(255,255,255,0.6)', transition: 'left 0.18s' }} />
     </button>
   );
 }
@@ -40,7 +40,7 @@ function IconBtn({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: 30, height: 30, borderRadius: 7, border: 'none', padding: 0,
+        width: '1.875rem', height: '1.875rem', borderRadius: '0.4375rem', border: 'none', padding: 0,
         background: activeHover ? (destructive ? 'rgba(255,60,60,0.12)' : 'rgba(255,255,255,0.08)') : 'transparent',
         color: disabled
           ? 'rgba(255,255,255,0.15)'
@@ -58,11 +58,11 @@ function IconBtn({
 function Tag({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
   return (
     <span style={{
-      fontSize: 11, fontWeight: 500, fontFamily: FONT,
+      fontSize: '0.6875rem', fontWeight: 500, fontFamily: FONT,
       color: muted ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.55)',
       background: muted ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.07)',
       border: `1px solid ${muted ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.09)'}`,
-      borderRadius: 5, padding: '2px 7px',
+      borderRadius: '0.3125rem', padding: '0.125rem 0.4375rem',
     }}>
       {children}
     </span>
@@ -93,28 +93,28 @@ function AddonTile({
     <div style={{
       background: '#1A1A1A',
       border: '1px solid rgba(255,255,255,0.09)',
-      borderRadius: 12,
+      borderRadius: '0.75rem',
       overflow: 'hidden',
       opacity: enabled ? 1 : 0.5,
       transition: 'opacity 0.2s',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 13px 12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6875rem', padding: '0.8125rem 0.8125rem 0.75rem' }}>
         {logo && !imgFailed ? (
           <img
             src={logo}
             alt=""
             onError={() => setImgFailed(true)}
-            style={{ width: 44, height: 44, borderRadius: 10, objectFit: 'contain', background: 'rgba(255,255,255,0.05)', flexShrink: 0, border: '1px solid rgba(255,255,255,0.07)' }}
+            style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.625rem', objectFit: 'contain', background: 'rgba(255,255,255,0.05)', flexShrink: 0, border: '1px solid rgba(255,255,255,0.07)' }}
           />
         ) : (
-          <div style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.45)' }}>
+          <div style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.625rem', flexShrink: 0, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.45)' }}>
             <ExtensionIcon />
           </div>
         )}
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: 14, fontWeight: 600, margin: 0, fontFamily: FONT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
-          {version && <p style={{ color: 'rgba(255,255,255,0.30)', fontSize: 11, margin: '2px 0 0', fontFamily: FONT }}>{version}</p>}
+          <p style={{ color: 'rgba(255,255,255,0.92)', fontSize: '0.875rem', fontWeight: 600, margin: 0, fontFamily: FONT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
+          {version && <p style={{ color: 'rgba(255,255,255,0.30)', fontSize: '0.6875rem', margin: '0.125rem 0 0', fontFamily: FONT }}>{version}</p>}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -151,18 +151,18 @@ function AddonTile({
 
       {(description || types.length > 0 || resourceCount > 0) && (
         <>
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.055)', margin: '0 13px' }} />
-          <div style={{ padding: '10px 13px 12px' }}>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.055)', margin: '0 0.8125rem' }} />
+          <div style={{ padding: '0.625rem 0.8125rem 0.75rem' }}>
             {description && (
               <p style={{
-                color: 'rgba(255,255,255,0.38)', fontSize: 12, lineHeight: 1.55, margin: '0 0 9px',
+                color: 'rgba(255,255,255,0.38)', fontSize: '0.75rem', lineHeight: 1.55, margin: '0 0 0.5625rem',
                 fontFamily: FONT, display: '-webkit-box',
                 WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
               }}>
                 {description}
               </p>
             )}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3125rem' }}>
               <Tag>{enabled ? 'Active' : 'Inactive'}</Tag>
               {resourceCount > 0 && <Tag muted>{resourceCount} resource{resourceCount !== 1 ? 's' : ''}</Tag>}
               {isConfigurable && <Tag muted>Configurable</Tag>}
@@ -209,7 +209,7 @@ export function AddonsSection({
   return (
     <>
       <SettingsSection title={t('addons.install')} subtitle={t('auto.installed_add_ons_and_settings')}>
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
+        <div style={{ padding: '0.875rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
           <input
             type="text"
             value={addonUrl}
@@ -220,13 +220,13 @@ export function AddonsSection({
             style={{
               width: '100%', boxSizing: 'border-box',
               background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)',
-              borderRadius: 8, padding: '11px 13px', color: '#FFFFFF', fontSize: 13,
+              borderRadius: '0.5rem', padding: '0.6875rem 0.8125rem', color: '#FFFFFF', fontSize: '0.8125rem',
               fontFamily: FONT, outline: 'none', marginBottom: installError ? 8 : 10,
               opacity: installLoading ? 0.65 : 1,
             }}
           />
           {installError && (
-            <p style={{ color: '#FF6B6B', fontSize: 12, lineHeight: 1.45, margin: '0 0 10px', fontFamily: FONT }}>{installError}</p>
+            <p style={{ color: '#FF6B6B', fontSize: '0.75rem', lineHeight: 1.45, margin: '0 0 0.625rem', fontFamily: FONT }}>{installError}</p>
           )}
           <button
             onClick={onInstall}
@@ -234,8 +234,8 @@ export function AddonsSection({
             style={{
               background: addonUrl.trim() && !installLoading ? '#FFFFFF' : 'rgba(255,255,255,0.10)',
               color: addonUrl.trim() && !installLoading ? '#000000' : 'rgba(255,255,255,0.35)',
-              border: 'none', borderRadius: 8, padding: '8px 18px',
-              fontSize: 13, fontWeight: 500, fontFamily: FONT,
+              border: 'none', borderRadius: '0.5rem', padding: '0.5rem 1.125rem',
+              fontSize: '0.8125rem', fontWeight: 500, fontFamily: FONT,
               cursor: addonUrl.trim() && !installLoading ? 'pointer' : 'default',
               transition: 'background 0.12s, color 0.12s',
             }}
@@ -247,7 +247,7 @@ export function AddonsSection({
 
       {installedAddons.length > 0 ? (
         <SettingsSection title={`${t('addons.installed')} (${installedAddons.length})`} subtitle={t('auto.installed_add_ons_and_settings')}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem' }}>
             {installedAddons.map((addon, idx) => (
               <AddonTile
                 key={addonKey(addon)}
@@ -265,8 +265,8 @@ export function AddonsSection({
           </div>
         </SettingsSection>
       ) : (
-        <div style={{ padding: '14px 16px' }}>
-          <p style={{ color: 'rgba(255,255,255,0.32)', fontSize: 13, margin: 0, fontFamily: FONT }}>{t('addons.no_addons')}</p>
+        <div style={{ padding: '0.875rem 1rem' }}>
+          <p style={{ color: 'rgba(255,255,255,0.32)', fontSize: '0.8125rem', margin: 0, fontFamily: FONT }}>{t('addons.no_addons')}</p>
         </div>
       )}
     </>

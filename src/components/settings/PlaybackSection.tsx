@@ -76,16 +76,16 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
           onChange={(v) => setPref('mpvCustomOptions', v)}
         />
         {mpvScriptsDir && (
-          <div style={{ width: '100%', minHeight: 58, borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', alignItems: 'center', padding: '12px 16px', boxSizing: 'border-box', gap: 12 }}>
+          <div style={{ width: '100%', minHeight: '3.625rem', borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', alignItems: 'center', padding: '0.75rem 1rem', boxSizing: 'border-box', gap: '0.75rem' }}>
             <span style={{ ...styles.rowIcon, color: 'var(--primary-accent-color)' }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
             </span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={styles.rowTitle}>{t('settings.mpv_scripts_dir')}</p>
-              <p style={{ ...styles.rowSubtitle, fontFamily: 'monospace', fontSize: 11, wordBreak: 'break-all' }}>{mpvScriptsDir}</p>
+              <p style={{ ...styles.rowSubtitle, fontFamily: 'monospace', fontSize: '0.6875rem', wordBreak: 'break-all' }}>{mpvScriptsDir}</p>
             </div>
             <button
-              style={{ background: scriptsDirCopied ? 'rgba(84,209,122,0.12)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', color: scriptsDirCopied ? '#54D17A' : 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 500, cursor: 'pointer', padding: '6px 13px', borderRadius: 8, fontFamily: FONT, flexShrink: 0, transition: 'background 0.12s, color 0.12s' }}
+              style={{ background: scriptsDirCopied ? 'rgba(84,209,122,0.12)' : 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', color: scriptsDirCopied ? '#54D17A' : 'rgba(255,255,255,0.65)', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer', padding: '0.375rem 0.8125rem', borderRadius: '0.5rem', fontFamily: FONT, flexShrink: 0, transition: 'background 0.12s, color 0.12s' }}
               onClick={() => void copyScriptsDir()}
             >
               {scriptsDirCopied ? '✓ Copied' : 'Copy'}
@@ -200,8 +200,8 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
     </SettingsSection>
     <div style={styles.settingsGroup}>
       <div style={styles.groupHeading}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ background: 'rgba(255,149,0,0.15)', border: '1px solid rgba(255,149,0,0.3)', color: '#FF9500', fontSize: 10, fontWeight: 600, fontFamily: FONT, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.07em', flexShrink: 0, textTransform: 'uppercase' }}>Experimental</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ background: 'rgba(255,149,0,0.15)', border: '1px solid rgba(255,149,0,0.3)', color: '#FF9500', fontSize: '0.625rem', fontWeight: 600, fontFamily: FONT, padding: '0.125rem 0.4375rem', borderRadius: '0.25rem', letterSpacing: '0.07em', flexShrink: 0, textTransform: 'uppercase' }}>Experimental</span>
           <p style={{ ...styles.groupTitle, margin: 0 }}>Experimental</p>
         </div>
         <p style={styles.groupSubtitle}>Features that may change or be removed. Use with caution.</p>

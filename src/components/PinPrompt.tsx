@@ -53,9 +53,9 @@ const FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
 
 const S: Record<string, React.CSSProperties> = {
   overlay: { position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  dialog: { width: 280, borderRadius: 12, background: '#141414', border: '1px solid rgba(255,255,255,0.10)', padding: '28px 24px', textAlign: 'center', fontFamily: FONT },
-  title: { margin: 0, color: '#FFFFFF', fontSize: 16, fontWeight: 700 },
-  subtitle: { margin: '4px 0 18px', color: 'rgba(255,255,255,0.45)', fontSize: 13 },
-  input: { width: '100%', height: 48, borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', color: '#FFFFFF', textAlign: 'center', fontSize: 24, letterSpacing: 12, outline: 'none', boxSizing: 'border-box' },
-  error: { margin: '10px 0 0', color: '#FF8A8A', fontSize: 12 },
+  dialog: { width: '17.5rem', borderRadius: '0.75rem', background: '#141414', border: '1px solid rgba(255,255,255,0.10)', padding: '1.75rem 1.5rem', textAlign: 'center', fontFamily: FONT },
+  title: { margin: 0, color: '#FFFFFF', fontSize: '1rem', fontWeight: 700 },
+  subtitle: { margin: '0.25rem 0 1.125rem', color: 'rgba(255,255,255,0.45)', fontSize: '0.8125rem' },
+  input: { width: '100%', height: '3rem', borderRadius: '0.5rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.10)', color: '#FFFFFF', textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.75rem', outline: 'none', boxSizing: 'border-box' },
+  error: { margin: '0.625rem 0 0', color: '#FF8A8A', fontSize: '0.75rem' },
 };

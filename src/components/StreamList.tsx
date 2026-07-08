@@ -51,7 +51,7 @@ function StreamRow({ stream, onPlay }: { stream: Stream; onPlay?: (s: Stream) =>
       style={{
         ...styles.row,
         background: hovered ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
-        boxShadow: hovered ? '0 0 0 2px rgba(255,255,255,0.25)' : 'none',
+        boxShadow: hovered ? '0 0 0 0.125rem rgba(255,255,255,0.25)' : 'none',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -73,24 +73,24 @@ function StreamRow({ stream, onPlay }: { stream: Stream; onPlay?: (s: Stream) =>
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
-    paddingTop: 24,
+    paddingTop: '1.5rem',
   },
   sectionTitle: {
     color: 'rgba(255,255,255,0.4)',
-    fontSize: 13,
+    fontSize: '0.8125rem',
     fontWeight: 700,
-    letterSpacing: '0.8px',
-    margin: '0 0 12px',
+    letterSpacing: '0.05rem',
+    margin: '0 0 0.75rem',
   },
   loadingBox: {
     display: 'flex',
     justifyContent: 'center',
-    padding: '32px 0',
+    padding: '2rem 0',
   },
   spinner: {
-    width: 28,
-    height: 28,
-    border: '3px solid rgba(255,255,255,0.15)',
+    width: '1.75rem',
+    height: '1.75rem',
+    border: '0.1875rem solid rgba(255,255,255,0.15)',
     borderTopColor: 'rgba(255,255,255,0.8)',
     borderRadius: '50%',
     animation: 'spin 0.8s linear infinite',
@@ -98,20 +98,20 @@ const styles: Record<string, React.CSSProperties> = {
   list: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: '0.375rem',
   },
   row: {
     display: 'flex',
     alignItems: 'center',
-    gap: 14,
-    padding: '12px 16px',
-    borderRadius: 12,
+    gap: '0.875rem',
+    padding: '0.75rem 1rem',
+    borderRadius: '0.75rem',
     cursor: 'pointer',
     transition: 'background 0.15s, box-shadow 0.15s',
   },
   playIcon: {
-    width: 32,
-    height: 32,
+    width: '2rem',
+    height: '2rem',
     borderRadius: '50%',
     background: 'rgba(255,255,255,0.1)',
     display: 'flex',
@@ -125,7 +125,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   rowTitle: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: '0.875rem',
     fontWeight: 600,
     margin: 0,
     overflow: 'hidden',
@@ -134,21 +134,21 @@ const styles: Record<string, React.CSSProperties> = {
   },
   addonName: {
     color: 'rgba(255,255,255,0.45)',
-    fontSize: 12,
-    margin: '2px 0 0',
+    fontSize: '0.75rem',
+    margin: '0.125rem 0 0',
   },
   torrentTag: {
     background: 'rgba(255,255,255,0.08)',
     color: 'rgba(255,255,255,0.5)',
-    fontSize: 10,
+    fontSize: '0.625rem',
     fontWeight: 700,
-    padding: '2px 7px',
-    borderRadius: 4,
-    letterSpacing: '0.5px',
+    padding: '0.125rem 0.4375rem',
+    borderRadius: '0.25rem',
+    letterSpacing: '0.0313rem',
     flexShrink: 0,
   },
   empty: {
     color: 'rgba(255,255,255,0.4)',
-    fontSize: 14,
+    fontSize: '0.875rem',
   },
 };

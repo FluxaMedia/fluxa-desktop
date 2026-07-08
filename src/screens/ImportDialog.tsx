@@ -28,24 +28,24 @@ export function ImportDialog({ accent, onDismiss, onImport }: Props) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 24,
+        padding: '1.5rem',
       }}
       onClick={(e) => e.target === e.currentTarget && onDismiss()}
     >
       <div
         style={{
           background: '#111620',
-          borderRadius: 12,
-          padding: 24,
+          borderRadius: '0.75rem',
+          padding: '1.5rem',
           width: '100%',
-          maxWidth: 480,
+          maxWidth: '30rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: 14,
+          gap: '0.875rem',
           boxSizing: 'border-box',
         }}
       >
-        <span style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>
+        <span style={{ color: '#fff', fontSize: '1.125rem', fontWeight: 900 }}>
           {t('library.import_collections')}
         </span>
         <textarea
@@ -54,14 +54,14 @@ export function ImportDialog({ accent, onDismiss, onImport }: Props) {
           placeholder={t('library.paste_json')}
           style={{
             width: '100%',
-            minHeight: 160,
-            maxHeight: 360,
-            padding: 12,
+            minHeight: '10rem',
+            maxHeight: '22.5rem',
+            padding: '0.75rem',
             background: 'rgba(255,255,255,0.05)',
             border: `1px solid ${accent}55`,
-            borderRadius: 8,
+            borderRadius: '0.5rem',
             color: '#fff',
-            fontSize: 13,
+            fontSize: '0.8125rem',
             fontFamily: 'monospace',
             resize: 'vertical',
             outline: 'none',
@@ -74,16 +74,16 @@ export function ImportDialog({ accent, onDismiss, onImport }: Props) {
           onClick={() => void handlePasteFromClipboard()}
           fullWidth
         />
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: '0.625rem', justifyContent: 'flex-end' }}>
           <button
             onClick={onDismiss}
             style={{
               background: 'none',
               border: 'none',
               color: 'rgba(255,255,255,0.6)',
-              fontSize: 14,
+              fontSize: '0.875rem',
               cursor: 'pointer',
-              padding: '8px 12px',
+              padding: '0.5rem 0.75rem',
             }}
           >
             {t('auto.cancel')}
@@ -94,12 +94,12 @@ export function ImportDialog({ accent, onDismiss, onImport }: Props) {
             style={{
               background: json.trim() ? accent : 'rgba(255,255,255,0.12)',
               border: 'none',
-              borderRadius: 8,
+              borderRadius: '0.5rem',
               color: json.trim() ? contrastOn(accent) : 'rgba(255,255,255,0.3)',
-              fontSize: 14,
+              fontSize: '0.875rem',
               fontWeight: 700,
               cursor: json.trim() ? 'pointer' : 'default',
-              padding: '8px 16px',
+              padding: '0.5rem 1rem',
             }}
           >
             {t('library.import_collections')}

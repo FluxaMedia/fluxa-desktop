@@ -114,7 +114,7 @@ export function GeneralSection({ prefs, setPref }: { prefs: Prefs; setPref: <K e
           setRpdbApiKey(v);
         }}
         status={rpdbKeyStatus !== 'idle' && (
-          <p style={{ fontSize: 12, marginTop: 6, color: rpdbKeyStatus === 'invalid' ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.45)' }}>
+          <p style={{ fontSize: '0.75rem', marginTop: '0.375rem', color: rpdbKeyStatus === 'invalid' ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.45)' }}>
             {rpdbKeyStatus === 'checking' ? t('settings.rpdb_key_checking') : rpdbKeyStatus === 'valid' ? t('settings.rpdb_key_valid') : t('settings.rpdb_key_invalid')}
           </p>
         )}

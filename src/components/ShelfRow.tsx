@@ -4,7 +4,7 @@ import { MovieCard } from './MovieCard';
 import type { Meta } from '../core/types';
 import type { PosterPrefs } from '../core/posterPrefs';
 
-const ROW_PADDING_LEFT = 32;
+const ROW_PADDING_LEFT = '2rem';
 const MAX_ROW_ITEMS = 32;
 const SKELETON_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -141,7 +141,7 @@ function ScrollArrow({ direction, onClick }: { direction: 'left' | 'right'; onCl
         top: 0,
         bottom: 0,
         [direction]: 0,
-        width: 90,
+        width: '5.625rem',
         zIndex: 3,
         display: 'flex',
         alignItems: 'center',
@@ -154,8 +154,8 @@ function ScrollArrow({ direction, onClick }: { direction: 'left' | 'right'; onCl
     >
       <button
         style={{
-          width: 38,
-          height: 38,
+          width: '2.375rem',
+          height: '2.375rem',
           borderRadius: '50%',
           border: '1px solid rgba(255,255,255,0.16)',
           background: hovered ? 'rgba(255,255,255,0.18)' : 'rgba(14,15,22,0.9)',
@@ -165,10 +165,10 @@ function ScrollArrow({ direction, onClick }: { direction: 'left' | 'right'; onCl
           alignItems: 'center',
           justifyContent: 'center',
           pointerEvents: 'auto',
-          margin: isLeft ? '0 0 0 10px' : '0 10px 0 0',
+          margin: isLeft ? '0 0 0 0.625rem' : '0 0.625rem 0 0',
           transition: 'background 0.15s',
           flexShrink: 0,
-          boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
+          boxShadow: '0 0.125rem 0.75rem rgba(0,0,0,0.5)',
           padding: 0,
         }}
         onClick={onClick}
@@ -183,7 +183,7 @@ function ScrollArrow({ direction, onClick }: { direction: 'left' | 'right'; onCl
 
 function SkeletonCard({ width, height, radius, delay }: { width: number; height: number; radius: number; delay: number }) {
   return (
-    <div style={{ width, display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+    <div style={{ width, display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
       <div
         style={{
           width,
@@ -196,10 +196,10 @@ function SkeletonCard({ width, height, radius, delay }: { width: number; height:
       />
       <div
         style={{
-          height: 13,
+          height: '0.8125rem',
           width: '70%',
           margin: '0 auto',
-          borderRadius: 4,
+          borderRadius: '0.25rem',
           background: 'rgba(255,255,255,0.08)',
         }}
       />
@@ -211,8 +211,8 @@ const styles: Record<string, React.CSSProperties> = {
   row: {
     position: 'relative',
     zIndex: 1,
-    paddingTop: 8,
-    marginBottom: 8,
+    paddingTop: '0.5rem',
+    marginBottom: '0.5rem',
     contain: 'layout style',
   },
   header: {
@@ -220,27 +220,27 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingLeft: ROW_PADDING_LEFT,
-    paddingRight: 32,
-    marginBottom: 12,
+    paddingRight: '2rem',
+    marginBottom: '0.75rem',
   },
   viewAll: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 4,
-    height: 28,
-    padding: '0 10px 0 12px',
+    gap: '0.25rem',
+    height: '1.75rem',
+    padding: '0 0.625rem 0 0.75rem',
     border: '1px solid rgba(255,255,255,0.10)',
-    borderRadius: 999,
+    borderRadius: '62.4375rem',
     background: 'rgba(255,255,255,0.06)',
     color: 'rgba(255,255,255,0.70)',
-    fontSize: 12,
+    fontSize: '0.75rem',
     fontWeight: 700,
     cursor: 'pointer',
     flexShrink: 0,
   },
   title: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: '1.125rem',
     fontWeight: 700,
     margin: 0,
     letterSpacing: '-0.01em',
@@ -248,13 +248,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   scroll: {
     display: 'flex',
-    gap: 10,
+    gap: '0.625rem',
     overflowX: 'auto',
     overflowY: 'visible',
     paddingLeft: ROW_PADDING_LEFT,
-    paddingRight: 40,
-    paddingBottom: 24,
-    paddingTop: 8,
+    paddingRight: '2.5rem',
+    paddingBottom: '1.5rem',
+    paddingTop: '0.5rem',
     scrollbarWidth: 'none',
     msOverflowStyle: 'none',
     willChange: 'transform',

@@ -11,7 +11,7 @@ export function TopBar({ onBack }: { onBack: () => void }) {
       </div>
       <button style={S.backBtn} onClick={onBack} aria-label={t('common.back')}>
         <ArrowLeft size={18} />
-        <span style={{ fontSize: 13, fontFamily: FONT }}>{t('common.back')}</span>
+        <span style={{ fontSize: '0.8125rem', fontFamily: FONT }}>{t('common.back')}</span>
       </button>
     </div>
   );

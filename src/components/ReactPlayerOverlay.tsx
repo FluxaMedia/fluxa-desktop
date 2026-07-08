@@ -1167,11 +1167,11 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         onMouseMove={resetActivity}
         style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'transparent' }}
       >
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: 'rgba(255,255,255,0.15)' }}>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '0.125rem', background: 'rgba(255,255,255,0.15)' }}>
           <div ref={miniProgressRef} style={{ height: '100%', width: '0%', background: 'var(--primary-accent-color)' }} />
         </div>
         <div
-          style={{ ...opacityStyle, position: 'absolute', bottom: 2, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '8px 10px', background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)' }}
+          style={{ ...opacityStyle, position: 'absolute', bottom: '0.125rem', left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.5rem 0.625rem', background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)' }}
         >
           <button
             onClick={(e) => { e.stopPropagation(); resetActivity(); flashFeedback(paused ? 'play' : 'pause', ''); setPaused((prev) => !prev); sendCmd('cycle pause'); }}
@@ -1211,17 +1211,17 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     >
       <style>{`
         @keyframes fluxa-seek-spin { to { transform: rotate(360deg); } }
-        @keyframes fluxa-skip-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fluxa-skip-in { from { opacity: 0; transform: translateY(0.375rem); } to { opacity: 1; transform: translateY(0); } }
         .fluxa-ibtn { opacity: 0.8; transition: opacity 0.15s, background 0.12s; }
         .fluxa-ibtn:hover { opacity: 1; background: rgba(255,255,255,0.09) !important; }
         .fluxa-skip-btn { animation: fluxa-skip-in 0.18s ease-out; transition: background 0.12s, border-color 0.12s; }
         .fluxa-skip-btn:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.22) !important; }
-        .fluxa-skip-btn:focus-visible { outline: 2px solid rgba(255,255,255,0.4); outline-offset: 2px; }
+        .fluxa-skip-btn:focus-visible { outline: 0.125rem solid rgba(255,255,255,0.4); outline-offset: 0.125rem; }
         .fluxa-cursor-hidden, .fluxa-cursor-hidden * { cursor: none !important; }
-        .fluxa-seek-track { height: 3px; transition: height 0.15s ease; }
-        .fluxa-seekbar:hover .fluxa-seek-track { height: 5px; }
-        .fluxa-seek-dot { width: 11px; height: 11px; transition: width 0.15s, height 0.15s; }
-        .fluxa-seekbar:hover .fluxa-seek-dot { width: 14px; height: 14px; }
+        .fluxa-seek-track { height: 0.1875rem; transition: height 0.15s ease; }
+        .fluxa-seekbar:hover .fluxa-seek-track { height: 0.3125rem; }
+        .fluxa-seek-dot { width: 0.6875rem; height: 0.6875rem; transition: width 0.15s, height 0.15s; }
+        .fluxa-seekbar:hover .fluxa-seek-dot { width: 0.875rem; height: 0.875rem; }
       `}</style>
 
       {softwareVideoActive && (
@@ -1231,8 +1231,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         />
       )}
 
-      <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 140, background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 230, background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.5) 45%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '8.75rem', background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '14.375rem', background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.5) 45%, transparent 100%)', pointerEvents: 'none', zIndex: 1 }} />
 
       {playbackError && (
         <div
@@ -1243,9 +1243,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: 20,
+            padding: '1.25rem',
             background: 'rgba(0,0,0,0.62)',
-            backdropFilter: 'blur(8px)',
+            backdropFilter: 'blur(0.5rem)',
           }}
           onMouseDown={(e) => e.stopPropagation()}
           onMouseUp={(e) => e.stopPropagation()}
@@ -1253,32 +1253,32 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         >
           <div
             style={{
-              width: 540,
+              width: '33.75rem',
               maxWidth: '100%',
               background: 'rgba(13,15,22,0.94)',
               border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 8,
-              padding: '22px 24px',
-              boxShadow: '0 18px 70px rgba(0,0,0,0.6)',
+              borderRadius: '0.5rem',
+              padding: '1.375rem 1.5rem',
+              boxShadow: '0 1.125rem 4.375rem rgba(0,0,0,0.6)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.625rem' }}>
               <AlertTriangle size={21} color="#ff6b6b" />
-              <h2 style={{ margin: 0, color: '#fff', fontSize: 19, lineHeight: '25px' }}>{t('player.playback_error_title')}</h2>
+              <h2 style={{ margin: 0, color: '#fff', fontSize: '1.1875rem', lineHeight: '1.5625rem' }}>{t('player.playback_error_title')}</h2>
             </div>
-            <p style={{ margin: '0 0 12px', color: 'rgba(255,255,255,0.68)', fontSize: 13, lineHeight: '19px' }}>
+            <p style={{ margin: '0 0 0.75rem', color: 'rgba(255,255,255,0.68)', fontSize: '0.8125rem', lineHeight: '1.1875rem' }}>
               {t('player.playback_error_detail')}
             </p>
-            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: 'rgba(255,255,255,0.82)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '10px 12px', fontFamily: 'monospace', fontSize: 12, lineHeight: '17px', maxHeight: 160, overflowY: 'auto' }}>
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: 'rgba(255,255,255,0.82)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '0.375rem', padding: '0.625rem 0.75rem', fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: '1.0625rem', maxHeight: '10rem', overflowY: 'auto' }}>
               {playbackError}
             </pre>
             <button
               onClick={(e) => { e.stopPropagation(); void closePlayer(); }}
               style={{
-                marginTop: 16,
-                height: 36,
-                padding: '0 14px',
-                borderRadius: 7,
+                marginTop: '1rem',
+                height: '2.25rem',
+                padding: '0 0.875rem',
+                borderRadius: '0.4375rem',
                 border: '1px solid rgba(255,255,255,0.14)',
                 background: 'rgba(255,255,255,0.08)',
                 color: '#fff',
@@ -1292,7 +1292,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         </div>
       )}
 
-      <div style={{ ...opacityStyle, position: 'absolute', top: bannerOffset, left: 0, right: 0, zIndex: 3, display: 'flex', alignItems: 'center', padding: '14px 12px', gap: 6 }}>
+      <div style={{ ...opacityStyle, position: 'absolute', top: bannerOffset, left: 0, right: 0, zIndex: 3, display: 'flex', alignItems: 'center', padding: '0.875rem 0.75rem', gap: '0.375rem' }}>
         <button
           onClick={(e) => { e.stopPropagation(); resetActivity(); void closePlayer(); }}
           className="fluxa-ibtn"
@@ -1301,28 +1301,28 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         >
           <ChevronLeft size={22} />
         </button>
-        <div style={{ flex: 1, minWidth: 0, padding: '0 6px', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0, padding: '0 0.375rem', overflow: 'hidden' }}>
           {(title || episodeTitle) && (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.375rem', overflow: 'hidden' }}>
               {title && (
-                <span style={{ color: '#fff', fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: '0 1 auto', minWidth: 0 }}>
+                <span style={{ color: '#fff', fontSize: '0.9375rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: '0 1 auto', minWidth: 0 }}>
                   {title}
                 </span>
               )}
               {title && episodeTitle && (
-                <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 14, flexShrink: 0 }}>·</span>
+                <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.875rem', flexShrink: 0 }}>·</span>
               )}
               {episodeTitle && (
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
+                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8125rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
                   {episodeTitle}
                 </span>
               )}
             </div>
           )}
           {activeCastDeviceId && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginTop: '0.125rem' }}>
               <Cast size={11} style={{ color: 'var(--primary-accent-color)' }} />
-              <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{t('player.casting_to', activeCastDeviceName)}</span>
+              <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem' }}>{t('player.casting_to', activeCastDeviceName)}</span>
             </div>
           )}
         </div>
@@ -1352,7 +1352,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       <div style={{ flex: 1, cursor: 'default' }} onMouseDown={onCenterMouseDown} onMouseUp={releaseCenterHold} onMouseLeave={releaseCenterHold} onClick={onCenterClick} />
 
       {feedback && (
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '12px 22px', display: 'flex', alignItems: 'center', gap: 8, color: '#fff', fontSize: 18, fontWeight: 700, pointerEvents: 'none', zIndex: 5 }}>
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(0.5rem)', borderRadius: '0.875rem', padding: '0.75rem 1.375rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fff', fontSize: '1.125rem', fontWeight: 700, pointerEvents: 'none', zIndex: 5 }}>
           {feedback.icon === 'play' && <Play size={20} fill="currentColor" strokeWidth={0} />}
           {feedback.icon === 'pause' && <Pause size={20} fill="currentColor" strokeWidth={0} />}
           {feedback.icon === 'seekBack' && <RotateCcw size={20} />}
@@ -1367,12 +1367,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
       {showSeekOverlay && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.15)', borderTopColor: 'rgba(255,255,255,0.75)', animation: 'fluxa-seek-spin 0.75s linear infinite' }} />
+          <div style={{ width: '2.25rem', height: '2.25rem', borderRadius: '50%', border: '0.1875rem solid rgba(255,255,255,0.15)', borderTopColor: 'rgba(255,255,255,0.75)', animation: 'fluxa-seek-spin 0.75s linear infinite' }} />
         </div>
       )}
 
       {activeSkip && (
-        <div style={{ position: 'absolute', bottom: 106, right: 22, zIndex: 4 }}>
+        <div style={{ position: 'absolute', bottom: '6.625rem', right: '1.375rem', zIndex: 4 }}>
           <button
             onClick={(e) => { e.stopPropagation(); resetActivity(); sendCmd(`set time-pos ${Math.floor(activeSkip.endMs / 1000)}`); }}
             className="fluxa-skip-btn"
@@ -1380,7 +1380,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           >
             <SkipForward size={17} />
             {activeSkip.label}
-            <div ref={skipFillRef} style={{ position: 'absolute', left: 0, bottom: 0, height: 2, width: '0%', background: 'rgba(255,255,255,0.4)' }} />
+            <div ref={skipFillRef} style={{ position: 'absolute', left: 0, bottom: 0, height: '0.125rem', width: '0%', background: 'rgba(255,255,255,0.4)' }} />
           </button>
         </div>
       )}
@@ -1447,11 +1447,11 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           onClick={() => setShowShortcutsHelp(false)}
         >
           <div
-            style={{ background: 'rgba(14,16,22,0.97)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '20px 24px', maxWidth: 580, width: '90vw', maxHeight: '80vh', overflowY: 'auto' }}
+            style={{ background: 'rgba(14,16,22,0.97)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', padding: '1.25rem 1.5rem', maxWidth: '36.25rem', width: '90vw', maxHeight: '80vh', overflowY: 'auto' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 16 }}>{t('player.shortcuts_help')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px' }}>
+            <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '1rem' }}>{t('player.shortcuts_help')}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 2rem' }}>
               {([
                 { heading: t('player.shortcut_group_playback'), rows: [
                   ['Space', t('player.shortcut_play_pause_hold')],
@@ -1486,12 +1486,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
                   ['Backspace', t('player.shortcut_close')],
                 ]},
               ] as { heading: string; rows: [string, string][] }[]).map(({ heading, rows }) => (
-                <div key={heading} style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{heading}</div>
+                <div key={heading} style={{ marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.625rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.375rem' }}>{heading}</div>
                   {rows.map(([key, desc]) => (
-                    <div key={key} style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
-                      <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#fff', background: 'rgba(255,255,255,0.08)', borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap', flexShrink: 0, minWidth: 52, textAlign: 'center' }}>{key}</span>
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.4 }}>{desc}</span>
+                    <div key={key} style={{ display: 'flex', alignItems: 'baseline', gap: '0.625rem', marginBottom: '0.25rem' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#fff', background: 'rgba(255,255,255,0.08)', borderRadius: '0.25rem', padding: '1px 0.375rem', whiteSpace: 'nowrap', flexShrink: 0, minWidth: '3.25rem', textAlign: 'center' }}>{key}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.4 }}>{desc}</span>
                     </div>
                   ))}
                 </div>
@@ -1505,18 +1505,18 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         <div
           style={{
             position: 'fixed',
-            top: 60,
-            left: 20,
+            top: '3.75rem',
+            left: '1.25rem',
             background: 'rgba(0,0,0,0.84)',
             border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 8,
-            padding: '10px 14px',
+            borderRadius: '0.5rem',
+            padding: '0.625rem 0.875rem',
             fontFamily: 'monospace',
-            fontSize: 11,
+            fontSize: '0.6875rem',
             color: 'rgba(255,255,255,0.82)',
             lineHeight: 1.8,
             zIndex: 25,
-            minWidth: 260,
+            minWidth: '16.25rem',
             userSelect: 'none',
           }}
         >
@@ -1562,7 +1562,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             <div>{[statsSnap.audioCodec, statsSnap.audioSamplerate ? `${statsSnap.audioSamplerate} Hz` : null, statsSnap.audioChannels].filter(Boolean).join('  ')}</div>
           )}
           {(statsSnap?.demuxerCacheDuration != null) && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', rowGap: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexWrap: 'wrap', rowGap: '0.125rem' }}>
               <span>{t('player.stats_buffer')}:</span>
               <Sparkline data={bufferHistoryRef.current} gradId="sg-buf" />
               <span>{parseFloat(statsSnap.demuxerCacheDuration ?? '0').toFixed(1)}s</span>
@@ -1576,7 +1576,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
               ? `${(bytes / (1024 * 1024)).toFixed(1)} MB/s`
               : `${(bytes / 1024).toFixed(0)} KB/s`;
             return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                 <span>{t('player.stats_net')}:</span>
                 <Sparkline data={netSpeedHistoryRef.current} gradId="sg-net" />
                 <span>{speedStr}</span>
@@ -1600,16 +1600,16 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           {torrentStatsSnap && torrentStatsSnap.stat >= 2 && (
             <div>
               <div>{t('player.stats_torrent')}: {torrentStatsSnap.active_peers}/{torrentStatsSnap.total_peers} {t('player.stats_peers')}  {t('player.stats_preload')}: {torrentStatsSnap.preload}%</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                 <span>↓</span>
                 <Sparkline data={torrentSpeedHistory} gradId="sg-tor" />
                 <span>{(torrentStatsSnap.download_speed / (1024 * 1024)).toFixed(2)} MB/s</span>
               </div>
             </div>
           )}
-          <div style={{ marginTop: 4, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 4 }}>
+          <div style={{ marginTop: '0.25rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.25rem' }}>
             <button
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontFamily: 'monospace', cursor: 'pointer', padding: 0 }}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '0.6875rem', fontFamily: 'monospace', cursor: 'pointer', padding: 0 }}
               onClick={() => {
                 const lines: string[] = [];
                 if (statsSnap?.width && statsSnap?.height) lines.push(`${statsSnap.width}×${statsSnap.height}  ${statsSnap.videoFormat ?? ''}  ${statsSnap.fps ? parseFloat(statsSnap.fps).toFixed(3) + ' fps' : ''}`);
@@ -1655,55 +1655,55 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             top: contextMenu.y,
             left: contextMenu.x,
             background: 'rgba(18,22,30,0.97)',
-            backdropFilter: 'blur(16px)',
+            backdropFilter: 'blur(1rem)',
             border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 10,
-            padding: '6px 0',
-            minWidth: 180,
+            borderRadius: '0.625rem',
+            padding: '0.375rem 0',
+            minWidth: '11.25rem',
             zIndex: 20,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            boxShadow: '0 0.5rem 2rem rgba(0,0,0,0.6)',
           }}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
         >
           <button
             onClick={() => { cycleAbLoop(); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: abLoopStage !== 'none' ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: abLoopStage !== 'none' ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
             <Repeat size={15} />
             {abLoopStage === 'none' ? t('player.ab_loop') : abLoopStage === 'a' ? t('player.ab_loop_a_set') : t('player.ab_loop_active')}
           </button>
           <button
             onClick={() => { void copyTimestamp(); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
             <Clock size={15} />
             {t('player.copy_timestamp')}
           </button>
           <button
             onClick={() => { setShowStats((s) => !s); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: showStats ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: showStats ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
             <Info size={15} />
             {t('player.stats')}
           </button>
           <button
             onClick={() => { setShowShortcutsHelp((s) => !s); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
             <Gauge size={15} />
             {t('player.shortcuts_help')}
           </button>
           <button
             onClick={() => { void openTrackPopover('audio'); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
             <AudioLines size={15} />
             {t('player.track_info')}
           </button>
           <button
             onClick={() => { void takeScreenshot(); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
           >
             <Camera size={15} />
             {t('player.screenshot')}
@@ -1726,10 +1726,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         <div
           ref={seekbarRef}
           className="fluxa-seekbar"
-          style={{ position: 'relative', width: '100%', height: 36, cursor: 'pointer', overflow: 'visible', display: 'flex', alignItems: 'center' }}
+          style={{ position: 'relative', width: '100%', height: '2.25rem', cursor: 'pointer', overflow: 'visible', display: 'flex', alignItems: 'center' }}
           onMouseDown={onSeekMouseDown}
         >
-          <div className="fluxa-seek-track" style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.22)', borderRadius: 3 }} />
+          <div className="fluxa-seek-track" style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.22)', borderRadius: '0.1875rem' }} />
           {!chapterSegments && skipMarkers.map((seg, i) => (
             <div
               key={`${seg.start}-${seg.end}-${i}`}
@@ -1741,7 +1741,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
                 top: '50%',
                 transform: 'translateY(-50%)',
                 background: 'color-mix(in srgb, var(--primary-accent-color) 20%, transparent)',
-                borderRadius: 3,
+                borderRadius: '0.1875rem',
                 pointerEvents: 'none',
               }}
             />
@@ -1749,32 +1749,32 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
           {chapterSegments ? (
             chapterSegments.map((seg, i) => (
-              <div key={i} className="fluxa-seek-track" style={{ position: 'absolute', left: `calc(${seg.start * 100}% + 2px)`, width: `calc(${(seg.end - seg.start) * 100}% - 4px)`, top: '50%', transform: 'translateY(-50%)', overflow: 'hidden', background: 'rgba(255,255,255,0.18)', borderRadius: 2 }}>
+              <div key={i} className="fluxa-seek-track" style={{ position: 'absolute', left: `calc(${seg.start * 100}% + 0.125rem)`, width: `calc(${(seg.end - seg.start) * 100}% - 0.25rem)`, top: '50%', transform: 'translateY(-50%)', overflow: 'hidden', background: 'rgba(255,255,255,0.18)', borderRadius: '0.125rem' }}>
                 <div ref={(el) => { segBufRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'rgba(255,255,255,0.3)' }} />
                 <div ref={(el) => { segFillRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'var(--primary-accent-color)' }} />
               </div>
             ))
           ) : (
             <>
-              <div ref={seekBufferRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'rgba(255,255,255,0.3)', borderRadius: 3 }} />
-              <div ref={seekFillRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'var(--primary-accent-color)', borderRadius: 3 }} />
+              <div ref={seekBufferRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'rgba(255,255,255,0.3)', borderRadius: '0.1875rem' }} />
+              <div ref={seekFillRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', width: '0%', background: 'var(--primary-accent-color)', borderRadius: '0.1875rem' }} />
             </>
           )}
 
           <div
             ref={seekDotRef}
             className="fluxa-seek-dot"
-            style={{ position: 'absolute', left: '0%', top: '50%', borderRadius: '50%', background: 'var(--primary-accent-color)', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 6px rgba(0,0,0,0.7)', pointerEvents: 'none' }}
+            style={{ position: 'absolute', left: '0%', top: '50%', borderRadius: '50%', background: 'var(--primary-accent-color)', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 0.375rem rgba(0,0,0,0.7)', pointerEvents: 'none' }}
           />
 
           <SeekPreview barRef={seekbarRef} durRef={durRef} chaptersRef={chaptersRef} />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px 14px', gap: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '0 0.5rem 0.875rem', gap: 0 }}>
           <button
             onClick={(e) => { e.stopPropagation(); resetActivity(); flashFeedback(paused ? 'play' : 'pause', ''); setPaused((prev) => !prev); sendCmd('cycle pause'); }}
             className="fluxa-ibtn"
-            style={{ ...styles.iconBtn, width: 48, height: 48 }}
+            style={{ ...styles.iconBtn, width: '3rem', height: '3rem' }}
             title={paused ? t('player.play') : t('player.pause')}
           >
             {paused ? <Play size={26} fill="currentColor" strokeWidth={0} /> : <Pause size={26} fill="currentColor" strokeWidth={0} />}
@@ -1802,7 +1802,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             <button onClick={(e) => { e.stopPropagation(); resetActivity(); setMuted((prev) => !prev); sendCmd('cycle mute'); }} className="fluxa-ibtn" style={styles.iconBtn} title={muted ? t('player.unmute') : t('player.mute')}>
               <IconVolume muted={muted} level={volumeLevel} />
             </button>
-            <div style={{ position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)', opacity: showVolumeSlider ? 1 : 0, pointerEvents: showVolumeSlider ? 'auto' : 'none', transition: 'opacity 0.18s ease', display: 'flex', alignItems: 'center', paddingLeft: 4, paddingRight: 8 }}>
+            <div style={{ position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)', opacity: showVolumeSlider ? 1 : 0, pointerEvents: showVolumeSlider ? 'auto' : 'none', transition: 'opacity 0.18s ease', display: 'flex', alignItems: 'center', paddingLeft: '0.25rem', paddingRight: '0.5rem' }}>
               <VolumeBar
                 value={muted ? 0 : volumeLevel}
                 max={130}
@@ -1816,10 +1816,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
               />
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, paddingLeft: 10, pointerEvents: 'none', flexShrink: 0 }}>
-            <span ref={currentTimeRef} style={{ fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'rgba(255,255,255,0.9)', letterSpacing: 0.2 }}>0:00</span>
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>/</span>
-            <span ref={durationRef} style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: 'rgba(255,255,255,0.4)', letterSpacing: 0.2 }}>0:00</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.1875rem', paddingLeft: '0.625rem', pointerEvents: 'none', flexShrink: 0 }}>
+            <span ref={currentTimeRef} style={{ fontSize: '0.8125rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'rgba(255,255,255,0.9)', letterSpacing: '0.0125rem' }}>0:00</span>
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>/</span>
+            <span ref={durationRef} style={{ fontSize: '0.75rem', fontVariantNumeric: 'tabular-nums', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.0125rem' }}>0:00</span>
           </div>
 
           <div style={{ flex: 1 }} />
@@ -1929,19 +1929,19 @@ function SeekPreview({ barRef, durRef, chaptersRef }: {
   if (!preview) return null;
 
   return (
-    <div style={{ position: 'absolute', bottom: 22, left: preview.x, transform: 'translateX(-50%)', pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+    <div style={{ position: 'absolute', bottom: '1.375rem', left: preview.x, transform: 'translateX(-50%)', pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
       {thumbImg && (
-        <div style={{ width: 160, height: 90, borderRadius: 4, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
+        <div style={{ width: '10rem', height: '5.625rem', borderRadius: '0.25rem', overflow: 'hidden', boxShadow: '0 0.125rem 0.75rem rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
           <img src={thumbImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         </div>
       )}
-      <div style={{ whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+      <div style={{ whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.125rem' }}>
         {preview.chapter && (
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.2, textShadow: '0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,0.9)' }}>
+          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: '0.0125rem', textShadow: '0 1px 0.375rem rgba(0,0,0,1), 0 0 0.75rem rgba(0,0,0,0.9)' }}>
             {preview.chapter}
           </span>
         )}
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: 0.4, textShadow: '0 1px 6px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,0.9)' }}>
+        <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#fff', letterSpacing: '0.025rem', textShadow: '0 1px 0.375rem rgba(0,0,0,1), 0 0 0.75rem rgba(0,0,0,0.9)' }}>
           {fmtTime(preview.time)}
         </span>
       </div>
@@ -1958,9 +1958,9 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 44,
-    height: 44,
-    borderRadius: 8,
+    width: '2.75rem',
+    height: '2.75rem',
+    borderRadius: '0.5rem',
     padding: 0,
     flexShrink: 0,
   } as React.CSSProperties,
@@ -1971,16 +1971,16 @@ const styles = {
     boxShadow: 'none',
     outline: 'none',
     border: '1px solid rgba(255,255,255,0.14)',
-    borderRadius: 8,
+    borderRadius: '0.5rem',
     color: '#fff',
-    fontSize: 15,
+    fontSize: '0.9375rem',
     fontWeight: 600,
-    padding: '12px 22px',
+    padding: '0.75rem 1.375rem',
     cursor: 'pointer',
-    letterSpacing: 0.2,
+    letterSpacing: '0.0125rem',
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: '0.5rem',
     position: 'relative',
     overflow: 'hidden',
   } as React.CSSProperties,

@@ -318,7 +318,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
           />
         </div>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
           {(searchResults.length > 0 ? searchResults : TABS).map((tabItem) => (
             <SidebarItem
               key={tabItem.id}
@@ -333,7 +333,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
 
         <div style={{ flex: 1 }} />
         <SidebarDivider />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
           <SidebarItem label={t('settings.check_for_updates') || 'Check for updates'} subtitle="" icon={<RefreshIcon />} selected={false} onClick={onCheckForUpdates} />
           <SidebarItem label={t('common.back')} subtitle="" icon={<ArrowBackIcon />} selected={false} onClick={onBack} />
         </div>
@@ -387,13 +387,13 @@ const settingsSearchStyles: Record<string, React.CSSProperties> = {
   wrap: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    height: 36,
-    padding: '0 10px',
-    margin: '14px 0 16px',
+    gap: '0.5rem',
+    height: '2.25rem',
+    padding: '0 0.625rem',
+    margin: '0.875rem 0 1rem',
     background: 'rgba(255,255,255,0.045)',
     border: '1px solid rgba(255,255,255,0.09)',
-    borderRadius: 8,
+    borderRadius: '0.5rem',
   },
   input: {
     flex: 1,
@@ -402,15 +402,15 @@ const settingsSearchStyles: Record<string, React.CSSProperties> = {
     border: 'none',
     outline: 'none',
     color: '#fff',
-    fontSize: 13,
+    fontSize: '0.8125rem',
     fontWeight: 600,
   },
   noResults: {
-    margin: '0 24px 16px',
-    padding: '10px 12px',
-    borderRadius: 8,
+    margin: '0 1.5rem 1rem',
+    padding: '0.625rem 0.75rem',
+    borderRadius: '0.5rem',
     background: 'rgba(255,255,255,0.045)',
     color: 'rgba(255,255,255,0.45)',
-    fontSize: 13,
+    fontSize: '0.8125rem',
   },
 };

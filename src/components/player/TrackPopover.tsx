@@ -112,16 +112,16 @@ function groupTracks(tracks: PlayerTrackOption[]): TrackGroup[] {
 const styleBtn: CSSProperties = {
   background: 'rgba(255,255,255,0.07)',
   border: '1px solid rgba(255,255,255,0.10)',
-  borderRadius: 6,
+  borderRadius: '0.375rem',
   color: 'rgba(255,255,255,0.85)',
-  fontSize: 12,
-  padding: '5px 9px',
+  fontSize: '0.75rem',
+  padding: '0.3125rem 0.5625rem',
   cursor: 'pointer',
 };
 
 const rowBtn: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'none', border: 'none',
-  color: 'rgba(255,255,255,0.7)', fontSize: 13, padding: '8px 14px', cursor: 'pointer', textAlign: 'left',
+  display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none',
+  color: 'rgba(255,255,255,0.7)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left',
 };
 
 interface TrackPopoverProps {
@@ -174,22 +174,22 @@ export function TrackPopover({
   return (
     <div
       className="player-popover"
-      style={{ position: 'absolute', bottom: 92, right: showEpisodePanel ? 396 : 14, background: 'rgba(18,22,30,0.97)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '6px 0', width: type === 'speed' ? 150 : 260, maxHeight: 360, overflowY: 'auto', zIndex: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}
+      style={{ position: 'absolute', bottom: '5.75rem', right: showEpisodePanel ? 396 : 14, background: 'rgba(18,22,30,0.97)', backdropFilter: 'blur(1rem)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '0.625rem', padding: '0.375rem 0', width: type === 'speed' ? 150 : 260, maxHeight: '22.5rem', overflowY: 'auto', zIndex: 10, boxShadow: '0 0.5rem 2rem rgba(0,0,0,0.6)' }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'space-between', padding: '4px 14px 8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', justifyContent: 'space-between', padding: '0.25rem 0.875rem 0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', minWidth: 0 }}>
           {activeGroup && !showStyle && (
             <button
               className="player-popover-icon"
               onClick={() => setOpenGroup(null)}
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: 3, display: 'flex' }}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: '0.1875rem', display: 'flex' }}
               title={t('player.back')}
             >
               <ChevronLeft size={14} />
             </button>
           )}
-          <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.05rem', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {showStyle
               ? t('player.subtitle_settings')
               : activeGroup
@@ -201,7 +201,7 @@ export function TrackPopover({
           <button
             className="player-popover-icon"
             onClick={() => setShowStyle((v) => !v)}
-            style={{ background: 'none', border: 'none', color: showStyle ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 3, display: 'flex', flexShrink: 0 }}
+            style={{ background: 'none', border: 'none', color: showStyle ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: '0.1875rem', display: 'flex', flexShrink: 0 }}
             title={t('player.subtitle_settings')}
           >
             <Settings size={14} />
@@ -209,20 +209,20 @@ export function TrackPopover({
         )}
       </div>
       {type === 'sub' && showStyle ? (
-        <div style={{ padding: '0 14px 10px' }}>
-          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 6 }}>{t('player.subtitle_delay')}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <div style={{ padding: '0 0.875rem 0.625rem' }}>
+          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_delay')}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
             <button className="player-popover-chip" onClick={() => onAdjustSubtitleDelay?.(-0.1)} style={styleBtn}>−0.1s</button>
-            <span style={{ color: '#fff', fontSize: 13, minWidth: 52, textAlign: 'center' }}>{subtitleDelay > 0 ? '+' : ''}{subtitleDelay.toFixed(1)}s</span>
+            <span style={{ color: '#fff', fontSize: '0.8125rem', minWidth: '3.25rem', textAlign: 'center' }}>{subtitleDelay > 0 ? '+' : ''}{subtitleDelay.toFixed(1)}s</span>
             <button className="player-popover-chip" onClick={() => onAdjustSubtitleDelay?.(0.1)} style={styleBtn}>+0.1s</button>
             <button className="player-popover-chip" onClick={() => onResetSubtitleDelay?.()} style={{ ...styleBtn, marginLeft: 'auto' }}>{t('player.subtitle_reset')}</button>
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 6 }}>{t('player.subtitle_font')}</div>
+          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_font')}</div>
           <select
             className="player-popover-select"
             value={subtitleFont}
             onChange={(e) => onChooseSubtitleFont?.(e.target.value)}
-            style={{ width: '100%', marginBottom: 12, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 6, color: '#fff', fontSize: 13, padding: '7px 8px' }}
+            style={{ width: '100%', marginBottom: '0.75rem', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '0.375rem', color: '#fff', fontSize: '0.8125rem', padding: '0.4375rem 0.5rem' }}
           >
             {SUBTITLE_FONTS.map((font) => (
               <option key={font} value={font} style={{ background: '#171b24', fontFamily: font === 'default' ? undefined : font }}>
@@ -230,8 +230,8 @@ export function TrackPopover({
               </option>
             ))}
           </select>
-          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 6 }}>{t('player.subtitle_size')}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_size')}</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '0.75rem' }}>
             {SUBTITLE_SIZES.map((size) => (
               <button
                 key={size}
@@ -243,12 +243,12 @@ export function TrackPopover({
               </button>
             ))}
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginBottom: 6 }}>{t('player.subtitle_color')}</div>
+          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_color')}</div>
           <select
             className="player-popover-select"
             value={subtitleColor}
             onChange={(e) => onChooseSubtitleColor?.(e.target.value)}
-            style={{ width: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 6, color: '#fff', fontSize: 13, padding: '7px 8px' }}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '0.375rem', color: '#fff', fontSize: '0.8125rem', padding: '0.4375rem 0.5rem' }}
           >
             {SUBTITLE_COLORS.map((color) => (
               <option key={color.value} value={color.value} style={{ background: '#171b24' }}>
@@ -265,7 +265,7 @@ export function TrackPopover({
             onClick={() => onSetSpeed(s)}
             style={{ ...rowBtn, color: playbackSpeed === s ? '#fff' : rowBtn.color, fontWeight: playbackSpeed === s ? 700 : 400 }}
           >
-            <span style={{ width: 14, color: 'var(--primary-accent-color)' }}>{playbackSpeed === s && <Check size={14} />}</span>
+            <span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{playbackSpeed === s && <Check size={14} />}</span>
             {s === 1.0 ? t('player.normal') : `${s}×`}
           </button>
         ))
@@ -277,12 +277,12 @@ export function TrackPopover({
             onClick={() => selectFromGroup(activeGroup, track)}
             style={{ ...rowBtn, color: track.selected ? '#fff' : rowBtn.color, fontWeight: track.selected ? 600 : 400, justifyContent: 'space-between' }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <span style={{ width: 14, flexShrink: 0, color: 'var(--primary-accent-color)' }}>{track.selected && <Check size={14} />}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
+              <span style={{ width: '0.875rem', flexShrink: 0, color: 'var(--primary-accent-color)' }}>{track.selected && <Check size={14} />}</span>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{trackSourceLabel(track)}</span>
             </span>
             {track.format && (
-              <span style={{ flexShrink: 0, fontSize: 11, color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '1px 6px' }}>
+              <span style={{ flexShrink: 0, fontSize: '0.6875rem', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '0.25rem', padding: '1px 0.375rem' }}>
                 {track.format}
               </span>
             )}
@@ -294,9 +294,9 @@ export function TrackPopover({
             <button
               className="player-popover-row"
               onClick={onDisableSubs}
-              style={{ ...rowBtn, borderBottom: '1px solid rgba(255,255,255,0.07)', color: noSubSelected ? '#fff' : rowBtn.color, fontWeight: noSubSelected ? 600 : 400, marginBottom: 4 }}
+              style={{ ...rowBtn, borderBottom: '1px solid rgba(255,255,255,0.07)', color: noSubSelected ? '#fff' : rowBtn.color, fontWeight: noSubSelected ? 600 : 400, marginBottom: '0.25rem' }}
             >
-              <span style={{ width: 14, color: 'var(--primary-accent-color)' }}>
+              <span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>
                 {noSubSelected && <Check size={14} />}
               </span>
               {t('player.subtitles_off')}
@@ -311,18 +311,18 @@ export function TrackPopover({
                 onClick={() => openOrSelectGroup(group)}
                 style={{ ...rowBtn, color: groupSelected ? '#fff' : rowBtn.color, fontWeight: groupSelected ? 600 : 400, justifyContent: 'space-between' }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ width: 14, color: 'var(--primary-accent-color)' }}>{groupSelected && <Check size={14} />}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                  <span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{groupSelected && <Check size={14} />}</span>
                   {group.label}
                 </span>
                 {group.tracks.length > 1 && (
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{group.tracks.length}</span>
+                  <span style={{ fontSize: '0.6875rem', color: 'rgba(255,255,255,0.35)' }}>{group.tracks.length}</span>
                 )}
               </button>
             );
           })}
           {groups.length === 0 && (
-            <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, padding: '8px 14px' }}>{t('player.no_tracks_available')}</div>
+            <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem' }}>{t('player.no_tracks_available')}</div>
           )}
         </>
       )}

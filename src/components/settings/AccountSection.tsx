@@ -63,31 +63,31 @@ function CredentialLoginForm({
   const [password, setPassword] = useState('');
   const canSubmit = !busy && email.trim().length > 0 && password.length > 0;
   const input: React.CSSProperties = {
-    height: 30,
-    borderRadius: 7,
+    height: '1.875rem',
+    borderRadius: '0.4375rem',
     border: '1px solid rgba(255,255,255,0.12)',
     background: 'rgba(255,255,255,0.05)',
     color: '#fff',
-    fontSize: 12.5,
-    padding: '0 10px',
+    fontSize: '0.7813rem',
+    padding: '0 0.625rem',
     outline: 'none',
     flex: 1,
     minWidth: 0,
   };
   const btn: React.CSSProperties = {
-    height: 30,
-    borderRadius: 7,
+    height: '1.875rem',
+    borderRadius: '0.4375rem',
     border: '1px solid rgba(255,255,255,0.12)',
     background: 'rgba(255,255,255,0.06)',
     color: '#fff',
-    fontSize: 12,
+    fontSize: '0.75rem',
     fontWeight: 500,
     cursor: 'pointer',
-    padding: '0 12px',
+    padding: '0 0.75rem',
     whiteSpace: 'nowrap',
   };
   return (
-    <div style={{ padding: '0 18px 12px', borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', gap: 8, alignItems: 'center' }}>
+    <div style={{ padding: '0 1.125rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
       <input
         type="email"
         placeholder={t('auth.placeholder.email')}
@@ -186,19 +186,19 @@ export function AccountSection({
     const url = authUrls[service];
     if (!url) return null;
     return (
-      <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: 12, margin: 0, flex: 1, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>
+      <div style={{ padding: '0 1.125rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <p style={{ color: 'rgba(255,255,255,0.44)', fontSize: '0.75rem', margin: 0, flex: 1, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>
           {t('settings.oauth_waiting_browser')}
         </p>
         <button
           onClick={() => void shellOpen(url)}
-          style={{ height: 28, borderRadius: 7, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+          style={{ height: '1.75rem', borderRadius: '0.4375rem', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer' }}
         >
           {t('settings.oauth_reopen')}
         </button>
         <button
           onClick={() => void copyAuthUrl(service)}
-          style={{ height: 28, borderRadius: 7, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+          style={{ height: '1.75rem', borderRadius: '0.4375rem', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: '0.75rem', fontWeight: 500, cursor: 'pointer' }}
         >
           {t('settings.oauth_copy_link')}
         </button>
@@ -594,7 +594,7 @@ export function AccountSection({
         {/* Trakt */}
         {!traktConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(237,28,36,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/trakt.svg" alt="Trakt" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+            icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(237,28,36,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/trakt.svg" alt="Trakt" style={{ width: '1.625rem', height: '1.625rem', objectFit: 'contain' }} /></div>}
             title="Trakt.tv"
             value={traktBusy ? t('trakt.device.waiting') : t('auto.connect_trakt_tv_account')}
             onClick={() => void handleTraktConnect()}
@@ -603,14 +603,14 @@ export function AccountSection({
         )}
         {!traktConnected && renderOAuthFallback('trakt')}
         {traktError && (
-          <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
-            <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {traktError}</p>
+          <div style={{ padding: '0 1.125rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
+            <p style={{ color: '#FF5D5D', fontSize: '0.75rem', margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {traktError}</p>
           </div>
         )}
         {traktConnected && (
           <div style={{ position: 'relative' }}>
             <SyncServiceRow
-              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(237,28,36,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/trakt.svg" alt="Trakt" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+              icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(237,28,36,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/trakt.svg" alt="Trakt" style={{ width: '1.625rem', height: '1.625rem', objectFit: 'contain' }} /></div>}
               title="Trakt.tv"
               value={traktBusy ? t('sync.device.syncing') : t('sync.device.connected')}
               valueColor="#54D17A"
@@ -634,7 +634,7 @@ export function AccountSection({
         {/* AniList */}
         {!anilistConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(2,169,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/anilist.svg" alt="AniList" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+            icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(2,169,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/anilist.svg" alt="AniList" style={{ width: '1.625rem', height: '1.625rem', objectFit: 'contain' }} /></div>}
             title="AniList"
             value={anilistBusy ? t('trakt.device.waiting') : t('auto.connect_anilist_account')}
             onClick={() => void handleAnilistConnect()}
@@ -643,14 +643,14 @@ export function AccountSection({
         )}
         {!anilistConnected && renderOAuthFallback('anilist')}
         {anilistError && (
-          <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
-            <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {anilistError}</p>
+          <div style={{ padding: '0 1.125rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
+            <p style={{ color: '#FF5D5D', fontSize: '0.75rem', margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {anilistError}</p>
           </div>
         )}
         {anilistConnected && (
           <div style={{ position: 'relative' }}>
             <SyncServiceRow
-              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(2,169,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/anilist.svg" alt="AniList" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+              icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(2,169,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/anilist.svg" alt="AniList" style={{ width: '1.625rem', height: '1.625rem', objectFit: 'contain' }} /></div>}
               title="AniList"
               value={anilistBusy ? t('sync.device.syncing') : t('settings.anime_tracking_enabled')}
               valueColor="#54D17A"
@@ -677,7 +677,7 @@ export function AccountSection({
         {/* Simkl */}
         {!simklConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.svg" alt="Simkl" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+            icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.svg" alt="Simkl" style={{ width: '1.625rem', height: '1.625rem', objectFit: 'contain' }} /></div>}
             title="Simkl"
             value={simklBusy ? t('trakt.device.waiting') : t('auto.connect_simkl_account')}
             onClick={() => void handleSimklConnect()}
@@ -686,14 +686,14 @@ export function AccountSection({
         )}
         {!simklConnected && renderOAuthFallback('simkl')}
         {simklError && (
-          <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
-            <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {simklError}</p>
+          <div style={{ padding: '0 1.125rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
+            <p style={{ color: '#FF5D5D', fontSize: '0.75rem', margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {simklError}</p>
           </div>
         )}
         {simklConnected && (
           <div style={{ position: 'relative' }}>
             <SyncServiceRow
-              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.svg" alt="Simkl" style={{ width: 26, height: 26, objectFit: 'contain' }} /></div>}
+              icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(28,177,74,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/simkl.svg" alt="Simkl" style={{ width: '1.625rem', height: '1.625rem', objectFit: 'contain' }} /></div>}
               title="Simkl"
               value={simklBusy ? t('sync.device.syncing') : t('sync.device.connected')}
               valueColor="#54D17A"
@@ -717,7 +717,7 @@ export function AccountSection({
         {/* Nuvio */}
         {!nuvioConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="https://nuvio.tv//assets/Logo_1080x1080.png" alt="Nuvio" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>}
+            icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="https://nuvio.tv//assets/Logo_1080x1080.png" alt="Nuvio" style={{ width: '1.5rem', height: '1.5rem', objectFit: 'contain' }} /></div>}
             title="Nuvio"
             value={nuvioBusy ? t('auth.signing_in') : t('settings.connect_nuvio_account')}
             onClick={() => setNuvioFormOpen((o) => !o)}
@@ -733,14 +733,14 @@ export function AccountSection({
           />
         )}
         {nuvioError && (
-          <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
-            <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {nuvioError}</p>
+          <div style={{ padding: '0 1.125rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
+            <p style={{ color: '#FF5D5D', fontSize: '0.75rem', margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {nuvioError}</p>
           </div>
         )}
         {nuvioConnected && (
           <div style={{ position: 'relative' }}>
             <SyncServiceRow
-              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="https://nuvio.tv//assets/Logo_1080x1080.png" alt="Nuvio" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>}
+              icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="https://nuvio.tv//assets/Logo_1080x1080.png" alt="Nuvio" style={{ width: '1.5rem', height: '1.5rem', objectFit: 'contain' }} /></div>}
               title="Nuvio"
               value={nuvioBusy ? t('sync.device.syncing') : (activeProfile?.nuvioEmail ?? t('sync.device.connected'))}
               valueColor="#54D17A"
@@ -764,7 +764,7 @@ export function AccountSection({
         {/* Stremio */}
         {!stremioConnected && (
           <SyncServiceRow
-            icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(123,91,245,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/stremio.svg" alt="Stremio" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>}
+            icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(123,91,245,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/stremio.svg" alt="Stremio" style={{ width: '1.5rem', height: '1.5rem', objectFit: 'contain' }} /></div>}
             title="Stremio"
             value={stremioBusy ? t('auth.signing_in') : t('settings.connect_stremio_account')}
             onClick={() => setStremioFormOpen((o) => !o)}
@@ -780,14 +780,14 @@ export function AccountSection({
           />
         )}
         {stremioError && (
-          <div style={{ padding: '0 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
-            <p style={{ color: '#FF5D5D', fontSize: 12, margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {stremioError}</p>
+          <div style={{ padding: '0 1.125rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.055)' }}>
+            <p style={{ color: '#FF5D5D', fontSize: '0.75rem', margin: 0, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif' }}>{t('common.error')}: {stremioError}</p>
           </div>
         )}
         {stremioConnected && (
           <div style={{ position: 'relative' }}>
             <SyncServiceRow
-              icon={<div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(123,91,245,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/stremio.svg" alt="Stremio" style={{ width: 24, height: 24, objectFit: 'contain' }} /></div>}
+              icon={<div style={{ width: '2.125rem', height: '2.125rem', borderRadius: '0.5625rem', background: 'rgba(123,91,245,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}><img src="/stremio.svg" alt="Stremio" style={{ width: '1.5rem', height: '1.5rem', objectFit: 'contain' }} /></div>}
               title="Stremio"
               value={stremioBusy ? t('sync.device.syncing') : (activeProfile?.stremioEmail ?? t('sync.device.connected'))}
               valueColor="#54D17A"

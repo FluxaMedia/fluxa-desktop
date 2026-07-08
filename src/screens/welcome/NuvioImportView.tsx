@@ -100,25 +100,25 @@ export function NuvioImportView({ profile, onDone }: NuvioImportViewProps) {
       </div>
 
       <main style={S.authMain}>
-        <div style={{ ...S.card, maxWidth: 360 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+        <div style={{ ...S.card, maxWidth: '22.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
             <img
               src="https://nuvio.tv//assets/Logo_1080x1080.png"
               alt="Nuvio"
-              style={{ width: 32, height: 32, objectFit: 'contain' }}
+              style={{ width: '2rem', height: '2rem', objectFit: 'contain' }}
             />
-            <p style={{ margin: 0, fontSize: 15, fontWeight: 600, fontFamily: FONT }}>
+            <p style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 600, fontFamily: FONT }}>
               {done ? t('auth.nuvio.import.done') : t('auth.nuvio.import.title')}
             </p>
           </div>
 
           {error && <p style={S.globalError}>{error}</p>}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {steps.map(({ key, label }) => (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
                 <div style={{
-                  width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                  width: '1.25rem', height: '1.25rem', borderRadius: '50%', flexShrink: 0,
                   background: imp[key] ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.08)',
                   border: imp[key] ? 'none' : '1px solid rgba(255,255,255,0.15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -127,7 +127,7 @@ export function NuvioImportView({ profile, onDone }: NuvioImportViewProps) {
                   {imp[key] && <Check size={11} color="#000" strokeWidth={3} />}
                 </div>
                 <span style={{
-                  fontSize: 13, fontFamily: FONT,
+                  fontSize: '0.8125rem', fontFamily: FONT,
                   color: imp[key] ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.30)',
                   transition: 'color 0.3s',
                 }}>

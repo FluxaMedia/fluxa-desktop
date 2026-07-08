@@ -172,7 +172,7 @@ const PosterCard = React.memo(function PosterCard({
           borderRadius: posterPrefs.radius,
           overflow: 'hidden',
           background: '#1B212B',
-          boxShadow: selected ? 'inset 0 0 0 2px rgba(255,255,255,0.55), 0 0 12px rgba(255,255,255,0.08)' : 'none',
+          boxShadow: selected ? 'inset 0 0 0 0.125rem rgba(255,255,255,0.55), 0 0 0.75rem rgba(255,255,255,0.08)' : 'none',
         }}
       >
         {imgSrc && !imgErr ? (
@@ -186,7 +186,7 @@ const PosterCard = React.memo(function PosterCard({
           />
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1B212B' }}>
-            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 24, fontWeight: 900 }}>
+            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '1.5rem', fontWeight: 900 }}>
               {(meta.name ?? '').slice(0, 2).toUpperCase()}
             </span>
           </div>
@@ -195,9 +195,9 @@ const PosterCard = React.memo(function PosterCard({
       {!posterPrefs.hideTitles && (
         <p style={{
           color: 'rgba(255,255,255,0.72)',
-          fontSize: 12,
+          fontSize: '0.75rem',
           fontWeight: 600,
-          margin: '4px 0 0',
+          margin: '0.25rem 0 0',
           textAlign: 'center',
           overflow: 'hidden',
           textOverflow: 'ellipsis',

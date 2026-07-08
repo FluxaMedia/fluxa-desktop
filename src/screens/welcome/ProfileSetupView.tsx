@@ -33,7 +33,7 @@ export function ProfileSetupView({ onBack, onDone }: ProfileSetupViewProps) {
           <h2 style={S.cardTitle}>{t('auth.profile.title')}</h2>
           <p style={S.cardSubtitle}>{t('auth.profile.subtitle')}</p>
 
-          <form onSubmit={handleSubmit} noValidate style={{ ...S.form, marginTop: 28 }}>
+          <form onSubmit={handleSubmit} noValidate style={{ ...S.form, marginTop: '1.75rem' }}>
             <Field
               label={t('auth.profile.name_label')}
               type="text"
@@ -44,7 +44,7 @@ export function ProfileSetupView({ onBack, onDone }: ProfileSetupViewProps) {
             />
             <button
               type="submit"
-              style={{ ...S.submitBtn, marginTop: 8, opacity: submitting ? 0.6 : 1 }}
+              style={{ ...S.submitBtn, marginTop: '0.5rem', opacity: submitting ? 0.6 : 1 }}
               disabled={submitting}
             >
               {submitting ? t('welcome.loading') : t('auth.profile.continue')}
