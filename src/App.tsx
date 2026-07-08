@@ -539,6 +539,9 @@ export default function App() {
             onSearch={(query) => { setGlobalSearchQuery(query); navigateRoute('search'); }}
             onBack={leaveSearch}
             focusSignal={searchFocusSignal}
+            state={state}
+            onDispatch={dispatch}
+            onNavigateDetail={handleNavigateDetail}
           />
           <div style={{ pointerEvents: 'auto', flexShrink: 0 }}>
             <ProfileChip

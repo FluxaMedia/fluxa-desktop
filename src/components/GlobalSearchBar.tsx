@@ -1,18 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
-import { Search as SearchIcon, X } from 'lucide-react';
-import { t } from '../i18n';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Search as SearchIcon, X, Clock } from 'lucide-react';
+import { t, getLanguage } from '../i18n';
+import { addRecentSearch, loadRecentSearches, clearRecentSearches } from '../core/searchHistory';
+import type { AppState, Meta } from '../core/types';
 
 interface Props {
   query: string;
   onSearch: (query: string) => void;
   onBack?: () => void;
   focusSignal?: number;
+  state: AppState;
+  onDispatch: (actionJson: string) => void;
+  onNavigateDetail: (meta: Meta) => void;
 }
 
-export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props) {
+const SUGGESTION_DEBOUNCE_MS = 200;
+const MAX_SUGGESTIONS = 6;
+
+export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, onDispatch, onNavigateDetail }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     setInputValue(query);
@@ -21,6 +31,37 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props)
   useEffect(() => {
     if (focusSignal) open();
   }, [focusSignal]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    loadRecentSearches().then(setRecentSearches);
+  }, [expanded]);
+
+  useEffect(() => {
+    const trimmed = inputValue.trim();
+    if (trimmed.length < 2) return;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onDispatch(JSON.stringify({ type: 'searchRequested', query: trimmed, language: getLanguage() }));
+    }, SUGGESTION_DEBOUNCE_MS);
+    return () => clearTimeout(debounceRef.current);
+  }, [inputValue, onDispatch]);
+
+  const localSuggestions = useMemo<Meta[]>(() => {
+    const needle = inputValue.trim().toLowerCase();
+    if (needle.length < 2) return [];
+    return rankByNeedle(flattenCategories(state.home.categories), needle);
+  }, [state.home.categories, inputValue]);
+
+  const networkSuggestions = useMemo<Meta[]>(() => {
+    const trimmed = inputValue.trim();
+    const needle = trimmed.toLowerCase();
+    if (needle.length < 2) return [];
+    if ((state.search.query ?? '').trim().toLowerCase() !== needle) return [];
+    return rankByNeedle(flattenCategories(state.search.categories), needle);
+  }, [state.search.categories, state.search.query, inputValue]);
+
+  const suggestions = networkSuggestions.length > 0 ? networkSuggestions : localSuggestions;
 
   const open = () => {
     setExpanded(true);
@@ -34,10 +75,17 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props)
     onBack?.();
   };
 
+  const submit = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setRecentSearches((current) => addRecentSearch(trimmed, current));
+    onSearch(trimmed);
+    inputRef.current?.blur();
+  };
+
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && inputValue.trim().length >= 1) {
-      onSearch(inputValue.trim());
-      inputRef.current?.blur();
+      submit(inputValue);
     }
     if (e.key === 'Escape') {
       if (inputValue) {
@@ -47,6 +95,23 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props)
         close();
       }
     }
+  };
+
+  const handleSuggestionClick = (meta: Meta) => {
+    setRecentSearches((current) => addRecentSearch(inputValue.trim(), current));
+    onNavigateDetail(meta);
+    setExpanded(false);
+    setInputValue('');
+    onSearch('');
+  };
+
+  const handleRecentClick = (value: string) => {
+    setInputValue(value);
+    submit(value);
+  };
+
+  const handleClearHistory = () => {
+    setRecentSearches(clearRecentSearches());
   };
 
   if (!expanded) {
@@ -84,47 +149,178 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal }: Props)
     );
   }
 
+  const showDropdown = recentSearches.length > 0 || suggestions.length > 0;
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.625rem',
-        width: '22.5rem',
-        height: '2.625rem',
-        background: 'rgba(10,12,20,0.97)',
-        border: '1px solid rgba(255,255,255,0.25)',
-        borderRadius: '62.4375rem',
-        padding: '0 1rem',
-        boxShadow: '0 0.5rem 2rem rgba(0,0,0,0.4), 0 0 0 1px rgba(232,93,63,0.15)',
-        pointerEvents: 'auto',
-      }}
-    >
-      <SearchIcon size={18} color="rgba(255,255,255,0.48)" style={{ flexShrink: 0 }} />
-      <input
-        ref={inputRef}
-        type="text"
-        value={inputValue}
-        placeholder={t('search.placeholder_expanded')}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={handleKey}
-        onBlur={() => { if (!inputValue) close(); }}
+    <div style={{ position: 'relative', width: '22.5rem', pointerEvents: 'auto' }}>
+      <div
         style={{
-          flex: 1,
-          background: 'transparent',
-          border: 'none',
-          outline: 'none',
-          color: '#FFFFFF',
-          fontSize: '0.9375rem',
-          fontWeight: 500,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.625rem',
+          width: '100%',
+          height: '2.625rem',
+          background: 'rgba(10,12,20,0.97)',
+          border: '1px solid rgba(255,255,255,0.25)',
+          borderRadius: '62.4375rem',
+          padding: '0 1rem',
+          boxShadow: '0 0.5rem 2rem rgba(0,0,0,0.4), 0 0 0 1px rgba(232,93,63,0.15)',
         }}
-      />
-      <button
-        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}
-        onMouseDown={(e) => { e.preventDefault(); close(); }}
       >
-        <X size={17} />
-      </button>
+        <SearchIcon size={18} color="rgba(255,255,255,0.48)" style={{ flexShrink: 0 }} />
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          placeholder={t('search.placeholder_expanded')}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKey}
+          onBlur={() => { if (!inputValue) close(); }}
+          style={{
+            flex: 1,
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            color: '#FFFFFF',
+            fontSize: '0.9375rem',
+            fontWeight: 500,
+          }}
+        />
+        <button
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}
+          onMouseDown={(e) => { e.preventDefault(); close(); }}
+        >
+          <X size={17} />
+        </button>
+      </div>
+
+      {showDropdown && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 0.5rem)',
+            left: 0,
+            right: 0,
+            background: 'rgba(10,12,20,0.98)',
+            border: '1px solid rgba(255,255,255,0.14)',
+            borderRadius: '1rem',
+            boxShadow: '0 0.75rem 2.5rem rgba(0,0,0,0.55)',
+            padding: '0.75rem',
+            maxHeight: '26rem',
+            overflowY: 'auto',
+          }}
+        >
+          {!inputValue.trim() && recentSearches.length > 0 && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.25rem 0.5rem 0.5rem' }}>
+                <span style={dropdownStyles.sectionLabel}>{t('search.recent_searches')}</span>
+                <button style={dropdownStyles.clearBtn} onMouseDown={(e) => { e.preventDefault(); handleClearHistory(); }}>
+                  {t('search.clear_history')}
+                </button>
+              </div>
+              {recentSearches.map((item) => (
+                <button
+                  key={item}
+                  style={dropdownStyles.row}
+                  onMouseDown={(e) => { e.preventDefault(); handleRecentClick(item); }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                >
+                  <Clock size={15} color="rgba(255,255,255,0.4)" style={{ flexShrink: 0 }} />
+                  <span style={dropdownStyles.rowText}>{item}</span>
+                </button>
+              ))}
+            </>
+          )}
+
+          {inputValue.trim().length >= 2 && suggestions.length > 0 && (
+            <>
+              <div style={{ padding: '0.25rem 0.5rem 0.5rem' }}>
+                <span style={dropdownStyles.sectionLabel}>{t('search.suggestions')}</span>
+              </div>
+              {suggestions.map((meta) => (
+                <button
+                  key={meta.id}
+                  style={dropdownStyles.row}
+                  onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(meta); }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                >
+                  <SearchIcon size={15} color="rgba(255,255,255,0.4)" style={{ flexShrink: 0 }} />
+                  <span style={dropdownStyles.rowText}>{meta.name}</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
+function flattenCategories(categories: { items: Meta[] }[] | undefined): Meta[] {
+  const seen = new Set<string>();
+  const items: Meta[] = [];
+  for (const category of categories ?? []) {
+    for (const meta of category.items) {
+      if (seen.has(meta.id)) continue;
+      seen.add(meta.id);
+      items.push(meta);
+    }
+  }
+  return items;
+}
+
+function rankByNeedle(items: Meta[], needle: string): Meta[] {
+  const startsWith: Meta[] = [];
+  const includes: Meta[] = [];
+  const seenNames = new Set<string>();
+  for (const meta of items) {
+    const name = meta.name.toLowerCase();
+    if (!name.includes(needle)) continue;
+    if (seenNames.has(name)) continue;
+    seenNames.add(name);
+    (name.startsWith(needle) ? startsWith : includes).push(meta);
+  }
+  return [...startsWith, ...includes].slice(0, MAX_SUGGESTIONS);
+}
+
+const dropdownStyles: Record<string, React.CSSProperties> = {
+  sectionLabel: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.0313rem',
+  },
+  clearBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    cursor: 'pointer',
+    padding: 0,
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.625rem',
+    width: '100%',
+    height: '2.375rem',
+    padding: '0 0.5rem',
+    borderRadius: '0.625rem',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    transition: 'background 0.12s',
+  },
+  rowText: {
+    color: '#FFFFFF',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+};

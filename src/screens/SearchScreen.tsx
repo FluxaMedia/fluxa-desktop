@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { ArrowLeft, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react';
 import { MovieCard } from '../components/MovieCard';
 import { posterPrefsFromState, type PosterPrefs } from '../core/posterPrefs';
-import { storageRead, storageWrite } from '../core/engine';
+import { addRecentSearch, clearRecentSearches, loadRecentSearches, removeRecentSearch } from '../core/searchHistory';
 import type { AppState, HomeCategory, Meta } from '../core/types';
 import { getLanguage, t } from '../i18n';
 
@@ -27,8 +27,6 @@ const GENRE_CHIPS = [
 ];
 
 const NAV_RAIL_WIDTH = 6.5;
-const RECENT_SEARCHES_KEY = 'recent_searches';
-const MAX_RECENT_SEARCHES = 8;
 
 export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch, onNavigateDetail, query, onQueryChange, onBack }: Props) {
   const [typeFilter, setTypeFilter] = useState('');
@@ -37,15 +35,13 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
   const posterPrefs = posterPrefsFromState(state, 0.85);
 
   useEffect(() => {
-    storageRead<string[]>(RECENT_SEARCHES_KEY)
-      .then((items) => setRecentSearches(normalizeRecentSearches(items)))
-      .catch(() => undefined);
+    loadRecentSearches().then(setRecentSearches);
   }, []);
 
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length >= 2) {
-      rememberRecentSearch(trimmed, setRecentSearches);
+      setRecentSearches((current) => addRecentSearch(trimmed, current));
       onDispatch(JSON.stringify({ type: 'searchRequested', query: trimmed, language: getLanguage() }));
     }
   }, [query, onDispatch]);
@@ -59,16 +55,11 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
   };
 
   const handleRemoveRecent = (value: string) => {
-    setRecentSearches((current) => {
-      const next = current.filter((item) => item !== value);
-      void storageWrite(RECENT_SEARCHES_KEY, next);
-      return next;
-    });
+    setRecentSearches((current) => removeRecentSearch(value, current));
   };
 
   const handleClearRecent = () => {
-    setRecentSearches([]);
-    void storageWrite(RECENT_SEARCHES_KEY, []);
+    setRecentSearches(clearRecentSearches());
   };
 
   const categories = useMemo(
@@ -340,30 +331,6 @@ function SearchScrollArrow({ direction, onClick }: { direction: 'left' | 'right'
       </button>
     </div>
   );
-}
-
-function normalizeRecentSearches(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
-  return value
-    .map((item) => String(item ?? '').trim())
-    .filter((item) => {
-      const key = item.toLowerCase();
-      if (!item || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, MAX_RECENT_SEARCHES);
-}
-
-function rememberRecentSearch(query: string, setRecentSearches: React.Dispatch<React.SetStateAction<string[]>>) {
-  const normalized = query.trim();
-  if (normalized.length < 2) return;
-  setRecentSearches((current) => {
-    const next = normalizeRecentSearches([normalized, ...current.filter((item) => item.toLowerCase() !== normalized.toLowerCase())]);
-    void storageWrite(RECENT_SEARCHES_KEY, next);
-    return next;
-  });
 }
 
 function RecentSearchChip({ value, onClick, onRemove }: { value: string; onClick: () => void; onRemove: () => void }) {

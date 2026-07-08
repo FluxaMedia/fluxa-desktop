@@ -269,6 +269,8 @@
   "calendar.upcoming": "Upcoming",
   "calendar.released": "Released",
   "search.recent_searches": "Recent searches",
+  "search.clear_history": "Clear history",
+  "search.suggestions": "Search suggestions",
   "common.clear": "Clear",
   "library.smart_recent": "Recent",
   "library.smart_unwatched": "Unwatched",
