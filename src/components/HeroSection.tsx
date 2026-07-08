@@ -19,6 +19,7 @@ interface Props {
 }
 
 const SLIDE_INTERVAL_MS = 6500;
+const STALL_TIMEOUT_MS = 7000;
 const PANEL_LEFT = 120;
 
 const prefersReducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -69,8 +70,11 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
   }, [activeMeta.trailers]);
   const [trailerStreamUrl, setTrailerStreamUrl] = useState<string | null>(null);
   const [trailerReady, setTrailerReady] = useState(false);
+  const [trailerLoading, setTrailerLoading] = useState(false);
   const [trailerProgress, setTrailerProgress] = useState(0);
+  const lastTrailerProgressAtRef = useRef(0);
   const trailerActive = !!trailerStreamUrl && trailerReady;
+  const trailerPending = trailerLoading || trailerActive;
 
   const imdbNum = activeMeta.imdbRating != null ? Number(activeMeta.imdbRating) : NaN;
   const releaseYear = activeMeta.year ?? parseReleaseYear(activeMeta.releaseInfo);
@@ -97,15 +101,40 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     setTrailerStreamUrl(null);
     setTrailerReady(false);
     setTrailerProgress(0);
+    setTrailerLoading(false);
     if (!autoplayTrailer || !isActive || paused || !trailerVideoId) return;
     let cancelled = false;
     const id = window.setTimeout(() => {
+      setTrailerLoading(true);
       resolveYoutubeTrailerUrl(trailerVideoId).then((url) => {
-        if (!cancelled && url) setTrailerStreamUrl(url);
-      }).catch((err) => console.error('resolveYoutubeTrailerUrl failed', err));
+        if (cancelled) return;
+        if (url) {
+          setTrailerStreamUrl(url);
+        } else {
+          setTrailerLoading(false);
+        }
+      }).catch((err) => {
+        console.error('resolveYoutubeTrailerUrl failed', err);
+        if (!cancelled) setTrailerLoading(false);
+      });
     }, autoplayTrailerDelaySecs * 1000);
-    return () => { cancelled = true; window.clearTimeout(id); };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
   }, [activeMeta.id, trailerVideoId, autoplayTrailer, autoplayTrailerDelaySecs, isActive, paused]);
+
+  useEffect(() => {
+    if (!trailerStreamUrl) return;
+    lastTrailerProgressAtRef.current = Date.now();
+    const id = window.setInterval(() => {
+      if (Date.now() - lastTrailerProgressAtRef.current > STALL_TIMEOUT_MS) {
+        setTrailerStreamUrl(null);
+        setTrailerLoading(false);
+      }
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [trailerStreamUrl]);
 
   useEffect(() => {
     return () => {
@@ -125,12 +154,12 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
   }
 
   useEffect(() => {
-    if (!canSlide || !isActive || paused || trailerActive) return;
+    if (!canSlide || !isActive || paused || trailerPending) return;
     const id = window.setInterval(() => {
       slideToIndex(activeIndexRef.current + 1);
     }, SLIDE_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [canSlide, items.length, isActive, paused, trailerActive]);
+  }, [canSlide, items.length, isActive, paused, trailerPending]);
 
   useEffect(() => {
     if (!canSlide) return;
@@ -177,7 +206,7 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
             ...contentStyle,
             opacity: visible ? (trailerActive ? 0 : 1) : 0,
             transition: 'opacity 0.6s ease',
-            animationPlayState: paused ? 'paused' : 'running',
+            animationPlayState: paused || trailerActive ? 'paused' : 'running',
           }}
           onError={() => setBgError(true)}
         />
@@ -191,13 +220,17 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
           autoPlay
           muted
           playsInline
-          onPlaying={() => setTrailerReady(true)}
+          onPlaying={() => {
+            setTrailerReady(true);
+            lastTrailerProgressAtRef.current = Date.now();
+          }}
           onTimeUpdate={(e) => {
             const el = e.currentTarget;
+            lastTrailerProgressAtRef.current = Date.now();
             if (el.duration > 0) setTrailerProgress(el.currentTime / el.duration);
           }}
-          onEnded={() => setTrailerStreamUrl(null)}
-          onError={() => setTrailerStreamUrl(null)}
+          onEnded={() => { setTrailerStreamUrl(null); setTrailerLoading(false); }}
+          onError={() => { setTrailerStreamUrl(null); setTrailerLoading(false); }}
         />
       )}
 
@@ -295,7 +328,7 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
                       ...(i === activeIndex
                         ? {
                             animation: `heroIndicatorFill ${SLIDE_INTERVAL_MS}ms linear forwards`,
-                            animationPlayState: paused ? 'paused' : 'running',
+                            animationPlayState: paused || trailerPending ? 'paused' : 'running',
                           }
                         : null),
                     }}
