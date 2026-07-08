@@ -100,6 +100,7 @@ type MpvTerminateDestroy = unsafe extern "C" fn(*mut MpvHandle);
 type MpvSetOptionString =
     unsafe extern "C" fn(*mut MpvHandle, *const c_char, *const c_char) -> c_int;
 type MpvCommandString = unsafe extern "C" fn(*mut MpvHandle, *const c_char) -> c_int;
+type MpvCommandAsync = unsafe extern "C" fn(*mut MpvHandle, u64, *const *const c_char) -> c_int;
 type MpvGetProperty =
     unsafe extern "C" fn(*mut MpvHandle, *const c_char, c_int, *mut c_void) -> c_int;
 type MpvFree = unsafe extern "C" fn(*mut c_void);
@@ -122,6 +123,7 @@ struct MpvApi {
     mpv_terminate_destroy: MpvTerminateDestroy,
     mpv_set_option_string: MpvSetOptionString,
     mpv_command_string: MpvCommandString,
+    mpv_command_async: MpvCommandAsync,
     mpv_get_property: MpvGetProperty,
     mpv_free: MpvFree,
     mpv_error_string: MpvErrorString,
@@ -157,6 +159,9 @@ impl MpvApi {
                 .map_err(load_error)?;
             let mpv_command_string = *library
                 .get::<MpvCommandString>(b"mpv_command_string\0")
+                .map_err(load_error)?;
+            let mpv_command_async = *library
+                .get::<MpvCommandAsync>(b"mpv_command_async\0")
                 .map_err(load_error)?;
             let mpv_get_property = *library
                 .get::<MpvGetProperty>(b"mpv_get_property\0")
@@ -194,6 +199,7 @@ impl MpvApi {
                 mpv_terminate_destroy,
                 mpv_set_option_string,
                 mpv_command_string,
+                mpv_command_async,
                 mpv_get_property,
                 mpv_free,
                 mpv_error_string,
@@ -569,12 +575,11 @@ impl MpvRenderer {
         title: Option<&str>,
         language: Option<&str>,
     ) -> Result<(), String> {
-        let escaped_url = command_quote(url);
-        let escaped_title = command_quote(title.unwrap_or("Subtitle"));
-        let escaped_language = command_quote(language.unwrap_or(""));
-        self.command_string(&format!(
-            "sub-add {escaped_url} auto {escaped_title} {escaped_language}"
-        ))
+        let title = title.unwrap_or("Subtitle");
+        match language.filter(|value| !value.is_empty()) {
+            Some(language) => self.command_async_args(&["sub-add", url, "auto", title, language]),
+            None => self.command_async_args(&["sub-add", url, "auto", title]),
+        }
     }
 
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
@@ -596,6 +601,25 @@ impl MpvRenderer {
         if result < 0 {
             Err(format!(
                 "mpv command failed: {}",
+                self.api.error_string(result)
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn command_async_args(&self, args: &[&str]) -> Result<(), String> {
+        let c_args = args
+            .iter()
+            .map(|arg| CString::new(*arg).map_err(|error| error.to_string()))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut raw_args = c_args.iter().map(|arg| arg.as_ptr()).collect::<Vec<_>>();
+        raw_args.push(ptr::null());
+
+        let result = unsafe { (self.api.mpv_command_async)(self.handle, 0, raw_args.as_ptr()) };
+        if result < 0 {
+            Err(format!(
+                "mpv async command failed: {}",
                 self.api.error_string(result)
             ))
         } else {
@@ -1131,10 +1155,6 @@ impl MpvRenderer {
         unsafe { (self.api.mpv_free)(value.cast()) };
         Some(text)
     }
-}
-
-fn command_quote(value: &str) -> String {
-    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 // Linux-only OpenGL proc address resolution
