@@ -6,6 +6,7 @@ import { PlayerLoadingOverlay } from './components/PlayerLoadingOverlay';
 import { ReactPlayerOverlay } from './components/ReactPlayerOverlay';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 function debugLog(msg: string) {
   void invoke('debug_log', { msg }).catch(() => {});
@@ -27,7 +28,7 @@ import { useNuvioConnectivity } from './hooks/useNuvioConnectivity';
 import { setActiveProfileId, createProfileObject, saveProfile, loadProfiles } from './core/profiles';
 import { invalidateLibraryKeyCache } from './core/libraryOps';
 import { storageWrite, storageRead } from './core/engine';
-import { watchWindowGeometry } from './core/windowGeometry';
+import { toggleWindowFullscreen, watchWindowGeometry } from './core/windowGeometry';
 import { notify } from './core/notifications';
 import { setLanguage, t } from './i18n';
 import { dispatchAction } from './core/engine';
@@ -93,6 +94,7 @@ export default function App() {
   const lastNonSettingsRouteRef = useRef<NavRoute>('home');
   const lastNonSearchRouteRef = useRef<NavRoute>('home');
   const artworkPrefetchRef = useRef<Promise<unknown> | null>(null);
+  const windowFullscreenRef = useRef(false);
 
   const overlayPrefs = useCallback((merged: AppState): AppState => {
     const prefs = storedPrefsRef.current;
@@ -177,6 +179,22 @@ export default function App() {
 
   useEffect(() => watchWindowGeometry(), []);
 
+  const refreshWindowFullscreen = useCallback(() => {
+    getCurrentWindow().isFullscreen()
+      .then((isFullscreen) => { windowFullscreenRef.current = isFullscreen; })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const win = getCurrentWindow();
+    let unlisten: (() => void) | null = null;
+    refreshWindowFullscreen();
+    win.listen('tauri://resize', refreshWindowFullscreen)
+      .then((fn) => { unlisten = fn; })
+      .catch(() => undefined);
+    return () => { unlisten?.(); };
+  }, [refreshWindowFullscreen]);
+
   const guardedPlay = useCallback(async (
     stream: Stream,
     meta: Meta,
@@ -255,6 +273,18 @@ export default function App() {
     const shortcutRoutes: Record<string, NavRoute> = { '1': 'home', '2': 'library', '3': 'discover', '4': 'calendar', '5': 'settings' };
     const onKeyDown = (e: KeyboardEvent) => {
       if (nativePlayerActive) return;
+      if (e.key === 'F11' || e.code === 'F11') {
+        e.preventDefault();
+        windowFullscreenRef.current = !windowFullscreenRef.current;
+        void toggleWindowFullscreen().finally(refreshWindowFullscreen);
+        return;
+      }
+      if (e.key === 'Escape' && windowFullscreenRef.current) {
+        e.preventDefault();
+        windowFullscreenRef.current = false;
+        void getCurrentWindow().setFullscreen(false).catch(() => undefined).finally(refreshWindowFullscreen);
+        return;
+      }
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
       if (e.ctrlKey && e.key === 'f') {
@@ -278,7 +308,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [nativePlayerActive, navigateRoute, goBack]);
+  }, [nativePlayerActive, navigateRoute, goBack, refreshWindowFullscreen]);
 
   const dispatch = useCallback(async (actionJson: string) => {
     const result = await dispatchAction(actionJson);
