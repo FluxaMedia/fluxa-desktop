@@ -163,7 +163,7 @@ export default function App() {
     setWelcomeCompleted,
   } = useAppInit(updateState, setActiveRoute, storedPrefsRef);
 
-  const { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame } = usePlayer({
+  const { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame } = usePlayer({
     stateRef,
     activeProfile,
     updateState,
@@ -642,6 +642,7 @@ export default function App() {
           logo={playerLoadingOverlay.logo}
           title={playerLoadingOverlay.title}
           episodeLine={playerLoadingOverlay.episodeLine}
+          status={playerLoadingOverlay.status}
           error={playerLoadingOverlay.error}
           onBack={closePlayer}
         />
@@ -653,6 +654,8 @@ export default function App() {
             onFirstFrame={notifyFirstFrame}
             initialTitle={playerTitle}
             initialEpisodeTitle={playerEpisodeTitle}
+            currentEpisode={playerEpisode}
+            isTorrentStream={playerUsesTorrent}
             initialPosterUrl={playerPosterUrl}
             initialSubtitleUrl={playerSubtitleUrl}
             initialStreamHeaders={playerStreamHeaders}

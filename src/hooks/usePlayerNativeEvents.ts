@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { t } from '../i18n';
 import type { Meta, Stream, Video } from '../core/types';
 import { appPrefs } from '../core/appPrefs';
 import { embeddedMpvSetTitle, embeddedMpvSetLoadingArtwork, embeddedMpvStop } from '../core/mpvPlayer';
@@ -128,16 +129,20 @@ export function usePlayerNativeEvents({
         ).catch(() => undefined);
 
         const prefs = appPrefs(stateRef.current);
-        let chosenStream: Stream = currentStream;
+        let chosenStream: Stream | null = null;
         try {
           const timeout = new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('stream fetch timeout')), 8000));
           const result = await Promise.race([fetchStreamsForEpisode(ep.id, meta.type), timeout]);
           const streams = result.streams as Stream[];
           if (streams.length > 0) {
-            chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs))) as Stream | null ?? currentStream;
+            chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs))) as Stream | null ?? streams[0];
           }
         } catch {}
+        if (!chosenStream) {
+          if (!closingPlayerRef.current) await onPlayerError(t('player.no_playable_url'));
+          return;
+        }
         try { await handlePlay(chosenStream, meta, ep); } catch {}
       })();
     })

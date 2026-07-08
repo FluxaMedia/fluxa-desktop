@@ -24,6 +24,7 @@ import {
   playerClearSkipInfo,
   playerSetEpisodes,
   playerSetSkipInfo,
+  playerTorrentStats,
   startTorrentStream,
   stopTorrentStream,
 } from '../core/mpvPlayer';
@@ -50,6 +51,7 @@ export type PlayerLoadingOverlayState = {
   logo?: string | null;
   title?: string;
   episodeLine?: string;
+  status?: string;
   error?: string | null;
 };
 
@@ -64,6 +66,8 @@ interface UsePlayerResult {
   playerLoadingOverlay: PlayerLoadingOverlayState | null;
   playerTitle: string | undefined;
   playerEpisodeTitle: string | undefined;
+  playerEpisode: Video | null;
+  playerUsesTorrent: boolean;
   playerPosterUrl: string | undefined;
   playerSubtitleUrl: string | undefined;
   playerStreamHeaders: Record<string, string> | undefined;
@@ -77,6 +81,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
   const [playerTitle, setPlayerTitle] = useState<string | undefined>();
   const [playerEpisodeTitle, setPlayerEpisodeTitle] = useState<string | undefined>();
+  const [playerEpisode, setPlayerEpisode] = useState<Video | null>(null);
   const [playerPosterUrl, setPlayerPosterUrl] = useState<string | undefined>();
   const [playerSubtitleUrl, setPlayerSubtitleUrl] = useState<string | undefined>();
   const [playerStreamHeaders, setPlayerStreamHeaders] = useState<Record<string, string> | undefined>();
@@ -104,6 +109,10 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   useEffect(() => { playerUsesTorrentRef.current = playerUsesTorrent; }, [playerUsesTorrent]);
   useEffect(() => { playerLoadingOverlayRef.current = playerLoadingOverlay; }, [playerLoadingOverlay]);
 
+  const setLoadingStatus = useCallback((status: string) => {
+    setPlayerLoadingOverlay((prev) => (prev ? { ...prev, status } : prev));
+  }, []);
+
   const failPlayerLoading = useCallback(async (message: string) => {
     ++playGenerationRef.current;
     const shouldStopTorrent = playerUsesTorrentRef.current;
@@ -127,14 +136,15 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerTitle(title.contentTitle);
     setPlayerEpisodeTitle(title.episodeLine ?? undefined);
     pendingArtworkRef.current = artwork;
+    setPlayerLoadingOverlay({
+      background: artwork.background,
+      logo: artwork.logo,
+      title: title.contentTitle,
+      episodeLine: title.episodeLine,
+      status: t('player.status_preparing'),
+    });
 
     if (!inNativePlayerRef.current) {
-      setPlayerLoadingOverlay({
-        background: artwork.background,
-        logo: artwork.logo,
-        title: title.contentTitle,
-        episodeLine: title.episodeLine,
-      });
       return Promise.resolve();
     }
 
@@ -167,6 +177,9 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   ) => {
     const isCancelled = () => playGenerationRef.current !== generation;
     if (isCancelled()) return;
+    if (!usesTorrent && playerUsesTorrentRef.current) {
+      await stopTorrentStream().catch(() => false);
+    }
     setPlayerTitle(title?.contentTitle);
     setPlayerUrl(url);
     setPlayerUsesTorrent(usesTorrent);
@@ -222,6 +235,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     const shouldStopTorrent = playerUsesTorrentRef.current;
     setPlayerUrl(null);
     setPlayerTitle(undefined);
+    setPlayerEpisode(null);
     setPlayerPosterUrl(undefined);
     setPlayerSubtitleUrl(undefined);
     setPlayerStreamHeaders(undefined);
@@ -355,6 +369,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     if (meta) playingMetaRef.current = meta;
     playingEpisodeRef.current = episode ?? null;
     playingStreamRef.current = stream;
+    setPlayerEpisode(episode ?? null);
 
 
     const earlyTitle = playerDisplayTitle(meta, episode, stream);
@@ -399,12 +414,11 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
 
     const title = playbackPlan?.title ?? earlyTitle;
     if (playbackPlan?.artwork) {
-      if (!inNativePlayerRef.current) {
-        pendingArtworkRef.current = playbackPlan.artwork;
-        setPlayerLoadingOverlay((prev) =>
-          prev ? { ...prev, background: playbackPlan.artwork!.background, logo: playbackPlan.artwork!.logo } : prev,
-        );
-      } else {
+      pendingArtworkRef.current = playbackPlan.artwork;
+      setPlayerLoadingOverlay((prev) =>
+        prev ? { ...prev, background: playbackPlan.artwork!.background, logo: playbackPlan.artwork!.logo } : prev,
+      );
+      if (inNativePlayerRef.current) {
         loadingArtworkPromise = embeddedMpvSetLoadingArtwork(
           title.contentTitle ?? 'Fluxa',
           title.episodeLine,
@@ -435,14 +449,33 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     debugLog(`handlePlay:anime detection confidence=${animeDetection.confidence} isAnime=${animeDetection.isAnime} reasons=${animeDetection.reasons.join(', ')}`);
 
     if (playbackPlan?.mode === 'torrent') {
+      let statusPollActive = true;
+      const pollTorrentStatus = async () => {
+        while (statusPollActive && !isCancelled()) {
+          const ts = await playerTorrentStats().catch(() => null);
+          if (!statusPollActive || isCancelled()) return;
+          const percent = ts && typeof ts.preload === 'number' ? Math.max(0, Math.min(100, Math.round(ts.preload))) : 0;
+          if (ts && ts.active_peers > 0) {
+            setLoadingStatus(t('player.status_fetching_peers', ts.active_peers, percent));
+          } else {
+            setLoadingStatus(t('player.status_fetching_torrent', percent));
+          }
+          await new Promise((r) => setTimeout(r, 700));
+        }
+      };
       try {
         debugLog('handlePlay:starting torrent stream');
+        setLoadingStatus(t('player.status_starting_torrent'));
+        void pollTorrentStatus();
         const localUrl = await startTorrentStream(JSON.stringify(stream), title.contentTitle, appPrefs(stateRef.current));
+        statusPollActive = false;
         debugLog(`handlePlay:torrent stream started localUrl=${localUrl?.slice(0, 80)}`);
         if (isCancelled()) return;
+        setLoadingStatus(t('player.status_loading_stream'));
         await playInEmbeddedMpv(generation, localUrl, title, true, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, undefined, animeDetection.isAnime);
         debugLog('handlePlay:playInEmbeddedMpv (torrent) resolved');
       } catch (err) {
+        statusPollActive = false;
         debugLog(`handlePlay:torrent path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
         if (!isCancelled()) await failPlayerLoading(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
         return;
@@ -450,6 +483,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     } else {
       try {
         debugLog('handlePlay:calling playInEmbeddedMpv');
+        setLoadingStatus(t('player.status_loading_stream'));
         await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, stream.behaviorHints?.proxyHeaders, animeDetection.isAnime);
         debugLog('handlePlay:playInEmbeddedMpv resolved');
       } catch (err) {
@@ -558,5 +592,5 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerLoadingOverlay((prev) => (prev?.error ? prev : null));
   }, []);
 
-  return { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame };
+  return { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame };
 }

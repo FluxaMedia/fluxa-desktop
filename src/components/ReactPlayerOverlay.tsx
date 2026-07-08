@@ -194,6 +194,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const netSpeedHistoryRef = useRef<number[]>([]);
   const [torrentSpeedHistory, setTorrentSpeedHistory] = useState<number[]>([]);
   const liveStatusRef = useRef<EmbeddedMpvStatus | null>(null);
+  const torrentStatsRef = useRef<TorrentStats | null>(null);
   const stallCountRef = useRef(0);
   const prevPausedForCacheRef = useRef(false);
 
@@ -497,7 +498,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       if (durationRef.current) durationRef.current.textContent = fmtTime(dur);
 
       const fraction = dur > 0 ? pos / dur : 0;
-      const bufFraction = dur > 0 ? Math.min(1, (pos + buffered) / dur) : 0;
+      const torrentProgress = isTorrentStream ? torrentStatsRef.current?.progress : undefined;
+      const bufFraction = torrentProgress != null
+        ? Math.max(0, Math.min(1, torrentProgress / 100))
+        : (dur > 0 ? Math.min(1, (pos + buffered) / dur) : 0);
 
       const seekSuppressed = Date.now() - lastSeekAtRef.current < 800 || status.seeking === 'yes';
       if (!isDraggingRef.current && !seekSuppressed) {
@@ -559,13 +563,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     }, 500);
 
     return () => clearInterval(interval);
-  }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, autoSkipSegments, flashFeedback]);
+  }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, autoSkipSegments, flashFeedback, isTorrentStream]);
 
   useEffect(() => {
     const tick = async () => {
       if (showStats && liveStatusRef.current) setStatsSnap({ ...liveStatusRef.current });
       const raw = await playerTorrentStats().catch(() => null);
       const ts = raw && typeof raw.stat === 'number' ? raw : null;
+      torrentStatsRef.current = ts;
       setTorrentStatsSnap(ts);
       if (ts) setTorrentSpeedHistory((h) => [...h.slice(-(SPARKLINE_MAX_SAMPLES - 1)), ts.download_speed]);
     };

@@ -8,6 +8,7 @@ interface Props {
   logo?: string | null;
   title?: string;
   episodeLine?: string;
+  status?: string;
   error?: string | null;
   onBack?: () => void;
 }
@@ -15,7 +16,7 @@ interface Props {
 const BUFFER_TARGET_SECS = 5;
 const MIN_VISIBLE_PROGRESS = 0.045;
 
-export function PlayerLoadingOverlay({ background, logo, title, episodeLine, error, onBack }: Props) {
+export function PlayerLoadingOverlay({ background, logo, title, episodeLine, status, error, onBack }: Props) {
   const [hasMeasuredProgress, setHasMeasuredProgress] = useState(false);
   const [progress, setProgress] = useState(0);
   const [motionMs, setMotionMs] = useState(0);
@@ -214,6 +215,20 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, err
             }}
           >
             {episodeLine}
+          </p>
+        )}
+        {!failed && status && (
+          <p
+            style={{
+              color: 'rgba(255,255,255,0.4)',
+              fontSize: 12.5,
+              fontWeight: 600,
+              letterSpacing: 0.2,
+              marginTop: 10,
+              textShadow: '0 1px 8px rgba(0,0,0,0.8)',
+            }}
+          >
+            {status}
           </p>
         )}
         {failed && (
