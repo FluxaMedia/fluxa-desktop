@@ -50,8 +50,6 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
   const [visible, setVisible] = useState(true);
   const [bgError, setBgError] = useState(false);
   const [logoError, setLogoError] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [cycle, setCycle] = useState(0);
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeIndexRef = useRef(activeIndex);
   activeIndexRef.current = activeIndex;
@@ -102,7 +100,7 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     setTrailerReady(false);
     setTrailerProgress(0);
     setTrailerLoading(false);
-    if (!autoplayTrailer || !isActive || paused || !trailerVideoId) return;
+    if (!autoplayTrailer || !isActive || !trailerVideoId) return;
     let cancelled = false;
     const id = window.setTimeout(() => {
       setTrailerLoading(true);
@@ -122,7 +120,7 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
       cancelled = true;
       window.clearTimeout(id);
     };
-  }, [activeMeta.id, trailerVideoId, autoplayTrailer, autoplayTrailerDelaySecs, isActive, paused]);
+  }, [activeMeta.id, trailerVideoId, autoplayTrailer, autoplayTrailerDelaySecs, isActive]);
 
   useEffect(() => {
     if (!trailerStreamUrl) return;
@@ -154,12 +152,12 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
   }
 
   useEffect(() => {
-    if (!canSlide || !isActive || paused || trailerPending) return;
+    if (!canSlide || !isActive || trailerPending) return;
     const id = window.setInterval(() => {
       slideToIndex(activeIndexRef.current + 1);
     }, SLIDE_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [canSlide, items.length, isActive, paused, trailerPending]);
+  }, [canSlide, items.length, isActive, trailerPending]);
 
   useEffect(() => {
     if (!canSlide) return;
@@ -191,8 +189,6 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
       style={styles.hero}
       tabIndex={canSlide ? 0 : -1}
       onKeyDown={handleKeyDown}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => { setPaused(false); setCycle((c) => c + 1); }}
     >
       <style>{keyframes}</style>
       {bgUrl && (
@@ -206,7 +202,7 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
             ...contentStyle,
             opacity: visible ? (trailerActive ? 0 : 1) : 0,
             transition: 'opacity 0.6s ease',
-            animationPlayState: paused || trailerActive ? 'paused' : 'running',
+            animationPlayState: trailerActive ? 'paused' : 'running',
           }}
           onError={() => setBgError(true)}
         />
@@ -321,14 +317,14 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
                   onClick={() => goTo(i)}
                 >
                   <span
-                    key={i === activeIndex ? `${activeIndex}-${cycle}` : `${i}-static`}
+                    key={i === activeIndex ? `${activeIndex}` : `${i}-static`}
                     style={{
                       ...styles.indicatorFill,
                       ...(i < activeIndex ? styles.indicatorFillDone : null),
                       ...(i === activeIndex
                         ? {
                             animation: `heroIndicatorFill ${SLIDE_INTERVAL_MS}ms linear forwards`,
-                            animationPlayState: paused || trailerPending ? 'paused' : 'running',
+                            animationPlayState: trailerPending ? 'paused' : 'running',
                           }
                         : null),
                     }}
