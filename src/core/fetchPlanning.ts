@@ -35,12 +35,14 @@ export async function fetchParsedAddonResource(
   kind: unknown,
   addonName?: unknown,
   season?: unknown,
+  signal?: AbortSignal,
 ): Promise<Record<string, unknown> | null> {
   let statusCode = 0;
   let body: string | null = null;
   try {
     const response = await platformFetch(url, {
       headers: { 'User-Agent': `Fluxa/${_appVersion}` },
+      signal,
     });
     statusCode = response.status;
     body = await response.text();
@@ -68,6 +70,7 @@ export async function fetchParsedAddonResource(
 export async function fetchPlannedResources(
   request: Record<string, unknown>,
   onPartialResult?: (result: unknown) => void,
+  signal?: AbortSignal,
 ): Promise<unknown[]> {
   const plan = await coreResourceFetchPlan(request);
   const requests = (plan?.requests ?? []) as FetchPlanRequest[];
@@ -91,6 +94,7 @@ export async function fetchPlannedResources(
             item.kind,
             item.addonName,
             request.season,
+            signal,
           );
           if (!isNonEmpty(parsed)) throw new Error('empty');
           return parsed;
@@ -117,6 +121,7 @@ export async function fetchPlannedResources(
         item.kind,
         item.addonName,
         request.season,
+        signal,
       );
       if (parsed) {
         values.push(parsed);

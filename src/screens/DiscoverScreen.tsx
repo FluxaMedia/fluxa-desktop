@@ -46,15 +46,10 @@ function itemYear(m: Meta): number | null {
   return Number.isFinite(y) && y > 1800 ? y : null;
 }
 
-let lastDiscoverFetch: { contentType: string; sortBy: string; genre: string | null } | null = null;
 const discoverResultsCache = new Map<string, Meta[]>();
 
 function cacheKey(contentType: string, sortBy: string, genre: string | null): string {
   return `${contentType}|${sortBy}|${genre ?? ''}`;
-}
-
-export function warmDiscoverCache(contentType: string, sortBy: string, genre: string | null) {
-  lastDiscoverFetch = { contentType, sortBy, genre };
 }
 
 function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre }: Props) {
@@ -72,6 +67,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
   const key = cacheKey(contentType, sortBy, genre);
   const cachedResults = discoverResultsCache.get(key) ?? null;
   const staleResultsRef = useRef<Meta[]>(cachedResults ?? []);
+  const lastDispatchedKeyRef = useRef<string | null>(null);
   const [streamingItems, setStreamingItems] = useState<Meta[]>([]);
   const streamingAccRef = useRef<Meta[]>([]);
   const streamingFlushTimerRef = useRef<number | null>(null);
@@ -84,17 +80,14 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
     ?.options ?? FALLBACK_GENRES;
 
   useEffect(() => {
-    const cached = discoverResultsCache.get(cacheKey(contentType, sortBy, genre));
-    const sameParams = lastDiscoverFetch?.contentType === contentType
-      && lastDiscoverFetch?.sortBy === sortBy
-      && lastDiscoverFetch?.genre === genre;
-    if (cached && sameParams) return;
-    lastDiscoverFetch = { contentType, sortBy, genre };
+    if (discoverResultsCache.has(key)) return;
+    lastDispatchedKeyRef.current = key;
     onDispatch(JSON.stringify({ type: 'discoverRequested', contentType, sortBy, genre, language: getLanguage() }));
   }, [contentType, sortBy, genre]);
 
   const results = useMemo(() => (discover.results ?? []) as Meta[], [discover.results]);
-  if (results.length > 0) {
+  const resultsMatchCurrentKey = lastDispatchedKeyRef.current === key;
+  if (results.length > 0 && resultsMatchCurrentKey) {
     staleResultsRef.current = results;
     discoverResultsCache.set(key, results);
   }
@@ -128,11 +121,11 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
       }
       setDiscoverPartialHandler(null);
     };
-  }, [discover.isLoading]);
+  }, [discover.isLoading, contentType, sortBy, genre]);
 
   const displayResults = discover.isLoading
     ? (streamingItems.length > 0 ? streamingItems : staleResultsRef.current)
-    : (results.length > 0 ? results : (cachedResults ?? staleResultsRef.current));
+    : (resultsMatchCurrentKey && results.length > 0 ? results : (cachedResults ?? staleResultsRef.current));
 
   const filteredResults = useMemo(() => {
     if (!yearBucket && minRating === null) return displayResults;
