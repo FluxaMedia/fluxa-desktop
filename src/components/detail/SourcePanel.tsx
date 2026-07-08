@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { t } from '../../i18n';
 import { EP, MS, SS, spinnerStyle } from './detailStyles';
 import type { Meta, Stream, Video } from '../../core/types';
@@ -37,6 +38,79 @@ export const SourceRow = React.memo(function SourceRow({ stream, onClick }: { st
   );
 });
 
+function AddonFilterPills({ addonNames, selectedAddon, onSelect, style }: {
+  addonNames: string[];
+  selectedAddon: string | null;
+  onSelect: (addon: string | null) => void;
+  style?: React.CSSProperties;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll, { passive: true });
+    const ro = new ResizeObserver(checkScroll);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', checkScroll);
+      ro.disconnect();
+    };
+  }, [checkScroll, addonNames.length]);
+
+  return (
+    <div style={{ position: 'relative', ...style }}>
+      {canScrollLeft && (
+        <PillScrollArrow direction="left" onClick={() => scrollRef.current?.scrollBy({ left: -160, behavior: 'smooth' })} />
+      )}
+      <div ref={scrollRef} style={EP.sourcePills}>
+        <button style={{ ...(selectedAddon === null ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none', flexShrink: 0 }} onClick={() => onSelect(null)}>{t('auto.all')}</button>
+        {addonNames.map((addon) => (
+          <button
+            key={addon}
+            style={{ ...(selectedAddon === addon ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none', flexShrink: 0 }}
+            onClick={() => onSelect(selectedAddon === addon ? null : addon)}
+          >{addon}</button>
+        ))}
+      </div>
+      {canScrollRight && (
+        <PillScrollArrow direction="right" onClick={() => scrollRef.current?.scrollBy({ left: 160, behavior: 'smooth' })} />
+      )}
+    </div>
+  );
+}
+
+function PillScrollArrow({ direction, onClick }: { direction: 'left' | 'right'; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  const isLeft = direction === 'left';
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'absolute', top: 0, bottom: '0.75rem', [direction]: 0, zIndex: 2,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: '1.625rem', border: 'none', cursor: 'pointer', padding: 0,
+        background: hovered ? 'rgba(20,22,32,0.95)' : 'rgba(12,13,24,0.85)',
+        color: '#FFF',
+      }}
+    >
+      {isLeft ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
+    </button>
+  );
+}
+
 export function MovieSourcePanel({
   meta,
   streams,
@@ -53,6 +127,10 @@ export function MovieSourcePanel({
   onClose?: () => void;
 }) {
   const [selectedAddon, setSelectedAddon] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedAddon(null);
+  }, [meta.id]);
 
   const addonNames = useMemo(
     () => [...new Set(streams.map((s) => s.addonName).filter((n): n is string => !!n))],
@@ -79,16 +157,12 @@ export function MovieSourcePanel({
       </div>
 
       {(isLoading || addonNames.length > 0) && (
-        <div style={{ ...EP.sourcePills, padding: '0.625rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-          <button style={{ ...(selectedAddon === null ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none' }} onClick={() => setSelectedAddon(null)}>{t('auto.all')}</button>
-          {addonNames.map((addon) => (
-            <button
-              key={addon}
-              style={{ ...(selectedAddon === addon ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none' }}
-              onClick={() => setSelectedAddon(selectedAddon === addon ? null : addon)}
-            >{addon}</button>
-          ))}
-        </div>
+        <AddonFilterPills
+          addonNames={addonNames}
+          selectedAddon={selectedAddon}
+          onSelect={setSelectedAddon}
+          style={{ padding: '0.625rem 1rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}
+        />
       )}
 
       <div style={EP.inlineSources}>
@@ -130,6 +204,10 @@ export function InlineSourceList({
 }) {
   const [selectedAddon, setSelectedAddon] = useState<string | null>(null);
 
+  useEffect(() => {
+    setSelectedAddon(null);
+  }, [episode.id]);
+
   const addonNames = useMemo(
     () => [...new Set(streams.map((s) => s.addonName).filter((n): n is string => !!n))],
     [streams],
@@ -163,16 +241,12 @@ export function InlineSourceList({
       </div>
 
       {(isLoading || addonNames.length > 0) && (
-        <div style={{ ...EP.sourcePills, padding: '0 1rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
-          <button style={{ ...(selectedAddon === null ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none' }} onClick={() => setSelectedAddon(null)}>{t('auto.all')}</button>
-          {addonNames.map((addon) => (
-            <button
-              key={addon}
-              style={{ ...(selectedAddon === addon ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none' }}
-              onClick={() => setSelectedAddon(selectedAddon === addon ? null : addon)}
-            >{addon}</button>
-          ))}
-        </div>
+        <AddonFilterPills
+          addonNames={addonNames}
+          selectedAddon={selectedAddon}
+          onSelect={setSelectedAddon}
+          style={{ padding: '0 1rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}
+        />
       )}
 
       <div style={EP.inlineSources}>
