@@ -4,7 +4,7 @@ import { VirtualizedPosterGrid } from '../components/VirtualizedPosterGrid';
 import { FilterDropdown } from '../components/FilterDropdown';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefString } from '../core/appPrefs';
-import { effectiveCatalogId, exportCollectionsJson, importCollectionsJson } from '../core/collections';
+import { effectiveCatalogId, effectiveCatalogType, exportCollectionsJson, importCollectionsJson } from '../core/collections';
 import { getViewPrefs, setViewPref, whenViewPrefsReady } from '../core/viewPrefs';
 import { saveProfile } from '../core/profiles';
 import type { AppState, HomeCategory, LibraryItem, Meta, UserCollection, UserCollectionFolder, UserProfile } from '../core/types';
@@ -51,7 +51,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
 
   const changeTab = (v: Tab) => { setTab(v); setViewPref('libraryTab', v); };
   const changeSort = (v: 'recent' | 'title' | 'rating') => { setSortBy(v); setViewPref('librarySort', v); };
-  const [viewAllFolder, setViewAllFolder] = useState<{ title: string; items: Meta[] } | null>(null);
+  const [viewAllFolder, setViewAllFolder] = useState<{ title: string; items: Meta[]; groups: Array<{ type: string; items: Meta[] }> } | null>(null);
   const collectionsScrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
 
@@ -87,13 +87,25 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   const collections: UserCollection[] = activeProfile?.libraryCollections ?? [];
   const homeCategories: HomeCategory[] = state.home.categories ?? [];
 
-  function getItemsForFolder(folder: UserCollectionFolder): Meta[] {
-    const catId = effectiveCatalogId(folder);
-    if (!catId) return [];
-    const cat = homeCategories.find((c) => c.id === catId || c.catalogId === catId);
-    if (!cat) return [];
-    if (!folder.genre) return cat.items;
-    return cat.items.filter((m) => m.genres?.some((g) => g.toLowerCase() === folder.genre!.toLowerCase()));
+  function getItemsForFolder(folder: UserCollectionFolder): { items: Meta[]; groups: Array<{ type: string; items: Meta[] }> } {
+    const sources = folder.catalogSources?.length
+      ? folder.catalogSources
+      : effectiveCatalogId(folder)
+        ? [{ catalogId: effectiveCatalogId(folder)!, type: effectiveCatalogType(folder) ?? '' }]
+        : [];
+    const groupsByType = new Map<string, Meta[]>();
+    for (const source of sources) {
+      const cat = homeCategories.find((c) => c.id === source.catalogId || c.catalogId === source.catalogId);
+      if (!cat) continue;
+      const items = folder.genre
+        ? cat.items.filter((m) => m.genres?.some((g) => g.toLowerCase() === folder.genre!.toLowerCase()))
+        : cat.items;
+      const existing = groupsByType.get(source.type);
+      if (existing) existing.push(...items);
+      else groupsByType.set(source.type, [...items]);
+    }
+    const groups = Array.from(groupsByType, ([type, items]) => ({ type, items }));
+    return { items: groups.flatMap((g) => g.items), groups };
   }
 
   async function saveCollections(next: UserCollection[]) {
@@ -135,6 +147,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
       <CategoryGridScreen
         title={viewAllFolder.title}
         items={viewAllFolder.items}
+        groups={viewAllFolder.groups}
         posterPrefs={posterPrefs}
         onNavigateDetail={onNavigateDetail}
         onBack={() => setViewAllFolder(null)}
@@ -376,7 +389,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
             accent={accent}
             onFolderClick={(folder, folderTitle) => {
               savedScrollRef.current = collectionsScrollRef.current?.scrollTop ?? 0;
-              setViewAllFolder({ title: folderTitle, items: getItemsForFolder(folder) });
+              setViewAllFolder({ title: folderTitle, ...getItemsForFolder(folder) });
             }}
             onEditCollection={(col) => setEditingCollection(col)}
             onDeleteCollection={(id) => void handleDeleteCollection(id)}

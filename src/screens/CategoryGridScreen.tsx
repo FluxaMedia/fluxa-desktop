@@ -1,17 +1,25 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, LayoutGrid, Play, Plus } from 'lucide-react';
 import type { Meta } from '../core/types';
 import type { PosterPrefs } from '../core/posterPrefs';
+import { ModernTabBar } from '../components/detail/DetailButtons';
 import { t } from '../i18n';
 
 interface Props {
   title: string;
   items: Meta[];
+  groups?: Array<{ type: string; items: Meta[] }>;
   isLoading?: boolean;
   posterPrefs: PosterPrefs;
   onNavigateDetail: (meta: Meta) => void;
   onBack: () => void;
   onDispatch: (a: string) => void;
+}
+
+function labelForType(type: string): string {
+  if (type === 'movie') return t('auto.movies');
+  if (type === 'series') return t('auto.series');
+  return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 const GRID_PADDING_X = 24;
@@ -22,13 +30,23 @@ const GRID_GAP_Y = 28;
 const GRID_MIN_COLUMN_WIDTH = 150;
 const GRID_OVERSCAN_ROWS = 3;
 const SCROLL_HOVER_IDLE_MS = 180;
-const SCROLL_IMAGE_IDLE_MS = 240;
 
-export function CategoryGridScreen({ title, items, isLoading = false, posterPrefs, onNavigateDetail, onBack, onDispatch }: Props) {
+export function CategoryGridScreen({ title, items, groups, isLoading = false, posterPrefs, onNavigateDetail, onBack, onDispatch }: Props) {
   const [hoveredMeta, setHoveredMeta] = useState<Meta | null>(null);
   const [selectedMeta, setSelectedMeta] = useState<Meta | null>(null);
+  const [activeTab, setActiveTab] = useState('all');
   const isGridScrollingRef = useRef(false);
   const scrollIdleTimerRef = useRef<number | null>(null);
+
+  const showTabs = (groups?.length ?? 0) > 1;
+  const tabs = useMemo(
+    () => [{ id: 'all', label: t('auto.all') }, ...(groups ?? []).map((g) => ({ id: g.type, label: labelForType(g.type) }))],
+    [groups],
+  );
+  const gridItems = useMemo(
+    () => (showTabs && activeTab !== 'all' ? groups!.find((g) => g.type === activeTab)?.items ?? [] : items),
+    [showTabs, activeTab, groups, items],
+  );
 
   const panelMeta = hoveredMeta ?? selectedMeta;
 
@@ -73,8 +91,14 @@ export function CategoryGridScreen({ title, items, isLoading = false, posterPref
             <ChevronLeft size={20} />
           </button>
           <h2 style={S.title}>{title}</h2>
-          {!isLoading && <span style={S.count}>{items.length} {t('auto.titles') ?? 'titles'}</span>}
+          {!isLoading && <span style={S.count}>{gridItems.length} {t('auto.titles')}</span>}
         </div>
+
+        {showTabs && (
+          <div style={S.tabBarWrap}>
+            <ModernTabBar tabs={tabs} active={activeTab} onChange={setActiveTab} />
+          </div>
+        )}
 
         {isLoading && items.length === 0 ? (
           <div style={S.loadingGrid}>
@@ -84,7 +108,7 @@ export function CategoryGridScreen({ title, items, isLoading = false, posterPref
           </div>
         ) : (
           <VirtualizedPosterGrid
-            items={items}
+            items={gridItems}
             selectedId={panelMeta?.id ?? null}
             posterPrefs={posterPrefs}
             onHover={handlePosterHover}
@@ -220,9 +244,7 @@ function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClic
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
-  const imageIdleTimerRef = useRef<number | null>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0, scrollTop: 0 });
-  const [renderImages, setRenderImages] = useState(true);
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -237,7 +259,6 @@ function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClic
   useEffect(() => {
     return () => {
       if (rafRef.current != null) window.cancelAnimationFrame(rafRef.current);
-      if (imageIdleTimerRef.current != null) window.clearTimeout(imageIdleTimerRef.current);
     };
   }, []);
 
@@ -265,13 +286,6 @@ function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClic
 
   const handleScroll = () => {
     onScrollActivity();
-    setRenderImages(false);
-    if (imageIdleTimerRef.current != null) window.clearTimeout(imageIdleTimerRef.current);
-    imageIdleTimerRef.current = window.setTimeout(() => {
-      imageIdleTimerRef.current = null;
-      setRenderImages(true);
-    }, SCROLL_IMAGE_IDLE_MS);
-
     const node = scrollRef.current;
     if (!node || rafRef.current != null) return;
     rafRef.current = window.requestAnimationFrame(() => {
@@ -292,7 +306,6 @@ function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClic
                 meta={item}
                 selected={selectedId === item.id}
                 posterPrefs={posterPrefs}
-                renderImage={renderImages}
                 onHover={onHover}
                 onClick={onClick}
               />
@@ -304,8 +317,8 @@ function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClic
   );
 }
 
-const PosterCard = React.memo(function PosterCard({ meta, selected, posterPrefs, renderImage, onHover, onClick }: {
-  meta: Meta; selected: boolean; posterPrefs: PosterPrefs; renderImage: boolean;
+const PosterCard = React.memo(function PosterCard({ meta, selected, posterPrefs, onHover, onClick }: {
+  meta: Meta; selected: boolean; posterPrefs: PosterPrefs;
   onHover: (m: Meta | null) => boolean; onClick: (m: Meta) => void;
 }) {
   const [imgErr, setImgErr] = useState(false);
@@ -325,7 +338,7 @@ const PosterCard = React.memo(function PosterCard({ meta, selected, posterPrefs,
         borderRadius: posterPrefs.radius, overflow: 'hidden', background: '#1B212B',
         outline: selected ? '0.1875rem solid rgba(255,255,255,0.9)' : 'none',
       }}>
-        {renderImage && src && !imgErr ? (
+        {src && !imgErr ? (
           <img src={src} alt={meta.name} loading="lazy" decoding="async"
             style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             onError={() => setImgErr(true)} />
@@ -388,6 +401,10 @@ const S: Record<string, React.CSSProperties> = {
   count: {
     color: 'rgba(255,255,255,0.35)', fontSize: '0.8125rem',
     fontWeight: 500, marginLeft: '0.25rem',
+  },
+  tabBarWrap: {
+    padding: '0.875rem 1.5rem 0',
+    flexShrink: 0,
   },
   loadingGrid: {
     flex: 1,
