@@ -92,17 +92,18 @@ export function MovieSourcePanel({
       )}
 
       <div style={EP.inlineSources}>
-        {isLoading && <div style={SS.center}><div style={spinnerStyle} /></div>}
+        {isLoading && visibleStreams.length === 0 && <div style={SS.center}><div style={spinnerStyle} /></div>}
         {!isLoading && visibleStreams.length === 0 && (
           <div style={SS.center}>
             <p style={SS.emptyText}>{availableAddons.length === 0 ? t('sources.no_stream_addons') : t('auto.no_sources_found_3019f12c')}</p>
           </div>
         )}
-        {!isLoading && visibleStreams.length > 0 && (
+        {visibleStreams.length > 0 && (
           <div style={EP.inlineStreamList}>
             {visibleStreams.map((stream, i) => (
               <SourceRow key={`${stream.url ?? stream.infoHash ?? i}`} stream={stream} onClick={() => onPlay(stream)} />
             ))}
+            {isLoading && <div style={{ ...SS.center, padding: '1rem 0' }}><div style={{ ...spinnerStyle, width: '1.25rem', height: '1.25rem' }} /></div>}
           </div>
         )}
       </div>
@@ -175,17 +176,18 @@ export function InlineSourceList({
       )}
 
       <div style={EP.inlineSources}>
-        {isLoading && <div style={SS.center}><div style={spinnerStyle} /></div>}
+        {isLoading && visibleStreams.length === 0 && <div style={SS.center}><div style={spinnerStyle} /></div>}
         {!isLoading && visibleStreams.length === 0 && (
           <div style={SS.center}>
             <p style={SS.emptyText}>{availableAddons.length === 0 ? t('sources.no_stream_addons') : t('auto.no_sources_found_3019f12c')}</p>
           </div>
         )}
-        {!isLoading && visibleStreams.length > 0 && (
+        {visibleStreams.length > 0 && (
           <div style={EP.inlineStreamList}>
             {visibleStreams.map((stream, i) => (
               <SourceRow key={`${stream.url ?? stream.infoHash ?? i}`} stream={stream} onClick={() => onPlay(stream)} />
             ))}
+            {isLoading && <div style={{ ...SS.center, padding: '1rem 0' }}><div style={{ ...spinnerStyle, width: '1.25rem', height: '1.25rem' }} /></div>}
           </div>
         )}
       </div>
