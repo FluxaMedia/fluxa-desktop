@@ -38,6 +38,7 @@ import { PlaybackSection } from '../components/settings/PlaybackSection';
 import { ContentSection } from '../components/settings/ContentSection';
 import { AddonsSection } from '../components/settings/AddonsSection';
 import { DownloadsSection } from '../components/settings/DownloadsSection';
+import { AddonAddedDialog } from '../components/AddonAddedDialog';
 
 function mergeAddons(existing: AddonDescriptor[], incoming: AddonDescriptor[]): AddonDescriptor[] {
   const merged = new Map<string, AddonDescriptor>();
@@ -140,6 +141,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
   const [settingsQuery, setSettingsQuery] = useState('');
   const [installedAddons, setInstalledAddons] = useState<AddonDescriptor[]>([]);
   const [addonInstallStatus, setAddonInstallStatus] = useState<{ loading: boolean; error: string | null }>({ loading: false, error: null });
+  const [addedAddonName, setAddedAddonName] = useState<string | null>(null);
 
   useEffect(() => {
     storageRead<Prefs>('prefs').then((p) => {
@@ -233,6 +235,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
       setInstalledAddons(updated);
       setAddonUrl('');
       setAddonInstallStatus({ loading: false, error: null });
+      setAddedAddonName(normalizedAddon.manifest?.name || normalizedAddon.transportUrl);
       onDispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false, profile: activeProfile ?? null }));
       onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: prefs.language, profile: activeProfile ?? null }));
     } catch (error) {
@@ -384,6 +387,9 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
         )}
         {tab === 'downloads' && <DownloadsSection prefs={prefs} setPref={setPref} />}
       </div>
+      {addedAddonName && (
+        <AddonAddedDialog addonName={addedAddonName} onConfirm={() => setAddedAddonName(null)} />
+      )}
     </div>
   );
 }
