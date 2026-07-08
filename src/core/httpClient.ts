@@ -12,8 +12,9 @@ export async function platformFetch(url: string, init?: RequestInit): Promise<Re
   // Stremio-compatible addons require CORS headers (Access-Control-Allow-Origin: *)
   // so this works for all addon catalog/resource requests.
   // Fall back to tauriFetch for authenticated API calls or CORS-restricted endpoints.
+  const { ['User-Agent']: _omitted, ...nativeHeaders } = (init?.headers ?? {}) as Record<string, string>;
   try {
-    return await fetch(url, { ...init, signal });
+    return await fetch(url, { ...init, headers: nativeHeaders, signal });
   } catch {
     return tauriFetch(url, { ...init, signal });
   }
