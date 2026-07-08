@@ -405,6 +405,11 @@ export default function App() {
     ['--primary-accent-foreground-color' as string]: accentForegroundColor(accentColor),
   } as React.CSSProperties), [nativePlayerActive, prefs, accentColor]);
 
+  React.useEffect(() => {
+    document.documentElement.style.setProperty('--primary-accent-color', accentColor);
+    document.documentElement.style.setProperty('--primary-accent-foreground-color', accentForegroundColor(accentColor));
+  }, [accentColor]);
+
   if (!ready || !profilesChecked) {
     return (
       <div style={appStyles.loading}>
