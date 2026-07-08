@@ -227,6 +227,8 @@ export default function App() {
     proceed();
   }, [handlePlay, stateRef]);
 
+  const [homeResetKey, setHomeResetKey] = useState(0);
+
   const navigateRoute = useCallback((route: NavRoute) => {
     if (route !== 'settings') {
       lastNonSettingsRouteRef.current = route;
@@ -237,6 +239,9 @@ export default function App() {
       lastNonSearchRouteRef.current = route;
     } else if (activeRoute !== 'search' && activeRoute !== 'settings') {
       lastNonSearchRouteRef.current = activeRoute;
+    }
+    if (route === 'home') {
+      setHomeResetKey((k) => k + 1);
     }
     setActiveRoute(route);
     setDetailMeta(null);
@@ -617,6 +622,7 @@ export default function App() {
             onResume={handleResumeFromContinueWatching}
             isActive={!showDetail && activeRoute === 'home'}
             onScrolledChange={setHomeScrolled}
+            resetKey={homeResetKey}
           />
         </div>
         {!showDetail && activeRoute === 'calendar' && (

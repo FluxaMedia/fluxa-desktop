@@ -26,9 +26,17 @@ interface Props {
   // auto-slide interval rather than keep cycling backdrop images forever in the background.
   isActive: boolean;
   onScrolledChange?: (scrolled: boolean) => void;
+  // Bumped when the user clicks "Home" while already on the home route, so we can
+  // exit a folder's "view all" grid rather than doing nothing.
+  resetKey?: number;
 }
 
-async function loadFolderItems(folderCategory: HomeCategory): Promise<Meta[]> {
+interface FolderItemsResult {
+  items: Meta[];
+  groups: Array<{ type: string; items: Meta[] }>;
+}
+
+async function loadFolderItems(folderCategory: HomeCategory): Promise<FolderItemsResult> {
   const sources = folderCategory.catalogSources ?? [];
   const batches = await Promise.all(
     sources.map(async (source) => {
@@ -38,21 +46,35 @@ async function loadFolderItems(folderCategory: HomeCategory): Promise<Meta[]> {
         const res = await httpFetchText(url);
         if (res.statusCode === 200) {
           const data = JSON.parse(res.body) as { metas?: unknown };
-          return Array.isArray(data?.metas) ? data.metas as Meta[] : [];
+          return { type: source.type, items: Array.isArray(data?.metas) ? data.metas as Meta[] : [] };
         }
       } catch { /* skip failed source */ }
-      return [];
+      return { type: source.type, items: [] as Meta[] };
     }),
   );
-  return batches.flat();
+  const groupsByType = new Map<string, Meta[]>();
+  for (const batch of batches) {
+    const existing = groupsByType.get(batch.type);
+    if (existing) existing.push(...batch.items);
+    else groupsByType.set(batch.type, [...batch.items]);
+  }
+  return {
+    items: batches.flatMap((b) => b.items),
+    groups: Array.from(groupsByType, ([type, items]) => ({ type, items })),
+  };
 }
 
-export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, onOpenSettings, isActive, onScrolledChange }: Props) {
+export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, onOpenSettings, isActive, onScrolledChange, resetKey }: Props) {
   const home = state.home;
-  const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[] } | null>(null);
+  const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[]; groups?: Array<{ type: string; items: Meta[] }> } | null>(null);
   const [folderLoading, setFolderLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
+
+  useEffect(() => {
+    if (resetKey === undefined) return;
+    setViewAllCategory(null);
+  }, [resetKey]);
 
   useLayoutEffect(() => {
     if (!viewAllCategory && scrollRef.current) scrollRef.current.scrollTop = savedScrollRef.current;
@@ -75,8 +97,8 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     setViewAllCategory({ title: folderMeta.name, items: [] });
     setFolderLoading(true);
     try {
-      const items = await loadFolderItems(folderCat);
-      if (items.length) setViewAllCategory({ title: folderMeta.name, items });
+      const { items, groups } = await loadFolderItems(folderCat);
+      if (items.length) setViewAllCategory({ title: folderMeta.name, items, groups });
       else setViewAllCategory(null);
     } finally {
       setFolderLoading(false);
@@ -208,6 +230,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
       <CategoryGridScreen
         title={viewAllCategory.title}
         items={viewAllCategory.items}
+        groups={viewAllCategory.groups}
         isLoading={folderLoading}
         posterPrefs={posterPrefs}
         onNavigateDetail={onNavigateDetail}
@@ -290,7 +313,8 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   prev.onPlay === next.onPlay &&
   prev.onResume === next.onResume &&
   prev.onOpenSettings === next.onOpenSettings &&
-  prev.isActive === next.isActive,
+  prev.isActive === next.isActive &&
+  prev.resetKey === next.resetKey,
 );
 
 function formatCatalogTitle(name: string, type: string): string {
