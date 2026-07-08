@@ -106,10 +106,9 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
 
   const handleSuggestionClick = (meta: Meta) => {
     setRecentSearches((current) => addRecentSearch(inputValue.trim(), current));
-    onNavigateDetail(meta);
     setExpanded(false);
     setInputValue('');
-    onSearch('');
+    onNavigateDetail(meta);
   };
 
   const handleRecentClick = (value: string) => {
