@@ -57,6 +57,24 @@ export async function resolveYoutubeTrailerUrl(videoId: string): Promise<string 
   return invoke<string | null>('resolve_youtube_trailer_url', { videoId });
 }
 
+export interface YoutubeTrailerSubtitleTrack {
+  languageTag: string;
+  label: string;
+  url: string;
+  mimeType: string;
+  isAuto: boolean;
+}
+
+export interface YoutubeTrailerResolution {
+  status: 'ok';
+  streamUrl: string;
+  subtitles?: YoutubeTrailerSubtitleTrack[];
+}
+
+export async function resolveYoutubeTrailer(videoId: string): Promise<YoutubeTrailerResolution | null> {
+  return invoke<YoutubeTrailerResolution | null>('resolve_youtube_trailer', { videoId });
+}
+
 export async function prewarmYoutubeTrailerConfig(): Promise<void> {
   return invoke<void>('prewarm_youtube_trailer_config');
 }

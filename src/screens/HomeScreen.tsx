@@ -230,6 +230,8 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
           isActive={isActive}
           autoplayTrailer={autoplayTrailerEnabled}
           autoplayTrailerDelaySecs={Number(prefString(prefs, 'homeHeroAutoplayTrailerDelaySecs', '4'))}
+          preferredSubtitleLanguage={prefString(prefs, 'preferredSubtitleLanguage', 'none')}
+          secondarySubtitleLanguage={prefString(prefs, 'secondarySubtitleLanguage', 'none')}
         />
       )}
 
@@ -365,7 +367,7 @@ function EmptyHome({ onOpenSettings }: { onOpenSettings?: () => void }) {
   );
 }
 
-const HOME_HERO_HEIGHT = 'clamp(33.75rem, 58vh, 47.5rem)';
+const HOME_HERO_HEIGHT = 'clamp(38rem, 66vh, 54rem)';
 
 const styles: Record<string, React.CSSProperties> = {
   screen: {

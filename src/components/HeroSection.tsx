@@ -2,9 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Info, Play, Plus } from 'lucide-react';
 import { seasonPosterUrl } from '../core/seasonPosters';
 import { youtubeVideoId } from './detail/TrailerCarousel';
-import { resolveYoutubeTrailerUrl } from '../core/engine';
+import { httpFetchText, resolveYoutubeTrailer, type YoutubeTrailerSubtitleTrack } from '../core/engine';
 import type { Meta } from '../core/types';
 import { t } from '../i18n';
+
+type TrailerCue = {
+  start: number;
+  end: number;
+  text: string;
+};
 
 interface Props {
   meta: Meta;
@@ -16,6 +22,8 @@ interface Props {
   isActive?: boolean;
   autoplayTrailer?: boolean;
   autoplayTrailerDelaySecs?: number;
+  preferredSubtitleLanguage?: string;
+  secondarySubtitleLanguage?: string;
 }
 
 const SLIDE_INTERVAL_MS = 6500;
@@ -35,7 +43,19 @@ const keyframes = `
 }
 `;
 
-export const HeroSection = React.memo(function HeroSection({ meta, slides, onPlay, onDetails, onAddToWatchlist, preferSeasonPosters = false, isActive = true, autoplayTrailer = false, autoplayTrailerDelaySecs = 4 }: Props) {
+export const HeroSection = React.memo(function HeroSection({
+  meta,
+  slides,
+  onPlay,
+  onDetails,
+  onAddToWatchlist,
+  preferSeasonPosters = false,
+  isActive = true,
+  autoplayTrailer = false,
+  autoplayTrailerDelaySecs = 4,
+  preferredSubtitleLanguage,
+  secondarySubtitleLanguage,
+}: Props) {
   const items = useMemo(() => {
     const seen = new Set<string>();
     return [meta, ...(slides ?? [])].filter((item) => {
@@ -67,12 +87,21 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     return null;
   }, [activeMeta.trailers]);
   const [trailerStreamUrl, setTrailerStreamUrl] = useState<string | null>(null);
+  const [trailerSubtitles, setTrailerSubtitles] = useState<YoutubeTrailerSubtitleTrack[]>([]);
+  const [trailerSubtitleCues, setTrailerSubtitleCues] = useState<TrailerCue[]>([]);
+  const [activeTrailerSubtitle, setActiveTrailerSubtitle] = useState('');
   const [trailerReady, setTrailerReady] = useState(false);
   const [trailerLoading, setTrailerLoading] = useState(false);
   const [trailerProgress, setTrailerProgress] = useState(0);
   const lastTrailerProgressAtRef = useRef(0);
+  const trailerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const activeTrailerSubtitleRef = useRef('');
   const trailerActive = !!trailerStreamUrl && trailerReady;
   const trailerPending = trailerLoading || trailerActive;
+  const selectedTrailerSubtitle = useMemo(
+    () => selectTrailerSubtitle(trailerSubtitles, preferredSubtitleLanguage, secondarySubtitleLanguage),
+    [trailerSubtitles, preferredSubtitleLanguage, secondarySubtitleLanguage],
+  );
 
   const imdbNum = activeMeta.imdbRating != null ? Number(activeMeta.imdbRating) : NaN;
   const releaseYear = activeMeta.year ?? parseReleaseYear(activeMeta.releaseInfo);
@@ -97,6 +126,10 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
 
   useEffect(() => {
     setTrailerStreamUrl(null);
+    setTrailerSubtitles([]);
+    setTrailerSubtitleCues([]);
+    setActiveTrailerSubtitle('');
+    activeTrailerSubtitleRef.current = '';
     setTrailerReady(false);
     setTrailerProgress(0);
     setTrailerLoading(false);
@@ -104,10 +137,11 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
     let cancelled = false;
     const id = window.setTimeout(() => {
       setTrailerLoading(true);
-      resolveYoutubeTrailerUrl(trailerVideoId).then((url) => {
+      resolveYoutubeTrailer(trailerVideoId).then((resolved) => {
         if (cancelled) return;
-        if (url) {
-          setTrailerStreamUrl(url);
+        if (resolved?.streamUrl) {
+          setTrailerSubtitles(resolved.subtitles ?? []);
+          setTrailerStreamUrl(resolved.streamUrl);
         } else {
           setTrailerLoading(false);
         }
@@ -121,6 +155,33 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
       window.clearTimeout(id);
     };
   }, [activeMeta.id, trailerVideoId, autoplayTrailer, autoplayTrailerDelaySecs, isActive]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTrailerSubtitleCues([]);
+    setActiveTrailerSubtitle('');
+    activeTrailerSubtitleRef.current = '';
+    if (!selectedTrailerSubtitle?.url || !trailerStreamUrl) return;
+
+    httpFetchText(normalizeTrailerSubtitleUrl(selectedTrailerSubtitle.url)).then((response) => {
+      if (cancelled || response.statusCode < 200 || response.statusCode > 299 || !response.body.trim()) return;
+      const cues = parseTrailerSubtitleCues(response.body);
+      setTrailerSubtitleCues(cues);
+      updateActiveTrailerSubtitle(trailerVideoRef.current?.currentTime ?? 0, cues);
+    }).catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTrailerSubtitle?.url, trailerStreamUrl]);
+
+  function updateActiveTrailerSubtitle(time: number, cues = trailerSubtitleCues) {
+    const text = cues.find((cue) => time >= cue.start && time <= cue.end)?.text ?? '';
+    if (text !== activeTrailerSubtitleRef.current) {
+      activeTrailerSubtitleRef.current = text;
+      setActiveTrailerSubtitle(text);
+    }
+  }
 
   useEffect(() => {
     if (!trailerStreamUrl) return;
@@ -210,6 +271,7 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
 
       {trailerStreamUrl && (
         <video
+          ref={trailerVideoRef}
           key={trailerStreamUrl}
           style={{ ...styles.trailerFrame, opacity: trailerReady ? 1 : 0, transition: 'opacity 0.6s ease' }}
           src={trailerStreamUrl}
@@ -219,15 +281,23 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
           onPlaying={() => {
             setTrailerReady(true);
             lastTrailerProgressAtRef.current = Date.now();
+            updateActiveTrailerSubtitle(trailerVideoRef.current?.currentTime ?? 0);
           }}
           onTimeUpdate={(e) => {
             const el = e.currentTarget;
             lastTrailerProgressAtRef.current = Date.now();
             if (el.duration > 0) setTrailerProgress(el.currentTime / el.duration);
+            updateActiveTrailerSubtitle(el.currentTime);
           }}
           onEnded={() => { setTrailerStreamUrl(null); setTrailerLoading(false); }}
           onError={() => { setTrailerStreamUrl(null); setTrailerLoading(false); }}
         />
+      )}
+
+      {trailerActive && activeTrailerSubtitle && (
+        <div style={styles.trailerSubtitleOverlay}>
+          {activeTrailerSubtitle}
+        </div>
       )}
 
       <div style={styles.gradientTop} />
@@ -240,7 +310,10 @@ export const HeroSection = React.memo(function HeroSection({ meta, slides, onPla
             src={logoUrl}
             alt={activeMeta.name}
             decoding="async"
-            style={styles.logo}
+            style={{
+              ...styles.logo,
+              ...(trailerActive ? styles.logoTrailerActive : null),
+            }}
             onError={() => setLogoError(true)}
           />
         ) : (
@@ -423,11 +496,119 @@ function readOptionalString(meta: Meta, keys: string[]): string | null {
   return null;
 }
 
+function normalizedLang(value: string | undefined | null): string | null {
+  const trimmed = value?.trim().toLowerCase();
+  if (!trimmed || trimmed === 'none') return null;
+  return trimmed.split(/[-_]/)[0] || null;
+}
+
+function selectTrailerSubtitle(
+  tracks: YoutubeTrailerSubtitleTrack[],
+  preferred?: string,
+  secondary?: string,
+): YoutubeTrailerSubtitleTrack | null {
+  if (tracks.length === 0) return null;
+  const wanted = [
+    normalizedLang(preferred),
+    normalizedLang(secondary),
+    normalizedLang(typeof navigator !== 'undefined' ? navigator.language : undefined),
+    'en',
+  ].filter((value, index, all): value is string => !!value && all.indexOf(value) === index);
+
+  const scored = tracks.map((track, index) => {
+    const language = normalizedLang(track.languageTag);
+    const label = track.label.toLowerCase();
+    const wantedIndex = language ? wanted.indexOf(language) : -1;
+    const preferredScore = wantedIndex >= 0 ? 1000 - (wantedIndex * 100) : 0;
+    const englishLabelScore = label.includes('english') ? 250 : 0;
+    const humanScore = track.isAuto ? 0 : 25;
+    return { track, index, score: preferredScore + englishLabelScore + humanScore };
+  });
+
+  scored.sort((a, b) => b.score - a.score || a.index - b.index);
+  return scored[0]?.track ?? null;
+}
+
+function normalizeTrailerSubtitleUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    url.searchParams.set('fmt', 'vtt');
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+function parseTrailerSubtitleCues(input: string): TrailerCue[] {
+  return input.trimStart().startsWith('<?xml') || input.trimStart().startsWith('<timedtext')
+    ? parseYoutubeTimedText(input)
+    : parseWebVtt(input);
+}
+
+function parseWebVtt(input: string): TrailerCue[] {
+  return input
+    .replace(/\r/g, '')
+    .split(/\n{2,}/)
+    .flatMap((block): TrailerCue[] => {
+      const lines = block
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+      if (lines.length === 0) return [];
+      if (/^(WEBVTT|NOTE|STYLE|REGION)\b/i.test(lines[0])) return [];
+      const timingIndex = lines.findIndex((line) => line.includes('-->'));
+      if (timingIndex < 0) return [];
+      const [startRaw, endAndSettings] = lines[timingIndex].split('-->');
+      const start = parseVttTime(startRaw);
+      const end = parseVttTime((endAndSettings ?? '').trim().split(/\s+/)[0]);
+      const text = lines
+        .slice(timingIndex + 1)
+        .join('\n')
+        .replace(/<[^>]+>/g, '')
+        .trim();
+      if (!Number.isFinite(start) || !Number.isFinite(end) || !text) return [];
+      return [{ start, end, text: decodeHtmlEntities(text) }];
+    });
+}
+
+function parseYoutubeTimedText(input: string): TrailerCue[] {
+  if (typeof DOMParser === 'undefined') return [];
+  const doc = new DOMParser().parseFromString(input, 'text/xml');
+  return Array.from(doc.querySelectorAll('p')).flatMap((node): TrailerCue[] => {
+    const startMs = Number(node.getAttribute('t'));
+    const durationMs = Number(node.getAttribute('d'));
+    const text = node.textContent?.trim() ?? '';
+    if (!Number.isFinite(startMs) || !Number.isFinite(durationMs) || !text) return [];
+    return [{
+      start: startMs / 1000,
+      end: (startMs + durationMs) / 1000,
+      text,
+    }];
+  });
+}
+
+function parseVttTime(raw: string | undefined): number {
+  if (!raw) return NaN;
+  const parts = raw.trim().replace(',', '.').split(':');
+  const seconds = Number(parts.pop());
+  const minutes = Number(parts.pop() ?? 0);
+  const hours = Number(parts.pop() ?? 0);
+  if (![hours, minutes, seconds].every(Number.isFinite)) return NaN;
+  return (hours * 3600) + (minutes * 60) + seconds;
+}
+
+function decodeHtmlEntities(value: string): string {
+  if (typeof document === 'undefined') return value;
+  const el = document.createElement('textarea');
+  el.innerHTML = value;
+  return el.value;
+}
+
 const styles: Record<string, React.CSSProperties> = {
   hero: {
     position: 'relative',
     width: '100%',
-    height: 'var(--hero-height, clamp(33.75rem, 58vh, 47.5rem))' as unknown as number,
+    height: 'var(--hero-height, clamp(38rem, 66vh, 54rem))' as unknown as number,
     overflow: 'hidden',
     flexShrink: 0,
     background: '#040508',
@@ -455,6 +636,25 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     objectFit: 'cover',
     border: 'none',
+    pointerEvents: 'none',
+  },
+  trailerSubtitleOverlay: {
+    position: 'absolute',
+    left: '50%',
+    bottom: 'clamp(3.25rem, 8vh, 5.75rem)' as unknown as number,
+    transform: 'translateX(-50%)',
+    zIndex: 18,
+    maxWidth: 'min(64rem, calc(100% - 12rem))',
+    padding: '0.28rem 0.65rem',
+    borderRadius: '0.25rem',
+    background: 'rgba(0,0,0,0.58)',
+    color: '#FFFFFF',
+    fontSize: 'clamp(1.1rem, 2.05vw, 1.8rem)' as unknown as number,
+    fontWeight: 700,
+    lineHeight: 1.28,
+    textAlign: 'center',
+    textShadow: '0 0.125rem 0.25rem rgba(0,0,0,0.9)',
+    whiteSpace: 'pre-line',
     pointerEvents: 'none',
   },
   gradientTop: {
@@ -515,6 +715,12 @@ const styles: Record<string, React.CSSProperties> = {
     filter: 'drop-shadow(0 0.25rem 0.75rem rgba(0,0,0,0.65)) drop-shadow(0 0 1px rgba(255,255,255,0.25))',
     userSelect: 'none',
     marginBottom: '1.375rem',
+    transition: 'height 0.35s ease, max-width 0.35s ease, margin-bottom 0.35s ease',
+  },
+  logoTrailerActive: {
+    height: 'clamp(3rem, 8vh, 6.5rem)' as unknown as number,
+    maxWidth: '24rem',
+    marginBottom: '0.75rem',
   },
   title: {
     color: '#FFFFFF',
