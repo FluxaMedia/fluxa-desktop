@@ -39,6 +39,11 @@ export async function freshNuvioProfile(profile: UserProfile): Promise<UserProfi
   return updated;
 }
 
+function normalizeTileShape(value: string | undefined): string {
+  const raw = (value ?? 'poster').toLowerCase();
+  return raw === 'landscape' ? 'wide' : raw;
+}
+
 function safeIdPart(value: string): string {
   return value.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'user';
 }
@@ -371,7 +376,7 @@ export async function importNuvioProfileData(
           focusGifUrl: (f.focusGifUrl as string | undefined) ?? undefined,
           focusGifEnabled: f.focusGifEnabled !== false,
           titleLogoUrl: (f.titleLogoUrl as string | undefined) ?? undefined,
-          shape: (f.tileShape as string | undefined) ?? 'POSTER',
+          shape: normalizeTileShape(f.tileShape as string | undefined),
           hideTitle: Boolean(f.hideTitle),
           catalogSources: ((f.catalogSources as Array<Record<string, unknown>>) ?? []).map((s) => {
             const addonId = String(s.addonId ?? '');

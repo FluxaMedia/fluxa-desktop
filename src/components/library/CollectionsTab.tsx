@@ -10,6 +10,20 @@ const TILE_H_POSTER = 210;
 const TILE_H_WIDE = 90;
 const TILE_H_SQUARE = 140;
 
+const MAX_IMAGE_RETRIES = 2;
+
+function retryImageUrl(url: string, retryKey: number): string {
+  if (retryKey <= 0 || url.startsWith('data:') || url.startsWith('blob:')) return url;
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set('__fluxa_img_retry', String(retryKey));
+    return parsed.toString();
+  } catch {
+    const joiner = url.includes('?') ? '&' : '?';
+    return `${url}${joiner}__fluxa_img_retry=${retryKey}`;
+  }
+}
+
 export function CollectionsTab({
   collections,
   accent,
@@ -147,10 +161,45 @@ function CollectionSection({
 
 function FolderTile({ folder, accent, onClick }: { folder: UserCollectionFolder; accent: string; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const retriesRef = React.useRef(0);
+  const retryTimersRef = React.useRef<number[]>([]);
   const imgUrl = effectiveFolderImageUrl(folder);
   const shape = effectiveFolderShape(folder);
   const tileH = shape === 'wide' ? TILE_H_WIDE : shape === 'square' ? TILE_H_SQUARE : TILE_H_POSTER;
   const tileW = shape === 'wide' ? TILE_W * 1.78 : TILE_W;
+
+  const handleImgError = React.useCallback(() => {
+    if (retriesRef.current < MAX_IMAGE_RETRIES) {
+      retriesRef.current += 1;
+      const retry = retriesRef.current;
+      const timer = window.setTimeout(() => {
+        retryTimersRef.current = retryTimersRef.current.filter((id) => id !== timer);
+        setRetryKey(retry);
+      }, 400 * retry);
+      retryTimersRef.current.push(timer);
+    } else {
+      setImgError(true);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    setImgError(false);
+    retriesRef.current = 0;
+    setRetryKey(0);
+    retryTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    retryTimersRef.current = [];
+  }, [imgUrl]);
+
+  React.useEffect(() => {
+    return () => {
+      retryTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      retryTimersRef.current = [];
+    };
+  }, []);
+
+  const hasImg = !!imgUrl && !imgError;
 
   return (
     <div
@@ -165,8 +214,16 @@ function FolderTile({ folder, accent, onClick }: { folder: UserCollectionFolder;
       }}
     >
       <div style={{ width: '100%', height: `${tileH / 16}rem`, borderRadius: '0.5rem', background: 'rgba(255,255,255,0.06)', overflow: 'hidden', position: 'relative' }}>
-        {imgUrl ? (
-          <img src={imgUrl} alt={folder.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        {hasImg ? (
+          <img
+            key={retryKey}
+            src={retryImageUrl(imgUrl, retryKey)}
+            alt={folder.title}
+            loading="lazy"
+            decoding="async"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={handleImgError}
+          />
         ) : folder.coverEmoji ? (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>
             {folder.coverEmoji}

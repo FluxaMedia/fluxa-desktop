@@ -23,7 +23,8 @@ export function effectiveFolderImageUrl(folder: UserCollectionFolder): string | 
 }
 
 export function effectiveFolderShape(folder: UserCollectionFolder): string {
-  return folder.shape ?? 'poster';
+  const raw = (folder.shape ?? 'poster').toLowerCase();
+  return raw === 'landscape' ? 'wide' : raw;
 }
 
 export function effectiveCatalogId(folder: UserCollectionFolder): string | null {
