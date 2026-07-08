@@ -33,6 +33,7 @@ const MPV_RENDER_PARAM_SW_POINTER: c_int = 20;
 const MPV_EVENT_NONE: c_int = 0;
 const MPV_EVENT_LOG_MESSAGE: c_int = 2;
 const MPV_EVENT_END_FILE: c_int = 7;
+const MPV_EVENT_PLAYBACK_RESTART: c_int = 21;
 const MPV_END_FILE_REASON_EOF: c_int = 0;
 const MPV_END_FILE_REASON_ERROR: c_int = 4;
 
@@ -233,6 +234,7 @@ pub struct MpvRenderer {
     loaded: bool,
     log_ring: std::collections::VecDeque<(c_int, String)>,
     frames_rendered: u64,
+    pending_unpause: bool,
 }
 
 unsafe impl Send for MpvRenderer {}
@@ -384,6 +386,7 @@ impl MpvRenderer {
             loaded: false,
             log_ring: std::collections::VecDeque::new(),
             frames_rendered: 0,
+            pending_unpause: false,
         };
 
         renderer.set_option("terminal", "no")?;
@@ -451,6 +454,7 @@ impl MpvRenderer {
             loaded: false,
             log_ring: std::collections::VecDeque::new(),
             frames_rendered: 0,
+            pending_unpause: false,
         };
 
         renderer.set_option("terminal", "no")?;
@@ -487,6 +491,7 @@ impl MpvRenderer {
         self.loaded = false;
         self.log_ring.clear();
         self.frames_rendered = 0;
+        self.pending_unpause = true;
         // Pass start position as a per-file option directly in the loadfile command.
         // This is the most reliable way to seek on open — no timing dependency.
         if let Some(secs) = start_at.filter(|&s| s > 0) {
@@ -494,11 +499,7 @@ impl MpvRenderer {
         } else {
             self.command_string(&format!("loadfile \"{escaped}\" replace"))?;
         }
-        // Keep playback startup owned by mpv, not by the WebView overlay's
-        // first-frame polling. Release builds can poll status while the native
-        // render thread holds the renderer lock; if startup is paused, that race
-        // can leave network/torrent streams sitting forever behind the loader.
-        self.command_string("set pause no")?;
+        self.command_string("set pause yes")?;
         self.loaded = true;
         Ok(())
     }
@@ -678,6 +679,8 @@ impl MpvRenderer {
             *alpha = 255;
         }
 
+        self.frames_rendered = self.frames_rendered.saturating_add(1);
+
         Ok(PlayerFrame {
             width,
             height,
@@ -851,6 +854,12 @@ impl MpvRenderer {
                             eof: true,
                             error: None,
                         });
+                    }
+                }
+                MPV_EVENT_PLAYBACK_RESTART => {
+                    if self.pending_unpause {
+                        self.pending_unpause = false;
+                        let _ = self.command_string("set pause no");
                     }
                 }
                 _ => {}
