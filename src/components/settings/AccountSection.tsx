@@ -12,7 +12,7 @@ import { refreshAnimeTrackingProfile } from '../../core/animeExternalSync';
 import { ChoiceTile, SettingsSection, SyncServicePopover, SyncServiceRow, cwRankingOptions, cwSourceOfTruthOptions } from './SettingsUI';
 import type { Prefs, SyncMeta, TraktTokenResponse } from './settingsTypes';
 import { nuvioAuthErrorKind, nuvioSignIn } from '../../core/nuvioApi';
-import { stremioLogin, stremioLogout } from '../../core/stremioApi';
+import { stremioLogin, stremioLoginWithAuthKey, stremioLogout } from '../../core/stremioApi';
 
 function generateCodeVerifier(): string {
   const array = new Uint8Array(48);
@@ -112,6 +112,63 @@ function CredentialLoginForm({
   );
 }
 
+function AuthKeyLoginForm({
+  busy,
+  onSubmit,
+  onCancel,
+}: {
+  busy: boolean;
+  onSubmit: (authKey: string) => void;
+  onCancel: () => void;
+}) {
+  const [authKey, setAuthKey] = useState('');
+  const canSubmit = !busy && authKey.trim().length > 0;
+  const input: React.CSSProperties = {
+    height: '1.875rem',
+    borderRadius: '0.4375rem',
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(255,255,255,0.05)',
+    color: '#fff',
+    fontSize: '0.7813rem',
+    padding: '0 0.625rem',
+    outline: 'none',
+    flex: 1,
+    minWidth: 0,
+  };
+  const btn: React.CSSProperties = {
+    height: '1.875rem',
+    borderRadius: '0.4375rem',
+    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'rgba(255,255,255,0.06)',
+    color: '#fff',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+    padding: '0 0.75rem',
+    whiteSpace: 'nowrap',
+  };
+  return (
+    <div style={{ padding: '0 1.125rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.055)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <p style={{ margin: 0, fontSize: '0.6875rem', color: 'rgba(255,255,255,0.55)' }}>{t('auth.stremio.authkey_hint')}</p>
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <input
+          type="text"
+          placeholder={t('auth.placeholder.stremio_authkey')}
+          value={authKey}
+          onChange={(e) => setAuthKey(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) onSubmit(authKey.trim()); }}
+          style={input}
+          autoFocus
+        />
+        <button disabled={!canSubmit} onClick={() => onSubmit(authKey.trim())} style={{ ...btn, opacity: canSubmit ? 1 : 0.5 }}>
+          {busy ? t('auth.signing_in') : t('auth.sign_in')}
+        </button>
+        <button onClick={onCancel} disabled={busy} style={btn}>{t('common.cancel')}</button>
+      </div>
+    </div>
+  );
+}
+
 export function AccountSection({
   prefs,
   setPref,
@@ -152,6 +209,7 @@ export function AccountSection({
   const [stremioPopoverOpen, setStremioPopoverOpen] = useState(false);
   const [stremioSyncMeta, setStremioSyncMeta] = useState<SyncMeta | null>(null);
   const [stremioFormOpen, setStremioFormOpen] = useState(false);
+  const [stremioAuthKeyMode, setStremioAuthKeyMode] = useState(false);
   const [authUrls, setAuthUrls] = useState<Partial<Record<OAuthService, string>>>({});
 
   useEffect(() => {
@@ -426,6 +484,28 @@ export function AccountSection({
       await saveProfile(updated);
       onProfileUpdated(updated);
       setStremioFormOpen(false);
+    } catch (err) {
+      setStremioError(credentialAuthErrorMessage(err));
+    } finally {
+      setStremioBusy(false);
+    }
+  };
+
+  const handleStremioConnectWithAuthKey = async (authKey: string) => {
+    if (!activeProfile || stremioBusy) return;
+    setStremioBusy(true);
+    setStremioError(null);
+    try {
+      const auth = await stremioLoginWithAuthKey(authKey);
+      const updated: UserProfile = {
+        ...activeProfile,
+        stremioAuthKey: auth.authKey,
+        stremioEmail: auth.user.email,
+      };
+      await saveProfile(updated);
+      onProfileUpdated(updated);
+      setStremioFormOpen(false);
+      setStremioAuthKeyMode(false);
     } catch (err) {
       setStremioError(credentialAuthErrorMessage(err));
     } finally {
@@ -772,11 +852,29 @@ export function AccountSection({
             expanded={stremioFormOpen}
           />
         )}
-        {!stremioConnected && stremioFormOpen && (
+        {!stremioConnected && stremioFormOpen && !stremioAuthKeyMode && (
           <CredentialLoginForm
             busy={stremioBusy}
             onSubmit={(email, password) => void handleStremioConnect(email, password)}
             onCancel={() => { setStremioFormOpen(false); setStremioError(null); }}
+          />
+        )}
+        {!stremioConnected && stremioFormOpen && (
+          <div style={{ padding: stremioAuthKeyMode ? '0 1.125rem' : '0.5rem 1.125rem 0', borderBottom: stremioAuthKeyMode ? undefined : '1px solid rgba(255,255,255,0.055)' }}>
+            <button
+              onClick={() => { setStremioAuthKeyMode((m) => !m); setStremioError(null); }}
+              disabled={stremioBusy}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '0.6875rem', cursor: 'pointer', padding: 0, marginBottom: stremioAuthKeyMode ? 0 : '0.5rem' }}
+            >
+              {stremioAuthKeyMode ? t('auth.stremio.use_password_instead') : t('auth.stremio.use_authkey_instead')}
+            </button>
+          </div>
+        )}
+        {!stremioConnected && stremioFormOpen && stremioAuthKeyMode && (
+          <AuthKeyLoginForm
+            busy={stremioBusy}
+            onSubmit={(authKey) => void handleStremioConnectWithAuthKey(authKey)}
+            onCancel={() => { setStremioFormOpen(false); setStremioAuthKeyMode(false); setStremioError(null); }}
           />
         )}
         {stremioError && (

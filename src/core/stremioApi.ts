@@ -46,6 +46,12 @@ export async function stremioLogin(email: string, password: string): Promise<Str
   return { authKey, user: { _id: result.user?._id, email: result.user?.email ?? email } };
 }
 
+export async function stremioLoginWithAuthKey(authKey: string): Promise<StremioAuth> {
+  const user = await stremioPost<{ _id?: string; email?: string }>('/api/getUser', { authKey });
+  if (!user._id) throw new StremioApiError('Stremio auth key is invalid or expired');
+  return { authKey, user: { _id: user._id, email: user.email } };
+}
+
 export async function stremioLogout(authKey: string): Promise<void> {
   await stremioPost('/api/logout', { authKey }).catch(() => undefined);
 }
