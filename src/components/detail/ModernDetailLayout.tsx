@@ -219,17 +219,6 @@ export function ModernDetailLayout({
             {displayMeta.description && <p style={MS.descText}>{displayMeta.description}</p>}
           </div>
 
-          {castMembers.length > 0 && (
-            <div style={{ ...S.castRow, marginBottom: '1.625rem' }}>
-              {directorLinks.slice(0, 1).map((l) => (
-                <CastAvatar key={`dir-${l.name}`} name={l.name} role={t('detail.director')} imageUrl={peopleImages[l.name]} />
-              ))}
-              {castMembers.slice(0, 9).map((member) => (
-                <CastAvatar key={`cast-${member.name}:${member.role ?? ''}`} name={member.name} role={member.role || t('detail.actor')} imageUrl={member.imageUrl ?? peopleImages[member.name]} />
-              ))}
-            </div>
-          )}
-
           {isSeries && (
             <>
               <div style={MS.seasonRowModern}>
