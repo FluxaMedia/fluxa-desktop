@@ -54,6 +54,7 @@ export interface Prefs {
   frameInterpolationMode: string;
   streamSourceSelectionMode: string;
   streamSourceRegexPattern: string;
+  autoRetryNextSource: boolean;
   autoPlayNextEpisode: boolean;
   autoPlayCountdownSecs: string;
   tryBingeGroup: boolean;
@@ -174,6 +175,7 @@ export const DEFAULT_PREFS: Prefs = {
   frameInterpolationMode: 'off',
   streamSourceSelectionMode: 'manual',
   streamSourceRegexPattern: '',
+  autoRetryNextSource: false,
   autoPlayNextEpisode: true,
   autoPlayCountdownSecs: '7',
   tryBingeGroup: false,

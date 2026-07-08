@@ -41,7 +41,7 @@ interface Props {
   meta: Meta;
   state: AppState;
   onDispatch: (actionJson: string) => void;
-  onPlay: (stream: Stream, meta: Meta, episode?: Video | null, resumeAt?: number) => void;
+  onPlay: (stream: Stream, meta: Meta, episode?: Video | null, resumeAt?: number, sourceCandidates?: Stream[]) => void;
   onNavigateDetail: (meta: Meta) => void;
   onNavigateGenre?: (genre: string) => void;
   onBack: () => void;
@@ -361,7 +361,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
           onEpisodeClick={handleEpisodeClick}
           onMovieSources={openMovieSources}
           onBackToEpisodes={() => setShowSources(false)}
-          onPlaySource={(stream) => onPlay(stream, displayMeta, selectedEpisodeEnriched, episodeResumeAt)}
+          onPlaySource={(stream) => onPlay(stream, displayMeta, selectedEpisodeEnriched, episodeResumeAt, streams)}
           onPlay={onPlay}
           onToggleWatchlist={() => { flipWatchlistOverride(); onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: displayMeta })); }}
           onToggleCompleted={() => { flipCompletedOverride(); onDispatch(JSON.stringify({ type: 'toggleLibraryStatusRequested', list: 'completed', item: displayMeta })); }}
@@ -533,7 +533,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
             availableAddons={detail.availableAddons ?? []}
             onBackToEpisodes={() => setShowSources(false)}
             onEpisodeClick={handleEpisodeClick}
-            onPlaySource={(stream) => onPlay(stream, displayMeta, selectedEpisodeEnriched, episodeResumeAt)}
+            onPlaySource={(stream) => onPlay(stream, displayMeta, selectedEpisodeEnriched, episodeResumeAt, streams)}
             watchedMap={watchedMap}
             progressMap={progressMap}
             blurUnwatchedEpisodes={blurUnwatchedEpisodes}
@@ -549,7 +549,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
             streams={streams}
             isLoading={!!detail.isLoadingStreams}
             availableAddons={detail.availableAddons ?? []}
-            onPlay={(stream) => onPlay(stream, displayMeta, null)}
+            onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)}
           />
         )}
       </div>

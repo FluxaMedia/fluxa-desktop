@@ -72,9 +72,25 @@ interface UsePlayerResult {
   playerSubtitleUrl: string | undefined;
   playerStreamHeaders: Record<string, string> | undefined;
   playerPlaybackError: string | null;
-  handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number) => Promise<void>;
+  handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number, sourceCandidates?: Stream[]) => Promise<void>;
   closePlayer: () => Promise<void>;
   notifyFirstFrame: () => void;
+}
+
+function streamKey(stream: Stream | null | undefined): string {
+  if (!stream) return '';
+  return [
+    stream.url ?? '',
+    stream.playableUrl ?? '',
+    stream.infoHash ?? '',
+    stream.fileIdx ?? '',
+    stream.title ?? '',
+    stream.name ?? '',
+  ].join('|');
+}
+
+function streamIsP2P(stream: Stream): boolean {
+  return !!(stream.isTorrent || stream.infoHash);
 }
 
 export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdated }: UsePlayerOptions): UsePlayerResult {
@@ -99,6 +115,10 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   const playingMetaRef = useRef<Meta | null>(null);
   const playingEpisodeRef = useRef<Video | null>(null);
   const playingStreamRef = useRef<Stream | null>(null);
+  const playingSourceCandidatesRef = useRef<Stream[]>([]);
+  const attemptedSourceKeysRef = useRef<Set<string>>(new Set());
+  const lastResumeAtSecondsRef = useRef<number | undefined>(undefined);
+  const lastTotalDurationSecondsRef = useRef<number | undefined>(undefined);
   const playingNextEpisodeRef = useRef<Video | null>(null);
   const prefetchedNextEpRef = useRef<{ episodeId: string; stream: Stream } | null>(null);
   const playerUsesTorrentRef = useRef(false);
@@ -126,6 +146,31 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     await embeddedMpvStop().catch(() => undefined);
     if (shouldStopTorrent) await stopTorrentStream().catch(() => false);
   }, []);
+
+  const nextRetrySource = useCallback((currentStream: Stream | null): Stream | null => {
+    const prefs = appPrefs(stateRef.current);
+    if (!prefBool(prefs, 'autoRetryNextSource', false)) return null;
+    const candidates = playingSourceCandidatesRef.current;
+    if (candidates.length < 2 || !currentStream) return null;
+
+    const currentKey = streamKey(currentStream);
+    if (currentKey) attemptedSourceKeysRef.current.add(currentKey);
+    const startIndex = Math.max(0, candidates.findIndex((candidate) => streamKey(candidate) === currentKey));
+    const p2pEnabled = prefBool(prefs, 'p2pEnabled', true);
+
+    for (let offset = 1; offset <= candidates.length; offset += 1) {
+      const candidate = candidates[(startIndex + offset) % candidates.length];
+      const key = streamKey(candidate);
+      if (!key || attemptedSourceKeysRef.current.has(key)) continue;
+      if (!p2pEnabled && streamIsP2P(candidate)) {
+        attemptedSourceKeysRef.current.add(key);
+        continue;
+      }
+      attemptedSourceKeysRef.current.add(key);
+      return candidate;
+    }
+    return null;
+  }, [stateRef]);
 
   const showPlayerLoading = useCallback((
     generation: number,
@@ -351,6 +396,10 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     playingMetaRef.current = null;
     playingEpisodeRef.current = null;
     playingStreamRef.current = null;
+    playingSourceCandidatesRef.current = [];
+    attemptedSourceKeysRef.current = new Set();
+    lastResumeAtSecondsRef.current = undefined;
+    lastTotalDurationSecondsRef.current = undefined;
   }, [stateRef, updateState]);
 
   const handlePlay = useCallback(async (
@@ -359,16 +408,28 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     episode?: Video | null,
     resumeAtSeconds?: number,
     totalDurationSeconds?: number,
+    sourceCandidates?: Stream[],
   ) => {
     debugLog('handlePlay:start');
     setPlayerPlaybackError(null);
     try {
     const generation = ++playGenerationRef.current;
     const isCancelled = () => generation !== playGenerationRef.current;
+    const currentStreamKey = streamKey(stream);
+    if (sourceCandidates?.length) {
+      playingSourceCandidatesRef.current = sourceCandidates;
+      attemptedSourceKeysRef.current = new Set();
+    } else if (!playingSourceCandidatesRef.current.some((candidate) => streamKey(candidate) === currentStreamKey)) {
+      playingSourceCandidatesRef.current = [stream];
+      attemptedSourceKeysRef.current = new Set();
+    }
+    if (currentStreamKey) attemptedSourceKeysRef.current.add(currentStreamKey);
     prefetchedNextEpRef.current = null;
     if (meta) playingMetaRef.current = meta;
     playingEpisodeRef.current = episode ?? null;
     playingStreamRef.current = stream;
+    lastResumeAtSecondsRef.current = resumeAtSeconds;
+    lastTotalDurationSecondsRef.current = totalDurationSeconds;
     setPlayerEpisode(episode ?? null);
 
 
@@ -381,6 +442,17 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
 
     const effectiveTotalDuration = totalDurationSeconds
       ?? (meta?.id ? (stateRef.current.library.lastWrite?.progress as Record<string, import('../core/types').LibraryItem> | undefined)?.[meta.id]?.duration : undefined);
+    lastTotalDurationSecondsRef.current = effectiveTotalDuration;
+
+    const retryNextOrFail = async (message: string) => {
+      const nextSource = nextRetrySource(stream);
+      if (nextSource && meta && !isCancelled()) {
+        setLoadingStatus(t('player.status_trying_next_source'));
+        await handlePlay(nextSource, meta, episode, resumeAtSeconds, effectiveTotalDuration);
+        return;
+      }
+      if (!isCancelled()) await failPlayerLoading(message);
+    };
 
     debugLog('handlePlay:resolving next episode');
     const nextEp = episode
@@ -400,15 +472,13 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
 
     const url = playbackPlan?.url ?? stream.playableUrl ?? stream.url;
     if (!url) {
-      if (!isCancelled()) await failPlayerLoading(t('player.no_playable_url'));
+      await retryNextOrFail(t('player.no_playable_url'));
       return;
     }
     if (playbackPlan?.mode === 'reject') {
-      if (!isCancelled()) {
-        await failPlayerLoading(playbackPlan.rejectReason === 'incompatible_stream'
-          ? t('player.incompatible_desktop_stream')
-          : t('player.no_playable_url'));
-      }
+      await retryNextOrFail(playbackPlan.rejectReason === 'incompatible_stream'
+        ? t('player.incompatible_desktop_stream')
+        : t('player.no_playable_url'));
       return;
     }
 
@@ -477,7 +547,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       } catch (err) {
         statusPollActive = false;
         debugLog(`handlePlay:torrent path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
-        if (!isCancelled()) await failPlayerLoading(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
+        await retryNextOrFail(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
         return;
       }
     } else {
@@ -488,7 +558,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         debugLog('handlePlay:playInEmbeddedMpv resolved');
       } catch (err) {
         debugLog(`handlePlay:direct path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
-        if (!isCancelled()) await failPlayerLoading(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
+        await retryNextOrFail(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
         return;
       }
     }
@@ -564,16 +634,29 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       debugLog(`handlePlay:FATAL ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
       await failPlayerLoading(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
     }
-  }, [stateRef, showPlayerLoading, failPlayerLoading, playInEmbeddedMpv]);
+  }, [stateRef, showPlayerLoading, failPlayerLoading, playInEmbeddedMpv, nextRetrySource, setLoadingStatus]);
 
   const handleNativePlayerError = useCallback(async (message: string) => {
+    const nextSource = nextRetrySource(playingStreamRef.current);
+    if (nextSource && playingMetaRef.current) {
+      const status = await embeddedMpvStatus().catch(() => null);
+      const timePos = Number.parseFloat(status?.timePos ?? '');
+      await handlePlay(
+        nextSource,
+        playingMetaRef.current,
+        playingEpisodeRef.current,
+        Number.isFinite(timePos) && timePos > 0 ? Math.floor(timePos) : lastResumeAtSecondsRef.current,
+        lastTotalDurationSecondsRef.current,
+      );
+      return;
+    }
     if (playerLoadingOverlayRef.current && !playerLoadingOverlayRef.current.error) {
       await failPlayerLoading(message);
     } else if (!playerLoadingOverlayRef.current) {
       setPlayerPlaybackError(message);
       void invoke('player_command', { command: 'set pause yes' }).catch(() => undefined);
     }
-  }, [failPlayerLoading]);
+  }, [failPlayerLoading, handlePlay, nextRetrySource]);
 
   usePlayerNativeEvents({
     stateRef,

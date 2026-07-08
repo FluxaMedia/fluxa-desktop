@@ -183,16 +183,17 @@ export default function App() {
     episode: Video | null | undefined,
     resumeAt?: number,
     totalDuration?: number,
+    sourceCandidates?: Stream[],
   ) => {
     const isP2P = !!(stream.isTorrent || stream.infoHash);
     if (!isP2P) {
-      await handlePlay(stream, meta, episode, resumeAt, totalDuration);
+      await handlePlay(stream, meta, episode, resumeAt, totalDuration, sourceCandidates);
       return;
     }
 
     const prefs = appPrefs(stateRef.current);
     const p2pEnabled = prefBool(prefs, 'p2pEnabled', true);
-    const proceed = () => void handlePlay(stream, meta, episode, resumeAt, totalDuration);
+    const proceed = () => void handlePlay(stream, meta, episode, resumeAt, totalDuration, sourceCandidates);
 
     if (!p2pEnabled) {
       setP2PDialog({ mode: 'disabled', pendingPlay: proceed });
@@ -561,7 +562,7 @@ export default function App() {
             meta={detailMeta!}
             state={state}
             onDispatch={dispatch}
-            onPlay={(stream, meta, episode, resumeAt) => void guardedPlay(stream, meta, episode, resumeAt !== undefined ? resumeAt : (detailAutoShowStreams ? detailResumeAt : undefined))}
+            onPlay={(stream, meta, episode, resumeAt, sourceCandidates) => void guardedPlay(stream, meta, episode, resumeAt !== undefined ? resumeAt : (detailAutoShowStreams ? detailResumeAt : undefined), undefined, sourceCandidates)}
             onNavigateDetail={handleNavigateDetail}
             onNavigateGenre={(genre) => { setDiscoverInitialGenre(genre); setDetailMeta(null); navigateRoute('discover'); }}
             onBack={() => { void closePlayer(); setDetailMeta(null); setDetailInitialEpisode(null); setDetailAutoShowStreams(false); setDetailResumeAt(undefined); }}

@@ -73,6 +73,7 @@ export function ContinueCard({
   const [artworkRetryKey, setArtworkRetryKey] = React.useState(0);
   const artworkRetriesRef = React.useRef(0);
   const artworkRetryTimersRef = React.useRef<number[]>([]);
+  const artworkImgRef = React.useRef<HTMLImageElement | null>(null);
   const artwork = artworkOverride ?? artworkProp;
   const artworkSrc = artwork ? retryImageUrl(artwork, artworkRetryKey) : null;
 
@@ -135,6 +136,11 @@ export function ContinueCard({
     return () => clearTimeout(timer);
   }, [artwork, imgLoaded, imgError, fallbackToSeriesArt]);
 
+  React.useEffect(() => {
+    const img = artworkImgRef.current;
+    if (img?.complete && img.naturalWidth > 0) setImgLoaded(true);
+  }, [artworkSrc]);
+
   const progress = lib.timeOffset && lib.duration ? lib.timeOffset / lib.duration : 0;
   const isUpNext = meta.type === 'series' && (progress < 0.005 || progress >= 0.995);
   const remainingText = !isUpNext && lib.timeOffset && lib.duration
@@ -182,7 +188,7 @@ export function ContinueCard({
     >
       <div style={cwStyles.imageArea}>
         {artwork && !imgError ? (
-          <img key={artworkRetryKey} src={artworkSrc ?? undefined} alt={meta.name} loading="lazy" decoding="async" style={{ ...cwStyles.artwork, opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.22s ease' }} onLoad={() => setImgLoaded(true)} onError={handleArtworkError} />
+          <img ref={artworkImgRef} key={artworkRetryKey} src={artworkSrc ?? undefined} alt={meta.name} loading="lazy" decoding="async" style={{ ...cwStyles.artwork, opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.22s ease' }} onLoad={() => setImgLoaded(true)} onError={handleArtworkError} />
         ) : (
           <div style={cwStyles.thumbPlaceholder}>
             <span style={cwStyles.placeholderText}>{meta.name.slice(0, 1).toUpperCase()}</span>

@@ -134,6 +134,7 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
           onChange={(v) => setPref('streamSourceRegexPattern', v)}
         />
       )}
+      <ToggleTile title={t('settings.auto_retry_next_source')} subtitle={t('settings.auto_retry_next_source_desc')} checked={prefs.autoRetryNextSource} onToggle={(v) => setPref('autoRetryNextSource', v)} />
       <ToggleTile title={t('settings.auto_play_next_episode')} subtitle={t('settings.auto_play_next_episode_desc')} checked={prefs.autoPlayNextEpisode} onToggle={(v) => setPref('autoPlayNextEpisode', v)} />
       {prefs.autoPlayNextEpisode && (
         <ChoiceTile

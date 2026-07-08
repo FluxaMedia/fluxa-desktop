@@ -58,7 +58,7 @@ export type ModernDetailProps = {
   onMovieSources: () => void;
   onBackToEpisodes: () => void;
   onPlaySource: (stream: Stream) => void;
-  onPlay: (stream: Stream, meta: Meta, episode?: Video | null, resumeAt?: number) => void;
+  onPlay: (stream: Stream, meta: Meta, episode?: Video | null, resumeAt?: number, sourceCandidates?: Stream[]) => void;
   onToggleWatchlist: () => void;
   onToggleCompleted: () => void;
   onToggleDropped: () => void;
@@ -434,7 +434,7 @@ export function ModernDetailLayout({
       {showSources && !isSeries && (
         <div style={MS.overlayBackdrop} onClick={onBackToEpisodes}>
           <div style={MS.overlaySheet} onClick={(e) => e.stopPropagation()}>
-            <MovieSourcePanel meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} onPlay={(stream) => onPlay(stream, displayMeta, null)} onClose={onBackToEpisodes} />
+            <MovieSourcePanel meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)} onClose={onBackToEpisodes} />
           </div>
         </div>
       )}
