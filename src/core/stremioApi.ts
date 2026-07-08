@@ -59,7 +59,9 @@ export async function stremioLogout(authKey: string): Promise<void> {
 export async function stremioPullLibrary(authKey: string): Promise<Record<string, unknown>[]> {
   const result = await stremioPost<Record<string, unknown>[]>('/api/datastoreGet', {
     authKey,
-    collection: 'library',
+    collection: 'libraryItem',
+    ids: [],
+    all: true,
   });
   return Array.isArray(result) ? result : [];
 }
