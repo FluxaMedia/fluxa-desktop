@@ -216,6 +216,12 @@ export const HeroSection = React.memo(function HeroSection({
   }, [trailerStreamUrl]);
 
   useEffect(() => {
+    const el = trailerVideoRef.current;
+    if (!el) return;
+    el.muted = trailerMuted;
+  }, [trailerMuted]);
+
+  useEffect(() => {
     return () => {
       if (pendingRef.current) clearTimeout(pendingRef.current);
     };
@@ -324,8 +330,9 @@ export const HeroSection = React.memo(function HeroSection({
       {trailerActive && (
         <button
           onClick={() => {
-            setTrailerMuted(!trailerMuted);
-            if (trailerVideoRef.current) trailerVideoRef.current.muted = !trailerMuted;
+            const newMutedState = !trailerMuted;
+            setTrailerMuted(newMutedState);
+            if (trailerVideoRef.current) trailerVideoRef.current.muted = newMutedState;
           }}
           style={styles.trailerMuteButton}
           aria-label={trailerMuted ? 'Unmute' : 'Mute'}
