@@ -1425,6 +1425,11 @@ pub(crate) fn find_libmpv_path() -> String {
             search_dirs.push(exe_dir.to_path_buf());
             search_dirs.push(exe_dir.join("lib"));
 
+            #[cfg(target_os = "macos")]
+            if let Some(contents_dir) = exe_dir.parent() {
+                search_dirs.push(contents_dir.join("Resources").join("lib"));
+            }
+
             #[cfg(target_os = "linux")]
             if let Some(prefix_dir) = exe_dir.parent() {
                 let lib_dir = prefix_dir.join("lib");
