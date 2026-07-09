@@ -283,6 +283,13 @@ export interface DispatchResult {
   effects: Effect[];
 }
 
+export interface HomePaging {
+  categoryId?: string;
+  isLoading?: boolean;
+  items?: Meta[];
+  error?: string | null;
+}
+
 export interface HomeState {
   isLoading?: boolean;
   isDirectLoading?: boolean;
@@ -291,6 +298,7 @@ export interface HomeState {
   metadataFeeds?: unknown[];
   billboard?: Meta | null;
   error?: string | null;
+  paging?: HomePaging;
 }
 
 export interface DetailState {

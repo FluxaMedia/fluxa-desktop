@@ -6,8 +6,8 @@ import { discoverCatalogOptions } from './homeEffects';
 
 export async function fetchCatalogPage(payload: Record<string, unknown>): Promise<unknown> {
   const values = await fetchPlannedResources({ ...payload, kind: 'catalogPage' });
-  const metas = values.flatMap((value) => ((value as { items?: unknown[] })?.items ?? []));
-  return { metas };
+  const items = values.flatMap((value) => ((value as { items?: unknown[] })?.items ?? []));
+  return { items };
 }
 
 const searchResultsCache = new Map<string, unknown>();

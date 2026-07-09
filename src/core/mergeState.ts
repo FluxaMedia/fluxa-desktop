@@ -24,7 +24,8 @@ function mergeHomeState(prev: HomeState, next: HomeState): HomeState {
     billboard === prev.billboard &&
     prev.isLoading === next.isLoading &&
     prev.isDirectLoading === next.isDirectLoading &&
-    prev.error === next.error
+    prev.error === next.error &&
+    prev.paging === next.paging
   ) {
     return prev;
   }

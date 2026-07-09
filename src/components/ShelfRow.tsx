@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { MovieCard } from './MovieCard';
 import type { Meta } from '../core/types';
 import type { PosterPrefs } from '../core/posterPrefs';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 const ROW_PADDING_LEFT = '2rem';
-const MAX_ROW_ITEMS = 32;
+const NEAR_END_THRESHOLD_PX = 1200;
 const SKELETON_INDICES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 interface Props {
@@ -19,6 +20,8 @@ interface Props {
   posterPrefs?: PosterPrefs;
   topTenEnabled?: boolean;
   addonIcon?: string;
+  onNearEnd?: () => void;
+  isLoadingMore?: boolean;
 }
 
 export const ShelfRow = React.memo(function ShelfRow({
@@ -32,8 +35,11 @@ export const ShelfRow = React.memo(function ShelfRow({
   posterPrefs,
   topTenEnabled = false,
   addonIcon,
+  onNearEnd,
+  isLoadingMore,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dragScroll = useDragScroll(scrollRef);
   const [hovered, setHovered] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -42,17 +48,17 @@ export const ShelfRow = React.memo(function ShelfRow({
   const radius = posterPrefs?.radius ?? 12;
   const layout = posterPrefs?.layout ?? 'vertical';
   const hideTitle = posterPrefs?.hideTitles ?? false;
-  const visibleItems = useMemo(
-    () => (items.length > MAX_ROW_ITEMS ? items.slice(0, MAX_ROW_ITEMS) : items),
-    [items],
-  );
+  const visibleItems = items;
 
   const checkScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     setCanScrollLeft(el.scrollLeft > 4);
     setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
-  }, []);
+    if (onNearEnd && el.scrollWidth - (el.scrollLeft + el.clientWidth) < NEAR_END_THRESHOLD_PX) {
+      onNearEnd();
+    }
+  }, [onNearEnd]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -89,7 +95,7 @@ export const ShelfRow = React.memo(function ShelfRow({
             onClick={() => scrollRef.current?.scrollBy({ left: -520, behavior: 'smooth' })}
           />
         )}
-        <div ref={scrollRef} style={styles.scroll}>
+        <div ref={scrollRef} style={styles.scroll} {...dragScroll}>
           {isLoading
             ? SKELETON_INDICES.map((i) => (
                 <SkeletonCard key={i} width={width} height={height} radius={radius} delay={i * 0.06} />
@@ -108,6 +114,9 @@ export const ShelfRow = React.memo(function ShelfRow({
                   onClick={onItemClick}
                 />
               ))}
+          {!isLoading && isLoadingMore && (
+            <SkeletonCard width={width} height={height} radius={radius} delay={0} />
+          )}
         </div>
         {hovered && canScrollRight && (
           <ScrollArrow
@@ -126,6 +135,7 @@ export const ShelfRow = React.memo(function ShelfRow({
   if (prev.posterPrefs !== next.posterPrefs) return false;
   if (prev.cardWidth !== next.cardWidth || prev.cardHeight !== next.cardHeight) return false;
   if (prev.onItemClick !== next.onItemClick || prev.onViewAll !== next.onViewAll) return false;
+  if (prev.onNearEnd !== next.onNearEnd || prev.isLoadingMore !== next.isLoadingMore) return false;
   if (prev.items === next.items) return true;
   if (prev.items.length !== next.items.length) return false;
   return prev.items.every((item, i) => item.id === next.items[i]?.id);

@@ -1,6 +1,7 @@
 export type AppActionType =
   | 'addonsRefreshRequested'
   | 'calendarMonthRequested'
+  | 'catalogPageRequested'
   | 'clearPlaybackProgressRequested'
   | 'detailLoadRequested'
   | 'detailSeasonRequested'

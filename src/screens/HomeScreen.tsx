@@ -71,6 +71,57 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const scrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
 
+  const [catalogExtra, setCatalogExtra] = useState<Record<string, Meta[]>>({});
+  const catalogExtraRef = useRef(catalogExtra);
+  const catalogNoMoreRef = useRef<Set<string>>(new Set());
+  const pendingCatalogPageIdRef = useRef<string | null>(null);
+  const [loadingMoreCategoryId, setLoadingMoreCategoryId] = useState<string | null>(null);
+
+  useEffect(() => { catalogExtraRef.current = catalogExtra; }, [catalogExtra]);
+
+  useEffect(() => {
+    if (!home.isLoading) return;
+    setCatalogExtra({});
+    catalogNoMoreRef.current.clear();
+    pendingCatalogPageIdRef.current = null;
+    setLoadingMoreCategoryId(null);
+  }, [home.isLoading]);
+
+  const handleLoadMoreCategory = useCallback((cat: HomeCategory) => {
+    if (!cat.transportUrl || !cat.catalogId) return;
+    if (catalogNoMoreRef.current.has(cat.id)) return;
+    if (pendingCatalogPageIdRef.current) return;
+    pendingCatalogPageIdRef.current = cat.id;
+    setLoadingMoreCategoryId(cat.id);
+    const skip = cat.items.length + (catalogExtraRef.current[cat.id]?.length ?? 0);
+    onDispatch(JSON.stringify({
+      type: 'catalogPageRequested',
+      categoryId: cat.id,
+      transportUrl: cat.transportUrl,
+      contentType: cat.type,
+      catalogId: cat.catalogId,
+      skip,
+      genre: cat.addonGenre ?? null,
+    }));
+  }, [onDispatch]);
+
+  useEffect(() => {
+    const paging = home.paging;
+    const pendingId = pendingCatalogPageIdRef.current;
+    if (!paging || !pendingId || paging.categoryId !== pendingId || paging.isLoading) return;
+    pendingCatalogPageIdRef.current = null;
+    setLoadingMoreCategoryId(null);
+    const items = Array.isArray(paging.items) ? paging.items : [];
+    if (paging.error || items.length === 0) {
+      catalogNoMoreRef.current.add(pendingId);
+      return;
+    }
+    setCatalogExtra((prev) => ({
+      ...prev,
+      [pendingId]: [...(prev[pendingId] ?? []), ...items],
+    }));
+  }, [home.paging]);
+
   useEffect(() => {
     if (resetKey === undefined) return;
     setViewAllCategory(null);
@@ -121,6 +172,11 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     () => categories.filter((c) => c.type !== 'collection' && c.type !== 'collection_folder'),
     [categories],
   );
+  const nearEndCallbacks = useMemo(() => {
+    const map = new Map<string, () => void>();
+    for (const cat of categories) map.set(cat.id, () => handleLoadMoreCategory(cat));
+    return map;
+  }, [categories, handleLoadMoreCategory]);
   const billboard = useMemo(
     () => home.billboard ?? contentCategories[0]?.items?.[0] ?? null,
     [home.billboard, contentCategories],
@@ -291,13 +347,15 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
             <ShelfRow
               key={cat.id}
               title={formatCatalogTitle(cat.name, cat.type)}
-              items={cat.items}
+              items={catalogExtra[cat.id]?.length ? [...cat.items, ...catalogExtra[cat.id]] : cat.items}
               onItemClick={onNavigateDetail}
               onViewAll={handleViewAll}
               isLoading={cat.items.length === 0 && !!home.isLoading}
               posterPrefs={posterPrefs}
               topTenEnabled={topTenFeedKeys.has(cat.id)}
               addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
+              onNearEnd={nearEndCallbacks.get(cat.id)}
+              isLoadingMore={loadingMoreCategoryId === cat.id}
             />
           )
         )}
