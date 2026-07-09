@@ -14,6 +14,7 @@ import { saveProfile } from '../core/profiles';
 import { loadAddons, saveAddons } from '../core/libraryOps';
 import { nuvioReplaceAddons } from '../core/nuvioApi';
 import { freshNuvioProfile } from '../core/nuvioSync';
+import { syncStremioAddons } from '../core/stremioExternalSync';
 import { setLanguage, t } from '../i18n';
 import { styles } from '../components/settings/settingsStyles';
 import { DEFAULT_PREFS } from '../components/settings/settingsTypes';
@@ -184,6 +185,11 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     }
   };
 
+  const syncStremioAddonsForProfile = async (profile: UserProfile | null | undefined, addons: AddonDescriptor[]) => {
+    if (!profile?.stremioAuthKey) return;
+    try { await syncStremioAddons(profile, addons); } catch {}
+  };
+
   useEffect(() => {
     const url = initialAddonUrl?.trim();
     if (!url) return;
@@ -260,6 +266,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
 
       setInstalledAddons(updated);
       void syncNuvioAddons(syncProfile, updated);
+      void syncStremioAddonsForProfile(syncProfile, updated);
       setAddonUrl('');
       setAddonInstallStatus({ loading: false, error: null });
       setAddedAddonName(normalizedAddon.manifest?.name || normalizedAddon.transportUrl);
@@ -290,6 +297,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
       await saveProfile(updatedProfile);
       onProfileUpdated(updatedProfile);
       void syncNuvioAddons(updatedProfile, updated);
+      void syncStremioAddonsForProfile(updatedProfile, updated);
     }
     onDispatch(JSON.stringify({ type: 'addonsRefreshRequested' }));
   };
@@ -311,6 +319,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     await saveProfile(updatedProfile);
     onProfileUpdated(updatedProfile);
     void syncNuvioAddons(updatedProfile, installedAddons);
+    void syncStremioAddonsForProfile(updatedProfile, installedAddons);
     onDispatch(JSON.stringify({ type: 'addonsRefreshRequested' }));
   };
 
@@ -324,6 +333,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     await saveAddons(next);
     setInstalledAddons(next);
     void syncNuvioAddons(activeProfile, next);
+    void syncStremioAddonsForProfile(activeProfile, next);
     onDispatch(JSON.stringify({ type: 'addonsRefreshRequested' }));
   };
 

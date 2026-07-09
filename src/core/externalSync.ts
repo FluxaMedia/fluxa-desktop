@@ -3,7 +3,12 @@ import { coreParseVideoId } from './engine';
 import { dropTraktPlaybackProgress } from './traktSync';
 import { syncTraktNow, pushMarkWatchedTrakt, pushWatchlistTrakt } from './traktExternalSync';
 import { syncSimklNow, pushMarkWatchedSimkl, pushWatchlistSimkl } from './simklExternalSync';
-import { syncStremioNow } from './stremioExternalSync';
+import {
+  pushStremioPlaybackProgress,
+  pushStremioWatched,
+  pushStremioWatchlist,
+  syncStremioNow,
+} from './stremioExternalSync';
 import { pushAnimeTrackingExternal } from './animeExternalSync';
 import { pushLibraryStatusAniList, pushWatchlistAniList, syncAniListNow } from './anilistExternalSync';
 import {
@@ -24,6 +29,7 @@ export { replaceExternalContinueWatching } from './externalSyncUtils';
 export type WatchedEpisodeInfo = {
   contentId: string;
   contentType: string;
+  videoId?: string;
   season?: number;
   episode?: number;
   title?: string;
@@ -126,6 +132,9 @@ export async function pushMarkWatchedExternal(
 
   const nuvioEpisodes = (Array.isArray(episodeInfo) ? episodeInfo : episodeInfo ? [episodeInfo] : [])
     .filter((info) => info.contentId);
+  if (profile.stremioAuthKey) {
+    tasks.push(pushStremioWatched(meta, watched, nuvioEpisodes, profile).catch(() => undefined));
+  }
   if (profile.nuvioAccessToken) {
     tasks.push((async () => {
       let nuvioProfile = await validNuvioProfile(profile);
@@ -213,6 +222,10 @@ export async function pushWatchlistExternal(
     tasks.push(pushWatchlistAniList(id, command, profile.anilistAccessToken).catch(() => undefined));
   }
 
+  if (profile.stremioAuthKey) {
+    tasks.push(pushStremioWatchlist(item, command, profile).catch(() => undefined));
+  }
+
   if (profile.nuvioAccessToken) {
     const queueKey = `${profile.nuvioUserId ?? profile.id}:${profile.nuvioProfileIndex ?? 1}`;
     tasks.push(queueNuvioLibraryMutation(queueKey, async () => {
@@ -247,6 +260,35 @@ export async function pushWatchlistExternal(
     }).catch(() => undefined));
   }
 
+  await Promise.all(tasks);
+}
+
+export async function pushPlaybackProgressExternal(
+  progress: WatchProgressInfo,
+  meta: Record<string, unknown>,
+  profile: UserProfile | null,
+): Promise<void> {
+  if (!profile || progress.durationSeconds <= 0) return;
+  const tasks: Promise<void>[] = [];
+  if (profile.stremioAuthKey) {
+    tasks.push(pushStremioPlaybackProgress(meta, progress, profile).catch(() => undefined));
+  }
+  if (profile.nuvioAccessToken) {
+    tasks.push((async () => {
+      const fresh = await validNuvioProfile(profile);
+      if (!fresh.nuvioAccessToken) return;
+      await nuvioPushWatchProgress(fresh.nuvioAccessToken, fresh.nuvioProfileIndex ?? 1, [{
+        content_id: progress.contentId,
+        content_type: progress.contentType,
+        video_id: progress.videoId,
+        position: Math.round(progress.positionSeconds * 1000),
+        duration: Math.round(progress.durationSeconds * 1000),
+        last_watched: progress.lastWatched,
+        season: progress.season,
+        episode: progress.episode,
+      }]);
+    })().catch(() => undefined));
+  }
   await Promise.all(tasks);
 }
 

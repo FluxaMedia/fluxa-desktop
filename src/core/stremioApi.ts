@@ -1,4 +1,5 @@
 import { platformFetch } from './httpClient';
+import type { AddonDescriptor } from './types';
 
 const STREMIO_API = 'https://api.strem.io';
 
@@ -64,4 +65,28 @@ export async function stremioPullLibrary(authKey: string): Promise<Record<string
     all: true,
   });
   return Array.isArray(result) ? result : [];
+}
+
+export async function stremioPushLibrary(
+  authKey: string,
+  changes: Record<string, unknown>[],
+): Promise<void> {
+  if (changes.length === 0) return;
+  await stremioPost('/api/datastorePut', {
+    authKey,
+    collection: 'libraryItem',
+    changes,
+  });
+}
+
+export async function stremioPullAddons(authKey: string): Promise<AddonDescriptor[]> {
+  const result = await stremioPost<{ addons?: AddonDescriptor[] }>('/api/addonCollectionGet', {
+    authKey,
+    update: true,
+  });
+  return Array.isArray(result.addons) ? result.addons : [];
+}
+
+export async function stremioReplaceAddons(authKey: string, addons: AddonDescriptor[]): Promise<void> {
+  await stremioPost('/api/addonCollectionSet', { authKey, addons });
 }

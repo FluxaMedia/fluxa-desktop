@@ -10,7 +10,7 @@ import {
   storageWrite,
 } from './engine';
 import { buildContinueWatching, loadActiveProfile, loadAddons, loadLibrary, saveLibrary } from './libraryOps';
-import { pushLibraryStatusExternal, pushMarkWatchedExternal, pushWatchlistExternal, type WatchedEpisodeInfo, type WatchProgressInfo } from './externalSync';
+import { pushLibraryStatusExternal, pushMarkWatchedExternal, pushPlaybackProgressExternal, pushWatchlistExternal, type WatchedEpisodeInfo, type WatchProgressInfo } from './externalSync';
 import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
 import { notify } from './notifications';
 import { t } from '../i18n';
@@ -213,6 +213,7 @@ export async function applyLibraryCommand(payload: Record<string, unknown>): Pro
         .map((ep, index) => ({
           contentId: seriesId,
           contentType,
+          videoId: ep.id,
           season: ep.season,
           episode: ep.episode ?? ep.number,
           title: ep.name ?? ep.title ?? String(command.videoIds?.[index] ?? ''),
@@ -285,6 +286,20 @@ export async function writePlaybackProgress(payload: Record<string, unknown>): P
     lib.progress = progressMap;
     lib.continueWatching = await buildContinueWatching(progressMap);
     await saveLibrary(lib);
+    const duration = Number(progress.duration ?? 0);
+    const videoId = typeof progress.lastVideoId === 'string' ? progress.lastVideoId : meta.id;
+    if (duration > 0 && videoId) {
+      void loadActiveProfile().then((profile) => pushPlaybackProgressExternal({
+        contentId: meta.id,
+        contentType: String(meta.type ?? 'movie'),
+        videoId,
+        positionSeconds: Number(progress.timeOffset ?? 0),
+        durationSeconds: duration,
+        lastWatched: Date.now(),
+        season: typeof progress.lastEpisodeSeason === 'number' ? progress.lastEpisodeSeason : undefined,
+        episode: typeof progress.lastEpisodeNumber === 'number' ? progress.lastEpisodeNumber : undefined,
+      }, meta as Record<string, unknown>, profile));
+    }
     invalidateCalendarCache();
   }
   return {};

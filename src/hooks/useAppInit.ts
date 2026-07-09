@@ -43,6 +43,13 @@ export function useAppInit(
       if (profile.nuvioAccessToken) {
         syncTasks.push(importNuvioProfileData(profile).catch(() => undefined));
       }
+      if (profile.stremioAuthKey) {
+        syncTasks.push(syncExternalIntegrationNow({
+          provider: 'stremio',
+          profile,
+          token: profile.stremioAuthKey,
+        }).catch(() => undefined));
+      }
       if (profile.traktAccessToken) {
         const traktClientId = await invoke<string>('get_oauth_client_id', { service: 'trakt' }).catch(() => '');
         syncTasks.push(syncExternalIntegrationNow({
