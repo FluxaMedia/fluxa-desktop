@@ -464,6 +464,18 @@ fn get_data_dir(state: State<DesktopState>) -> Option<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _sentry_guard = sentry::init(sentry::ClientOptions {
+        dsn: if cfg!(debug_assertions) {
+            None
+        } else {
+            "https://7fe8e82cf7ea0eed65175d3d43afb1c0@o4511704565678080.ingest.de.sentry.io/4511706871693392"
+                .parse()
+                .ok()
+        },
+        release: sentry::release_name!(),
+        ..Default::default()
+    });
+
     std::env::set_var("MPV_LIBMPV_RENDER_BACKEND", "gpu-next");
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
