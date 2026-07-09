@@ -6,7 +6,15 @@ import { syncSimklNow, pushMarkWatchedSimkl, pushWatchlistSimkl } from './simklE
 import { syncStremioNow } from './stremioExternalSync';
 import { pushAnimeTrackingExternal } from './animeExternalSync';
 import { pushLibraryStatusAniList, pushWatchlistAniList, syncAniListNow } from './anilistExternalSync';
-import { nuvioDeleteWatchProgress, nuvioPushWatchHistory, nuvioPushWatchProgress, nuvioRefreshToken } from './nuvioApi';
+import {
+  nuvioDeleteWatchHistory,
+  nuvioDeleteWatchProgress,
+  nuvioPullLibrary,
+  nuvioPushLibrary,
+  nuvioPushWatchHistory,
+  nuvioPushWatchProgress,
+  nuvioRefreshToken,
+} from './nuvioApi';
 import { saveProfile } from './profiles';
 import type { UserProfile } from './types';
 
@@ -31,6 +39,21 @@ export type WatchProgressInfo = {
   season?: number;
   episode?: number;
 };
+
+// Library changes are implemented by Nuvio as a read-modify-replace operation.
+// Serialize those operations per remote profile so simultaneous toggles cannot
+// overwrite one another with stale snapshots.
+const nuvioLibraryMutationQueues = new Map<string, Promise<void>>();
+
+function queueNuvioLibraryMutation(key: string, mutation: () => Promise<void>): Promise<void> {
+  const previous = nuvioLibraryMutationQueues.get(key) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(mutation);
+  nuvioLibraryMutationQueues.set(key, next);
+  void next.finally(() => {
+    if (nuvioLibraryMutationQueues.get(key) === next) nuvioLibraryMutationQueues.delete(key);
+  });
+  return next;
+}
 
 async function getOAuthClientId(service: string): Promise<string> {
   try {
@@ -103,12 +126,20 @@ export async function pushMarkWatchedExternal(
 
   const nuvioEpisodes = (Array.isArray(episodeInfo) ? episodeInfo : episodeInfo ? [episodeInfo] : [])
     .filter((info) => info.contentId);
-  if (profile.nuvioAccessToken && watched) {
+  if (profile.nuvioAccessToken) {
     tasks.push((async () => {
       let nuvioProfile = await validNuvioProfile(profile);
       const push = async () => {
         const token = nuvioProfile.nuvioAccessToken!;
         const profileIdx = nuvioProfile.nuvioProfileIndex ?? 1;
+        const watchedKeys = nuvioEpisodes.length > 0
+          ? nuvioEpisodes.map((info) => ({ content_id: info.contentId, season: info.season, episode: info.episode }))
+          : [{ content_id: String(meta?.id ?? videoIds[0] ?? ''), season: undefined, episode: undefined }]
+            .filter((key) => key.content_id);
+        if (!watched) {
+          if (watchedKeys.length > 0) await nuvioDeleteWatchHistory(token, profileIdx, watchedKeys);
+          return;
+        }
         if (nuvioEpisodes.length > 0) {
           await Promise.all(nuvioEpisodes.map((info) =>
             nuvioDeleteWatchProgress(token, profileIdx, info.contentId, info.season, info.episode).catch(() => undefined),
@@ -180,6 +211,40 @@ export async function pushWatchlistExternal(
 
   if (profile.anilistAccessToken) {
     tasks.push(pushWatchlistAniList(id, command, profile.anilistAccessToken).catch(() => undefined));
+  }
+
+  if (profile.nuvioAccessToken) {
+    const queueKey = `${profile.nuvioUserId ?? profile.id}:${profile.nuvioProfileIndex ?? 1}`;
+    tasks.push(queueNuvioLibraryMutation(queueKey, async () => {
+      let nuvioProfile = await validNuvioProfile(profile);
+      const token = nuvioProfile.nuvioAccessToken;
+      if (!token) return;
+      const profileIdx = nuvioProfile.nuvioProfileIndex ?? 1;
+      const remote = await nuvioPullLibrary(token, profileIdx);
+      const existingIndex = remote.findIndex((entry) => entry.content_id === id && entry.content_type === contentType);
+      if (command === 'remove') {
+        if (existingIndex < 0) return;
+        remote.splice(existingIndex, 1);
+      } else {
+        const entry = {
+          content_id: id,
+          content_type: contentType,
+          name: String(item.name ?? ''),
+          poster: (item.poster as string | undefined) ?? null,
+          poster_shape: 'poster',
+          background: (item.background as string | undefined) ?? null,
+          description: (item.description as string | undefined) ?? null,
+          release_info: (item.releaseInfo as string | undefined) ?? null,
+          imdb_rating: typeof item.imdbRating === 'number' ? item.imdbRating : null,
+          genres: Array.isArray(item.genres) ? item.genres.filter((genre): genre is string => typeof genre === 'string') : [],
+          addon_base_url: null,
+          added_at: Date.now(),
+        };
+        if (existingIndex >= 0) remote[existingIndex] = { ...remote[existingIndex], ...entry };
+        else remote.push(entry);
+      }
+      await nuvioPushLibrary(token, profileIdx, remote);
+    }).catch(() => undefined));
   }
 
   await Promise.all(tasks);

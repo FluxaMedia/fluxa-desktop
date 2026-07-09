@@ -7,6 +7,8 @@ import { appPrefs, prefString } from '../core/appPrefs';
 import { effectiveCatalogId, effectiveCatalogType, exportCollectionsJson, importCollectionsJson } from '../core/collections';
 import { getViewPrefs, setViewPref, whenViewPrefsReady } from '../core/viewPrefs';
 import { saveProfile } from '../core/profiles';
+import { nuvioPushCollections } from '../core/nuvioApi';
+import { freshNuvioProfile } from '../core/nuvioSync';
 import type { AppState, HomeCategory, LibraryItem, Meta, UserCollection, UserCollectionFolder, UserProfile } from '../core/types';
 import { t } from '../i18n';
 import { CategoryGridScreen } from './CategoryGridScreen';
@@ -113,6 +115,18 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     const updated: UserProfile = { ...activeProfile, libraryCollections: next };
     await saveProfile(updated);
     onProfileUpdated?.(updated);
+    if (!updated.nuvioAccessToken) return;
+
+    // Keep the local save responsive and durable even when Nuvio is unavailable.
+    try {
+      const freshProfile = await freshNuvioProfile(updated);
+      const token = freshProfile.nuvioAccessToken;
+      if (!token) return;
+      await nuvioPushCollections(token, freshProfile.nuvioProfileIndex ?? 1, next);
+      if (freshProfile !== updated) onProfileUpdated?.(freshProfile);
+    } catch {
+      // Keep the local collection intact when the remote write cannot complete.
+    }
   }
 
   async function handleSaveCollection(col: UserCollection) {

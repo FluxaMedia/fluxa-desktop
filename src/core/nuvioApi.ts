@@ -171,7 +171,7 @@ export function nuvioAuthErrorKind(error: unknown): NuvioAuthErrorKind {
 }
 
 async function rawNuvioRequest(
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
   token?: string,
@@ -185,7 +185,7 @@ async function rawNuvioRequest(
 }
 
 async function nuvioRequest<T>(
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
   token?: string,
@@ -207,6 +207,10 @@ async function nuvioRequest<T>(
 
 async function post<T>(path: string, body: unknown, token?: string): Promise<T> {
   return nuvioRequest<T>('POST', path, body, token);
+}
+
+async function patch<T>(path: string, body: unknown, token: string): Promise<T> {
+  return nuvioRequest<T>('PATCH', path, body, token);
 }
 
 async function get<T>(path: string, token: string): Promise<T> {
@@ -255,6 +259,10 @@ export async function nuvioPushProfiles(
   }, token);
 }
 
+export async function nuvioDeleteProfileData(token: string, profileId: number): Promise<void> {
+  await post('/rest/v1/rpc/sync_delete_profile_data', { p_profile_id: profileId }, token);
+}
+
 export async function nuvioPullAddons(token: string, profileId: number): Promise<NuvioAddon[]> {
   return get<NuvioAddon[]>(
     `/rest/v1/addons?select=*&profile_id=eq.${profileId}&order=sort_order`,
@@ -268,6 +276,48 @@ export async function nuvioPushAddons(
   addons: Array<{ url: string; name?: string; enabled?: boolean; sort_order?: number }>,
 ): Promise<void> {
   return post('/rest/v1/rpc/sync_push_addons', { p_profile_id: profileId, p_addons: addons }, token);
+}
+
+/** Reconciles an add-on list using the REST mutations used by Nuvio's web client. */
+export async function nuvioReplaceAddons(
+  token: string,
+  userId: string,
+  profileId: number,
+  addons: Array<{ url: string; name?: string; enabled?: boolean; sort_order?: number }>,
+): Promise<void> {
+  const current = await nuvioPullAddons(token, profileId);
+  const desiredByUrl = new Map(addons.map((addon, index) => [addon.url, {
+    url: addon.url,
+    name: addon.name ?? null,
+    enabled: addon.enabled ?? true,
+    sort_order: addon.sort_order ?? index,
+  }]));
+
+  await Promise.all(current
+    .filter((addon) => !desiredByUrl.has(addon.url))
+    .map((addon) => nuvioRequest<void>(
+      'DELETE',
+      `/rest/v1/addons?id=eq.${encodeURIComponent(addon.id)}&profile_id=eq.${profileId}`,
+      undefined,
+      token,
+    )));
+
+  await Promise.all([...desiredByUrl.values()].map(async (addon) => {
+    const existing = current.find((candidate) => candidate.url === addon.url);
+    if (existing) {
+      await patch<void>(
+        `/rest/v1/addons?id=eq.${encodeURIComponent(existing.id)}&profile_id=eq.${profileId}`,
+        addon,
+        token,
+      );
+    } else {
+      await post<void>('/rest/v1/addons', {
+        user_id: userId,
+        profile_id: profileId,
+        ...addon,
+      }, token);
+    }
+  }));
 }
 
 export async function nuvioPullPlugins(token: string, profileId: number): Promise<unknown[]> {
@@ -377,6 +427,17 @@ export async function nuvioPushWatchHistory(
   }>,
 ): Promise<void> {
   return post('/rest/v1/rpc/sync_push_watched_items', { p_profile_id: profileId, p_items: items }, token);
+}
+
+export async function nuvioDeleteWatchHistory(
+  token: string,
+  profileId: number,
+  keys: Array<{ content_id: string; season?: number; episode?: number }>,
+): Promise<void> {
+  await post('/rest/v1/rpc/sync_delete_watched_items', {
+    p_profile_id: profileId,
+    p_keys: keys,
+  }, token);
 }
 
 export async function nuvioPullProfileSettings(

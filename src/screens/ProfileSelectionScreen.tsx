@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Pencil, Plus, Trash2, UserRound, X } from 'lucide-react';
 import { deleteProfile, loadProfiles, profileColor, profileInitials, setActiveProfileId } from '../core/profiles';
+import { nuvioDeleteProfileData, nuvioPushProfiles } from '../core/nuvioApi';
+import { freshNuvioProfile } from '../core/nuvioSync';
 import type { UserProfile } from '../core/types';
 import { colors } from '../theme';
 import { t } from '../i18n';
@@ -29,9 +31,29 @@ export function ProfileSelectionScreen({ onProfileSelected, onProfilesChanged }:
   };
 
   const handleDelete = async (id: string) => {
+    const deleted = profiles.find((profile) => profile.id === id);
     const updated = await deleteProfile(id);
     setProfiles(updated);
     onProfilesChanged?.(updated);
+    if (deleted?.nuvioAccessToken && deleted.nuvioUserId && deleted.nuvioProfileIndex != null) {
+      void (async () => {
+        try {
+          const freshProfile = await freshNuvioProfile(deleted);
+          const remoteProfiles = updated.filter((profile) =>
+            profile.nuvioUserId === freshProfile.nuvioUserId && profile.nuvioProfileIndex != null,
+          );
+          await nuvioDeleteProfileData(freshProfile.nuvioAccessToken!, freshProfile.nuvioProfileIndex!);
+          await nuvioPushProfiles(freshProfile.nuvioAccessToken!, remoteProfiles.map((profile) => ({
+            profile_index: profile.nuvioProfileIndex!,
+            name: profile.name ?? `Profile ${profile.nuvioProfileIndex}`,
+            avatar_color_hex: profile.color ?? null,
+            avatar_url: profile.avatarUrl ?? null,
+          })));
+        } catch {
+          // Local deletion succeeds even if Nuvio is temporarily unreachable.
+        }
+      })();
+    }
   };
 
   const handleSaved = (updated: UserProfile[]) => {

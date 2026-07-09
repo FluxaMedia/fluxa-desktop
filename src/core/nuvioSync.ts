@@ -23,6 +23,14 @@ export interface NuvioImportReport {
   errors: Partial<Record<NuvioImportStep, string>>;
 }
 
+export interface NuvioImportOptions {
+  /**
+   * Preferences are currently device-global, while Nuvio data is profile-scoped.
+   * Only import them for the profile the user selected for this device.
+   */
+  includeSettings?: boolean;
+}
+
 export async function freshNuvioProfile(profile: UserProfile): Promise<UserProfile> {
   if (!profile.nuvioRefreshToken) return profile;
   const expiresAt = profile.nuvioTokenExpiresAt ?? 0;
@@ -152,6 +160,7 @@ async function fetchAddonManifests(addons: NuvioAddon[]): Promise<{
 export async function importNuvioProfileData(
   profile: UserProfile,
   onStep?: (step: NuvioImportStep, ok: boolean, error?: string) => void,
+  options: NuvioImportOptions = {},
 ): Promise<NuvioImportReport> {
   const freshProfile = await freshNuvioProfile(profile).catch(() => profile);
   const token = freshProfile.nuvioAccessToken;
@@ -343,17 +352,19 @@ export async function importNuvioProfileData(
 
   await storageWrite(libKey, libDoc);
 
-  try {
-    const profileSettings = await nuvioPullProfileSettings(token, profileIdx, 'desktop');
-    const blob = profileSettings[0]?.settings_json;
-    if (blob && typeof blob === 'object' && !Array.isArray(blob)) {
-      const existing = await storageRead<Record<string, unknown>>('prefs') ?? {};
-      await storageWrite('prefs', { ...existing, ...blob as Record<string, unknown> });
+  if (options.includeSettings !== false) {
+    try {
+      const profileSettings = await nuvioPullProfileSettings(token, profileIdx, 'desktop');
+      const blob = profileSettings[0]?.settings_json;
+      if (blob && typeof blob === 'object' && !Array.isArray(blob)) {
+        const existing = await storageRead<Record<string, unknown>>('prefs') ?? {};
+        await storageWrite('prefs', { ...existing, ...blob as Record<string, unknown> });
+      }
+      onStep?.('settings', true);
+    } catch (err) {
+      errors.settings = err instanceof Error ? err.message : String(err);
+      onStep?.('settings', false, errors.settings);
     }
-    onStep?.('settings', true);
-  } catch (err) {
-    errors.settings = err instanceof Error ? err.message : String(err);
-    onStep?.('settings', false, errors.settings);
   }
 
   try {

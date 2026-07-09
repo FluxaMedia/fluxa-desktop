@@ -12,6 +12,8 @@ import type { AddonDescriptor, AppState, UserProfile } from '../core/types';
 import { addonKey, normalizeAddonDescriptor } from '../core/addons';
 import { saveProfile } from '../core/profiles';
 import { loadAddons, saveAddons } from '../core/libraryOps';
+import { nuvioReplaceAddons } from '../core/nuvioApi';
+import { freshNuvioProfile } from '../core/nuvioSync';
 import { setLanguage, t } from '../i18n';
 import { styles } from '../components/settings/settingsStyles';
 import { DEFAULT_PREFS } from '../components/settings/settingsTypes';
@@ -160,6 +162,28 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     setInstalledAddons(await loadAddons());
   };
 
+  const syncNuvioAddons = async (profile: UserProfile | null | undefined, addons: AddonDescriptor[]) => {
+    if (!profile?.nuvioAccessToken || !profile.nuvioUserId) return;
+    try {
+      const freshProfile = await freshNuvioProfile(profile);
+      if (!freshProfile.nuvioAccessToken || !freshProfile.nuvioUserId) return;
+      await nuvioReplaceAddons(
+        freshProfile.nuvioAccessToken,
+        freshProfile.nuvioUserId,
+        freshProfile.nuvioProfileIndex ?? 1,
+        addons.map((addon, index) => ({
+          url: addon.transportUrl,
+          name: addon.manifest?.name,
+          enabled: !(freshProfile.addonSettings?.disabledLocalAddons ?? freshProfile.disabledLocalAddons ?? []).includes(addonKey(addon)),
+          sort_order: index,
+        })),
+      );
+      if (freshProfile !== profile) onProfileUpdated(freshProfile);
+    } catch {
+      // The locally saved add-on state remains available if Nuvio is offline.
+    }
+  };
+
   useEffect(() => {
     const url = initialAddonUrl?.trim();
     if (!url) return;
@@ -226,13 +250,16 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
       const updated = ((plan?.addons as AddonDescriptor[] | undefined) ?? mergeAddons(stored, [normalizedAddon])).map(normalizeAddonDescriptor);
       await saveAddons(updated);
 
+      let syncProfile = activeProfile;
       if (activeProfile) {
         const updatedProfile = withInstalledLocalAddon(activeProfile, normalizedUrl);
         await saveProfile(updatedProfile);
         onProfileUpdated(updatedProfile);
+        syncProfile = updatedProfile;
       }
 
       setInstalledAddons(updated);
+      void syncNuvioAddons(syncProfile, updated);
       setAddonUrl('');
       setAddonInstallStatus({ loading: false, error: null });
       setAddedAddonName(normalizedAddon.manifest?.name || normalizedAddon.transportUrl);
@@ -262,6 +289,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
       };
       await saveProfile(updatedProfile);
       onProfileUpdated(updatedProfile);
+      void syncNuvioAddons(updatedProfile, updated);
     }
     onDispatch(JSON.stringify({ type: 'addonsRefreshRequested' }));
   };
@@ -282,6 +310,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     };
     await saveProfile(updatedProfile);
     onProfileUpdated(updatedProfile);
+    void syncNuvioAddons(updatedProfile, installedAddons);
     onDispatch(JSON.stringify({ type: 'addonsRefreshRequested' }));
   };
 
@@ -294,6 +323,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
     await saveAddons(next);
     setInstalledAddons(next);
+    void syncNuvioAddons(activeProfile, next);
     onDispatch(JSON.stringify({ type: 'addonsRefreshRequested' }));
   };
 

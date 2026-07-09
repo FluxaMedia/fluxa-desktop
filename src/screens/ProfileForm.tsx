@@ -8,6 +8,8 @@ import {
   setActiveProfileId,
 } from '../core/profiles';
 import { saveAddons } from '../core/libraryOps';
+import { nuvioPushProfiles } from '../core/nuvioApi';
+import { freshNuvioProfile } from '../core/nuvioSync';
 import type { AddonDescriptor, UserProfile } from '../core/types';
 import { t } from '../i18n';
 
@@ -127,15 +129,55 @@ export function ProfileForm({
     setBusy(true);
     try {
       const color = existing?.color ?? PROFILE_COLORS[0];
+      const remoteAccounts = Array.from(new Map(
+        allProfiles
+          .filter((candidate) => candidate.nuvioAccessToken && candidate.nuvioUserId)
+          .map((candidate) => [candidate.nuvioUserId!, candidate]),
+      ).values());
+      const inheritedNuvio = !existing && remoteAccounts.length === 1
+        ? remoteAccounts[0]
+        : undefined;
+      const nextRemoteIndex = inheritedNuvio
+        ? Math.max(0, ...allProfiles
+          .filter((candidate) => candidate.nuvioUserId === inheritedNuvio.nuvioUserId)
+          .map((candidate) => candidate.nuvioProfileIndex ?? 0)) + 1
+        : undefined;
       const base: UserProfile = existing
         ? { ...existing, name: name.trim(), color, avatarUrl }
-        : createProfileObject(name, color);
+        : {
+          ...createProfileObject(name, color),
+          ...(inheritedNuvio && nextRemoteIndex != null && nextRemoteIndex <= 6 ? {
+            email: inheritedNuvio.email,
+            nuvioAccessToken: inheritedNuvio.nuvioAccessToken,
+            nuvioRefreshToken: inheritedNuvio.nuvioRefreshToken,
+            nuvioTokenExpiresAt: inheritedNuvio.nuvioTokenExpiresAt,
+            nuvioUserId: inheritedNuvio.nuvioUserId,
+            nuvioEmail: inheritedNuvio.nuvioEmail,
+            nuvioProfileIndex: nextRemoteIndex,
+          } : {}),
+        };
       const pinHash = removePin ? undefined : pin.trim().length === 4 ? await hashPin(pin.trim()) : base.pinHash;
       const profile: UserProfile = { ...base, name: name.trim(), color, avatarUrl, pinHash };
       const updated = await saveProfile(profile);
       if (!existing) {
         await setActiveProfileId(profile.id);
         try { await saveAddons([CINEMETA_DEFAULT]); } catch {}
+      }
+      if (profile.nuvioAccessToken && profile.nuvioUserId && profile.nuvioProfileIndex != null) {
+        try {
+          const freshProfile = await freshNuvioProfile(profile);
+          const remoteProfiles = [...allProfiles.filter((candidate) =>
+            candidate.id !== profile.id && candidate.nuvioUserId === freshProfile.nuvioUserId && candidate.nuvioProfileIndex != null,
+          ), freshProfile];
+          await nuvioPushProfiles(freshProfile.nuvioAccessToken!, remoteProfiles.map((candidate) => ({
+            profile_index: candidate.nuvioProfileIndex!,
+            name: candidate.name ?? `Profile ${candidate.nuvioProfileIndex}`,
+            avatar_color_hex: candidate.color ?? null,
+            avatar_url: candidate.avatarUrl ?? null,
+          })));
+        } catch {
+          // The local profile remains saved and can be reconciled later.
+        }
       }
       onSaved(updated);
     } finally {

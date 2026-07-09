@@ -66,11 +66,23 @@ export function NuvioImportView({ profile, onDone }: NuvioImportViewProps) {
       const report = await importNuvioProfileData(selectedProfile, (step: NuvioImportStep, ok, message) => {
         mark(step as keyof ImportProgress, ok, message);
       });
+      const secondaryFailures: string[] = [];
+      for (const remoteProfile of localProfiles) {
+        if (remoteProfile.id === selectedProfile.id) continue;
+        const secondaryReport = await importNuvioProfileData(remoteProfile, undefined, { includeSettings: false });
+        const failedSteps = Object.keys(secondaryReport.errors);
+        if (failedSteps.length > 0) {
+          secondaryFailures.push(`${remoteProfile.name || remoteProfile.id}: ${failedSteps.join(', ')}`);
+        }
+      }
       const finalProfiles = await loadProfiles();
       const finalProfile = finalProfiles.find((p) => p.id === selectedProfile.id) ?? selectedProfile;
       const failed = Object.keys(report.errors);
-      if (failed.length > 0) {
-        setError(`Nuvio import incomplete: ${failed.join(', ')}`);
+      if (failed.length > 0 || secondaryFailures.length > 0) {
+        setError(`Nuvio import incomplete: ${[
+          ...(failed.length > 0 ? [failed.join(', ')] : []),
+          ...secondaryFailures,
+        ].join('; ')}`);
       }
 
       setDone(true);

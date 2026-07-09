@@ -32,6 +32,7 @@ pub async fn nuvio_request(
     let mut req = match method.as_str() {
         "GET" => client.get(&url),
         "POST" => client.post(&url),
+        "PATCH" => client.patch(&url),
         "DELETE" => client.delete(&url),
         other => return Err(format!("unsupported method: {other}")),
     };
