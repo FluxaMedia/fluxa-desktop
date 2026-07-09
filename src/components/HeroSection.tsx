@@ -26,7 +26,7 @@ interface Props {
   secondarySubtitleLanguage?: string;
 }
 
-const SLIDE_INTERVAL_MS = 6500;
+const DEFAULT_SLIDE_INTERVAL_MS = 6500;
 const STALL_TIMEOUT_MS = 7000;
 const PANEL_LEFT = '7.5rem';
 
@@ -52,7 +52,7 @@ export const HeroSection = React.memo(function HeroSection({
   preferSeasonPosters = false,
   isActive = true,
   autoplayTrailer = false,
-  autoplayTrailerDelaySecs = 4,
+  autoplayTrailerDelaySecs = 2,
   preferredSubtitleLanguage,
   secondarySubtitleLanguage,
 }: Props) {
@@ -76,6 +76,7 @@ export const HeroSection = React.memo(function HeroSection({
 
   const activeMeta = items[activeIndex] ?? meta;
   const canSlide = items.length > 1;
+  const slideIntervalMs = autoplayTrailer ? Math.max(DEFAULT_SLIDE_INTERVAL_MS, autoplayTrailerDelaySecs * 1000 + 3000) : DEFAULT_SLIDE_INTERVAL_MS;
   const imageUrl = (preferSeasonPosters ? seasonPosterUrl(activeMeta) : undefined) ?? activeMeta.background ?? activeMeta.poster;
   const bgUrl = !bgError ? imageUrl : null;
   const logoUrl = !logoError ? activeMeta.logo : null;
@@ -133,6 +134,9 @@ export const HeroSection = React.memo(function HeroSection({
     setTrailerReady(false);
     setTrailerProgress(0);
     setTrailerLoading(false);
+  }, [activeMeta.id]);
+
+  useEffect(() => {
     if (!autoplayTrailer || !isActive || !trailerVideoId) return;
     let cancelled = false;
     const id = window.setTimeout(() => {
@@ -154,7 +158,7 @@ export const HeroSection = React.memo(function HeroSection({
       cancelled = true;
       window.clearTimeout(id);
     };
-  }, [activeMeta.id, trailerVideoId, autoplayTrailer, autoplayTrailerDelaySecs, isActive]);
+  }, [trailerVideoId, autoplayTrailer, autoplayTrailerDelaySecs, isActive]);
 
   useEffect(() => {
     let cancelled = false;
@@ -230,9 +234,9 @@ export const HeroSection = React.memo(function HeroSection({
     if (!canSlide || !isActive || trailerPending) return;
     const id = window.setInterval(() => {
       slideToIndex(activeIndexRef.current + 1);
-    }, SLIDE_INTERVAL_MS);
+    }, slideIntervalMs);
     return () => window.clearInterval(id);
-  }, [canSlide, items.length, isActive, trailerPending]);
+  }, [canSlide, items.length, isActive, trailerPending, slideIntervalMs]);
 
   useEffect(() => {
     if (!canSlide) return;
@@ -277,6 +281,7 @@ export const HeroSection = React.memo(function HeroSection({
             ...contentStyle,
             opacity: visible ? (trailerActive ? 0 : 1) : 0,
             transition: 'opacity 0.6s ease',
+            animation: prefersReducedMotion ? 'none' : `heroKenBurns ${slideIntervalMs + 400}ms ease-out forwards`,
             animationPlayState: trailerActive ? 'paused' : 'running',
           }}
           onError={() => setBgError(true)}
@@ -410,7 +415,7 @@ export const HeroSection = React.memo(function HeroSection({
                       ...(i < activeIndex ? styles.indicatorFillDone : null),
                       ...(i === activeIndex
                         ? {
-                            animation: `heroIndicatorFill ${SLIDE_INTERVAL_MS}ms linear forwards`,
+                            animation: `heroIndicatorFill ${slideIntervalMs}ms linear forwards`,
                             animationPlayState: trailerPending ? 'paused' : 'running',
                           }
                         : null),
@@ -639,7 +644,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block',
     userSelect: 'none',
     pointerEvents: 'none',
-    animation: prefersReducedMotion ? 'none' : `heroKenBurns ${SLIDE_INTERVAL_MS + 400}ms ease-out forwards`,
     transformOrigin: 'center 30%',
   },
   trailerFrame: {

@@ -164,7 +164,7 @@ export const DEFAULT_PREFS: Prefs = {
   continueWatchingHideTitles: false,
   showHeroSection: true,
   homeHeroAutoplayTrailer: false,
-  homeHeroAutoplayTrailerDelaySecs: '4',
+  homeHeroAutoplayTrailerDelaySecs: '2',
   heroFeedToggles: [],
   homeFeedToggles: [],
   topTenFeedToggles: [],

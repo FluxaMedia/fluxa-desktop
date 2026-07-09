@@ -252,7 +252,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
           onAddToWatchlist={handleAddToWatchlist}
           isActive={isActive}
           autoplayTrailer={autoplayTrailerEnabled}
-          autoplayTrailerDelaySecs={Number(prefString(prefs, 'homeHeroAutoplayTrailerDelaySecs', '4'))}
+          autoplayTrailerDelaySecs={Number(prefString(prefs, 'homeHeroAutoplayTrailerDelaySecs', '2'))}
           preferredSubtitleLanguage={prefString(prefs, 'preferredSubtitleLanguage', 'none')}
           secondarySubtitleLanguage={prefString(prefs, 'secondarySubtitleLanguage', 'none')}
         />
