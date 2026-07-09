@@ -235,6 +235,7 @@ pub struct MpvRenderer {
     log_ring: std::collections::VecDeque<(c_int, String)>,
     frames_rendered: u64,
     pending_unpause: bool,
+    current_url: Option<String>,
 }
 
 unsafe impl Send for MpvRenderer {}
@@ -387,6 +388,7 @@ impl MpvRenderer {
             log_ring: std::collections::VecDeque::new(),
             frames_rendered: 0,
             pending_unpause: false,
+            current_url: None,
         };
 
         renderer.set_option("terminal", "no")?;
@@ -455,6 +457,7 @@ impl MpvRenderer {
             log_ring: std::collections::VecDeque::new(),
             frames_rendered: 0,
             pending_unpause: false,
+            current_url: None,
         };
 
         renderer.set_option("terminal", "no")?;
@@ -489,6 +492,7 @@ impl MpvRenderer {
     pub fn load(&mut self, url: &str, start_at: Option<u64>) -> Result<(), String> {
         let escaped = url.replace('\\', "\\\\").replace('"', "\\\"");
         self.loaded = false;
+        self.current_url = Some(url.to_string());
         self.log_ring.clear();
         self.frames_rendered = 0;
         self.pending_unpause = true;
@@ -845,6 +849,19 @@ impl MpvRenderer {
                             message.push('\n');
                             message.push_str(&details.join("\n"));
                         }
+                        let url = self.current_url.clone();
+                        sentry::with_scope(
+                            |scope| {
+                                scope.set_tag("mpv.error_code", end_file.error);
+                                if let Some(url) = &url {
+                                    scope.set_extra("mpv.url", url.clone().into());
+                                }
+                                if !details.is_empty() {
+                                    scope.set_extra("mpv.log_tail", details.join("\n").into());
+                                }
+                            },
+                            || sentry::capture_message(&message, sentry::Level::Error),
+                        );
                         events.push(PlayerEvent::EndFile {
                             eof: false,
                             error: Some(message),

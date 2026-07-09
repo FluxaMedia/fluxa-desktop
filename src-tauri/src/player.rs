@@ -401,6 +401,7 @@ pub async fn player_init(app: AppHandle, state: State<'_, DesktopState>) -> Resu
                 Ok(r) => *renderer = Some(r),
                 Err(error) => {
                     log::error!("player_init: MpvRenderer::new failed: {error}");
+                    sentry::capture_message(&format!("MpvRenderer::new failed: {error}"), sentry::Level::Error);
                     return Err(error);
                 }
             }

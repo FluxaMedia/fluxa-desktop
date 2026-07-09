@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import * as Sentry from '@sentry/react';
 import { dispatchAction, coreDetectAnimePlayback, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream } from '../core/engine';
 
 function debugLog(msg: string) {
@@ -137,6 +138,15 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
 
   const failPlayerLoading = useCallback(async (message: string) => {
     ++playGenerationRef.current;
+    Sentry.captureMessage(message, {
+      level: 'error',
+      extra: {
+        metaId: playingMetaRef.current?.id,
+        episodeId: playingEpisodeRef.current?.id,
+        streamUrl: playingStreamRef.current?.url,
+        streamTitle: playingStreamRef.current?.title,
+      },
+    });
     const shouldStopTorrent = playerUsesTorrentRef.current;
     setPlayerUrl(null);
     setPlayerSubtitleUrl(undefined);
@@ -657,6 +667,15 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     if (playerLoadingOverlayRef.current && !playerLoadingOverlayRef.current.error) {
       await failPlayerLoading(message);
     } else if (!playerLoadingOverlayRef.current) {
+      Sentry.captureMessage(message, {
+        level: 'error',
+        extra: {
+          metaId: playingMetaRef.current?.id,
+          episodeId: playingEpisodeRef.current?.id,
+          streamUrl: playingStreamRef.current?.url,
+          streamTitle: playingStreamRef.current?.title,
+        },
+      });
       setPlayerPlaybackError(message);
       void invoke('player_command', { command: 'set pause yes' }).catch(() => undefined);
     }
