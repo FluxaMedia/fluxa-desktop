@@ -69,6 +69,7 @@ interface UsePlayerResult {
   playerEpisode: Video | null;
   playerUsesTorrent: boolean;
   playerPosterUrl: string | undefined;
+  playerMetaId: string | undefined;
   playerSubtitleUrl: string | undefined;
   playerStreamHeaders: Record<string, string> | undefined;
   playerPlaybackError: string | null;
@@ -99,6 +100,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   const [playerEpisodeTitle, setPlayerEpisodeTitle] = useState<string | undefined>();
   const [playerEpisode, setPlayerEpisode] = useState<Video | null>(null);
   const [playerPosterUrl, setPlayerPosterUrl] = useState<string | undefined>();
+  const [playerMetaId, setPlayerMetaId] = useState<string | undefined>();
   const [playerSubtitleUrl, setPlayerSubtitleUrl] = useState<string | undefined>();
   const [playerStreamHeaders, setPlayerStreamHeaders] = useState<Record<string, string> | undefined>();
   const [playerUsesTorrent, setPlayerUsesTorrent] = useState(false);
@@ -282,6 +284,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerTitle(undefined);
     setPlayerEpisode(null);
     setPlayerPosterUrl(undefined);
+    setPlayerMetaId(undefined);
     setPlayerSubtitleUrl(undefined);
     setPlayerStreamHeaders(undefined);
     setPlayerUsesTorrent(false);
@@ -436,6 +439,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     const earlyTitle = playerDisplayTitle(meta, episode, stream);
     const earlyArtwork = playerArtwork(meta, episode);
     setPlayerPosterUrl(earlyArtwork.background ?? meta?.poster);
+    setPlayerMetaId(meta?.id);
     setPlayerStreamHeaders(stream.behaviorHints?.proxyHeaders);
     artworkPrefetchRef.current = prefetchPlayerArtwork(earlyArtwork.background, earlyArtwork.logo).catch(() => undefined);
     let loadingArtworkPromise = showPlayerLoading(generation, earlyTitle, earlyArtwork);
@@ -675,5 +679,5 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerLoadingOverlay((prev) => (prev?.error ? prev : null));
   }, []);
 
-  return { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame };
+  return { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame };
 }

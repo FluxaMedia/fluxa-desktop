@@ -42,7 +42,7 @@ import { TrackPopover } from './player/TrackPopover';
 import { CastPopover } from './player/CastPopover';
 import { TorrentStatsPopover } from './player/TorrentStatsPopover';
 import { Popover } from './ui/Popover';
-import { setIdleDiscordPresence, updateDiscordPresence } from '../core/discordPresence';
+import { imdbButtonFor, updateDiscordPresence } from '../core/discordPresence';
 import { castDisconnect, castPlay, castPause, castSeek, castSetVolume, discoverCastDevices, proxyMediaUrl, resolveCastMediaUrl, startCasting } from '../core/cast';
 import type { CastDevice } from '../core/cast';
 
@@ -132,6 +132,7 @@ interface Props {
   currentEpisode?: Video | null;
   isTorrentStream?: boolean;
   initialPosterUrl?: string;
+  metaId?: string;
   initialSubtitleUrl?: string;
   initialStreamHeaders?: Record<string, string>;
   playbackError?: string | null;
@@ -141,7 +142,7 @@ interface Props {
   onDispatch?: (actionJson: string) => Promise<void> | void;
 }
 
-export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, initialSubtitleUrl, initialStreamHeaders, playbackError, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
+export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, metaId, initialSubtitleUrl, initialStreamHeaders, playbackError, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(100);
@@ -487,7 +488,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           detail: episodeTitle || undefined,
           paused: isPaused,
           startUnixSecs: isPaused ? undefined : Math.floor(Date.now() / 1000 - pos),
+          endUnixSecs: !isPaused && dur > 0 ? Math.floor(Date.now() / 1000 + (dur - pos)) : undefined,
           posterUrl: initialPosterUrl,
+          ...imdbButtonFor(metaId),
         });
       }
 
@@ -580,7 +583,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     }, 500);
 
     return () => clearInterval(interval);
-  }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, autoSkipSegments, flashFeedback, isTorrentStream]);
+  }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, metaId, autoSkipSegments, flashFeedback, isTorrentStream]);
 
   useEffect(() => {
     const tick = async () => {
@@ -595,10 +598,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     const id = setInterval(() => { void tick(); }, (showStats || showTorrentPopover) ? 500 : 1500);
     return () => clearInterval(id);
   }, [showStats, showTorrentPopover]);
-
-  useEffect(() => {
-    return () => setIdleDiscordPresence();
-  }, []);
 
   useEffect(() => {
     miniPlayerActiveRef.current = miniPlayerActive;

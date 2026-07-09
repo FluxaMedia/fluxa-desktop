@@ -683,7 +683,7 @@ pub fn run() {
             discord_presence_configure,
             discord_presence_update,
             discord_presence_set_viewing,
-            discord_presence_set_idle,
+            discord_presence_set_browsing,
             discord_presence_clear,
             cast_discover_devices,
             cast_resolve_media_url,

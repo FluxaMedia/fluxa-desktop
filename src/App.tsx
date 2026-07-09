@@ -7,10 +7,20 @@ import { ReactPlayerOverlay } from './components/ReactPlayerOverlay';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { setBrowsingDiscordPresence } from './core/discordPresence';
 
 function debugLog(msg: string) {
   void invoke('debug_log', { msg }).catch(() => {});
 }
+
+const BROWSING_LABELS: Record<NavRoute, string> = {
+  home: 'Browsing Home',
+  search: 'Searching',
+  library: 'Browsing Library',
+  discover: 'Browsing Discover',
+  calendar: 'Browsing Calendar',
+  settings: 'In Settings',
+};
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { UpdateModal, startUpdateCheck } from './components/UpdateModal';
 import { HomeScreen } from './screens/HomeScreen';
@@ -170,7 +180,7 @@ export default function App() {
     setWelcomeCompleted,
   } = useAppInit(updateState, setActiveRoute, storedPrefsRef);
 
-  const { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame } = usePlayer({
+  const { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame } = usePlayer({
     stateRef,
     activeProfile,
     updateState,
@@ -444,6 +454,11 @@ export default function App() {
     document.documentElement.style.setProperty('--primary-accent-color', accentColor);
     document.documentElement.style.setProperty('--primary-accent-foreground-color', accentForegroundColor(accentColor));
   }, [accentColor]);
+
+  React.useEffect(() => {
+    if (detailMeta || nativePlayerActive) return;
+    setBrowsingDiscordPresence(BROWSING_LABELS[activeRoute] ?? 'Browsing');
+  }, [activeRoute, detailMeta, nativePlayerActive]);
 
   if (!ready || !profilesChecked) {
     return (
@@ -726,6 +741,7 @@ export default function App() {
             currentEpisode={playerEpisode}
             isTorrentStream={playerUsesTorrent}
             initialPosterUrl={playerPosterUrl}
+            metaId={playerMetaId}
             initialSubtitleUrl={playerSubtitleUrl}
             initialStreamHeaders={playerStreamHeaders}
             prefs={prefs}
