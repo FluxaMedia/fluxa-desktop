@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Info, Play, Plus } from 'lucide-react';
+import { Info, Play, Plus, Volume2, VolumeX } from 'lucide-react';
 import { seasonPosterUrl } from '../core/seasonPosters';
 import { youtubeVideoId } from './detail/TrailerCarousel';
 import { httpFetchText, resolveYoutubeTrailer, type YoutubeTrailerSubtitleTrack } from '../core/engine';
@@ -94,6 +94,7 @@ export const HeroSection = React.memo(function HeroSection({
   const [trailerReady, setTrailerReady] = useState(false);
   const [trailerLoading, setTrailerLoading] = useState(false);
   const [trailerProgress, setTrailerProgress] = useState(0);
+  const [trailerMuted, setTrailerMuted] = useState(true);
   const lastTrailerProgressAtRef = useRef(0);
   const trailerVideoRef = useRef<HTMLVideoElement | null>(null);
   const activeTrailerSubtitleRef = useRef('');
@@ -134,6 +135,7 @@ export const HeroSection = React.memo(function HeroSection({
     setTrailerReady(false);
     setTrailerProgress(0);
     setTrailerLoading(false);
+    setTrailerMuted(true);
   }, [activeMeta.id]);
 
   useEffect(() => {
@@ -295,7 +297,7 @@ export const HeroSection = React.memo(function HeroSection({
           style={{ ...styles.trailerFrame, opacity: trailerReady ? 1 : 0, transition: 'opacity 0.6s ease' }}
           src={trailerStreamUrl}
           autoPlay
-          muted
+          muted={trailerMuted}
           playsInline
           onPlaying={() => {
             setTrailerReady(true);
@@ -317,6 +319,27 @@ export const HeroSection = React.memo(function HeroSection({
         <div style={styles.trailerSubtitleOverlay}>
           {activeTrailerSubtitle}
         </div>
+      )}
+
+      {trailerActive && (
+        <button
+          onClick={() => {
+            setTrailerMuted(!trailerMuted);
+            if (trailerVideoRef.current) trailerVideoRef.current.muted = !trailerMuted;
+          }}
+          style={styles.trailerMuteButton}
+          aria-label={trailerMuted ? 'Unmute' : 'Mute'}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(0,0,0,0.6)';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(0,0,0,0.4)';
+            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+          }}
+        >
+          {trailerMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+        </button>
       )}
 
       <div style={styles.gradientTop} />
@@ -905,5 +928,23 @@ const styles: Record<string, React.CSSProperties> = {
     height: '100%',
     background: 'rgba(255,255,255,0.90)',
     borderRadius: '62.4375rem',
+  },
+  trailerMuteButton: {
+    position: 'absolute',
+    bottom: '1.5rem',
+    right: '1.5rem',
+    width: '2.5rem',
+    height: '2.5rem',
+    borderRadius: '50%',
+    background: 'rgba(0,0,0,0.4)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    color: '#FFFFFF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    padding: 0,
+    zIndex: 20,
+    transition: 'background 0.2s ease, border-color 0.2s ease',
   },
 };
