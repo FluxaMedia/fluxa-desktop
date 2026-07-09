@@ -575,13 +575,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       }
 
       setShowNextEpCard((prev) => {
-        const next = !isPaused && dur > 0 && !!nextEpSubtitle && (pos / dur) * 100 >= nextEpThreshold;
+        const next = !isPaused && dur > 0 && !!nextEpSubtitle && !nextEpDismissed && (pos / dur) * 100 >= nextEpThreshold;
         return prev === next ? prev : next;
       });
     };
 
     return subscribePlayerStatus(handleStatus);
-  }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, metaId, autoSkipSegments, flashFeedback, isTorrentStream]);
+  }, [skipSegments, nextEpSubtitle, nextEpThreshold, nextEpDismissed, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, metaId, autoSkipSegments, flashFeedback, isTorrentStream]);
 
   useEffect(() => {
     const tick = async () => {
@@ -625,7 +625,11 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         chaptersRef.current = parsedChapters;
         setChapters(parsedChapters);
         setSkipSegments(parseSegments(info.skipSegmentsJson));
-        setNextEpSubtitle(info.nextEpSubtitle ?? '');
+        setNextEpSubtitle((prev) => {
+          const next = info.nextEpSubtitle ?? '';
+          if (next !== prev) setNextEpDismissed(false);
+          return next;
+        });
         setNextEpThreshold(info.nextEpThresholdPercent ?? 85);
         setAutoPlayNextEpisode(info.autoPlayNextEpisode ?? false);
         setAutoPlayCountdownSecs(info.autoPlayCountdownSecs ?? 7);
