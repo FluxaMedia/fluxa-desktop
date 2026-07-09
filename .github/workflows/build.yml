@@ -350,7 +350,7 @@ jobs:
             clean="$(sed -E 's/^[a-zA-Z]+(\([^)]*\))?: //; s/^(.)/\U\1/' <<< "$subject")"
             echo "- $clean ([$hash]($REPO_URL/commit/$hash))" >> notes.md
           done
-      - name: Update AppImage signature in latest.json for the stripped build
+      - name: Update AppImage signature and changelog in latest.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SIGNATURE: ${{ needs.build-linux.outputs.appimage_signature }}
@@ -358,8 +358,8 @@ jobs:
           set -euo pipefail
           [ -n "$SIGNATURE" ]
           gh release download "${{ github.ref_name }}" --repo "${{ github.repository }}" --pattern latest.json
-          jq --arg sig "$SIGNATURE" \
-            '(.platforms[] | select(.url | endswith(".AppImage")) | .signature) = $sig' \
+          jq --arg sig "$SIGNATURE" --rawfile notes notes.md \
+            '(.platforms[] | select(.url | endswith(".AppImage")) | .signature) = $sig | .notes = $notes' \
             latest.json > latest.json.patched
           mv latest.json.patched latest.json
           gh release upload "${{ github.ref_name }}" latest.json --clobber --repo "${{ github.repository }}"
