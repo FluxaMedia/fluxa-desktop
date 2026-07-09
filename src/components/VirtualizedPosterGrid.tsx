@@ -115,7 +115,18 @@ export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
           const left = GRID_PADDING_X + col * (columnWidth + GRID_GAP_X) + Math.max(0, (columnWidth - posterPrefs.width) / 2);
           const top = GRID_PADDING_TOP + row * rowStep;
           return (
-            <div key={item.id} style={{ position: 'absolute', left, top, width: posterPrefs.width, height: itemHeight }}>
+            <div
+              key={item.id}
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: posterPrefs.width,
+                height: itemHeight,
+                transform: `translate3d(${left}px, ${top}px, 0)`,
+                willChange: 'transform',
+              }}
+            >
               <PosterCard
                 meta={item}
                 selected={selectedId === item.id || selectedIds?.has(item.id) === true}
