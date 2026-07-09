@@ -168,7 +168,7 @@ function DetailPanel({ meta, onPlay, onDispatch }: { meta: Meta; onPlay: () => v
           )}
         </div>
         {meta.description && <p style={DP.desc}>{meta.description}</p>}
-        {meta.genres && meta.genres.length > 0 && (
+        {Array.isArray(meta.genres) && meta.genres.length > 0 && (
           <div style={DP.section}>
             <p style={DP.sectionLabel}>{t('auto.genres')}</p>
             <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>

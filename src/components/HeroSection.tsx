@@ -120,7 +120,7 @@ export const HeroSection = React.memo(function HeroSection({
   if (activeMeta.runtime) metaParts.push(String(activeMeta.runtime));
   if (network) metaParts.push(network);
 
-  const genreLine = (activeMeta.genres ?? [])
+  const genreLine = (Array.isArray(activeMeta.genres) ? activeMeta.genres : [])
     .filter((g): g is string => typeof g === 'string' && g.length > 0)
     .slice(0, 5);
 

@@ -134,7 +134,7 @@ export function ModernDetailLayout({
   if (displayMeta.releaseInfo) modernMetaDetails.push(displayMeta.releaseInfo);
   if (displayMeta.runtime) modernMetaDetails.push(displayMeta.runtime);
   if (isSeries && seasonNumbers.length > 0) modernMetaDetails.push(`${seasonNumbers.length} ${t('auto.seasons')}`);
-  const metaGenres = displayMeta.genres?.slice(0, 3) ?? [];
+  const metaGenres = Array.isArray(displayMeta.genres) ? displayMeta.genres.slice(0, 3) : [];
 
   const heroLogo = fanartArtwork?.hdLogo || displayMeta.logo;
 

@@ -599,6 +599,10 @@ export default function App() {
       )}
 
       <div style={{ ...appStyles.content, top: (isTopBar && navBarPosition === 'top' && activeRoute !== 'home' && !showDetail ? 76 : 0) + bannerOffset, paddingLeft: sidebarAlwaysOpen && navBarPosition !== 'right' ? sidebarOffset : 0, paddingRight: sidebarAlwaysOpen && navBarPosition === 'right' ? sidebarOffset : 0, display: nativePlayerActive ? 'none' : undefined }}>
+      <ErrorBoundary
+        resetKeys={[activeRoute, detailMeta?.id]}
+        onReset={() => { setDetailMeta(null); setActiveRoute('home'); }}
+      >
         {showDetail && (
           <DetailScreen
             key={detailMeta!.id}
@@ -677,6 +681,7 @@ export default function App() {
             />
           </React.Suspense>
         ) : null}
+      </ErrorBoundary>
       </div>
 
       <NuvioStatusBanner

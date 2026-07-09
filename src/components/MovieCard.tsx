@@ -318,6 +318,6 @@ function WatchedCheckmark() {
 
 function isUpcoming(releaseInfo?: string): boolean {
   if (!releaseInfo) return false;
-  const year = parseInt(releaseInfo.slice(0, 4));
+  const year = parseInt(String(releaseInfo).slice(0, 4));
   return year > new Date().getFullYear();
 }

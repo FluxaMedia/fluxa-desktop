@@ -439,7 +439,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
                   </div>
                 )}
 
-                {displayMeta.genres && displayMeta.genres.length > 0 && (
+                {Array.isArray(displayMeta.genres) && displayMeta.genres.length > 0 && (
                   <div style={{ display: 'flex', gap: '0.4375rem', flexWrap: 'wrap', marginBottom: '1.375rem' }}>
                     {displayMeta.genres.slice(0, 6).map((g) => <span key={g} style={S.genrePill}>{g}</span>)}
                   </div>
