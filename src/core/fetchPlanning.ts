@@ -1,13 +1,12 @@
 import {
-  coreParseAddonResourceResult,
+  coreParseAndPlanAddonResource,
   coreResourceFetchPlan,
-  coreResourceParsePlan,
 } from './addonManifest';
-import { coreResourceKindToResource, coreWrapAddonResourceResponse } from './engine';
+import { coreResourceKindToResource } from './engine';
 import { _appVersion, platformFetch } from './httpClient';
 import type { AddonDescriptor, Video } from './types';
 
-const FETCH_PLAN_CONCURRENCY = 6;
+const FETCH_PLAN_CONCURRENCY = 12;
 
 export type FetchPlanRequest = {
   url?: unknown;
@@ -23,10 +22,6 @@ export async function resourceForPlannedRequest(kind: unknown, requestResource?:
     typeof requestResource === 'string' ? requestResource : null,
     typeof itemResource === 'string' ? itemResource : null,
   );
-}
-
-async function responseForResourcePayload(resource: string, payloadJson: string): Promise<unknown> {
-  return coreWrapAddonResourceResponse(resource, payloadJson);
 }
 
 export async function fetchParsedAddonResource(
@@ -49,22 +44,16 @@ export async function fetchParsedAddonResource(
   } catch {
     statusCode = 0;
   }
-  const result = await coreParseAddonResourceResult(resource, url, statusCode, body);
-  if (result.kind !== 'success') return null;
-
-  let response: unknown;
-  try {
-    response = await responseForResourcePayload(resource, result.valueJson);
-  } catch {
-    return null;
-  }
-
-  return coreResourceParsePlan({
-    kind,
-    response,
-    addonName,
-    season,
-  });
+  const result = await coreParseAndPlanAddonResource(
+    resource,
+    url,
+    statusCode,
+    body,
+    typeof kind === 'string' ? kind : '',
+    typeof addonName === 'string' ? addonName : null,
+    typeof season === 'number' ? season : null,
+  );
+  return result.kind === 'success' ? result.value : null;
 }
 
 export async function fetchPlannedResources(

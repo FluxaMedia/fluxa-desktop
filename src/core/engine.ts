@@ -538,10 +538,6 @@ export async function coreResourceKindToResource(
   }))) ?? kind;
 }
 
-export async function coreWrapAddonResourceResponse(resource: string, payloadJson: string): Promise<unknown> {
-  return coreInvoke('wrapAddonResourceResponse', JSON.stringify({ resource, payloadJson }));
-}
-
 export async function coreCanPrefetchNextEpisode(prefsJson: string, streamJson: string): Promise<boolean> {
   return (await coreInvoke<boolean>('canPrefetchNextEpisode', JSON.stringify({ prefsJson, streamJson }))) ?? false;
 }

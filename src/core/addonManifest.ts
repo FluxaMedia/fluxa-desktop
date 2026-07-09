@@ -113,6 +113,30 @@ export async function coreParseAddonResourceResult(
   }))) as AddonResourceResult;
 }
 
+export type ParsedAndPlannedAddonResource =
+  | { kind: 'success'; value: Record<string, unknown> }
+  | { kind: 'network_error' | 'parse_error' | 'empty'; url: string; statusCode: number; error?: string };
+
+export async function coreParseAndPlanAddonResource(
+  resource: string,
+  url: string,
+  statusCode: number,
+  body: string | null,
+  kind: string,
+  addonName: string | null,
+  season: number | null,
+): Promise<ParsedAndPlannedAddonResource> {
+  return (await coreInvoke<ParsedAndPlannedAddonResource>('parseAndPlanAddonResource', JSON.stringify({
+    resource,
+    url,
+    statusCode,
+    body,
+    kind,
+    addonName,
+    season,
+  }))) as ParsedAndPlannedAddonResource;
+}
+
 export async function coreAddonResourceRequestPlan(request: unknown): Promise<{ urls: string[] } | null> {
   return coreInvoke('addonResourceRequestPlan', JSON.stringify(request));
 }

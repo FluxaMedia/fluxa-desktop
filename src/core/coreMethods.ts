@@ -59,6 +59,7 @@ export const CORE_METHODS = [
   'normalizeManifestUrl',
   'offlineDownloadPlan',
   'parseAddonResourceResult',
+  'parseAndPlanAddonResource',
   'parseAniskipResults',
   'parseIntroDbSegments',
   'parseManifest',
@@ -113,7 +114,6 @@ export const CORE_METHODS = [
   'traktWatchlistToItems',
   'uniqueIntroSegments',
   'watchlistTogglePlan',
-  'wrapAddonResourceResponse',
 ] as const;
 
 export type CoreMethod = (typeof CORE_METHODS)[number];
