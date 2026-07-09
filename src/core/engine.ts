@@ -68,6 +68,7 @@ export interface YoutubeTrailerSubtitleTrack {
 export interface YoutubeTrailerResolution {
   status: 'ok';
   streamUrl: string;
+  audioUrl?: string | null;
   subtitles?: YoutubeTrailerSubtitleTrack[];
 }
 
