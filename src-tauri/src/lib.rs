@@ -206,8 +206,10 @@ async fn http_fetch_text(url: String) -> Result<HttpTextResponse, String> {
 }
 
 #[tauri::command]
-fn core_invoke(method: String, args_json: String) -> String {
-    fluxa_core::ffi::core_invoke(&method, &args_json)
+async fn core_invoke(method: String, args_json: String) -> String {
+    tauri::async_runtime::spawn_blocking(move || fluxa_core::ffi::core_invoke(&method, &args_json))
+        .await
+        .unwrap_or_default()
 }
 
 fn start_torrent_stream_inner(
