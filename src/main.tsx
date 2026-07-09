@@ -1,8 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import * as Sentry from '@sentry/react';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
+
+if (import.meta.env.PROD) {
+  Sentry.init({
+    dsn: 'https://9ca93bac9e63dfbd8cc3d84078677fb6@o4511704565678080.ingest.de.sentry.io/4511706868023376',
+  });
+}
 
 try {
   ReactDOM.createRoot(document.getElementById('root')!).render(
