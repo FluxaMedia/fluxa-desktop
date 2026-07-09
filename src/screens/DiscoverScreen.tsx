@@ -3,7 +3,6 @@ import { LayoutGrid } from 'lucide-react';
 import { posterPrefsFromState, type PosterPrefs } from '../core/posterPrefs';
 import type { AppState, Meta } from '../core/types';
 import { getLanguage, t } from '../i18n';
-import { setDiscoverPartialHandler } from '../core/catalogEffects';
 import { FilterDropdown } from '../components/FilterDropdown';
 import { DiscoverDetailPanel } from '../components/DiscoverDetailPanel';
 import { VirtualizedPosterGrid } from '../components/VirtualizedPosterGrid';
@@ -47,9 +46,16 @@ function itemYear(m: Meta): number | null {
 }
 
 const discoverResultsCache = new Map<string, Meta[]>();
+const baseGenreCache = new Map<string, Meta[]>();
 
 function cacheKey(contentType: string, sortBy: string, genre: string | null): string {
   return `${contentType}|${sortBy}|${genre ?? ''}`;
+}
+
+function itemMatchesGenre(item: Meta, genre: string | null): boolean {
+  if (!genre) return true;
+  const target = genre.toLowerCase();
+  return (item.genres ?? []).some((g) => g.toLowerCase() === target);
 }
 
 function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre }: Props) {
@@ -66,11 +72,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
   const hoveredMetaRef = useRef<Meta | null>(null);
   const key = cacheKey(contentType, sortBy, genre);
   const cachedResults = discoverResultsCache.get(key) ?? null;
-  const staleResultsRef = useRef<Meta[]>(cachedResults ?? []);
   const lastDispatchedKeyRef = useRef<string | null>(null);
-  const [streamingItems, setStreamingItems] = useState<Meta[]>([]);
-  const streamingAccRef = useRef<Meta[]>([]);
-  const streamingFlushTimerRef = useRef<number | null>(null);
   const posterPrefs = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
 
   const panelMeta = hoveredMeta ?? selectedMeta;
@@ -87,45 +89,19 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
 
   const results = useMemo(() => (discover.results ?? []) as Meta[], [discover.results]);
   const resultsMatchCurrentKey = lastDispatchedKeyRef.current === key;
+  const baseKey = `${contentType}|${sortBy}`;
   if (results.length > 0 && resultsMatchCurrentKey) {
-    staleResultsRef.current = results;
     discoverResultsCache.set(key, results);
+    if (!genre) baseGenreCache.set(baseKey, results);
   }
 
-  useEffect(() => {
-    if (!discover.isLoading) {
-      if (streamingFlushTimerRef.current != null) {
-        window.clearTimeout(streamingFlushTimerRef.current);
-        streamingFlushTimerRef.current = null;
-      }
-      setStreamingItems([]);
-      streamingAccRef.current = [];
-      setDiscoverPartialHandler(null);
-      return;
-    }
-    streamingAccRef.current = [];
-    setStreamingItems([]);
-    setDiscoverPartialHandler((items) => {
-      streamingAccRef.current = [...streamingAccRef.current, ...(items as Meta[])];
-      // Coalesce bursts of addon responses into one render instead of one per addon.
-      if (streamingFlushTimerRef.current != null) return;
-      streamingFlushTimerRef.current = window.setTimeout(() => {
-        streamingFlushTimerRef.current = null;
-        setStreamingItems(streamingAccRef.current);
-      }, 150);
-    });
-    return () => {
-      if (streamingFlushTimerRef.current != null) {
-        window.clearTimeout(streamingFlushTimerRef.current);
-        streamingFlushTimerRef.current = null;
-      }
-      setDiscoverPartialHandler(null);
-    };
-  }, [discover.isLoading, contentType, sortBy, genre]);
+  const isFinal = !discover.isLoading && resultsMatchCurrentKey && results.length > 0;
+  const placeholderResults = useMemo(
+    () => (genre ? baseGenreCache.get(baseKey)?.filter((m) => itemMatchesGenre(m, genre)) ?? null : null),
+    [baseKey, genre],
+  );
 
-  const displayResults = discover.isLoading
-    ? (streamingItems.length > 0 ? streamingItems : staleResultsRef.current)
-    : (resultsMatchCurrentKey && results.length > 0 ? results : (cachedResults ?? staleResultsRef.current));
+  const displayResults = isFinal ? results : (cachedResults ?? placeholderResults ?? []);
 
   const filteredResults = useMemo(() => {
     if (!yearBucket && minRating === null) return displayResults;
@@ -244,6 +220,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
           </div>
         ) : (
           <VirtualizedPosterGrid
+            key={`${key}|${yearBucket ?? ''}|${minRating ?? ''}`}
             items={filteredResults}
             selectedId={panelMeta?.id ?? null}
             posterPrefs={posterPrefs}

@@ -75,12 +75,6 @@ export async function runSearch(payload: Record<string, unknown>): Promise<unkno
   return value;
 }
 
-let _discoverPartialHandler: ((items: unknown[]) => void) | null = null;
-
-export function setDiscoverPartialHandler(fn: ((items: unknown[]) => void) | null) {
-  _discoverPartialHandler = fn;
-}
-
 let discoverAbortController: AbortController | null = null;
 
 export async function runDiscover(payload: Record<string, unknown>): Promise<unknown> {
@@ -95,13 +89,11 @@ export async function runDiscover(payload: Record<string, unknown>): Promise<unk
   const addons = await loadAddons();
   const values = await fetchPlannedResources(
     { kind: 'discover', contentType, genre, addons },
-    (partial) => {
-      if (discoverAbortController !== abortController) return;
-      const items = (partial as { items?: unknown[] })?.items ?? [];
-      if (items.length > 0) _discoverPartialHandler?.(items);
-    },
+    undefined,
     abortController.signal,
   );
+  if (discoverAbortController !== abortController) throw new DOMException('superseded', 'AbortError');
+
   const results = values.flatMap((value) => ((value as { items?: unknown[] })?.items ?? []));
   // Dedup before sending to Rust, not just after: with enough addons installed, raw
   // results before dedup can run into the megabytes — sending that whole blob as IPC
@@ -123,6 +115,7 @@ export async function runDiscover(payload: Record<string, unknown>): Promise<unk
     genreFilter: genre,
   }) as { items?: unknown[] } | null;
 
+  if (discoverAbortController !== abortController) throw new DOMException('superseded', 'AbortError');
   return { results: coreSort?.items ?? dedupedResults };
 }
 
