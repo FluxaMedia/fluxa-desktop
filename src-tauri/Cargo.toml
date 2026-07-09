@@ -33,6 +33,7 @@ rustls-pki-types = "1"
 mdns-sd = "0.20"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
 log = "0.4"
 sentry = { version = "0.48", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls"] }
 fluxa_core = { path = "../../fluxa-core", default-features = false, features = ["desktop"] }

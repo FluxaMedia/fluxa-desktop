@@ -8,7 +8,7 @@ import {
   coreTraktWatchlistToItems,
   coreTraktWatchedToIds,
 } from './engine';
-import { loadLibrary, saveLibrary } from './libraryOps';
+import { loadLibrary, saveLibrary, persistStatusListMerge, persistWatchedMerge } from './libraryOps';
 import { platformFetch } from './httpClient';
 import { traktHeaders } from './traktSync';
 import { enrichWithAddonMeta, replaceExternalContinueWatching } from './externalSyncUtils';
@@ -36,6 +36,7 @@ async function mergeExternalWatchlist(externalItems: Record<string, unknown>[]):
   const mergedList = mergedJson as Record<string, unknown>[];
   if (mergedList.length > local.length) {
     lib.watchlist = mergedList;
+    await persistStatusListMerge(local, mergedList, 'watchlist');
     await saveLibrary(lib);
   }
 }
@@ -45,6 +46,7 @@ async function mergeExternalWatched(externalWatched: Record<string, boolean>): P
   const local = (lib.watched as Record<string, boolean> | undefined) ?? {};
   const merged = await coreMergeExternalWatched(JSON.stringify(local), JSON.stringify(externalWatched));
   lib.watched = merged;
+  await persistWatchedMerge(local, merged);
   await saveLibrary(lib);
 }
 
@@ -67,6 +69,8 @@ export async function syncTraktNow(payload: Record<string, unknown>): Promise<un
 
   const items = await enrichWithAddonMeta(rawItems);
   await replaceExternalContinueWatching({ items, provider: 'trakt' });
+  const { promoteExternalProgress } = await import('./externalSync');
+  await promoteExternalProgress(items, 'trakt', payload.profile as import('./types').UserProfile | null);
 
   let watchlistCount = 0;
   try {

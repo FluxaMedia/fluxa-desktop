@@ -5,7 +5,7 @@ import {
   coreStremioWatchedToIds,
   coreStremioWatchlistToItems,
 } from './engine';
-import { loadLibrary, saveAddons, saveLibrary } from './libraryOps';
+import { loadLibrary, saveAddons, saveLibrary, persistStatusListMerge, persistWatchedMerge } from './libraryOps';
 import { stremioPullAddons, stremioPullLibrary, stremioPushLibrary, stremioReplaceAddons } from './stremioApi';
 import { normalizeAddonDescriptor } from './addons';
 import { enrichWithAddonMeta, replaceExternalContinueWatching } from './externalSyncUtils';
@@ -143,6 +143,7 @@ async function mergeExternalWatchlist(externalItems: Record<string, unknown>[]):
   const merged = await coreMergeExternalWatchlist(JSON.stringify(local), JSON.stringify(externalItems));
   if (merged.length > local.length) {
     lib.watchlist = merged;
+    await persistStatusListMerge(local, merged, 'watchlist');
     await saveLibrary(lib);
   }
   return externalItems.length;
@@ -153,6 +154,7 @@ async function mergeExternalWatched(externalWatched: Record<string, boolean>): P
   const local = (lib.watched as Record<string, boolean> | undefined) ?? {};
   const merged = await coreMergeExternalWatched(JSON.stringify(local), JSON.stringify(externalWatched));
   lib.watched = merged;
+  await persistWatchedMerge(local, merged);
   await saveLibrary(lib);
 }
 

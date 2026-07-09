@@ -51,6 +51,9 @@ struct HttpTextResponse {
 pub struct DesktopState {
     pub engine_handle: Mutex<Option<u64>>,
     pub data_dir: Mutex<Option<PathBuf>>,
+    /// Serializes storage migration and key creation. SQLite coordinates processes,
+    /// but the legacy encryption key is a separate file.
+    pub storage_lock: Mutex<()>,
     pub download_dir: Mutex<Option<PathBuf>>,
     pub player_renderer: Mutex<Option<mpv_render::MpvRenderer>>,
     #[cfg(target_os = "linux")]
@@ -87,6 +90,7 @@ impl Default for DesktopState {
         Self {
             engine_handle: Mutex::new(None),
             data_dir: Mutex::new(None),
+            storage_lock: Mutex::new(()),
             download_dir: Mutex::new(None),
             player_renderer: Mutex::new(None),
             #[cfg(target_os = "linux")]
@@ -318,13 +322,11 @@ async fn stop_torrent_stream(state: State<'_, DesktopState>) -> Result<bool, Str
     *state.torrent_server_base_url.lock().unwrap() = None;
     *state.torrent_stream_link.lock().unwrap() = None;
     let generation = state.torrent_generation.lock().unwrap().take();
-    Ok(
-        tauri::async_runtime::spawn_blocking(move || {
-            fluxa_streaming_engine::stop_torrent_server(generation)
-        })
-        .await
-        .unwrap_or(false),
-    )
+    Ok(tauri::async_runtime::spawn_blocking(move || {
+        fluxa_streaming_engine::stop_torrent_server(generation)
+    })
+    .await
+    .unwrap_or(false))
 }
 
 #[tauri::command]
@@ -611,7 +613,8 @@ pub fn run() {
                 let store_size = |window: &tauri::WebviewWindow| {
                     if let Ok(size) = window.inner_size() {
                         let state = window.state::<DesktopState>();
-                        let packed = ((size.width.max(2) as u64) << 32) | (size.height.max(2) as u64);
+                        let packed =
+                            ((size.width.max(2) as u64) << 32) | (size.height.max(2) as u64);
                         state
                             .main_window_size
                             .store(packed, std::sync::atomic::Ordering::Release);
@@ -640,6 +643,20 @@ pub fn run() {
             storage_read,
             storage_write,
             storage_delete,
+            library_progress_read,
+            library_progress_list,
+            library_progress_upsert,
+            library_progress_delete,
+            library_status_set,
+            library_status_list,
+            library_watched_set,
+            library_watched_list,
+            library_last_watched_list,
+            library_last_watched_upsert,
+            library_last_watched_delete,
+            library_continue_watching_list,
+            library_continue_watching_upsert,
+            library_continue_watching_delete,
             core_invoke,
             start_torrent_stream,
             stop_torrent_stream,

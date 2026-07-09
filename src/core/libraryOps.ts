@@ -1,6 +1,19 @@
 import {
   coreBuildContinueWatchingFromProgress,
   coreNormalizeLibraryDocument,
+  libraryContinueWatchingDelete,
+  libraryContinueWatchingList,
+  libraryContinueWatchingUpsert,
+  libraryLastWatchedDelete,
+  libraryLastWatchedList,
+  libraryLastWatchedUpsert,
+  libraryProgressDelete,
+  libraryProgressList,
+  libraryProgressUpsert,
+  libraryStatusList,
+  libraryStatusSet,
+  libraryWatchedList,
+  libraryWatchedSet,
   storageRead,
   storageWrite,
 } from './engine';
@@ -40,17 +53,39 @@ export async function normalizeLibraryDoc(lib: Record<string, unknown>): Promise
   return coreNormalizeLibraryDocument(JSON.stringify(lib));
 }
 
+async function readStructuredLibraryDomains(key: string): Promise<{
+  progress: Record<string, unknown>;
+  statuses: Record<string, unknown[]>;
+  watched: Record<string, boolean>;
+  lastWatchedEpisodes: Record<string, unknown>;
+  externalContinueWatching: unknown[];
+}> {
+  const [progress, statuses, watched, lastWatchedEpisodes, externalContinueWatching] = await Promise.all([
+    libraryProgressList<unknown>(key),
+    libraryStatusList(key),
+    libraryWatchedList(key),
+    libraryLastWatchedList<unknown>(key),
+    libraryContinueWatchingList(key),
+  ]);
+  return { progress, statuses, watched, lastWatchedEpisodes, externalContinueWatching };
+}
+
 export async function loadLibrary(): Promise<Record<string, unknown>> {
   const key = await effectRunnerLibraryKey();
   const profileLibrary = await storageRead<Record<string, unknown>>(key);
-  if (profileLibrary) return normalizeLibraryDoc(profileLibrary);
+  if (profileLibrary) {
+    const { progress, statuses, watched, lastWatchedEpisodes, externalContinueWatching } = await readStructuredLibraryDomains(key);
+    return normalizeLibraryDoc({ ...profileLibrary, ...statuses, progress, watched, lastWatchedEpisodes, externalContinueWatching });
+  }
   const legacyLibrary = await storageRead<Record<string, unknown>>('library');
   if (legacyLibrary) {
     const migrated = await normalizeLibraryDoc({ ...legacyLibrary, migratedFrom: 'library' });
     await storageWrite(key, migrated);
-    return migrated;
+    const { progress, statuses, watched, lastWatchedEpisodes, externalContinueWatching } = await readStructuredLibraryDomains(key);
+    return normalizeLibraryDoc({ ...migrated, ...statuses, progress, watched, lastWatchedEpisodes, externalContinueWatching });
   }
-  return normalizeLibraryDoc({});
+  const { progress, statuses, watched, lastWatchedEpisodes, externalContinueWatching } = await readStructuredLibraryDomains(key);
+  return normalizeLibraryDoc({ ...statuses, progress, watched, lastWatchedEpisodes, externalContinueWatching });
 }
 
 export async function saveLibrary(lib: Record<string, unknown>): Promise<void> {
@@ -70,4 +105,68 @@ export async function loadActiveProfile(): Promise<UserProfile | null> {
 
 export async function buildContinueWatching(progressMap: Record<string, unknown>): Promise<unknown[]> {
   return (await coreBuildContinueWatchingFromProgress(JSON.stringify(progressMap))) ?? [];
+}
+
+export async function persistStatusListMerge(
+  before: Record<string, unknown>[],
+  after: Record<string, unknown>[],
+  list: 'watchlist' | 'completed' | 'dropped',
+): Promise<void> {
+  const beforeIds = new Set(before.map((item) => item.id as string | undefined).filter(Boolean));
+  const key = await effectRunnerLibraryKey();
+  for (const item of after) {
+    const id = item.id as string | undefined;
+    if (id && !beforeIds.has(id)) await libraryStatusSet(key, id, list, item);
+  }
+}
+
+export async function persistWatchedMerge(
+  before: Record<string, boolean>,
+  after: Record<string, boolean>,
+): Promise<void> {
+  const key = await effectRunnerLibraryKey();
+  for (const [id, value] of Object.entries(after)) {
+    if (before[id] !== value) await libraryWatchedSet(key, id, value);
+  }
+}
+
+export async function persistLastWatchedEpisode(seriesId: string, entry: unknown | null): Promise<void> {
+  const key = await effectRunnerLibraryKey();
+  if (entry === null) await libraryLastWatchedDelete(key, seriesId);
+  else await libraryLastWatchedUpsert(key, seriesId, entry);
+}
+
+export async function persistContinueWatchingMerge(
+  before: Record<string, unknown>[],
+  after: Record<string, unknown>[],
+): Promise<void> {
+  const key = await effectRunnerLibraryKey();
+  const beforeById = new Map<string, Record<string, unknown>>();
+  for (const item of before) {
+    const id = item.id as string | undefined;
+    if (id) beforeById.set(id, item);
+  }
+  const afterIds = new Set<string>();
+  for (const item of after) {
+    const id = item.id as string | undefined;
+    if (!id) continue;
+    afterIds.add(id);
+    if (JSON.stringify(beforeById.get(id)) !== JSON.stringify(item)) await libraryContinueWatchingUpsert(key, id, item);
+  }
+  for (const id of beforeById.keys()) {
+    if (!afterIds.has(id)) await libraryContinueWatchingDelete(key, id);
+  }
+}
+
+export async function persistProgressMerge(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): Promise<void> {
+  const key = await effectRunnerLibraryKey();
+  for (const [id, value] of Object.entries(after)) {
+    if (JSON.stringify(before[id]) !== JSON.stringify(value)) await libraryProgressUpsert(key, id, value);
+  }
+  for (const id of Object.keys(before)) {
+    if (!(id in after)) await libraryProgressDelete(key, id);
+  }
 }

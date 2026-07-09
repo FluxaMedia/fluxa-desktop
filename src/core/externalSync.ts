@@ -10,6 +10,7 @@ import {
   syncStremioNow,
 } from './stremioExternalSync';
 import { pushAnimeTrackingExternal } from './animeExternalSync';
+import { simklScrobbleOnClose, traktScrobbleOnClose } from './scrobble';
 import { pushLibraryStatusAniList, pushWatchlistAniList, syncAniListNow } from './anilistExternalSync';
 import {
   nuvioDeleteWatchHistory,
@@ -21,6 +22,7 @@ import {
   nuvioRefreshToken,
 } from './nuvioApi';
 import { saveProfile } from './profiles';
+import { loadLibrary, saveLibrary, buildContinueWatching, persistProgressMerge } from './libraryOps';
 import type { UserProfile } from './types';
 
 export { enqueueTraktScrobble } from './traktSync';
@@ -46,9 +48,55 @@ export type WatchProgressInfo = {
   episode?: number;
 };
 
-// Library changes are implemented by Nuvio as a read-modify-replace operation.
-// Serialize those operations per remote profile so simultaneous toggles cannot
-// overwrite one another with stale snapshots.
+export async function promoteExternalProgress(
+  items: Record<string, unknown>[],
+  source: string,
+  profile: UserProfile | null,
+): Promise<void> {
+  if (!profile) return;
+  const lib = await loadLibrary();
+  const progress = (lib.progress as Record<string, Record<string, unknown>> | undefined) ?? {};
+  const progressBefore = { ...progress };
+  let changed = false;
+  for (const item of items) {
+    const id = typeof item.id === 'string' ? item.id : '';
+    const videoId = typeof item.lastVideoId === 'string' ? item.lastVideoId : '';
+    const duration = Number(item.duration ?? 0);
+    const offset = Number(item.timeOffset ?? 0);
+    const savedAt = typeof item.savedAt === 'string' ? item.savedAt : '';
+    if (!id || !videoId || duration <= 0 || !savedAt) continue;
+    const existing = progress[id];
+    if (existing?.savedAt && new Date(String(existing.savedAt)).getTime() >= new Date(savedAt).getTime()) continue;
+    const existingMeta = (existing?.meta as Record<string, unknown> | undefined) ?? {};
+    const itemFields = Object.fromEntries(Object.entries(item).filter(([, v]) => v !== null && v !== undefined));
+    const next = { ...existing, ...itemFields, meta: { ...existingMeta, ...itemFields }, source, savedAt };
+    progress[id] = next;
+    changed = true;
+    await pushPlaybackProgressExternal({
+      contentId: id,
+      contentType: String(item.type ?? 'movie'),
+      videoId,
+      positionSeconds: offset,
+      durationSeconds: duration,
+      lastWatched: new Date(savedAt).getTime(),
+      season: typeof item.lastEpisodeSeason === 'number' ? item.lastEpisodeSeason : undefined,
+      episode: typeof item.lastEpisodeNumber === 'number' ? item.lastEpisodeNumber : undefined,
+    }, item, profile);
+    const meta = { id, type: String(item.type ?? 'movie'), name: String(item.name ?? '') } as import('./types').Meta;
+    const episode = typeof item.lastEpisodeSeason === 'number' && typeof item.lastEpisodeNumber === 'number'
+      ? { id: videoId, season: item.lastEpisodeSeason, episode: item.lastEpisodeNumber, number: item.lastEpisodeNumber } as import('./types').Video
+      : null;
+    if (source !== 'trakt') traktScrobbleOnClose(profile, meta, episode, offset, duration);
+    if (source !== 'simkl') simklScrobbleOnClose(profile, meta, episode, offset, duration);
+  }
+  if (changed) {
+    lib.progress = progress;
+    lib.continueWatching = await buildContinueWatching(progress);
+    await persistProgressMerge(progressBefore, progress);
+    await saveLibrary(lib);
+  }
+}
+
 const nuvioLibraryMutationQueues = new Map<string, Promise<void>>();
 
 function queueNuvioLibraryMutation(key: string, mutation: () => Promise<void>): Promise<void> {

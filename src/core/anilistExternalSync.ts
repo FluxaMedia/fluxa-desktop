@@ -1,5 +1,5 @@
 import { platformFetch } from './httpClient';
-import { loadLibrary, saveLibrary, buildContinueWatching } from './libraryOps';
+import { loadLibrary, saveLibrary, buildContinueWatching, persistStatusListMerge, persistWatchedMerge, persistProgressMerge } from './libraryOps';
 import { replaceExternalContinueWatching } from './externalSyncUtils';
 import { coreAnilistEntriesToSync, coreMergeLibraryItemsById } from './engine';
 
@@ -57,12 +57,24 @@ export async function syncAniListNow(payload: Record<string, unknown>): Promise<
   if (!plan) return { synced: false, error: 'AniList entries could not be processed' };
 
   const lib = await loadLibrary();
-  lib.watchlist = await coreMergeLibraryItemsById((lib.watchlist as LibraryItemRecord[] | undefined) ?? [], plan.watchlist);
-  lib.completed = await coreMergeLibraryItemsById((lib.completed as LibraryItemRecord[] | undefined) ?? [], plan.completed);
-  lib.dropped = await coreMergeLibraryItemsById((lib.dropped as LibraryItemRecord[] | undefined) ?? [], plan.dropped);
-  lib.watched = { ...((lib.watched as Record<string, boolean> | undefined) ?? {}), ...plan.watched };
-  lib.progress = { ...((lib.progress as Record<string, unknown> | undefined) ?? {}), ...plan.progress };
+  const watchlistBefore = (lib.watchlist as LibraryItemRecord[] | undefined) ?? [];
+  const completedBefore = (lib.completed as LibraryItemRecord[] | undefined) ?? [];
+  const droppedBefore = (lib.dropped as LibraryItemRecord[] | undefined) ?? [];
+  const watchedBefore = (lib.watched as Record<string, boolean> | undefined) ?? {};
+  const progressBefore = (lib.progress as Record<string, unknown> | undefined) ?? {};
+
+  lib.watchlist = await coreMergeLibraryItemsById(watchlistBefore, plan.watchlist);
+  lib.completed = await coreMergeLibraryItemsById(completedBefore, plan.completed);
+  lib.dropped = await coreMergeLibraryItemsById(droppedBefore, plan.dropped);
+  lib.watched = { ...watchedBefore, ...plan.watched };
+  lib.progress = { ...progressBefore, ...plan.progress };
   lib.continueWatching = await buildContinueWatching(lib.progress as Record<string, unknown>);
+
+  await persistStatusListMerge(watchlistBefore, lib.watchlist as LibraryItemRecord[], 'watchlist');
+  await persistStatusListMerge(completedBefore, lib.completed as LibraryItemRecord[], 'completed');
+  await persistStatusListMerge(droppedBefore, lib.dropped as LibraryItemRecord[], 'dropped');
+  await persistWatchedMerge(watchedBefore, lib.watched as Record<string, boolean>);
+  await persistProgressMerge(progressBefore, lib.progress as Record<string, unknown>);
   await saveLibrary(lib);
   await replaceExternalContinueWatching({ provider: 'anilist', items: plan.watching });
 

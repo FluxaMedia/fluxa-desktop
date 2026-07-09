@@ -1,4 +1,4 @@
-import { loadLibrary, saveLibrary, loadPrefs } from './libraryOps';
+import { loadLibrary, saveLibrary, loadPrefs, persistContinueWatchingMerge } from './libraryOps';
 import { fetchMetaDetail, fetchTmdbPosterFallback } from './detailEffects';
 import { coreReplaceExternalContinueWatching } from './engine';
 import { prefString } from './appPrefs';
@@ -64,15 +64,16 @@ export async function replaceExternalContinueWatching(payload: Record<string, un
   const prefs = await loadPrefs();
   const provider = typeof payload.provider === 'string' ? payload.provider : null;
   const items = Array.isArray(payload.items) ? payload.items : [];
-  const existingJson = JSON.stringify((lib.externalContinueWatching as unknown[]) ?? []);
+  const existing = (lib.externalContinueWatching as Record<string, unknown>[]) ?? [];
   const merged = await coreReplaceExternalContinueWatching(
-    existingJson,
+    JSON.stringify(existing),
     provider,
     JSON.stringify(items),
     prefString(prefs, 'syncCwSourceOfTruth'),
     prefString(prefs, 'syncCwRanking'),
   );
   lib.externalContinueWatching = merged;
+  await persistContinueWatchingMerge(existing, merged as Record<string, unknown>[]);
   await saveLibrary(lib);
   return { count: merged.length };
 }

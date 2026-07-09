@@ -6,10 +6,15 @@ import {
   coreNextUnairedEpisode,
   corePlaybackProgressMergePlan,
   coreWatchlistTogglePlan,
+  libraryProgressDelete,
+  libraryProgressRead,
+  libraryProgressUpsert,
+  libraryStatusSet,
+  libraryWatchedSet,
   storageRead,
   storageWrite,
 } from './engine';
-import { buildContinueWatching, loadActiveProfile, loadAddons, loadLibrary, saveLibrary } from './libraryOps';
+import { buildContinueWatching, effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, persistProgressMerge, saveLibrary } from './libraryOps';
 import { pushLibraryStatusExternal, pushMarkWatchedExternal, pushPlaybackProgressExternal, pushWatchlistExternal, type WatchedEpisodeInfo, type WatchProgressInfo } from './externalSync';
 import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
 import { notify } from './notifications';
@@ -153,6 +158,7 @@ export async function applyLibraryCommand(payload: Record<string, unknown>): Pro
     const nextCommand = plan?.command ?? (idx >= 0 ? 'remove' : 'add');
     const stampedItem = { ...item, statusChangedAt: new Date().toISOString() };
     lib[command.list] = nextCommand === 'remove' ? list.filter((_, i) => i !== idx) : [stampedItem, ...list];
+    await libraryStatusSet(await effectRunnerLibraryKey(), item.id, nextCommand === 'add' ? command.list : null, nextCommand === 'add' ? stampedItem : undefined);
     if (nextCommand === 'add') {
       const watchlist = (lib.watchlist as LibraryItem[] | undefined) ?? [];
       lib.watchlist = watchlist.filter((i) => i.id !== item.id);
@@ -162,6 +168,7 @@ export async function applyLibraryCommand(payload: Record<string, unknown>): Pro
       delete progressMap[item.id];
       lib.progress = progressMap;
       lib.continueWatching = await buildContinueWatching(progressMap);
+      await libraryProgressDelete(await effectRunnerLibraryKey(), item.id);
     }
     void loadActiveProfile().then((profile) =>
       pushLibraryStatusExternal(command.item as Record<string, unknown>, command.list!, nextCommand, profile)
@@ -183,8 +190,10 @@ export async function applyLibraryCommand(payload: Record<string, unknown>): Pro
     const nextCommand = plan?.command ?? (idx >= 0 ? 'remove' : 'add');
     if (nextCommand === 'remove') {
       lib.watchlist = watchlist.filter((_, i) => i !== idx);
+      await libraryStatusSet(await effectRunnerLibraryKey(), item.id, null);
     } else {
       lib.watchlist = [command.item as LibraryItem, ...watchlist];
+      await libraryStatusSet(await effectRunnerLibraryKey(), item.id, 'watchlist', command.item);
       lib.dropped = ((lib.dropped as LibraryItem[] | undefined) ?? []).filter((i) => i.id !== item.id);
       lib.completed = ((lib.completed as LibraryItem[] | undefined) ?? []).filter((i) => i.id !== item.id);
     }
@@ -198,6 +207,7 @@ export async function applyLibraryCommand(payload: Record<string, unknown>): Pro
     const watched = (lib.watched as Record<string, boolean> | undefined) ?? {};
     for (const vid of command.videoIds) {
       watched[vid] = command.watched !== false;
+      await libraryWatchedSet(await effectRunnerLibraryKey(), vid, command.watched !== false);
     }
     lib.watched = watched;
 
@@ -229,8 +239,10 @@ export async function applyLibraryCommand(payload: Record<string, unknown>): Pro
     } : undefined;
 
     if (command.watched !== false) {
+      const progressBeforeMarkWatched = { ...((lib.progress as Record<string, unknown> | undefined) ?? {}) };
       const updatedLib = await coreLibraryApplyMarkWatched(JSON.stringify(lib), JSON.stringify(command.videoIds));
       if (updatedLib) Object.assign(lib, updatedLib);
+      await persistProgressMerge(progressBeforeMarkWatched, (lib.progress as Record<string, unknown> | undefined) ?? {});
     }
     const progressAfterUpdate = seriesId
       ? ((lib.progress as Record<string, unknown> | undefined) ?? {})[seriesId] as Record<string, unknown> | undefined
@@ -268,6 +280,8 @@ export async function writePlaybackProgress(payload: Record<string, unknown>): P
   const progress = payload.progress as Record<string, unknown> | undefined;
   const meta = progress?.meta as { id?: string; name?: string; type?: string; poster?: string } | undefined;
   if (meta?.id) {
+    const playbackProgress = progress;
+    const contentId = meta.id;
     const progressMap = (lib.progress as Record<string, unknown> | undefined) ?? {};
     const existing = (progressMap[meta.id] as Record<string, unknown> | undefined) ?? {};
     const mergePlan = await corePlaybackProgressMergePlan({
@@ -285,22 +299,23 @@ export async function writePlaybackProgress(payload: Record<string, unknown>): P
     };
     lib.progress = progressMap;
     lib.continueWatching = await buildContinueWatching(progressMap);
+    await libraryProgressUpsert(await effectRunnerLibraryKey(), meta.id, progressMap[meta.id]);
     await saveLibrary(lib);
-    const duration = Number(progress.duration ?? 0);
-    const videoId = typeof progress.lastVideoId === 'string' ? progress.lastVideoId : meta.id;
+    invalidateCalendarCache();
+    const duration = Number(playbackProgress?.duration ?? 0);
+    const videoId = typeof playbackProgress?.lastVideoId === 'string' ? playbackProgress.lastVideoId : contentId;
     if (duration > 0 && videoId) {
       void loadActiveProfile().then((profile) => pushPlaybackProgressExternal({
-        contentId: meta.id,
+        contentId,
         contentType: String(meta.type ?? 'movie'),
         videoId,
-        positionSeconds: Number(progress.timeOffset ?? 0),
+        positionSeconds: Number(playbackProgress?.timeOffset ?? 0),
         durationSeconds: duration,
         lastWatched: Date.now(),
-        season: typeof progress.lastEpisodeSeason === 'number' ? progress.lastEpisodeSeason : undefined,
-        episode: typeof progress.lastEpisodeNumber === 'number' ? progress.lastEpisodeNumber : undefined,
+        season: typeof playbackProgress?.lastEpisodeSeason === 'number' ? playbackProgress.lastEpisodeSeason : undefined,
+        episode: typeof playbackProgress?.lastEpisodeNumber === 'number' ? playbackProgress.lastEpisodeNumber : undefined,
       }, meta as Record<string, unknown>, profile));
     }
-    invalidateCalendarCache();
   }
   return {};
 }
@@ -317,11 +332,9 @@ export async function readLibraryState(): Promise<unknown> {
 }
 
 export async function readPlaybackProgress(payload: Record<string, unknown>): Promise<unknown> {
-  const lib = await loadLibrary();
   const id = payload.id as string | undefined;
   if (!id) return null;
-  const progressMap = (lib.progress as Record<string, unknown> | undefined) ?? {};
-  return progressMap[id] ?? null;
+  return libraryProgressRead(await effectRunnerLibraryKey(), id);
 }
 
 export async function readDetailLocalState(payload: Record<string, unknown>): Promise<unknown> {
