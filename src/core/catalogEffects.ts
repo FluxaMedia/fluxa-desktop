@@ -13,6 +13,12 @@ export async function fetchCatalogPage(payload: Record<string, unknown>): Promis
 const searchResultsCache = new Map<string, unknown>();
 let searchAbortController: AbortController | null = null;
 
+let _searchPartialHandler: ((query: string, items: unknown[]) => void) | null = null;
+
+export function setSearchPartialHandler(fn: ((query: string, items: unknown[]) => void) | null) {
+  _searchPartialHandler = fn;
+}
+
 export async function runSearch(payload: Record<string, unknown>): Promise<unknown> {
   const query = payload.query as string;
   const language = payload.language as string | undefined;
@@ -51,6 +57,7 @@ export async function runSearch(payload: Record<string, unknown>): Promise<unkno
     const items = ((parsed?.items as unknown[] | undefined) ?? []);
     if (!items.length) return;
     results.push(...items);
+    if (searchAbortController === abortController) _searchPartialHandler?.(query, items);
     categories.push({
       id: String(request.categoryId ?? url),
       name: String(request.categoryName ?? request.addonName ?? 'Search results'),

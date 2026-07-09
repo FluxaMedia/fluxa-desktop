@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search as SearchIcon, X, Clock } from 'lucide-react';
 import { t, getLanguage } from '../i18n';
 import { addRecentSearch, loadRecentSearches, clearRecentSearches } from '../core/searchHistory';
+import { setSearchPartialHandler } from '../core/catalogEffects';
 import type { AppState, Meta } from '../core/types';
 
 interface Props {
@@ -25,6 +26,8 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [partialResults, setPartialResults] = useState<Meta[]>([]);
+  const partialQueryRef = useRef('');
 
   useEffect(() => {
     setInputValue(query);
@@ -44,10 +47,24 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
     if (trimmed.length < 2) return;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      partialQueryRef.current = trimmed;
+      setPartialResults([]);
       onDispatch(JSON.stringify({ type: 'searchRequested', query: trimmed, language: getLanguage() }));
     }, SUGGESTION_DEBOUNCE_MS);
     return () => clearTimeout(debounceRef.current);
   }, [inputValue, onDispatch]);
+
+  useEffect(() => {
+    setSearchPartialHandler((q, items) => {
+      if (q !== partialQueryRef.current) return;
+      setPartialResults((current) => {
+        const seen = new Set(current.map((meta) => meta.id));
+        const added = (items as Meta[]).filter((meta) => !seen.has(meta.id));
+        return added.length > 0 ? [...current, ...added] : current;
+      });
+    });
+    return () => setSearchPartialHandler(null);
+  }, []);
 
   const localSuggestions = useMemo<Meta[]>(() => {
     const needle = inputValue.trim().toLowerCase();
@@ -59,9 +76,12 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
     const trimmed = inputValue.trim();
     const needle = trimmed.toLowerCase();
     if (needle.length < 2) return [];
+    if (partialQueryRef.current === trimmed && partialResults.length > 0) {
+      return rankByNeedle(partialResults, needle);
+    }
     if ((state.search.query ?? '').trim().toLowerCase() !== needle) return [];
     return rankByNeedle(flattenCategories(state.search.categories), needle);
-  }, [state.search.categories, state.search.query, inputValue]);
+  }, [partialResults, state.search.categories, state.search.query, inputValue]);
 
   const suggestions = networkSuggestions.length > 0 ? networkSuggestions : localSuggestions;
   const showDropdown = focused && (recentSearches.length > 0 || suggestions.length > 0);
