@@ -549,6 +549,7 @@ export default function App() {
       data-animations={prefBool(prefs, 'animationsEnabled', true) ? 'on' : 'off'}
       data-density={prefString(prefs, 'interfaceDensity', 'medium')}
       data-reduce-motion={prefBool(prefs, 'reduceMotion', false) ? 'true' : 'false'}
+      data-reduced-effects={prefBool(prefs, 'reducedEffects', false) ? 'true' : 'false'}
     >
       {!nativePlayerActive && (isTopBar ? (
         <TopBar

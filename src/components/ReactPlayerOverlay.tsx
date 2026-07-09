@@ -32,6 +32,7 @@ import {
 import { setSuppressWindowGeometrySave } from '../core/windowGeometry';
 import type { EmbeddedMpvStatus, TorrentStats } from '../core/mpvPlayer';
 import { embeddedMpvRenderFrame, embeddedMpvSetCursorVisible, playerGetPlaybackInfo, playerGetTrackOptions, playerTorrentStats } from '../core/mpvPlayer';
+import { subscribePlayerStatus } from '../core/playerStatusStore';
 import type { PlayerTrackOption } from '../core/mpvPlayer';
 import { VolumeBar } from './player/VolumeBar';
 import { NextEpCard } from './player/NextEpCard';
@@ -450,10 +451,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(async () => {
-      let status: EmbeddedMpvStatus | null = null;
-      try { status = await invoke<EmbeddedMpvStatus>('player_status'); } catch { return; }
-      if (!status) return;
+    const handleStatus = (status: EmbeddedMpvStatus) => {
       liveStatusRef.current = status;
 
       const pausedForCache = status.pausedForCache === 'yes';
@@ -580,9 +578,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         const next = !isPaused && dur > 0 && !!nextEpSubtitle && (pos / dur) * 100 >= nextEpThreshold;
         return prev === next ? prev : next;
       });
-    }, 500);
+    };
 
-    return () => clearInterval(interval);
+    return subscribePlayerStatus(handleStatus);
   }, [skipSegments, nextEpSubtitle, nextEpThreshold, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, metaId, autoSkipSegments, flashFeedback, isTorrentStream]);
 
   useEffect(() => {

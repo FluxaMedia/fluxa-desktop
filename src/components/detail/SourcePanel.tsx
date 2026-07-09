@@ -22,7 +22,7 @@ export const SourceRow = React.memo(function SourceRow({ stream, onClick }: { st
     });
   return (
     <button
-      style={{ ...SS.streamRow, background: hovered ? '#181818' : '#101010', color: '#FFF', boxShadow: hovered ? '0 0 0 0.125rem rgba(255,255,255,0.22)' : 'none' }}
+      style={{ ...SS.streamRow, background: hovered ? '#181818' : '#101010', color: '#FFF', boxShadow: hovered ? '0 0 0 0.125rem rgba(255,255,255,0.22)' : 'none', contentVisibility: 'auto', containIntrinsicSize: '4.5rem' }}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}

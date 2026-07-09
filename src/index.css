@@ -222,6 +222,24 @@ button, input, select, textarea {
   scroll-behavior: auto !important;
 }
 
+[data-reduced-effects="true"] *,
+[data-reduced-effects="true"] *::before,
+[data-reduced-effects="true"] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+@keyframes fluxa-loading-breathe {
+  0%, 100% { opacity: 0.42; transform: scale(0.992); }
+  50% { opacity: 0.84; transform: scale(1.012); }
+}
+
+.fluxa-loading-logo-breathe {
+  animation: fluxa-loading-breathe 1.08s ease-in-out infinite;
+}
+
 [data-density="small"] {
   --density-scale: 0.92;
 }

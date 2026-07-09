@@ -20,6 +20,7 @@ export interface Prefs {
   accentColorArgb: string;
   uiScale: string;
   animationsEnabled: boolean;
+  reducedEffects: boolean;
   gifAutoplayEnabled: boolean;
   cardCornerPreset: string;
   navLayout: string;
@@ -140,6 +141,7 @@ export const DEFAULT_PREFS: Prefs = {
   accentColorArgb: '#FFFFFF',
   uiScale: '100',
   animationsEnabled: true,
+  reducedEffects: false,
   gifAutoplayEnabled: false,
   navLayout: 'sidebar',
   navBarPosition: 'left',
@@ -170,7 +172,7 @@ export const DEFAULT_PREFS: Prefs = {
   topTenFeedToggles: [],
   preferredPlayer: 'mpv',
   mpvCustomOptions: '',
-  animeUpscalingMode: 'auto',
+  animeUpscalingMode: 'off',
   frameInterpolationMode: 'off',
   streamSourceSelectionMode: 'manual',
   streamSourceRegexPattern: '',
@@ -185,8 +187,8 @@ export const DEFAULT_PREFS: Prefs = {
   holdToSpeedEnabled: true,
   holdSpeed: '2.0',
   playerBufferCacheMb: '100',
-  playerForwardBufferSeconds: '120',
-  playerBackBufferSeconds: '30',
+  playerForwardBufferSeconds: '60',
+  playerBackBufferSeconds: '15',
   autoSkipIntro: false,
   useIntroDb: true,
   useAniSkip: true,

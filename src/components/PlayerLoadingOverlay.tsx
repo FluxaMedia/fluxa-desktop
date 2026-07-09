@@ -1,6 +1,6 @@
 import { ChevronLeft, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { embeddedMpvStatus } from '../core/mpvPlayer';
+import { subscribePlayerStatus } from '../core/playerStatusStore';
 import { t } from '../i18n';
 
 interface Props {
@@ -19,7 +19,6 @@ const MIN_VISIBLE_PROGRESS = 0.045;
 export function PlayerLoadingOverlay({ background, logo, title, episodeLine, status, error, onBack }: Props) {
   const [hasMeasuredProgress, setHasMeasuredProgress] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [motionMs, setMotionMs] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const failed = !!error;
@@ -37,10 +36,7 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
 
   useEffect(() => {
     if (failed) return;
-    let cancelled = false;
-    const poll = async () => {
-      const status = await embeddedMpvStatus().catch(() => null);
-      if (cancelled || !status) return;
+    return subscribePlayerStatus((status) => {
       const bufferingPct = parseFloat(status.cacheBufferingState ?? '');
       const cached = parseFloat(status.demuxerCacheDuration ?? '0') || 0;
       let next = 0;
@@ -53,35 +49,8 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
         setHasMeasuredProgress(true);
         setProgress((prev) => Math.max(prev, MIN_VISIBLE_PROGRESS, Math.min(1, next)));
       }
-    };
-    void poll();
-    const interval = setInterval(poll, 400);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
+    });
   }, [failed]);
-
-  useEffect(() => {
-    if (failed) return;
-    let cancelled = false;
-    let frame = 0;
-    const startedAt = performance.now();
-    const animate = (now: number) => {
-      if (cancelled) return;
-      setMotionMs(now - startedAt);
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(frame);
-    };
-  }, [failed]);
-
-  const breathe = (Math.sin((motionMs / 1080) * Math.PI * 2 - Math.PI / 2) + 1) / 2;
-  const breatheOpacity = 0.42 + breathe * 0.42;
-  const breatheScale = 0.992 + breathe * 0.02;
 
   return (
     <div
@@ -156,8 +125,7 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
                 width: '100%',
                 height: '100%',
                 objectFit: 'contain',
-                opacity: failed ? 0.55 : hasMeasuredProgress ? 0.35 : breatheOpacity,
-                transform: failed || hasMeasuredProgress ? undefined : `scale(${breatheScale.toFixed(4)})`,
+                opacity: failed ? 0.55 : hasMeasuredProgress ? 0.35 : undefined,
                 filter: failed || hasMeasuredProgress
                   ? 'drop-shadow(0 0.25rem 1.5rem rgba(0,0,0,0.8)) brightness(0.72)'
                   : 'drop-shadow(0 0.25rem 1.5rem rgba(0,0,0,0.8))',
@@ -197,8 +165,7 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
               fontFamily: "'Montserrat', sans-serif",
               letterSpacing: '-0.0313rem',
               textShadow: '0 0.125rem 1rem rgba(0,0,0,0.8)',
-              opacity: failed ? 0.75 : breatheOpacity,
-              transform: failed ? undefined : `scale(${breatheScale.toFixed(4)})`,
+              opacity: failed ? 0.75 : undefined,
               display: 'inline-block',
             }}
           >

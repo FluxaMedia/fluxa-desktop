@@ -41,6 +41,12 @@ export function AppearanceSection({ prefs, setPref }: { prefs: Prefs; setPref: <
           checked={prefs.gifAutoplayEnabled}
           onToggle={(v) => setPref('gifAutoplayEnabled', v)}
         />
+        <ToggleTile
+          title="Reduced visual effects"
+          subtitle="Disable blur and heavy shadows to improve performance on integrated GPUs."
+          checked={prefs.reducedEffects}
+          onToggle={(v) => setPref('reducedEffects', v)}
+        />
         <ChoiceTile
           title={t('appearance.sidebar_layout')}
           subtitle={t('appearance.sidebar_layout_desc')}

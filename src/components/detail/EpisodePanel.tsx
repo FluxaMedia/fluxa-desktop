@@ -145,14 +145,14 @@ export function EpisodeRow({
 
   return (
     <div
-      style={{ ...EP.row, background: selected ? 'rgba(255,255,255,0.1)' : hovered ? 'rgba(255,255,255,0.05)' : 'transparent' }}
+      style={{ ...EP.row, background: selected ? 'rgba(255,255,255,0.1)' : hovered ? 'rgba(255,255,255,0.05)' : 'transparent', contentVisibility: 'auto', containIntrinsicSize: '5.75rem' }}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <div style={EP.thumb}>
         {episode.thumbnail && !thumbErr ? (
-          <img src={episode.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setThumbErr(true)} />
+          <img src={episode.thumbnail} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={() => setThumbErr(true)} />
         ) : (
           <div style={EP.thumbPlaceholder}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="rgba(255,255,255,0.1)"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg>
