@@ -4,6 +4,7 @@ import { t } from '../i18n';
 import { cardImageUrl } from '../core/imageSizes';
 import { useInViewport } from '../hooks/useInViewport';
 import { useGifSlot } from '../hooks/useGifSlot';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 const ROW_PADDING_LEFT = '2rem';
 
@@ -44,6 +45,7 @@ export const CollectionShelfRow = React.memo(function CollectionShelfRow({
   gifAutoplayEnabled?: boolean;
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const dragScroll = useDragScroll(scrollRef);
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(true);
   const [scrollLeft, setScrollLeft] = React.useState(0);
@@ -130,7 +132,7 @@ export const CollectionShelfRow = React.memo(function CollectionShelfRow({
           </button>
         </div>
       </div>
-      <div ref={scrollRef} style={collStyles.scroll} onScroll={handleScroll}>
+      <div ref={scrollRef} style={collStyles.scroll} onScroll={handleScroll} {...dragScroll}>
         {beforeWidth > 0 && <div style={{ width: beforeWidth, flexShrink: 0 }} />}
         {visibleFolders.map((folder) => (
           <FolderTileCard

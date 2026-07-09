@@ -3,6 +3,7 @@ import type { Meta } from '../core/types';
 import { markContinueWatchingItemWatched, dropContinueWatchingItem, continueWatchingCardFields } from '../core/continueWatchingUtils';
 import { ContinueCard } from './ContinueCard';
 import { t } from '../i18n';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 const ROW_PADDING_LEFT = '2rem';
 
@@ -28,6 +29,7 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
 }) {
   const isHorizontal = cwLayout !== 'vertical';
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const dragScroll = useDragScroll(scrollRef);
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(false);
   const [dismissingIds, setDismissingIds] = React.useState<Set<string>>(new Set());
@@ -133,7 +135,7 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
           )}
         </div>
       </div>
-      <div ref={scrollRef} style={cwStyles.scroll}>
+      <div ref={scrollRef} style={cwStyles.scroll} {...dragScroll}>
         {visibleItems.map((meta) => (
           <ContinueCard
             key={meta.id}

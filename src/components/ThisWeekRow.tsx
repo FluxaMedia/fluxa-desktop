@@ -3,6 +3,7 @@ import type { Meta } from '../core/types';
 import { continueWatchingCardFields } from '../core/continueWatchingUtils';
 import { ContinueCard } from './ContinueCard';
 import { t } from '../i18n';
+import { useDragScroll } from '../hooks/useDragScroll';
 
 const ROW_PADDING_LEFT = '2rem';
 
@@ -16,6 +17,7 @@ export const ThisWeekRow = React.memo(function ThisWeekRow({
   onItemClick: (m: Meta) => void;
 }) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const dragScroll = useDragScroll(scrollRef);
   const [canScrollLeft, setCanScrollLeft] = React.useState(false);
   const [canScrollRight, setCanScrollRight] = React.useState(false);
   const [cardFields, setCardFields] = React.useState<Map<string, { artwork: string | null; episodeLine: string }>>(new Map());
@@ -66,7 +68,7 @@ export const ThisWeekRow = React.memo(function ThisWeekRow({
           )}
         </div>
       </div>
-      <div ref={scrollRef} style={twStyles.scroll}>
+      <div ref={scrollRef} style={twStyles.scroll} {...dragScroll}>
         {items.map((meta) => (
           <ContinueCard
             key={meta.id}
