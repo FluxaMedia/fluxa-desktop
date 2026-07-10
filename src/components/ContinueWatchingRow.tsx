@@ -108,9 +108,17 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
     const load = () => {
       void continueWatchingCardFields(visibleItems, artworkPreference, isHorizontal).then((fields) => {
         if (cancelled) return;
+        const resolvedFields = new Map(fields);
+        for (const item of visibleItems) {
+          const current = resolvedFields.get(item.id);
+          const cached = lastCardFields.get(item.id);
+          if (current && !current.artwork && cached?.artwork) {
+            resolvedFields.set(item.id, { ...current, artwork: cached.artwork });
+          }
+        }
         lastCardFieldsKey = cardFieldsKey;
-        lastCardFields = fields;
-        setCardFields(fields);
+        lastCardFields = resolvedFields;
+        setCardFields(resolvedFields);
       }).catch(() => {
         if (!cancelled) setTimeout(load, 1000);
       });
