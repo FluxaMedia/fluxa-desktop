@@ -82,7 +82,7 @@ pub fn ensure_native_player_surface(
 fn mpv_options_from_preferences(
     app: Option<&AppHandle>,
     preferences: &serde_json::Value,
-) -> Vec<(String, String)> {
+) -> (Vec<(String, String)>, bool) {
     let mut options = Vec::new();
     let get = |key: &str| preferences.get(key).and_then(|v| v.as_str());
 
@@ -144,7 +144,7 @@ fn mpv_options_from_preferences(
             ));
         }
     }
-    let _ = push_anime_upscaling_options(
+    let anime4k_applied = push_anime_upscaling_options(
         &mut options,
         app,
         get("animeUpscalingMode"),
@@ -245,7 +245,7 @@ fn mpv_options_from_preferences(
             }
         }
     }
-    options
+    (options, anime4k_applied)
 }
 
 fn push_anime_upscaling_options(
@@ -522,17 +522,29 @@ pub fn player_apply_preferences(
     if let Some(v) = preferences.get("useChapterSkip").and_then(|v| v.as_bool()) {
         *state.use_chapter_skip.lock().unwrap() = v;
     }
-    let options = mpv_options_from_preferences(Some(&app), &preferences);
-    let anime4k_enabled = anime4k_should_apply(&preferences);
+    let (options, anime4k_resolved) = mpv_options_from_preferences(Some(&app), &preferences);
+    if anime4k_should_apply(&preferences) && !anime4k_resolved {
+        log::warn!("Anime4K was requested by preferences but its shader could not be resolved");
+    }
+    let options_applied = if options.is_empty() {
+        true
+    } else {
+        match with_renderer_retry(&state, 80, |renderer| renderer.apply_options(&options)) {
+            Ok(Some(())) => true,
+            Ok(None) => {
+                log::warn!("Preferences could not be applied: player renderer not ready");
+                false
+            }
+            Err(err) => {
+                log::warn!("Preferences could not be applied: {err}");
+                false
+            }
+        }
+    };
+    let anime4k_enabled = anime4k_resolved && options_applied;
     *state.anime4k_enabled.lock().unwrap() = anime4k_enabled;
     let _ = app.emit("player-anime4k-state", serde_json::json!({ "enabled": anime4k_enabled }));
-    if options.is_empty() {
-        return Ok(());
-    }
-    match with_renderer_retry(&state, 80, |renderer| renderer.apply_options(&options)) {
-        Ok(Some(())) => Ok(()),
-        Ok(None) | Err(_) => Ok(()),
-    }
+    Ok(())
 }
 
 #[tauri::command]

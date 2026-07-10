@@ -1077,7 +1077,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     invoke('player_set_anime4k_enabled', {
       enabled,
       quality: String(prefs?.animeUpscalingQuality ?? 'anime4k_m'),
-    }).catch(() => undefined);
+    }).catch(() => setAnime4kEnabledState(!enabled));
   }, [prefs]);
 
   const [subtitleDelay, setSubtitleDelayState] = useState(0);
