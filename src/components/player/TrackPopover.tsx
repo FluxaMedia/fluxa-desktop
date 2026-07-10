@@ -353,6 +353,7 @@ export function TrackPopover({
           )}
           {groups.map((group) => {
             const groupSelected = group.tracks.some((tr) => tr.selected);
+            const soleTrack = group.tracks.length === 1 ? group.tracks[0] : null;
             return (
               <button
                 key={group.key}
@@ -360,13 +361,24 @@ export function TrackPopover({
                 onClick={() => openOrSelectGroup(group)}
                 style={{ ...rowBtn, color: groupSelected ? '#fff' : rowBtn.color, fontWeight: groupSelected ? 600 : 400, justifyContent: 'space-between' }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                  <span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{groupSelected && <Check size={14} />}</span>
-                  {group.label}
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
+                  <span style={{ width: '0.875rem', flexShrink: 0, color: 'var(--primary-accent-color)' }}>{groupSelected && <Check size={14} />}</span>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', minWidth: 0 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.label}</span>
+                    {soleTrack && (
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.6875rem', fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>
+                        {trackSourceLabel(soleTrack)}
+                      </span>
+                    )}
+                  </span>
                 </span>
-                {group.tracks.length > 1 && (
+                {soleTrack?.format ? (
+                  <span style={{ flexShrink: 0, fontSize: '0.6875rem', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '0.25rem', padding: '1px 0.375rem' }}>
+                    {soleTrack.format}
+                  </span>
+                ) : group.tracks.length > 1 ? (
                   <span style={{ fontSize: '0.6875rem', color: 'rgba(255,255,255,0.35)' }}>{group.tracks.length}</span>
-                )}
+                ) : null}
               </button>
             );
           })}
