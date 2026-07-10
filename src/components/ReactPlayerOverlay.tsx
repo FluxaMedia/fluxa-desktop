@@ -1101,20 +1101,19 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
   const cycleAnime4kMode = useCallback((direction: 1 | -1) => {
     if (!anime4kEnabled) return;
-    setAnime4kMode((current) => {
-      const index = ANIME4K_MODES.indexOf(current as typeof ANIME4K_MODES[number]);
-      const nextIndex = (index === -1 ? 0 : index + direction + ANIME4K_MODES.length) % ANIME4K_MODES.length;
-      const next = ANIME4K_MODES[nextIndex];
-      invoke('player_set_anime4k_enabled', {
-        enabled: true,
-        quality: String(prefs?.animeUpscalingQuality ?? 'anime4k_m'),
-        mode: next,
-      }).catch(() => undefined);
+    const index = ANIME4K_MODES.indexOf(anime4kMode as typeof ANIME4K_MODES[number]);
+    const nextIndex = (index === -1 ? 0 : index + direction + ANIME4K_MODES.length) % ANIME4K_MODES.length;
+    const next = ANIME4K_MODES[nextIndex];
+    void invoke('player_set_anime4k_enabled', {
+      enabled: true,
+      quality: String(prefs?.animeUpscalingQuality ?? 'anime4k_m'),
+      mode: next,
+    }).then(() => {
+      setAnime4kMode(next);
       void setSubtitlePref('animeUpscalingModePreset', next);
       flashFeedback('anime4k', t(`player.anime4k_mode_${next}`));
-      return next;
-    });
-  }, [anime4kEnabled, prefs, setSubtitlePref, flashFeedback]);
+    }).catch(() => undefined);
+  }, [anime4kEnabled, anime4kMode, prefs, setSubtitlePref, flashFeedback]);
 
   const [subtitleDelay, setSubtitleDelayState] = useState(0);
   const [autoSyncingSubtitles, setAutoSyncingSubtitles] = useState(false);

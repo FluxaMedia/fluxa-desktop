@@ -324,12 +324,49 @@ fn anime4k_chain_shaders(tier: &str, mode: &str) -> Vec<String> {
 
     if tier == "anime4k_s" {
         match mode {
-            "b" | "bb" => chain.push("Anime4K_Restore_CNN_Soft_S.glsl".to_string()),
-            "c" | "ca" => chain.push("Anime4K_Upscale_Denoise_CNN_x2_S.glsl".to_string()),
-            _ => chain.push("Anime4K_Restore_CNN_S.glsl".to_string()),
-        }
-        if !matches!(mode, "c" | "ca") {
-            chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+            "b" => {
+                chain.push("Anime4K_Restore_CNN_Soft_S.glsl".to_string());
+                chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+            }
+            "bb" => {
+                chain.push("Anime4K_Restore_CNN_Soft_S.glsl".to_string());
+                chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push("Anime4K_Restore_CNN_Soft_S.glsl".to_string());
+                chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+            }
+            "c" => {
+                chain.push("Anime4K_Upscale_Denoise_CNN_x2_S.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+            }
+            "ca" => {
+                chain.push("Anime4K_Upscale_Denoise_CNN_x2_S.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push("Anime4K_Restore_CNN_S.glsl".to_string());
+                chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+            }
+            "aa" => {
+                chain.push("Anime4K_Restore_CNN_S.glsl".to_string());
+                chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+                chain.push("Anime4K_Restore_CNN_S.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+            }
+            _ => {
+                chain.push("Anime4K_Restore_CNN_S.glsl".to_string());
+                chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+            }
         }
     } else {
         let (primary, secondary) = if tier == "anime4k_l" { ("VL", "M") } else { ("M", "S") };

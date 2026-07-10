@@ -51,6 +51,8 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { id: 'player_screenshot', category: 'player', labelKey: 'shortcuts.player_screenshot', default: 'KeyG' },
   { id: 'player_seek_start', category: 'player', labelKey: 'shortcuts.player_seek_start', default: 'Home' },
   { id: 'player_seek_end', category: 'player', labelKey: 'shortcuts.player_seek_end', default: 'End' },
+  { id: 'player_anime4k_mode_next', category: 'player', labelKey: 'shortcuts.player_anime4k_mode_next', default: 'Alt+BracketRight' },
+  { id: 'player_anime4k_mode_prev', category: 'player', labelKey: 'shortcuts.player_anime4k_mode_prev', default: 'Alt+BracketLeft' },
 ];
 
 const CODE_LABELS: Record<string, string> = {
