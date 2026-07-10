@@ -1,8 +1,8 @@
 import {
   coreDetailSeriesLookupId,
   coreTmdbImageUrl,
-  coreTmdbMetaToMeta,
-  coreTmdbVideoToTrailer,
+  coreTmdbBulkMetas,
+  coreTmdbBulkVideosToTrailers,
   dispatchAction,
 } from './engine';
 import { loadAddons, loadActiveProfile, loadPrefs } from './libraryOps';
@@ -60,9 +60,8 @@ async function fetchTmdbSimilarItems({
   for (const path of calls) {
     const response = await tryFetchJson(tmdbUrl(`3/${tmdbType}/${tmdbId}/${path}`, apiKey, language));
     const rawItems = (response as { results?: TmdbMetaResult[] } | null)?.results ?? [];
-    const results = (await Promise.all(rawItems.map((item) =>
-      coreTmdbMetaToMeta(JSON.stringify(item), contentType, language)
-    ))).filter(Boolean);
+    if (!rawItems.length) continue;
+    const results = (await coreTmdbBulkMetas(JSON.stringify(rawItems), contentType, language)) ?? [];
     if (results.length) return results;
   }
   return [];
@@ -74,7 +73,8 @@ export async function fetchTmdbTrailers({ contentType, id, language, apiKey }: T
   if (!tmdbId) return [];
   const response = await tryFetchJson(tmdbUrl(`3/${tmdbContentType(contentType)}/${tmdbId}/videos`, apiKey, language));
   const rawVideos = (response as { results?: TmdbVideoResult[] } | null)?.results ?? [];
-  return (await Promise.all(rawVideos.map((v) => coreTmdbVideoToTrailer(JSON.stringify(v))))).filter(Boolean);
+  if (!rawVideos.length) return [];
+  return (await coreTmdbBulkVideosToTrailers(JSON.stringify(rawVideos))) ?? [];
 }
 
 async function resolveTmdbId({ contentType, id, language, apiKey }: TmdbRequest): Promise<string | null> {
