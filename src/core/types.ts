@@ -294,6 +294,7 @@ export interface HomePaging {
 
 export interface HomeState {
   isLoading?: boolean;
+  isStale?: boolean;
   isDirectLoading?: boolean;
   categories?: HomeCategory[];
   continueWatching?: LibraryItem[];

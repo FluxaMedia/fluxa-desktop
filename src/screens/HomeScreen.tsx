@@ -93,6 +93,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const catalogNoMoreRef = useRef<Set<string>>(new Set());
   const pendingCatalogPageIdRef = useRef<string | null>(null);
   const [loadingMoreCategoryId, setLoadingMoreCategoryId] = useState<string | null>(null);
+  const refreshStartedRef = useRef(false);
 
   useEffect(() => { catalogExtraRef.current = catalogExtra; }, [catalogExtra]);
 
@@ -179,6 +180,15 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
       onDispatch(JSON.stringify({ type: 'homeLoadRequested', language: getLanguage() }));
     }
   }, []);
+
+  useEffect(() => {
+    if (!home.isStale || refreshStartedRef.current) return;
+    refreshStartedRef.current = true;
+    const timer = window.setTimeout(() => {
+      void onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: getLanguage() }));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [home.isStale, onDispatch]);
 
   const continueWatching = useMemo(() => (home.continueWatching ?? []) as Meta[], [home.continueWatching]);
   const categories = useMemo(

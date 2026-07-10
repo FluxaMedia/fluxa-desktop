@@ -15,7 +15,7 @@ export function cardImageUrl(url: string | undefined, kind: 'poster' | 'backdrop
   if (!url) return url;
   const match = url.match(TMDB_RE);
   if (!match) return url;
-  const target = kind === 'poster' ? 'w342' : 'w780';
+  const target = kind === 'poster' ? 'w300' : 'w780';
   const current = TMDB_WIDTHS[match[2]];
   if (current !== undefined && current <= TMDB_WIDTHS[target]) return url;
   return `${match[1]}${target}${match[3]}`;

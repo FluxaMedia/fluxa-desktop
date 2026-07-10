@@ -6,14 +6,17 @@ import {
   coreEffectiveMetadataFeedSelection,
   coreMergeContinueWatchingLists,
   coreResolveFeedOptionGenre,
+  storageRead,
+  storageWrite,
 } from './engine';
 import { buildResourceUrl } from './addonManifest';
-import { loadActiveProfile, loadAddons, loadLibrary, loadPrefs } from './libraryOps';
+import { effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, loadPrefs } from './libraryOps';
 import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
 import { tryFetchJson } from './httpClient';
 import type { AddonDescriptor } from './types';
 
 const HOME_FEED_FETCH_CONCURRENCY = 6;
+const HOME_BOOTSTRAP_CACHE_PREFIX = 'home_bootstrap_v1';
 
 interface MetadataFeedOption {
   key: string;
@@ -23,6 +26,13 @@ interface MetadataFeedOption {
   type: string;
   id: string;
   genre?: string | null;
+}
+
+interface HomeBootstrapCache {
+  categories: unknown[];
+  continueWatching: Record<string, unknown>[];
+  metadataFeeds: MetadataFeedOption[];
+  billboard: unknown;
 }
 
 export interface DiscoverCatalogOption {
@@ -84,10 +94,17 @@ export async function refreshReleasedContinueWatching(
 export async function readHomeBootstrap(
   payload: Record<string, unknown>,
 ): Promise<unknown> {
+  const language = (payload.language as string | undefined) ?? 'en';
+  const cacheKey = `${HOME_BOOTSTRAP_CACHE_PREFIX}_${await effectRunnerLibraryKey()}_${language}`;
+  if (!payload.force) {
+    const cached = await storageRead<HomeBootstrapCache>(cacheKey);
+    if (cached) return { ...cached, stale: true };
+    return { stale: true };
+  }
+
   const addons = await loadAddons();
   const library = await loadLibrary();
   const prefs = await loadPrefs();
-  const language = (payload.language as string | undefined) ?? 'en';
 
   const localContinueWatching = (library.continueWatching as Record<string, unknown>[] | undefined) ?? [];
   const externalContinueWatching = (library.externalContinueWatching as Record<string, unknown>[] | undefined) ?? [];
@@ -147,5 +164,7 @@ export async function readHomeBootstrap(
       ? ((categories[0] as { items: unknown[] }).items[0] ?? null)
       : null;
 
-  return { categories: allCategories, continueWatching, metadataFeeds, billboard };
+  const bootstrap = { categories: allCategories, continueWatching, metadataFeeds, billboard };
+  void storageWrite(cacheKey, bootstrap);
+  return bootstrap;
 }
