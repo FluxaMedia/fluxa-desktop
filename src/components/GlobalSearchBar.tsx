@@ -338,7 +338,7 @@ function rankByNeedle(items: Meta[], needle: string): Meta[] {
   const includes: Meta[] = [];
   const seenNames = new Set<string>();
   for (const meta of items) {
-    const name = meta.name.toLowerCase();
+    const name = (meta.name ?? '').toLowerCase();
     if (!name.includes(needle)) continue;
     if (seenNames.has(name)) continue;
     seenNames.add(name);
