@@ -2,7 +2,7 @@ import { platformFetch } from './httpClient';
 import { loadActiveProfile } from './libraryOps';
 import { invoke } from '@tauri-apps/api/core';
 
-async function getOAuthClientId(service: string): Promise<string> {
+export async function getOAuthClientId(service: string): Promise<string> {
   try {
     return await invoke<string>('get_oauth_client_id', { service });
   } catch {

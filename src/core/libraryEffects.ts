@@ -17,6 +17,8 @@ import {
 import { buildContinueWatching, effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, persistProgressMerge, saveLibrary } from './libraryOps';
 import { pushLibraryStatusExternal, pushMarkWatchedExternal, pushPlaybackProgressExternal, pushWatchlistExternal, type WatchedEpisodeInfo, type WatchProgressInfo } from './externalSync';
 import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
+import { fetchTraktCalendarItems } from './traktExternalSync';
+import { getOAuthClientId } from './traktSync';
 import { notify } from './notifications';
 import { t } from '../i18n';
 import type { LibraryItem } from './types';
@@ -73,6 +75,23 @@ export async function refreshWatchlistAirDates(): Promise<void> {
 
   await saveLibrary(lib);
   invalidateCalendarCache();
+}
+
+export async function refreshExternalCalendarItems(): Promise<void> {
+  const profile = await loadActiveProfile();
+  const token = profile?.traktAccessToken;
+  if (!token) return;
+  if (profile?.traktTokenExpiresAt && Date.now() / 1000 > profile.traktTokenExpiresAt) return;
+
+  try {
+    const clientId = await getOAuthClientId('trakt');
+    const items = await fetchTraktCalendarItems(token, clientId);
+    const lib = await loadLibrary();
+    lib.externalCalendarItems = items;
+    await saveLibrary(lib);
+    invalidateCalendarCache();
+  } catch {
+  }
 }
 
 const NOTIFIED_EPISODES_KEY = 'notified_released_episode_ids';

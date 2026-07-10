@@ -92,6 +92,60 @@ export async function syncTraktNow(payload: Record<string, unknown>): Promise<un
   return { synced: true, provider: 'trakt', continueWatchingCount: items.length, watchlistCount };
 }
 
+export async function fetchTraktCalendarItems(token: string, clientId: string): Promise<Record<string, unknown>[]> {
+  const headers = traktHeaders(token, clientId);
+  const start = new Date();
+  start.setDate(start.getDate() - 14);
+  const startIso = start.toISOString().slice(0, 10);
+  const days = 90;
+
+  const [shows, movies] = await Promise.all([
+    platformFetch(`https://api.trakt.tv/calendars/my/shows/${startIso}/${days}`, { headers })
+      .then((res) => (res.ok ? res.json() : [])).catch(() => []),
+    platformFetch(`https://api.trakt.tv/calendars/my/movies/${startIso}/${days}`, { headers })
+      .then((res) => (res.ok ? res.json() : [])).catch(() => []),
+  ]);
+
+  const showItems = (Array.isArray(shows) ? shows : []).map((raw) => {
+    const entry = raw as Record<string, unknown>;
+    const episode = entry.episode as Record<string, unknown> | undefined;
+    const show = entry.show as Record<string, unknown> | undefined;
+    const ids = show?.ids as Record<string, unknown> | undefined;
+    const imdb = typeof ids?.imdb === 'string' ? ids.imdb : undefined;
+    const tmdb = ids?.tmdb != null ? `tmdb:${ids.tmdb}` : undefined;
+    const seriesId = imdb ?? tmdb;
+    const dateIso = typeof entry.first_aired === 'string' ? entry.first_aired : undefined;
+    if (!seriesId || !dateIso) return null;
+    return {
+      id: `${seriesId}:${episode?.season}:${episode?.number}`,
+      title: show?.title,
+      episodeTitle: episode?.title,
+      dateIso,
+      contentId: seriesId,
+      seriesId,
+    } as Record<string, unknown>;
+  }).filter((item): item is Record<string, unknown> => item !== null);
+
+  const movieItems = (Array.isArray(movies) ? movies : []).map((raw) => {
+    const entry = raw as Record<string, unknown>;
+    const movie = entry.movie as Record<string, unknown> | undefined;
+    const ids = movie?.ids as Record<string, unknown> | undefined;
+    const imdb = typeof ids?.imdb === 'string' ? ids.imdb : undefined;
+    const tmdb = ids?.tmdb != null ? `tmdb:${ids.tmdb}` : undefined;
+    const contentId = imdb ?? tmdb;
+    const dateIso = typeof entry.released === 'string' ? entry.released : undefined;
+    if (!contentId || !dateIso) return null;
+    return {
+      id: contentId,
+      title: movie?.title,
+      dateIso,
+      contentId,
+    } as Record<string, unknown>;
+  }).filter((item): item is Record<string, unknown> => item !== null);
+
+  return [...showItems, ...movieItems];
+}
+
 export async function pushMarkWatchedTrakt(
   videoIds: string[],
   watched: boolean,

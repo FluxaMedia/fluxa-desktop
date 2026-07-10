@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bell, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import type { AppState, LibraryItem } from '../core/types';
-import { refreshWatchlistAirDates } from '../core/libraryEffects';
+import { refreshExternalCalendarItems, refreshWatchlistAirDates } from '../core/libraryEffects';
 import { t } from '../i18n';
 
 const NAV_RAIL_WIDTH = 6.5;
@@ -52,7 +52,7 @@ export const CalendarScreen = React.memo(function CalendarScreen({ state, onDisp
     lastAirDatesRefreshAt = Date.now();
     let cancelled = false;
     setIsRefreshingAirDates(true);
-    refreshWatchlistAirDates()
+    Promise.all([refreshWatchlistAirDates(), refreshExternalCalendarItems()])
       .then(() => {
         if (!cancelled) onDispatch(JSON.stringify({ type: 'calendarMonthRequested', year, month }));
       })
