@@ -8,6 +8,9 @@ import './index.css';
 if (import.meta.env.PROD) {
   Sentry.init({
     dsn: 'https://9ca93bac9e63dfbd8cc3d84078677fb6@o4511704565678080.ingest.de.sentry.io/4511706868023376',
+    integrations: [Sentry.browserTracingIntegration(), Sentry.browserProfilingIntegration()],
+    tracesSampleRate: 0.2,
+    profilesSampleRate: 1,
   });
 }
 
