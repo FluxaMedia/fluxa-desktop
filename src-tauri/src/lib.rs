@@ -76,6 +76,7 @@ pub struct DesktopState {
     pub seek_thumbnail_enabled: Mutex<bool>,
     pub thumbnail_renderer: Mutex<Option<mpv_render::MpvRenderer>>,
     pub thumbnail_loaded_url: Mutex<Option<String>>,
+    pub anime4k_enabled: Mutex<bool>,
     pub pending_hide: AtomicBool,
     #[cfg(target_os = "windows")]
     pub main_window_size: std::sync::atomic::AtomicU64,
@@ -114,6 +115,7 @@ impl Default for DesktopState {
             seek_thumbnail_enabled: Mutex::new(false),
             thumbnail_renderer: Mutex::new(None),
             thumbnail_loaded_url: Mutex::new(None),
+            anime4k_enabled: Mutex::new(false),
             pending_hide: AtomicBool::new(false),
             #[cfg(target_os = "windows")]
             main_window_size: std::sync::atomic::AtomicU64::new(0),
@@ -713,6 +715,7 @@ pub fn run() {
             player_render_frame,
             player_command,
             player_set_anime4k_enabled,
+            player_get_anime4k_enabled,
             player_show_loading,
             player_hide,
             player_set_title,

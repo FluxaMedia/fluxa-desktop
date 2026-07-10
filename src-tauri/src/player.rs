@@ -144,10 +144,11 @@ fn mpv_options_from_preferences(
             ));
         }
     }
-    push_anime_upscaling_options(
+    let _ = push_anime_upscaling_options(
         &mut options,
         app,
         get("animeUpscalingMode"),
+        get("animeUpscalingQuality"),
         preferences
             .get("isAnimePlayback")
             .and_then(Value::as_bool)
@@ -251,20 +252,20 @@ fn push_anime_upscaling_options(
     options: &mut Vec<(String, String)>,
     app: Option<&AppHandle>,
     mode: Option<&str>,
+    quality: Option<&str>,
     is_anime_playback: bool,
-) {
+) -> bool {
     options.push(("glsl-shaders".to_string(), String::new()));
 
-    let shader_name = match mode.unwrap_or("off") {
-        "auto" if is_anime_playback => "Anime4K_Upscale_CNN_x2_M.glsl",
-        "anime4k_s" => "Anime4K_Upscale_CNN_x2_S.glsl",
-        "anime4k_m" => "Anime4K_Upscale_CNN_x2_M.glsl",
-        "anime4k_l" => "Anime4K_Upscale_CNN_x2_L.glsl",
-        _ => return,
+    let quality = match mode.unwrap_or("off") {
+        "auto" if is_anime_playback => quality.unwrap_or("anime4k_m"),
+        "anime4k_s" | "anime4k_m" | "anime4k_l" if is_anime_playback => mode.unwrap_or("off"),
+        _ => return false,
     };
+    let shader_name = anime_shader_name(quality);
     let Some(shader_path) = resolve_shader_path(app, shader_name) else {
         log::warn!("Anime4K shader '{shader_name}' was not found");
-        return;
+        return false;
     };
 
     options.push(("scale".to_string(), "ewa_lanczossharp".to_string()));
@@ -273,6 +274,24 @@ fn push_anime_upscaling_options(
     options.push(("correct-downscaling".to_string(), "yes".to_string()));
     options.push(("linear-downscaling".to_string(), "yes".to_string()));
     options.push(("glsl-shaders".to_string(), shader_path));
+    true
+}
+
+fn anime_shader_name(quality: &str) -> &'static str {
+    match quality {
+        "anime4k_s" => "Anime4K_Upscale_CNN_x2_S.glsl",
+        "anime4k_l" => "Anime4K_Upscale_CNN_x2_L.glsl",
+        _ => "Anime4K_Upscale_CNN_x2_M.glsl",
+    }
+}
+
+fn anime4k_should_apply(preferences: &Value) -> bool {
+    let is_anime_playback = preferences
+        .get("isAnimePlayback")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    matches!(preferences.get("animeUpscalingMode").and_then(Value::as_str), Some("auto" | "anime4k_s" | "anime4k_m" | "anime4k_l"))
+        && is_anime_playback
 }
 
 fn resolve_shader_path(app: Option<&AppHandle>, shader_name: &str) -> Option<String> {
@@ -504,6 +523,9 @@ pub fn player_apply_preferences(
         *state.use_chapter_skip.lock().unwrap() = v;
     }
     let options = mpv_options_from_preferences(Some(&app), &preferences);
+    let anime4k_enabled = anime4k_should_apply(&preferences);
+    *state.anime4k_enabled.lock().unwrap() = anime4k_enabled;
+    let _ = app.emit("player-anime4k-state", serde_json::json!({ "enabled": anime4k_enabled }));
     if options.is_empty() {
         return Ok(());
     }
@@ -681,9 +703,10 @@ pub fn player_set_anime4k_enabled(
     app: AppHandle,
     state: State<DesktopState>,
     enabled: bool,
+    quality: Option<String>,
 ) -> Result<(), String> {
     let commands: Vec<String> = if enabled {
-        let shader_path = resolve_shader_path(Some(&app), "Anime4K_Upscale_CNN_x2_M.glsl")
+        let shader_path = resolve_shader_path(Some(&app), anime_shader_name(quality.as_deref().unwrap_or("anime4k_m")))
             .ok_or_else(|| "Anime4K shader not found".to_string())?
             .replace('\\', "/");
         vec![
@@ -705,7 +728,14 @@ pub fn player_set_anime4k_enabled(
     for command in commands {
         with_renderer_retry(&state, 60, |renderer| renderer.command_string(&command))?;
     }
+    *state.anime4k_enabled.lock().unwrap() = enabled;
+    let _ = app.emit("player-anime4k-state", serde_json::json!({ "enabled": enabled }));
     Ok(())
+}
+
+#[tauri::command]
+pub fn player_get_anime4k_enabled(state: State<DesktopState>) -> bool {
+    *state.anime4k_enabled.lock().unwrap()
 }
 
 #[tauri::command]

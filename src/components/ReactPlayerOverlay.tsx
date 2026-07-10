@@ -193,7 +193,17 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [introDbImdbId, setIntroDbImdbId] = useState<string | null>(null);
   const introDbSubmitEnabled = prefs?.introDbSubmitEnabled === true;
   const introDbApiKey = typeof prefs?.introDbApiKey === 'string' ? prefs.introDbApiKey : '';
-  const [anime4kEnabled, setAnime4kEnabledState] = useState(() => String(prefs?.animeUpscalingMode ?? 'off') !== 'off');
+  const [anime4kEnabled, setAnime4kEnabledState] = useState(false);
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void invoke<boolean>('player_get_anime4k_enabled').then(setAnime4kEnabledState).catch(() => undefined);
+    void listen<{ enabled?: boolean }>('player-anime4k-state', (event) => {
+      setAnime4kEnabledState(event.payload.enabled === true);
+    }).then((stop) => {
+      unlisten = stop;
+    });
+    return () => unlisten?.();
+  }, []);
   const [showTorrentPopover, setShowTorrentPopover] = useState(false);
   const [castDevices, setCastDevices] = useState<CastDevice[]>([]);
   const [castDiscovering, setCastDiscovering] = useState(false);
@@ -1061,9 +1071,11 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
   const toggleAnime4k = useCallback((enabled: boolean) => {
     setAnime4kEnabledState(enabled);
-    invoke('player_set_anime4k_enabled', { enabled }).catch(() => undefined);
-    setSubtitlePref('animeUpscalingMode', enabled ? 'anime4k_m' : 'off');
-  }, [setSubtitlePref]);
+    invoke('player_set_anime4k_enabled', {
+      enabled,
+      quality: String(prefs?.animeUpscalingQuality ?? 'anime4k_m'),
+    }).catch(() => undefined);
+  }, [prefs]);
 
   const [subtitleDelay, setSubtitleDelayState] = useState(0);
   const [subtitleFont, setSubtitleFontState] = useState(() => String(prefs?.subtitleFont ?? 'default'));

@@ -67,12 +67,20 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
         options={[
           { value: 'auto', label: t('settings.auto') },
           { value: 'off', label: t('settings.off') },
+        ]}
+        selected={prefs.animeUpscalingMode}
+        onSelect={(v) => setPref('animeUpscalingMode', v)}
+      />
+      <ChoiceTile
+        title={t('settings.anime_upscaling_quality')}
+        subtitle={t('settings.anime_upscaling_quality_desc')}
+        options={[
           { value: 'anime4k_s', label: t('settings.anime4k_s') },
           { value: 'anime4k_m', label: t('settings.anime4k_m') },
           { value: 'anime4k_l', label: t('settings.anime4k_l') },
         ]}
-        selected={prefs.animeUpscalingMode}
-        onSelect={(v) => setPref('animeUpscalingMode', v)}
+        selected={prefs.animeUpscalingQuality}
+        onSelect={(v) => setPref('animeUpscalingQuality', v)}
       />
       <ChoiceTile
         title={t('settings.frame_interpolation')}

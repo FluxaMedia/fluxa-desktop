@@ -151,10 +151,20 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
 
   useEffect(() => {
     storageRead<Prefs>('prefs').then((p) => {
-      const merged = p ? { ...DEFAULT_PREFS, ...p } : DEFAULT_PREFS;
+      const legacyAnimeQuality = p && ['anime4k_s', 'anime4k_m', 'anime4k_l'].includes(p.animeUpscalingMode)
+        ? p.animeUpscalingMode
+        : undefined;
+      const merged = p
+        ? {
+            ...DEFAULT_PREFS,
+            ...p,
+            ...(legacyAnimeQuality ? { animeUpscalingMode: 'auto', animeUpscalingQuality: legacyAnimeQuality } : {}),
+          }
+        : DEFAULT_PREFS;
       if (p) setLanguage(merged.language);
       else setLanguage(DEFAULT_PREFS.language);
       setPrefs(merged);
+      if (legacyAnimeQuality) void storageWrite('prefs', merged);
       void import('@tauri-apps/api/core').then(({ invoke }) =>
         invoke('player_set_seek_thumbnail_enabled', { enabled: merged.seekThumbnailEnabled })
       );

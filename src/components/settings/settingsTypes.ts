@@ -53,6 +53,7 @@ export interface Prefs {
   preferredPlayer: string;
   mpvCustomOptions: string;
   animeUpscalingMode: string;
+  animeUpscalingQuality: string;
   frameInterpolationMode: string;
   streamSourceSelectionMode: string;
   streamSourceRegexPattern: string;
@@ -177,6 +178,7 @@ export const DEFAULT_PREFS: Prefs = {
   preferredPlayer: 'mpv',
   mpvCustomOptions: '',
   animeUpscalingMode: 'off',
+  animeUpscalingQuality: 'anime4k_m',
   frameInterpolationMode: 'off',
   streamSourceSelectionMode: 'manual',
   streamSourceRegexPattern: '',
