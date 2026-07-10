@@ -88,6 +88,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   } | null>(null);
   const initialEpisodeRef = useRef(initialEpisode ?? null);
   const autoShowStreamsRef = useRef(autoShowStreams ?? false);
+  const userChangedSeasonRef = useRef(false);
   const prevFilteredEpsRef = useRef<{ metaId: string; season: number; episodes: Video[] }>({ metaId: '', season: 0, episodes: [] });
 
   const [resumeDialog, setResumeDialog] = useState<{ episode: Video; timeOffset: number } | null>(null);
@@ -130,6 +131,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
     setSelectedSeason(initialEpisodeRef.current?.season ?? 1);
     setSelectedEpisode(initialEpisodeRef.current);
     setShowSources(autoShowStreamsRef.current);
+    userChangedSeasonRef.current = false;
     onDispatch(JSON.stringify({ type: 'detailLoadRequested', contentType: meta.type, id: meta.id, language: getLanguage() }));
   }, [meta.id]);
 
@@ -212,6 +214,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   });
 
   const changeSeason = useCallback((season: number) => {
+    userChangedSeasonRef.current = true;
     setSelectedSeason(season);
     setSelectedEpisode(null);
     setShowSources(false);
@@ -244,13 +247,13 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
     coreDetailEpisodePlan({
       episodes,
       selectedSeason,
-      selectedEpisodeId: selectedEpisode?.id ?? lastVideoId ?? null,
+      selectedEpisodeId: selectedEpisode?.id ?? (userChangedSeasonRef.current ? null : lastVideoId) ?? null,
       metaId: meta.id,
     }).then((plan) => {
       if (cancelled) return;
       setEpisodePlan(plan as typeof episodePlan);
       const planSeason = (plan as { selectedSeason?: number } | null)?.selectedSeason;
-      if (planSeason != null && !selectedEpisode) setSelectedSeason(planSeason);
+      if (planSeason != null && !selectedEpisode && !userChangedSeasonRef.current) setSelectedSeason(planSeason);
     });
     return () => { cancelled = true; };
   }, [isSeries, episodes, selectedSeason, selectedEpisode?.id, lastVideoId, meta.id]);
