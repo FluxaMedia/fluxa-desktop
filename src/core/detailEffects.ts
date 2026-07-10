@@ -1,5 +1,6 @@
 import {
   coreDetailSeriesLookupId,
+  coreParseVideoId,
   coreTmdbImageUrl,
   coreTmdbBulkMetas,
   coreTmdbBulkVideosToTrailers,
@@ -107,6 +108,18 @@ export async function fetchTmdbPosterFallback({
   const background = await coreTmdbImageUrl(response.backdrop_path ?? null, 'w1280');
   if (!poster && !background) return null;
   return { poster: poster ?? undefined, background: background ?? undefined };
+}
+
+async function resolveImdbId({ contentType, id, language, apiKey }: TmdbRequest): Promise<string | undefined> {
+  const parsed = await coreParseVideoId(id);
+  if (parsed.imdb) return parsed.imdb;
+  if (!apiKey) return undefined;
+  const tmdbId = await resolveTmdbId({ contentType, id, language, apiKey });
+  if (!tmdbId) return undefined;
+  const response = await tryFetchJson(
+    tmdbUrl(`3/${tmdbContentType(contentType)}/${tmdbId}/external_ids`, apiKey, language),
+  ) as { imdb_id?: string | null } | null;
+  return response?.imdb_id ?? undefined;
 }
 
 function tmdbUrl(path: string, apiKey: string, language: string, extra: Record<string, string> = {}): string {
@@ -296,22 +309,23 @@ async function fetchSimilarItems({
   if (source === 'trakt' && !traktAvailable) return tmdbFallback();
   if (source === 'simkl' && !simklAvailable) return tmdbFallback();
 
+  if (!traktAvailable && !simklAvailable) return tmdbFallback();
+
+  const imdbId = await resolveImdbId({ contentType, id, language, apiKey });
+  if (!imdbId) return tmdbFallback();
+
   if (traktAvailable) {
-    const items = await fetchTraktSimilarItems({ id, contentType });
+    const items = await fetchTraktSimilarItems({ imdbId, contentType });
     if (items.length) return items;
     if (simklAvailable) {
-      const simklItems = await fetchSimklSimilarItems({ id, contentType });
+      const simklItems = await fetchSimklSimilarItems({ imdbId, contentType });
       if (simklItems.length) return simklItems;
     }
     return tmdbFallback();
   }
 
-  if (simklAvailable) {
-    const items = await fetchSimklSimilarItems({ id, contentType });
-    if (items.length) return items;
-    return tmdbFallback();
-  }
-
+  const items = await fetchSimklSimilarItems({ imdbId, contentType });
+  if (items.length) return items;
   return tmdbFallback();
 }
 

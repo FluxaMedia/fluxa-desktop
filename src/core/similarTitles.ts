@@ -1,6 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
 import { _appVersion, platformFetch, tryFetchJson } from './httpClient';
-import { coreParseVideoId } from './engine';
 import { enrichWithAddonMeta } from './externalSyncUtils';
 import type { Meta } from './types';
 
@@ -40,9 +39,7 @@ function traktItemToPartialMeta(item: TraktRelatedItem, contentType: string): Re
 // Trakt's docs list the :id path param as the resource's slug, and imdb ids are
 // known to 404 on some shows even though they work for most — so we resolve the
 // slug via /search first rather than passing the imdb id straight through.
-export async function fetchTraktSimilarItems({ id, contentType }: { id: string; contentType: string }): Promise<Meta[]> {
-  const parsed = await coreParseVideoId(id);
-  if (!parsed.imdb) return [];
+export async function fetchTraktSimilarItems({ imdbId, contentType }: { imdbId: string; contentType: string }): Promise<Meta[]> {
   const clientId = await invoke<string>('get_oauth_client_id', { service: 'trakt' }).catch(() => '');
   if (!clientId) return [];
   const headers: HeadersInit = {
@@ -52,7 +49,7 @@ export async function fetchTraktSimilarItems({ id, contentType }: { id: string; 
 
   const wantType = contentType === 'series' ? 'show' : 'movie';
   const lookup = await tryFetchJsonWithHeaders(
-    `https://api.trakt.tv/search/imdb/${encodeURIComponent(parsed.imdb)}?type=${wantType}`,
+    `https://api.trakt.tv/search/imdb/${encodeURIComponent(imdbId)}?type=${wantType}`,
     headers,
   ) as Array<Record<string, unknown>> | null;
   const slug = Array.isArray(lookup)
@@ -94,9 +91,7 @@ function simklPosterUrl(path: string | null | undefined): string | undefined {
 // movie/show detail response as `users_recommendations`, each carrying only a
 // simkl id (no imdb/tmdb), so each item needs one more detail lookup to resolve
 // a navigable imdb id.
-export async function fetchSimklSimilarItems({ id, contentType }: { id: string; contentType: string }): Promise<Meta[]> {
-  const parsed = await coreParseVideoId(id);
-  if (!parsed.imdb) return [];
+export async function fetchSimklSimilarItems({ imdbId, contentType }: { imdbId: string; contentType: string }): Promise<Meta[]> {
   const clientId = await invoke<string>('get_oauth_client_id', { service: 'simkl' }).catch(() => '');
   if (!clientId) return [];
 
@@ -104,7 +99,7 @@ export async function fetchSimklSimilarItems({ id, contentType }: { id: string; 
   const wantType = contentType === 'series' ? 'tv' : 'movie';
 
   const lookup = await tryFetchJson(
-    `https://api.simkl.com/search/id?imdb=${encodeURIComponent(parsed.imdb)}&${simklQuery}`,
+    `https://api.simkl.com/search/id?imdb=${encodeURIComponent(imdbId)}&${simklQuery}`,
   ) as Array<{ type?: string; ids?: { simkl?: number } }> | null;
   const found = Array.isArray(lookup) ? lookup.find((item) => item.type === wantType) : undefined;
   const simklId = found?.ids?.simkl;
