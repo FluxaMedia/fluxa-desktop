@@ -582,6 +582,23 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     );
     debugLog(`handlePlay:anime detection confidence=${animeDetection.confidence} isAnime=${animeDetection.isAnime} reasons=${animeDetection.reasons.join(', ')}`);
 
+    let loadingStatusPollActive = true;
+    const pollMpvLoadingStatus = async () => {
+      while (loadingStatusPollActive && !isCancelled() && playerLoadingOverlayRef.current && !playerLoadingOverlayRef.current.error) {
+        const status = await embeddedMpvStatus().catch(() => null);
+        if (!loadingStatusPollActive || isCancelled() || !playerLoadingOverlayRef.current || playerLoadingOverlayRef.current.error) return;
+        if (!status?.loaded) {
+          setLoadingStatus(t('player.status_connecting_source'));
+        } else if (status.pausedForCache === 'yes') {
+          const pct = Math.round(parseFloat(status.cacheBufferingState ?? '') || 0);
+          setLoadingStatus(pct > 0 ? t('player.status_buffering_percent', pct) : t('player.status_buffering'));
+        } else {
+          setLoadingStatus(t('player.status_starting_playback'));
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    };
+
     if (playbackPlan?.mode === 'torrent') {
       let statusPollActive = true;
       const pollTorrentStatus = async () => {
@@ -622,10 +639,12 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         statusPollActive = false;
         if (isCancelled()) return;
         setLoadingStatus(t('player.status_loading_stream'));
+        void pollMpvLoadingStatus();
         await playInEmbeddedMpv(generation, localUrl, title, true, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, undefined, animeDetection.isAnime);
         debugLog('handlePlay:playInEmbeddedMpv (torrent) resolved');
       } catch (err) {
         statusPollActive = false;
+        loadingStatusPollActive = false;
         debugLog(`handlePlay:torrent path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
         await retryNextOrFail(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
         return;
@@ -634,9 +653,11 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       try {
         debugLog('handlePlay:calling playInEmbeddedMpv');
         setLoadingStatus(t('player.status_loading_stream'));
+        void pollMpvLoadingStatus();
         await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, stream.behaviorHints?.proxyHeaders, animeDetection.isAnime);
         debugLog('handlePlay:playInEmbeddedMpv resolved');
       } catch (err) {
+        loadingStatusPollActive = false;
         debugLog(`handlePlay:direct path FAILED ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
         await retryNextOrFail(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
         return;
