@@ -46,7 +46,9 @@ impl Default for DiscordPresenceState {
         Self {
             client: Mutex::new(None),
             enabled: AtomicBool::new(false),
-            last_activity: Mutex::new(PresenceKind::Browsing { label: "Browsing".to_string() }),
+            last_activity: Mutex::new(PresenceKind::Browsing {
+                label: "Browsing".to_string(),
+            }),
             reconnect_loop_started: AtomicBool::new(false),
         }
     }
@@ -64,14 +66,20 @@ fn activity_for<'a>(kind: &'a PresenceKind) -> activity::Activity<'a> {
             poster_url,
             button,
         } => {
-            let large_image = poster_url.as_deref().filter(|u| !u.is_empty()).unwrap_or("logo");
-            let mut act = activity::Activity::new().details(title).state("Viewing details").assets(
-                activity::Assets::new()
-                    .large_image(large_image)
-                    .large_text(title)
-                    .small_image("logo")
-                    .small_text("Fluxa"),
-            );
+            let large_image = poster_url
+                .as_deref()
+                .filter(|u| !u.is_empty())
+                .unwrap_or("logo");
+            let mut act = activity::Activity::new()
+                .details(title)
+                .state("Viewing details")
+                .assets(
+                    activity::Assets::new()
+                        .large_image(large_image)
+                        .large_text(title)
+                        .small_image("logo")
+                        .small_text("Fluxa"),
+                );
             if let Some(b) = button {
                 act = act.buttons(vec![activity::Button::new(&b.label, &b.url)]);
             }
@@ -86,17 +94,27 @@ fn activity_for<'a>(kind: &'a PresenceKind) -> activity::Activity<'a> {
             poster_url,
             button,
         } => {
-            let state_text = detail
-                .clone()
-                .unwrap_or_else(|| if *paused { "Paused".to_string() } else { "Watching".to_string() });
-            let large_image = poster_url.as_deref().filter(|u| !u.is_empty()).unwrap_or("logo");
-            let mut act = activity::Activity::new().details(title).state(state_text).assets(
-                activity::Assets::new()
-                    .large_image(large_image)
-                    .large_text(title)
-                    .small_image("logo")
-                    .small_text("Fluxa"),
-            );
+            let state_text = detail.clone().unwrap_or_else(|| {
+                if *paused {
+                    "Paused".to_string()
+                } else {
+                    "Watching".to_string()
+                }
+            });
+            let large_image = poster_url
+                .as_deref()
+                .filter(|u| !u.is_empty())
+                .unwrap_or("logo");
+            let mut act = activity::Activity::new()
+                .details(title)
+                .state(state_text)
+                .assets(
+                    activity::Assets::new()
+                        .large_image(large_image)
+                        .large_text(title)
+                        .small_image("logo")
+                        .small_text("Fluxa"),
+                );
             if start_unix_secs.is_some() || end_unix_secs.is_some() {
                 let mut ts = activity::Timestamps::new();
                 if let Some(start) = start_unix_secs {
@@ -145,7 +163,11 @@ pub fn spawn_reconnect_loop(app: &AppHandle) {
 }
 
 #[tauri::command]
-pub fn discord_presence_configure(app: AppHandle, state: State<DiscordPresenceState>, enabled: bool) {
+pub fn discord_presence_configure(
+    app: AppHandle,
+    state: State<DiscordPresenceState>,
+    enabled: bool,
+) {
     state.enabled.store(enabled, Ordering::SeqCst);
     let mut guard = state.client.lock().unwrap();
     if let Some(mut old) = guard.take() {
@@ -176,7 +198,9 @@ pub fn discord_presence_update(
     button_url: Option<String>,
 ) {
     let button = match (button_label, button_url) {
-        (Some(label), Some(url)) if !label.is_empty() && !url.is_empty() => Some(Button { label, url }),
+        (Some(label), Some(url)) if !label.is_empty() && !url.is_empty() => {
+            Some(Button { label, url })
+        }
         _ => None,
     };
     let kind = PresenceKind::Playing {
@@ -204,7 +228,9 @@ pub fn discord_presence_set_viewing(
     button_url: Option<String>,
 ) {
     let button = match (button_label, button_url) {
-        (Some(label), Some(url)) if !label.is_empty() && !url.is_empty() => Some(Button { label, url }),
+        (Some(label), Some(url)) if !label.is_empty() && !url.is_empty() => {
+            Some(Button { label, url })
+        }
         _ => None,
     };
     let kind = PresenceKind::Viewing {
@@ -231,7 +257,9 @@ pub fn discord_presence_set_browsing(state: State<DiscordPresenceState>, label: 
 
 #[tauri::command]
 pub fn discord_presence_clear(state: State<DiscordPresenceState>) {
-    *state.last_activity.lock().unwrap() = PresenceKind::Browsing { label: "Browsing".to_string() };
+    *state.last_activity.lock().unwrap() = PresenceKind::Browsing {
+        label: "Browsing".to_string(),
+    };
     let mut guard = state.client.lock().unwrap();
     if let Some(client) = guard.as_mut() {
         let _ = client.clear_activity();

@@ -56,7 +56,11 @@ mod tests {
 
     #[test]
     fn ipv4_mapped_ipv6_does_not_escape_blocklist() {
-        for s in ["::ffff:127.0.0.1", "::ffff:169.254.169.254", "::ffff:10.0.0.1"] {
+        for s in [
+            "::ffff:127.0.0.1",
+            "::ffff:169.254.169.254",
+            "::ffff:10.0.0.1",
+        ] {
             let ip: IpAddr = s.parse().unwrap();
             assert!(is_blocked_ip(&ip), "{s} should be blocked");
         }

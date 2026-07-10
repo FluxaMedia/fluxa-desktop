@@ -894,7 +894,11 @@ impl MpvRenderer {
             return (false, false);
         }
         for index in 0..count {
-            if self.get_string_property(&format!("track-list/{index}/type")).as_deref() == Some("video") {
+            if self
+                .get_string_property(&format!("track-list/{index}/type"))
+                .as_deref()
+                == Some("video")
+            {
                 return (true, true);
             }
         }
@@ -1020,7 +1024,11 @@ impl MpvRenderer {
             };
             tracks.push(PlayerTrackOption {
                 id,
-                label: title.clone().or(external_filename).or(lang.clone()).unwrap_or(fallback),
+                label: title
+                    .clone()
+                    .or(external_filename)
+                    .or(lang.clone())
+                    .unwrap_or(fallback),
                 selected,
                 lang,
                 source,

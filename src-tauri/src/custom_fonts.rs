@@ -27,8 +27,16 @@ pub fn fonts_dir(state: &State<DesktopState>) -> Result<PathBuf, String> {
 fn family_name(path: &Path) -> Option<String> {
     let data = fs::read(path).ok()?;
     let face = ttf_parser::Face::parse(&data, 0).ok()?;
-    for id in [ttf_parser::name_id::TYPOGRAPHIC_FAMILY, ttf_parser::name_id::FAMILY] {
-        if let Some(name) = face.names().into_iter().find(|n| n.name_id == id).and_then(|n| n.to_string()) {
+    for id in [
+        ttf_parser::name_id::TYPOGRAPHIC_FAMILY,
+        ttf_parser::name_id::FAMILY,
+    ] {
+        if let Some(name) = face
+            .names()
+            .into_iter()
+            .find(|n| n.name_id == id)
+            .and_then(|n| n.to_string())
+        {
             return Some(name);
         }
     }
@@ -44,7 +52,11 @@ fn fallback_name(path: &Path, file_name: &str) -> String {
 fn is_font_file(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .map(|e| ALLOWED_EXTENSIONS.iter().any(|allowed| e.eq_ignore_ascii_case(allowed)))
+        .map(|e| {
+            ALLOWED_EXTENSIONS
+                .iter()
+                .any(|allowed| e.eq_ignore_ascii_case(allowed))
+        })
         .unwrap_or(false)
 }
 
@@ -67,7 +79,10 @@ pub fn custom_fonts_list(state: State<DesktopState>) -> Result<Vec<CustomFont>, 
 }
 
 #[tauri::command]
-pub fn custom_fonts_add(state: State<DesktopState>, source_path: String) -> Result<CustomFont, String> {
+pub fn custom_fonts_add(
+    state: State<DesktopState>,
+    source_path: String,
+) -> Result<CustomFont, String> {
     let dir = fonts_dir(&state)?;
     let source = PathBuf::from(&source_path);
     if !is_font_file(&source) {
