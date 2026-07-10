@@ -672,6 +672,8 @@
   "settings.subtitle_text_desc": "Controls subtitle text color and opacity.",
   "settings.subtitle_background_desc": "Controls the caption background color and opacity.",
   "settings.subtitle_outline_desc": "Controls subtitle outline color and opacity.",
+  "settings.subtitle_force_style": "Force Subtitle Style",
+  "settings.subtitle_force_style_desc": "Apply outline, color and other style settings to ASS/SSA subtitles too, overriding their embedded styling. May break intentionally styled subtitles.",
   "settings.none": "None",
   "profiles.select_profile_hint": "Choose a profile to enter your personal library and recommendations.",
   "profiles.remote_hint": "Use the D-pad to move between profiles.",

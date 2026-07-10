@@ -89,6 +89,7 @@ export interface Prefs {
   subtitleBackgroundOpacity: string;
   subtitleOutlineColor: string;
   subtitleOutlineOpacity: string;
+  subtitleForceStyle: boolean;
   subtitleFont: string;
   downloadSourceSelectionMode: string;
   downloadSourceRegexPattern: string;
@@ -214,6 +215,7 @@ export const DEFAULT_PREFS: Prefs = {
   subtitleBackgroundOpacity: '0.5',
   subtitleOutlineColor: '#000000',
   subtitleOutlineOpacity: '1.0',
+  subtitleForceStyle: false,
   subtitleFont: 'default',
   downloadSourceSelectionMode: 'first',
   downloadSourceRegexPattern: '',

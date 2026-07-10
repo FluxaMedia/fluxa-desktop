@@ -173,6 +173,13 @@ fn mpv_options_from_preferences(
     {
         options.push(("sub-border-color".to_string(), color));
     }
+    if preferences
+        .get("subtitleForceStyle")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        options.push(("sub-ass-override".to_string(), "force".to_string()));
+    }
     let sub_bg_opacity = get("subtitleBackgroundOpacity")
         .and_then(|v| v.parse::<f64>().ok())
         .unwrap_or(0.5)

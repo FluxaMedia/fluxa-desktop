@@ -672,6 +672,8 @@
   "settings.subtitle_text_desc": "Altyazı yazısının rengini ve opaklığını ayarlar.",
   "settings.subtitle_background_desc": "Altyazı arka planının rengini ve opaklığını ayarlar.",
   "settings.subtitle_outline_desc": "Altyazı konturunun rengini ve opaklığını ayarlar.",
+  "settings.subtitle_force_style": "Altyazı Stilini Zorla",
+  "settings.subtitle_force_style_desc": "Kontur, renk ve diğer stil ayarlarını ASS/SSA altyazılarına da uygula, gömülü stillerinin üzerine yaz. Kasıtlı olarak stillendirilmiş altyazıları bozabilir.",
   "settings.none": "Yok",
   "profiles.select_profile_hint": "Kişisel kitaplığın ve önerilerin için bir profil seç.",
   "profiles.remote_hint": "Profiller arasında gezinmek için D-pad tuşlarını kullan.",
