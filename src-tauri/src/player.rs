@@ -269,9 +269,8 @@ fn push_anime_upscaling_options(
         "anime4k_s" | "anime4k_m" | "anime4k_l" if is_anime_playback => mode.unwrap_or("off"),
         _ => return false,
     };
-    let shader_name = anime_shader_name(quality);
-    let Some(shader_path) = resolve_shader_path(app, shader_name) else {
-        log::warn!("Anime4K shader '{shader_name}' was not found");
+    let Some(chain_path) = resolve_anime4k_chain(app, quality) else {
+        log::warn!("Anime4K shader chain for '{quality}' was not found");
         return false;
     };
 
@@ -280,16 +279,50 @@ fn push_anime_upscaling_options(
     options.push(("dscale".to_string(), "mitchell".to_string()));
     options.push(("correct-downscaling".to_string(), "yes".to_string()));
     options.push(("linear-downscaling".to_string(), "yes".to_string()));
-    options.push(("glsl-shaders".to_string(), shader_path));
+    options.push(("glsl-shaders".to_string(), chain_path));
     true
 }
 
-fn anime_shader_name(quality: &str) -> &'static str {
+fn anime4k_chain_shaders(quality: &str) -> &'static [&'static str] {
     match quality {
-        "anime4k_s" => "Anime4K_Upscale_CNN_x2_S.glsl",
-        "anime4k_l" => "Anime4K_Upscale_CNN_x2_L.glsl",
-        _ => "Anime4K_Upscale_CNN_x2_M.glsl",
+        "anime4k_s" => &[
+            "Anime4K_Clamp_Highlights.glsl",
+            "Anime4K_Upscale_Denoise_CNN_x2_M.glsl",
+            "Anime4K_AutoDownscalePre_x2.glsl",
+            "Anime4K_AutoDownscalePre_x4.glsl",
+            "Anime4K_Restore_CNN_S.glsl",
+            "Anime4K_Upscale_CNN_x2_S.glsl",
+            "Anime4K_Thin_VeryFast.glsl",
+        ],
+        "anime4k_l" => &[
+            "Anime4K_Clamp_Highlights.glsl",
+            "Anime4K_Restore_CNN_VL.glsl",
+            "Anime4K_Upscale_CNN_x2_VL.glsl",
+            "Anime4K_AutoDownscalePre_x2.glsl",
+            "Anime4K_AutoDownscalePre_x4.glsl",
+            "Anime4K_Upscale_CNN_x2_M.glsl",
+            "Anime4K_Thin_HQ.glsl",
+        ],
+        _ => &[
+            "Anime4K_Clamp_Highlights.glsl",
+            "Anime4K_Restore_CNN_M.glsl",
+            "Anime4K_Upscale_CNN_x2_M.glsl",
+            "Anime4K_AutoDownscalePre_x2.glsl",
+            "Anime4K_AutoDownscalePre_x4.glsl",
+            "Anime4K_Upscale_CNN_x2_S.glsl",
+            "Anime4K_Thin_Fast.glsl",
+        ],
     }
+}
+
+fn resolve_anime4k_chain(app: Option<&AppHandle>, quality: &str) -> Option<String> {
+    let shader_names = anime4k_chain_shaders(quality);
+    let mut paths = Vec::with_capacity(shader_names.len());
+    for shader_name in shader_names {
+        let path = resolve_shader_path(app, shader_name)?;
+        paths.push(path.replace('\\', "/"));
+    }
+    Some(paths.join(":"))
 }
 
 fn anime4k_should_apply(preferences: &Value) -> bool {
@@ -714,11 +747,10 @@ pub fn player_set_anime4k_enabled(
     quality: Option<String>,
 ) -> Result<(), String> {
     let commands: Vec<Vec<String>> = if enabled {
-        let shader_path = resolve_shader_path(Some(&app), anime_shader_name(quality.as_deref().unwrap_or("anime4k_m")))
-            .ok_or_else(|| "Anime4K shader not found".to_string())?
-            .replace('\\', "/");
+        let chain_path = resolve_anime4k_chain(Some(&app), quality.as_deref().unwrap_or("anime4k_m"))
+            .ok_or_else(|| "Anime4K shader chain not found".to_string())?;
         vec![
-            vec!["change-list".to_string(), "glsl-shaders".to_string(), "set".to_string(), shader_path],
+            vec!["change-list".to_string(), "glsl-shaders".to_string(), "set".to_string(), chain_path],
             vec!["set".to_string(), "scale".to_string(), "ewa_lanczossharp".to_string()],
             vec!["set".to_string(), "cscale".to_string(), "ewa_lanczossoft".to_string()],
             vec!["set".to_string(), "dscale".to_string(), "mitchell".to_string()],
