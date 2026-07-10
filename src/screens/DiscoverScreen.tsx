@@ -83,8 +83,11 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
 
   useEffect(() => {
     if (discoverResultsCache.has(key)) return;
-    lastDispatchedKeyRef.current = key;
-    onDispatch(JSON.stringify({ type: 'discoverRequested', contentType, sortBy, genre, language: getLanguage() }));
+    const timer = window.setTimeout(() => {
+      lastDispatchedKeyRef.current = key;
+      onDispatch(JSON.stringify({ type: 'discoverRequested', contentType, sortBy, genre, language: getLanguage() }));
+    }, 200);
+    return () => window.clearTimeout(timer);
   }, [contentType, sortBy, genre]);
 
   const results = useMemo(() => (discover.results ?? []) as Meta[], [discover.results]);
@@ -220,7 +223,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
           </div>
         ) : (
           <VirtualizedPosterGrid
-            key={`${key}|${yearBucket ?? ''}|${minRating ?? ''}`}
+            resetKey={`${key}|${yearBucket ?? ''}|${minRating ?? ''}`}
             items={filteredResults}
             selectedId={panelMeta?.id ?? null}
             posterPrefs={posterPrefs}

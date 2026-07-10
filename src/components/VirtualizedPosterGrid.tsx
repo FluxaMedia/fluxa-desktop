@@ -19,6 +19,7 @@ export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
   onHover,
   onClick,
   onScrollActivity,
+  resetKey,
 }: {
   items: Meta[];
   selectedId: string | null;
@@ -27,6 +28,7 @@ export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
   onHover: (m: Meta | null) => boolean;
   onClick: (m: Meta) => void;
   onScrollActivity: () => void;
+  resetKey?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -54,6 +56,13 @@ export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
       if (rafRef.current != null) window.cancelAnimationFrame(rafRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    node.scrollTop = 0;
+    setViewport((current) => (current.scrollTop === 0 ? current : { ...current, scrollTop: 0 }));
+  }, [resetKey]);
 
   const cardExtraHeight = posterPrefs.hideTitles ? 0 : 23;
   const itemHeight = posterPrefs.height + cardExtraHeight;
