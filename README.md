@@ -58,6 +58,7 @@ npm run tauri dev
 
 - Node.js 22+
 - Rust stable
+- [`fluxa-core`](https://github.com/FluxaMedia/fluxa-core) checked out as a sibling directory (`../fluxa-core`) — it also provides `fluxa-streaming-engine`
 - `libmpv` — either install it system-wide, or run `./src-tauri/fetch-libmpv.sh` to pull the prebuilt gpu-next fork used for release builds
   - Linux: `sudo apt install libmpv-dev` or `sudo pacman -S mpv`
   - macOS: `brew install mpv`
@@ -79,7 +80,7 @@ npm run check   # typecheck + cargo check
 ## Related projects
 
 - [Fluxa for Android](https://github.com/KhooLy/Fluxa) — the Android counterpart to this app
-- [fluxa-core](https://github.com/KhooLy/fluxa-core) — the shared Rust library powering both
+- [fluxa-core](https://github.com/FluxaMedia/fluxa-core) — the shared Rust library powering both
 
 <!-- MARKDOWN LINKS -->
 [contributors-shield]: https://img.shields.io/github/contributors/FluxaMedia/fluxa-desktop.svg?style=for-the-badge
