@@ -10,7 +10,7 @@ export function streamDisplayText(value: string | undefined): string | undefined
   return text || undefined;
 }
 
-export const SourceRow = React.memo(function SourceRow({ stream, onClick }: { stream: Stream; onClick: () => void }) {
+export function SourceRow({ stream, onClick }: { stream: Stream; onClick: () => void }) {
   const [hovered, setHovered] = useState(false);
   const heading = streamDisplayText(stream.name) || streamDisplayText(stream.title) || streamDisplayText(stream.description) || t('player.source');
   const seenLines = new Set<string>();
@@ -23,7 +23,7 @@ export const SourceRow = React.memo(function SourceRow({ stream, onClick }: { st
     });
   return (
     <button
-      style={{ ...SS.streamRow, background: hovered ? '#181818' : '#101010', color: '#FFF', boxShadow: hovered ? '0 0 0 0.125rem rgba(255,255,255,0.22)' : 'none', contentVisibility: 'auto', containIntrinsicSize: '4.5rem' }}
+      style={{ ...SS.streamRow, background: hovered ? '#181818' : '#101010', color: '#FFF', boxShadow: hovered ? '0 0 0 0.125rem rgba(255,255,255,0.22)' : 'none' }}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -37,7 +37,7 @@ export const SourceRow = React.memo(function SourceRow({ stream, onClick }: { st
       ))}
     </button>
   );
-});
+}
 
 function AddonFilterPills({ addonNames, selectedAddon, onSelect, style }: {
   addonNames: string[];
@@ -128,6 +128,7 @@ export function MovieSourcePanel({
   availableAddons,
   streamAddonCount,
   onPlay,
+  onAddonChange,
   onClose,
 }: {
   meta: Meta;
@@ -136,6 +137,7 @@ export function MovieSourcePanel({
   availableAddons: string[];
   streamAddonCount: number;
   onPlay: (stream: Stream) => void;
+  onAddonChange?: (addon: string | null) => void;
   onClose?: () => void;
 }) {
   const [selectedAddon, setSelectedAddon] = useState<string | null>(null);
@@ -145,11 +147,18 @@ export function MovieSourcePanel({
   }, [meta.id]);
 
   const addonNames = useMemo(
-    () => [...new Set(streams.map((s) => s.addonName).filter((n): n is string => !!n))],
-    [streams],
+    () => availableAddons.length > 0
+      ? availableAddons
+      : [...new Set(streams.map((s) => s.addonName).filter((n): n is string => !!n))],
+    [availableAddons, streams],
   );
 
-  const visibleStreams = selectedAddon ? streams.filter((s) => s.addonName === selectedAddon) : streams;
+  const visibleStreams = selectedAddon ? streams.filter((stream) => stream.addonName === selectedAddon) : streams;
+  const selectAddon = useCallback((addon: string | null) => {
+    const next = addon && selectedAddon === addon ? null : addon;
+    setSelectedAddon(next);
+    onAddonChange?.(next);
+  }, [onAddonChange, selectedAddon]);
   const rootStyle: React.CSSProperties = onClose ? { display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 } : EP.panel;
 
   return (
@@ -172,7 +181,7 @@ export function MovieSourcePanel({
         <AddonFilterPills
           addonNames={addonNames}
           selectedAddon={selectedAddon}
-          onSelect={setSelectedAddon}
+          onSelect={selectAddon}
           style={{ padding: '0.625rem 1rem 0', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}
         />
       )}
@@ -183,7 +192,7 @@ export function MovieSourcePanel({
         </div>
       )}
 
-      <div style={EP.inlineSources}>
+      <div key={selectedAddon ?? 'all'} style={EP.inlineSources}>
         {isLoading && visibleStreams.length === 0 && <div style={SS.center}><div style={spinnerStyle} /></div>}
         {!isLoading && visibleStreams.length === 0 && (
           <div style={SS.center}>
@@ -193,7 +202,7 @@ export function MovieSourcePanel({
         {visibleStreams.length > 0 && (
           <div style={EP.inlineStreamList}>
             {visibleStreams.map((stream, i) => (
-              <SourceRow key={`${stream.url ?? stream.infoHash ?? i}`} stream={stream} onClick={() => onPlay(stream)} />
+              <SourceRow key={`${stream.addonName ?? ''}:${stream.url ?? stream.infoHash ?? i}`} stream={stream} onClick={() => onPlay(stream)} />
             ))}
             {isLoading && <div style={{ ...SS.center, padding: '1rem 0' }}><div style={{ ...spinnerStyle, width: '1.25rem', height: '1.25rem' }} /></div>}
           </div>
@@ -212,6 +221,7 @@ export function InlineSourceList({
   streamAddonCount,
   onBack,
   onPlay,
+  onAddonChange,
 }: {
   episode: Video;
   meta: Meta;
@@ -221,6 +231,7 @@ export function InlineSourceList({
   streamAddonCount: number;
   onBack: () => void;
   onPlay: (stream: Stream) => void;
+  onAddonChange?: (addon: string | null) => void;
 }) {
   const [selectedAddon, setSelectedAddon] = useState<string | null>(null);
 
@@ -229,11 +240,18 @@ export function InlineSourceList({
   }, [episode.id]);
 
   const addonNames = useMemo(
-    () => [...new Set(streams.map((s) => s.addonName).filter((n): n is string => !!n))],
-    [streams],
+    () => availableAddons.length > 0
+      ? availableAddons
+      : [...new Set(streams.map((s) => s.addonName).filter((n): n is string => !!n))],
+    [availableAddons, streams],
   );
 
-  const visibleStreams = selectedAddon ? streams.filter((s) => s.addonName === selectedAddon) : streams;
+  const visibleStreams = selectedAddon ? streams.filter((stream) => stream.addonName === selectedAddon) : streams;
+  const selectAddon = useCallback((addon: string | null) => {
+    const next = addon && selectedAddon === addon ? null : addon;
+    setSelectedAddon(next);
+    onAddonChange?.(next);
+  }, [onAddonChange, selectedAddon]);
   const epNum = episode.episode ?? episode.number ?? '';
   const seasonNum = episode.season ?? 1;
   const epTitle = episode.title?.trim() || episode.name?.trim() || t('format.episode_number', epNum);
@@ -264,7 +282,7 @@ export function InlineSourceList({
         <AddonFilterPills
           addonNames={addonNames}
           selectedAddon={selectedAddon}
-          onSelect={setSelectedAddon}
+          onSelect={selectAddon}
           style={{ padding: '0 1rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}
         />
       )}
@@ -275,7 +293,7 @@ export function InlineSourceList({
         </div>
       )}
 
-      <div style={EP.inlineSources}>
+      <div key={selectedAddon ?? 'all'} style={EP.inlineSources}>
         {isLoading && visibleStreams.length === 0 && <div style={SS.center}><div style={spinnerStyle} /></div>}
         {!isLoading && visibleStreams.length === 0 && (
           <div style={SS.center}>
@@ -285,7 +303,7 @@ export function InlineSourceList({
         {visibleStreams.length > 0 && (
           <div style={EP.inlineStreamList}>
             {visibleStreams.map((stream, i) => (
-              <SourceRow key={`${stream.url ?? stream.infoHash ?? i}`} stream={stream} onClick={() => onPlay(stream)} />
+              <SourceRow key={`${stream.addonName ?? ''}:${stream.url ?? stream.infoHash ?? i}`} stream={stream} onClick={() => onPlay(stream)} />
             ))}
             {isLoading && <div style={{ ...SS.center, padding: '1rem 0' }}><div style={{ ...spinnerStyle, width: '1.25rem', height: '1.25rem' }} /></div>}
           </div>

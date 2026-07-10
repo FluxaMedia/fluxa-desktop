@@ -416,7 +416,7 @@ export function ModernDetailLayout({
       {showSources && selectedEpisode && isSeries && (
         <div style={MS.overlayBackdrop} onClick={onBackToEpisodes}>
           <div style={MS.overlaySheet} onClick={(e) => e.stopPropagation()}>
-            <InlineSourceList episode={selectedEpisode} meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} streamAddonCount={streamAddonCount} onBack={onBackToEpisodes} onPlay={onPlaySource} />
+            <InlineSourceList episode={selectedEpisode} meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} streamAddonCount={streamAddonCount} onBack={onBackToEpisodes} onPlay={onPlaySource} onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))} />
           </div>
         </div>
       )}
@@ -424,7 +424,7 @@ export function ModernDetailLayout({
       {showSources && !isSeries && (
         <div style={MS.overlayBackdrop} onClick={onBackToEpisodes}>
           <div style={MS.overlaySheet} onClick={(e) => e.stopPropagation()}>
-            <MovieSourcePanel meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} streamAddonCount={streamAddonCount} onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)} onClose={onBackToEpisodes} />
+            <MovieSourcePanel meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} streamAddonCount={streamAddonCount} onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)} onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))} onClose={onBackToEpisodes} />
           </div>
         </div>
       )}

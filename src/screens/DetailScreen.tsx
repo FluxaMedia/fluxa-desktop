@@ -153,8 +153,8 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   }, [detail.meta, meta.id, meta.type, detail.isLoadingStreams, detail.streams?.length]);
 
   const streams = useMemo(
-    () => orderStreamsByPrefs((detail.visibleStreams ?? detail.streams ?? []) as Stream[], prefs),
-    [detail.visibleStreams, detail.streams, prefs],
+    () => orderStreamsByPrefs((detail.streams ?? []) as Stream[], prefs),
+    [detail.streams, prefs],
   );
   const poster = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
 
@@ -570,6 +570,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
             onBackToEpisodes={() => setShowSources(false)}
             onEpisodeClick={handleEpisodeClick}
             onPlaySource={(stream) => onPlay(stream, displayMeta, selectedEpisodeEnriched, episodeResumeAt, streams)}
+            onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))}
             watchedMap={watchedMap}
             progressMap={progressMap}
             blurUnwatchedEpisodes={blurUnwatchedEpisodes}
@@ -587,6 +588,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
             availableAddons={detail.availableAddons ?? []}
             streamAddonCount={streamAddonCount}
             onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)}
+            onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))}
           />
         )}
       </div>

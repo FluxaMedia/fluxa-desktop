@@ -212,6 +212,7 @@ export function EpisodePanel({
   onBackToEpisodes,
   onEpisodeClick,
   onPlaySource,
+  onAddonChange,
   watchedMap,
   progressMap,
   blurUnwatchedEpisodes: _blurUnwatchedEpisodes,
@@ -237,6 +238,7 @@ export function EpisodePanel({
   onBackToEpisodes: () => void;
   onEpisodeClick: (ep: Video) => void;
   onPlaySource: (stream: Stream) => void;
+  onAddonChange?: (addon: string | null) => void;
   watchedMap: Record<string, boolean>;
   progressMap: Record<string, ProgressEntry>;
   blurUnwatchedEpisodes: boolean;
@@ -310,6 +312,7 @@ export function EpisodePanel({
           streamAddonCount={streamAddonCount}
           onBack={onBackToEpisodes}
           onPlay={onPlaySource}
+          onAddonChange={onAddonChange}
         />
       ) : (
         <>
