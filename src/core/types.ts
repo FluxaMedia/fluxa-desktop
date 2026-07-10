@@ -359,8 +359,16 @@ export interface DiscoverState {
   isLoading?: boolean;
   results?: Meta[];
   filters?: DiscoverFilter[];
+  catalogs?: DiscoverCatalog[];
   selectedCatalogKey?: string | null;
   error?: string | null;
+}
+
+export interface DiscoverCatalog {
+  key: string;
+  label: string;
+  type: string;
+  extras?: DiscoverFilter[];
 }
 
 export interface DiscoverFilter {

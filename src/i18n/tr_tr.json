@@ -972,6 +972,8 @@
   "discover.install_addons_hint": "İçeriklere göz atmak için Ayarlar'dan addon kur.",
   "discover.no_content": "İçerik bulunamadı",
   "discover.result_count": "%s başlık",
+  "discover.catalog": "Katalog",
+  "discover.all_filter_values": "Tüm %s",
   "detail.actor": "Oyuncu",
   "detail.add_to_library": "+ Kitaplık",
   "detail.watch_trailer": "Fragmanı İzle",

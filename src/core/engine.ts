@@ -260,10 +260,6 @@ export async function coreDiscoverCatalogOptions(addons: unknown[], selectedType
   return coreInvoke('discoverCatalogOptions', JSON.stringify({ addons: JSON.stringify(addons), selectedType }));
 }
 
-export async function coreDiscoverSortPlan(request: unknown): Promise<unknown | null> {
-  return coreInvoke('discoverSortPlan', JSON.stringify(request));
-}
-
 export async function coreLibrarySortPlan(request: unknown): Promise<unknown | null> {
   return coreInvoke('librarySortPlan', JSON.stringify(request));
 }

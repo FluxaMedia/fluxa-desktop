@@ -972,6 +972,8 @@
   "discover.install_addons_hint": "Install addons from Settings to browse content.",
   "discover.no_content": "No content found",
   "discover.result_count": "%s titles",
+  "discover.catalog": "Catalog",
+  "discover.all_filter_values": "All %s",
   "detail.actor": "Actor",
   "detail.add_to_library": "+ Library",
   "detail.watch_trailer": "Watch Trailer",

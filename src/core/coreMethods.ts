@@ -28,7 +28,6 @@ export const CORE_METHODS = [
   'detailSeriesLookupId',
   'detectAnimePlayback',
   'discoverCatalogOptions',
-  'discoverSortPlan',
   'effectiveMetadataFeedSelection',
   'engine.completeEffect',
   'engine.create',

@@ -15,110 +15,85 @@ interface Props {
   initialGenre?: string | null;
 }
 
-const SORT_OPTIONS = [
-  { value: 'popular', labelKey: 'metadata.popular' },
-  { value: 'top', labelKey: 'auto.top_rated' },
-  { value: 'newest', labelKey: 'sort.release_date_desc' },
-];
-
-const FALLBACK_GENRES = [
-  'Action', 'Adventure', 'Animation', 'Comedy', 'Crime',
-  'Documentary', 'Drama', 'Fantasy', 'Horror', 'Mystery',
-  'Romance', 'Sci-Fi', 'Thriller',
-];
-
 const SCROLL_HOVER_IDLE_MS = 180;
 
-const YEAR_BUCKETS = [
-  { value: '2020s', min: 2020, max: 9999 },
-  { value: '2010s', min: 2010, max: 2019 },
-  { value: '2000s', min: 2000, max: 2009 },
-  { value: '1990s', min: 1990, max: 1999 },
-  { value: '1980s', min: 1980, max: 1989 },
-  { value: 'older', min: 0, max: 1979 },
-];
-
-const RATING_OPTIONS = [9, 8, 7, 6];
-
-function itemYear(m: Meta): number | null {
-  const y = parseInt(String(m.releaseInfo ?? '').slice(0, 4), 10);
-  return Number.isFinite(y) && y > 1800 ? y : null;
-}
-
 const discoverResultsCache = new Map<string, Meta[]>();
-const baseGenreCache = new Map<string, Meta[]>();
 
-function cacheKey(contentType: string, sortBy: string, genre: string | null): string {
-  return `${contentType}|${sortBy}|${genre ?? ''}`;
+interface DiscoverCatalog {
+  key: string;
+  label: string;
+  type: string;
+  extras?: Array<{
+    name: string;
+    options: string[];
+    isRequired?: boolean;
+  }>;
 }
 
-function itemMatchesGenre(item: Meta, genre: string | null): boolean {
-  if (!genre) return true;
-  const target = genre.toLowerCase();
-  return (item.genres ?? []).some((g) => g.toLowerCase() === target);
+function cacheKey(catalogKey: string | null, extraName: string | null, extraValue: string | null): string {
+  return `${catalogKey ?? ''}|${extraName ?? ''}|${extraValue ?? ''}`;
 }
 
 function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre }: Props) {
   const discover = state.discover;
   const [contentType, setContentType] = useState<string>('movie');
-  const [sortBy, setSortBy] = useState<string>('popular');
-  const [genre, setGenre] = useState<string | null>(initialGenre ?? null);
-  const [yearBucket, setYearBucket] = useState<string | null>(null);
-  const [minRating, setMinRating] = useState<number | null>(null);
+  const [selectedCatalogKey, setSelectedCatalogKey] = useState<string | null>(null);
+  const [extraValue, setExtraValue] = useState<string | null>(initialGenre ?? null);
   const [hoveredMeta, setHoveredMeta] = useState<Meta | null>(null);
   const [selectedMeta, setSelectedMeta] = useState<Meta | null>(null);
   const isGridScrollingRef = useRef(false);
   const scrollIdleTimerRef = useRef<number | null>(null);
   const hoveredMetaRef = useRef<Meta | null>(null);
-  const key = cacheKey(contentType, sortBy, genre);
+  const catalogs = (discover.catalogs ?? []) as DiscoverCatalog[];
+  const selectedCatalog = catalogs.find((catalog) => catalog.key === selectedCatalogKey) ?? null;
+  const selectedExtra = selectedCatalog?.extras?.[0] ?? null;
+  const key = cacheKey(selectedCatalog?.key ?? null, selectedExtra?.name ?? null, extraValue);
   const cachedResults = discoverResultsCache.get(key) ?? null;
   const lastDispatchedKeyRef = useRef<string | null>(null);
   const posterPrefs = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
 
   const panelMeta = hoveredMeta ?? selectedMeta;
 
-  const genreOptions = FALLBACK_GENRES;
+  useEffect(() => {
+    setSelectedCatalogKey(null);
+    setExtraValue(initialGenre ?? null);
+    onDispatch(JSON.stringify({ type: 'discoverCatalogFiltersRequested', contentType, language: getLanguage() }));
+  }, [contentType]);
 
   useEffect(() => {
-    if (discoverResultsCache.has(key)) return;
+    if (!selectedCatalogKey && catalogs.length > 0) setSelectedCatalogKey(catalogs[0].key);
+  }, [catalogs, selectedCatalogKey]);
+
+  useEffect(() => {
+    if (!selectedCatalog) return;
+    if (extraValue && !selectedExtra?.options.includes(extraValue)) setExtraValue(null);
+  }, [selectedCatalog, selectedExtra, extraValue]);
+
+  useEffect(() => {
+    if (!selectedCatalog || discoverResultsCache.has(key)) return;
     const timer = window.setTimeout(() => {
       lastDispatchedKeyRef.current = key;
-      onDispatch(JSON.stringify({ type: 'discoverRequested', contentType, filters: { genre, sortBy }, language: getLanguage() }));
+      onDispatch(JSON.stringify({
+        type: 'discoverRequested',
+        contentType,
+        filters: {
+          catalogKey: selectedCatalog.key,
+          extra: selectedExtra && extraValue ? { [selectedExtra.name]: extraValue } : {},
+        },
+        language: getLanguage(),
+      }));
     }, 200);
     return () => window.clearTimeout(timer);
-  }, [contentType, sortBy, genre]);
+  }, [contentType, selectedCatalog, selectedExtra, extraValue, key]);
 
   const results = useMemo(() => (discover.results ?? []) as Meta[], [discover.results]);
   const resultsMatchCurrentKey = lastDispatchedKeyRef.current === key;
-  const baseKey = `${contentType}|${sortBy}`;
   if (results.length > 0 && resultsMatchCurrentKey) {
     discoverResultsCache.set(key, results);
-    if (!genre) baseGenreCache.set(baseKey, results);
   }
 
   const isFinal = !discover.isLoading && resultsMatchCurrentKey && results.length > 0;
-  const placeholderResults = useMemo(
-    () => (genre ? baseGenreCache.get(baseKey)?.filter((m) => itemMatchesGenre(m, genre)) ?? null : null),
-    [baseKey, genre],
-  );
-
-  const displayResults = isFinal ? results : (cachedResults ?? placeholderResults ?? []);
-
-  const filteredResults = useMemo(() => {
-    if (!yearBucket && minRating === null) return displayResults;
-    const bucket = YEAR_BUCKETS.find((b) => b.value === yearBucket);
-    return displayResults.filter((m) => {
-      if (bucket) {
-        const y = itemYear(m);
-        if (y === null || y < bucket.min || y > bucket.max) return false;
-      }
-      if (minRating !== null) {
-        const r = parseFloat(String(m.imdbRating ?? ''));
-        if (!Number.isFinite(r) || r < minRating) return false;
-      }
-      return true;
-    });
-  }, [displayResults, yearBucket, minRating]);
+  const displayResults = isFinal ? results : (cachedResults ?? []);
 
   const typeOptions = useMemo(() => {
     const types = ['movie', 'series'];
@@ -174,55 +149,44 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
           <FilterDropdown
             value={typeOptions.find((o) => o.value === contentType)?.label ?? contentType}
             options={typeOptions}
-            onSelect={(v) => { setContentType(v); setGenre(null); }}
+            onSelect={setContentType}
           />
           <FilterDropdown
-            value={t(SORT_OPTIONS.find((s) => s.value === sortBy)?.labelKey ?? 'metadata.popular')}
-            options={SORT_OPTIONS.map((s) => ({ value: s.value, label: t(s.labelKey) }))}
-            onSelect={(v) => setSortBy(v)}
+            value={selectedCatalog?.label ?? t('discover.catalog')}
+            options={catalogs.map((catalog) => ({ value: catalog.key, label: catalog.label }))}
+            onSelect={(v) => { setSelectedCatalogKey(v); setExtraValue(null); }}
           />
-          <FilterDropdown
-            value={genre ?? t('auto.genre')}
-            options={[{ value: '__all__', label: t('search.all_genres') }, ...genreOptions.map((g) => ({ value: g, label: g }))]}
-            onSelect={(v) => setGenre(v === '__all__' ? null : v)}
-          />
-          <FilterDropdown
-            value={yearBucket ? (yearBucket === 'older' ? t('discover.older') : yearBucket) : t('discover.year')}
-            options={[
-              { value: '__all__', label: t('discover.all_years') },
-              ...YEAR_BUCKETS.map((b) => ({ value: b.value, label: b.value === 'older' ? t('discover.older') : b.value })),
-            ]}
-            onSelect={(v) => setYearBucket(v === '__all__' ? null : v)}
-          />
-          <FilterDropdown
-            value={minRating !== null ? `${minRating}+` : t('discover.rating')}
-            options={[
-              { value: '__all__', label: t('discover.any_rating') },
-              ...RATING_OPTIONS.map((r) => ({ value: String(r), label: `${r}+` })),
-            ]}
-            onSelect={(v) => setMinRating(v === '__all__' ? null : parseInt(v, 10))}
-          />
+          {selectedExtra && (
+            <FilterDropdown
+              value={extraValue ?? selectedExtra.name}
+              options={[
+                { value: '__all__', label: t('discover.all_filter_values', selectedExtra.name) },
+                ...selectedExtra.options.map((option) => ({ value: option, label: option })),
+              ]}
+              onSelect={(v) => setExtraValue(v === '__all__' ? null : v)}
+            />
+          )}
           {discover.isLoading
             ? <div style={S.loadingDot} />
-            : filteredResults.length > 0 && <span style={S.resultCount}>{t('discover.result_count', filteredResults.length)}</span>
+            : displayResults.length > 0 && <span style={S.resultCount}>{t('discover.result_count', displayResults.length)}</span>
           }
         </div>
 
-        {discover.isLoading && filteredResults.length === 0 ? (
+        {discover.isLoading && displayResults.length === 0 ? (
           <div style={S.loadingGrid}>
             {Array.from({ length: 24 }).map((_, i) => (
               <div key={i} style={{ borderRadius: '0.625rem', background: '#1B212B', aspectRatio: '2/3', animation: 'pulse 1.6s ease-in-out infinite', animationDelay: `${(i % 8) * 0.07}s` }} />
             ))}
           </div>
-        ) : filteredResults.length === 0 ? (
+        ) : displayResults.length === 0 ? (
           <div style={S.empty}>
             <p style={S.emptyTitle}>{t('discover.no_content')}</p>
             <p style={S.emptyHint}>{t('discover.install_addons_hint')}</p>
           </div>
         ) : (
           <VirtualizedPosterGrid
-            resetKey={`${key}|${yearBucket ?? ''}|${minRating ?? ''}`}
-            items={filteredResults}
+            resetKey={key}
+            items={displayResults}
             selectedId={panelMeta?.id ?? null}
             posterPrefs={posterPrefs}
             onHover={handlePosterHover}

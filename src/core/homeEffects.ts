@@ -29,8 +29,11 @@ export interface DiscoverCatalogOption {
   transportUrl: string;
   type: string;
   id: string;
-  genres?: string[];
-  requiresGenre?: boolean;
+  extras?: Array<{
+    name: string;
+    options: string[];
+    isRequired?: boolean;
+  }>;
 }
 
 async function metadataFeedOptions(addons: AddonDescriptor[]): Promise<MetadataFeedOption[]> {

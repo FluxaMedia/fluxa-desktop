@@ -1,4 +1,4 @@
-import { coreDiscoverSortPlan, coreSearchResultGrouping } from './engine';
+import { coreSearchResultGrouping } from './engine';
 import { coreResourceFetchPlan } from './addonManifest';
 import { loadAddons } from './libraryOps';
 import { fetchPlannedResources, fetchParsedAddonResource, resourceForPlannedRequest } from './fetchPlanning';
@@ -83,40 +83,20 @@ export async function runDiscover(payload: Record<string, unknown>): Promise<unk
   discoverAbortController = abortController;
 
   const contentType = payload.contentType as string;
-  const filters = payload.filters as Record<string, string> | undefined;
-  const genre = (payload.genre as string | null | undefined) ?? filters?.genre;
-  const sortBy = (payload.sortBy as string | undefined) ?? filters?.sortBy;
+  const filters = payload.filters as { catalogKey?: string; extra?: Record<string, unknown> } | undefined;
+  const catalogKey = filters?.catalogKey;
+  const extra = filters?.extra ?? {};
   const addons = await loadAddons();
   const values = await fetchPlannedResources(
-    { kind: 'discover', contentType, genre, addons },
+    { kind: 'discover', contentType, catalogKey, extra, addons },
     undefined,
     abortController.signal,
   );
   if (discoverAbortController !== abortController) throw new DOMException('superseded', 'AbortError');
 
   const results = values.flatMap((value) => ((value as { items?: unknown[] })?.items ?? []));
-  // Dedup before sending to Rust, not just after: with enough addons installed, raw
-  // results before dedup can run into the megabytes — sending that whole blob as IPC
-  // input costs as much as returning it would, even though the final output is capped.
-  const seenIds = new Set<string>();
-  const dedupedResults = results.filter((item) => {
-    const id = (item as { id?: string }).id;
-    if (!id) return true;
-    if (seenIds.has(id)) return false;
-    seenIds.add(id);
-    return true;
-  });
-
-  const coreSort = await coreDiscoverSortPlan({
-    items: dedupedResults,
-    sortBy: sortBy ?? 'default',
-    ascending: false,
-    contentTypeFilter: contentType,
-    genreFilter: genre,
-  }) as { items?: unknown[] } | null;
-
   if (discoverAbortController !== abortController) throw new DOMException('superseded', 'AbortError');
-  return { results: coreSort?.items ?? dedupedResults };
+  return { results };
 }
 
 export async function readDiscoverCatalogFilters(payload: Record<string, unknown>): Promise<unknown> {
@@ -125,13 +105,11 @@ export async function readDiscoverCatalogFilters(payload: Record<string, unknown
   const catalogOptions = await discoverCatalogOptions(addons, contentType);
   const catalogs = catalogOptions.map((catalog) => ({
     key: catalog.key,
-    name: catalog.label,
-    addonName: catalog.label,
+    label: catalog.label,
     transportUrl: catalog.transportUrl,
     type: catalog.type,
     id: catalog.id,
-    genres: catalog.genres ?? [],
-    requiresGenre: catalog.requiresGenre ?? false,
+    extras: catalog.extras ?? [],
   }));
   return { catalogs };
 }

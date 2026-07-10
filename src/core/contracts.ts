@@ -6,6 +6,7 @@ export type AppActionType =
   | 'detailLoadRequested'
   | 'detailSeasonRequested'
   | 'detailStreamsRequested'
+  | 'discoverCatalogFiltersRequested'
   | 'discoverRequested'
   | 'enginePing'
   | 'homeLoadRequested'
