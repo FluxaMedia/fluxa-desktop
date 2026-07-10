@@ -23,6 +23,7 @@ import {
   Repeat,
   RotateCcw,
   RotateCw,
+  ListPlus,
   Share2,
   SkipForward,
   Volume1,
@@ -42,7 +43,9 @@ import type { Video } from '../core/types';
 import { TrackPopover } from './player/TrackPopover';
 import { CastPopover } from './player/CastPopover';
 import { TorrentStatsPopover } from './player/TorrentStatsPopover';
+import { SegmentMarkerPanel } from './player/SegmentMarkerPanel';
 import { Popover } from './ui/Popover';
+import { corePlaybackIntroLookupContentId } from '../core/engine';
 import { imdbButtonFor, updateDiscordPresence } from '../core/discordPresence';
 import { castDisconnect, castPlay, castPause, castSeek, castSetVolume, discoverCastDevices, proxyMediaUrl, resolveCastMediaUrl, startCasting } from '../core/cast';
 import type { CastDevice } from '../core/cast';
@@ -170,6 +173,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const preMiniPlayerSizeRef = useRef<PhysicalSize | null>(null);
   const preMiniPlayerPosRef = useRef<PhysicalPosition | null>(null);
   const [castPopoverOpen, setCastPopoverOpen] = useState(false);
+  const [showSegmentMarker, setShowSegmentMarker] = useState(false);
+  const [introDbImdbId, setIntroDbImdbId] = useState<string | null>(null);
+  const introDbSubmitEnabled = prefs?.introDbSubmitEnabled === true;
+  const introDbApiKey = typeof prefs?.introDbApiKey === 'string' ? prefs.introDbApiKey : '';
   const [showTorrentPopover, setShowTorrentPopover] = useState(false);
   const [castDevices, setCastDevices] = useState<CastDevice[]>([]);
   const [castDiscovering, setCastDiscovering] = useState(false);
@@ -263,6 +270,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     }).then((u) => { unlisten = u; }).catch(() => {});
     return () => { unlisten?.(); };
   }, [resetActivity]);
+
+  useEffect(() => {
+    if (!introDbSubmitEnabled || !metaId) { setIntroDbImdbId(null); return; }
+    let cancelled = false;
+    corePlaybackIntroLookupContentId(metaId).then((id) => { if (!cancelled) setIntroDbImdbId(id || null); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [introDbSubmitEnabled, metaId]);
 
   useEffect(() => {
     if (!softwareVideoActive) return;
@@ -1340,6 +1354,16 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         >
           <PictureInPicture2 size={20} />
         </button>
+        {introDbSubmitEnabled && introDbApiKey && (
+          <button
+            onClick={(e) => { e.stopPropagation(); resetActivity(); setShowSegmentMarker((v) => !v); }}
+            className="fluxa-ibtn"
+            style={{ ...styles.iconBtn, color: showSegmentMarker ? 'var(--primary-accent-color)' : '#fff' }}
+            title={t('player.mark_segment_title')}
+          >
+            <ListPlus size={20} />
+          </button>
+        )}
       </div>
 
       <div style={{ flex: 1, cursor: 'default' }} onMouseDown={onCenterMouseDown} onMouseUp={releaseCenterHold} onMouseLeave={releaseCenterHold} onClick={onCenterClick} />
@@ -1434,6 +1458,17 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
       {showTorrentPopover && (
         <TorrentStatsPopover stats={torrentStatsSnap} anchorRef={torrentBtnRef} onClose={() => setShowTorrentPopover(false)} />
+      )}
+
+      {showSegmentMarker && introDbSubmitEnabled && introDbApiKey && (
+        <SegmentMarkerPanel
+          onClose={() => setShowSegmentMarker(false)}
+          getPosMs={() => posRef.current * 1000}
+          imdbId={introDbImdbId}
+          season={currentEpisode?.season ?? null}
+          episode={currentEpisode?.episode ?? currentEpisode?.number ?? null}
+          apiKey={introDbApiKey}
+        />
       )}
 
       {showShortcutsHelp && (

@@ -72,6 +72,8 @@ export interface Prefs {
   useIntroDb: boolean;
   useAniSkip: boolean;
   useChapterSkip: boolean;
+  introDbSubmitEnabled: boolean;
+  introDbApiKey: string;
   preferredAudioLanguage: string;
   secondaryAudioLanguage: string;
   animePreferJapaneseAudio: boolean;
@@ -193,6 +195,8 @@ export const DEFAULT_PREFS: Prefs = {
   useIntroDb: true,
   useAniSkip: true,
   useChapterSkip: true,
+  introDbSubmitEnabled: false,
+  introDbApiKey: '',
   preferredAudioLanguage: 'none',
   secondaryAudioLanguage: 'none',
   animePreferJapaneseAudio: false,

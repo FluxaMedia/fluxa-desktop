@@ -8,7 +8,7 @@ import {
 } from './engine';
 import { loadAddons } from './libraryOps';
 import { fetchPlannedResources } from './fetchPlanning';
-import { tryFetchJson } from './httpClient';
+import { fetchJson, tryFetchJson } from './httpClient';
 
 export async function fetchSubtitles(payload: Record<string, unknown>): Promise<unknown> {
   const addons = await loadAddons();
@@ -60,6 +60,32 @@ export async function fetchIntroSegments(payload: Record<string, unknown>): Prom
   if (sources.length === 0) return [];
   if (sources.length === 1) return sources[0];
   return (await coreUniqueIntroSegments(JSON.stringify(sources[0]), JSON.stringify(sources[1]))) ?? [];
+}
+
+export async function submitIntroDbSegments(payload: {
+  apiKey: string;
+  imdbId: string;
+  season: number;
+  episode: number;
+  segments: IntroSegmentResult[];
+}): Promise<void> {
+  const { apiKey, imdbId, season, episode, segments } = payload;
+  if (!apiKey || !imdbId || season <= 0 || episode <= 0 || segments.length === 0) {
+    throw new Error('invalid_submission');
+  }
+  await fetchJson('https://api.introdb.app/segments', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      imdb_id: imdbId,
+      season,
+      episode,
+      segments: segments.map((s) => ({ start_time: s.startTime, end_time: s.endTime, type: s.type })),
+    }),
+  });
 }
 
 async function resolveMalId(title: string): Promise<number | null> {

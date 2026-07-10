@@ -181,6 +181,18 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
       {(prefs.useIntroDb || prefs.useAniSkip) && (
         <ToggleTile title={t('settings.auto_skip')} subtitle={t('settings.auto_skip_desc')} checked={prefs.autoSkipIntro} onToggle={(v) => setPref('autoSkipIntro', v)} />
       )}
+      {prefs.useIntroDb && (
+        <ToggleTile title={t('settings.introdb_submit')} subtitle={t('settings.introdb_submit_desc')} checked={prefs.introDbSubmitEnabled} onToggle={(v) => setPref('introDbSubmitEnabled', v)} />
+      )}
+      {prefs.useIntroDb && prefs.introDbSubmitEnabled && (
+        <InputTile
+          title={t('settings.introdb_api_key')}
+          subtitle={t('settings.introdb_api_key_desc')}
+          value={prefs.introDbApiKey}
+          placeholder={t('settings.api_key_placeholder')}
+          onChange={(v) => setPref('introDbApiKey', v)}
+        />
+      )}
     </SettingsSection>
     <SettingsSection title={t('settings.preferences')} subtitle={t('settings.preferred_audio_language_desc')}>
       <ChoiceTile title={t('settings.preferred_audio_language')} subtitle={t('settings.preferred_audio_language_desc')} options={langOptions()} selected={prefs.preferredAudioLanguage} onSelect={(v) => setPref('preferredAudioLanguage', v)} />
