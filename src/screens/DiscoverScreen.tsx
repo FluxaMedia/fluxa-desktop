@@ -44,7 +44,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
   const isGridScrollingRef = useRef(false);
   const scrollIdleTimerRef = useRef<number | null>(null);
   const hoveredMetaRef = useRef<Meta | null>(null);
-  const catalogs = (discover.catalogs ?? []) as DiscoverCatalog[];
+  const catalogs = ((discover.catalogs ?? []) as DiscoverCatalog[]).filter((catalog) => catalog.type === contentType);
   const selectedCatalog = catalogs.find((catalog) => catalog.key === selectedCatalogKey) ?? null;
   const selectedExtra = selectedCatalog?.extras?.[0] ?? null;
   const key = cacheKey(selectedCatalog?.key ?? null, selectedExtra?.name ?? null, extraValue);
