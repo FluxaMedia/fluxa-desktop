@@ -562,7 +562,7 @@ export const HeroSection = React.memo(function HeroSection({
                       ...(i === activeIndex
                         ? {
                             animation: `heroIndicatorFill ${slideIntervalMs}ms linear forwards`,
-                            animationPlayState: trailerPending ? 'paused' : 'running',
+                            animationPlayState: trailerPending || !isActive ? 'paused' : 'running',
                           }
                         : null),
                     }}
