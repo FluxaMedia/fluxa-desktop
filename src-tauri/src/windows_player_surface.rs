@@ -125,7 +125,7 @@ fn ensure_renderer_for_surface(app: &AppHandle, hdc: HDC) -> Result<(), String> 
     }
     if hdc != 0 {
         if let Some(r) = renderer.as_ref() {
-            let hz = unsafe { GetDeviceCaps(hdc, VREFRESH) };
+            let hz = unsafe { GetDeviceCaps(hdc, VREFRESH as i32) };
             if hz > 1 {
                 if let Err(e) = r.set_option("display-fps-override", &hz.to_string()) {
                     log::warn!("failed to set display-fps-override: {e}");

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
 use std::path::PathBuf;
 use std::ptr;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::sync::OnceLock;
 
 #[cfg(target_os = "linux")]
