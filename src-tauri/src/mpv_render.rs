@@ -793,9 +793,27 @@ impl MpvRenderer {
         const MPV_LOG_LEVEL_WARN: c_int = 30;
         const MAX_LINES: usize = 6;
         const MAX_LINE_LEN: usize = 220;
+
+        let mut skip_indices = std::collections::HashSet::new();
+        for (i, (_, text)) in self.log_ring.iter().enumerate() {
+            let Some(disp_filename) = text.strip_prefix("Can not open external file ")
+                .and_then(|rest| rest.strip_suffix('.')) else { continue };
+            skip_indices.insert(i);
+            if i > 0 {
+                if let Some((_, prev_text)) = self.log_ring.get(i - 1) {
+                    if prev_text == &format!("Failed to open {disp_filename}.") {
+                        skip_indices.insert(i - 1);
+                    }
+                }
+            }
+        }
+
         let mut lines: Vec<String> = Vec::new();
-        for (level, text) in self.log_ring.iter().rev() {
+        for (i, (level, text)) in self.log_ring.iter().enumerate().rev() {
             if *level > MPV_LOG_LEVEL_WARN {
+                continue;
+            }
+            if skip_indices.contains(&i) {
                 continue;
             }
             let mut line = text.clone();
