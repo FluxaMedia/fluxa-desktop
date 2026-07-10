@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { coreApplyPreferenceUpdate, httpFetchText, storageRead, storageWrite } from '../core/engine';
-import { Search } from 'lucide-react';
+import { Keyboard, Search } from 'lucide-react';
 import {
   coreAddonCollectionMutationPlan,
   manifestFetchPlan,
@@ -38,6 +38,7 @@ import { AccountSection } from '../components/settings/AccountSection';
 import { GeneralSection } from '../components/settings/GeneralSection';
 import { AppearanceSection } from '../components/settings/AppearanceSection';
 import { PlaybackSection } from '../components/settings/PlaybackSection';
+import { ShortcutsSection } from '../components/settings/ShortcutsSection';
 import { ContentSection } from '../components/settings/ContentSection';
 import { AddonsSection } from '../components/settings/AddonsSection';
 import { DownloadsSection } from '../components/settings/DownloadsSection';
@@ -111,6 +112,7 @@ const TABS: { id: Tab; labelKey: string; subtitleKey: string; icon: React.ReactN
   { id: 'general', labelKey: 'auto.general', subtitleKey: 'auto.language_theme_startup', icon: <SettingsIcon /> },
   { id: 'appearance', labelKey: 'auto.appearance', subtitleKey: 'auto.color_and_layout', icon: <PaletteIcon /> },
   { id: 'playback', labelKey: 'auto.playback', subtitleKey: 'auto.player_behavior_and_defaults', icon: <PlayCircleIcon /> },
+  { id: 'shortcuts', labelKey: 'settings.shortcuts_tab', subtitleKey: 'settings.shortcuts_tab_desc', icon: <Keyboard size={22} /> },
   { id: 'content', labelKey: 'auto.catalogs', subtitleKey: 'auto.categories_sources_and_ranking', icon: <StorageIcon /> },
   { id: 'addons', labelKey: 'auto.add_ons', subtitleKey: 'auto.installed_add_ons_and_settings', icon: <ExtensionIcon /> },
   { id: 'downloads', labelKey: 'auto.downloads', subtitleKey: 'auto.download_and_storage_settings', icon: <DownloadIcon /> },
@@ -121,6 +123,7 @@ const SETTINGS_SEARCH_TERMS: Record<Tab, string[]> = {
   general: ['language', 'startup', 'start page', 'background playback', 'notifications', 'discord'],
   appearance: ['accent', 'color', 'theme', 'poster', 'layout', 'navigation', 'hero', 'continue watching', 'animations'],
   playback: ['player', 'mpv', 'pip', 'hdr', 'p2p', 'speed', 'seek', 'subtitles', 'audio', 'skip intro', 'skip outro', 'auto skip', 'buffer', 'decoder'],
+  shortcuts: ['keyboard', 'shortcuts', 'keybindings', 'hotkeys', 'rebind'],
   content: ['catalog', 'home', 'ranking', 'top 10', 'tmdb', 'rpdb', 'omdb', 'fanart', 'episodes'],
   addons: ['addons', 'manifest', 'install', 'remove', 'reorder', 'source'],
   downloads: ['download', 'storage', 'folder', 'subtitles'],
@@ -180,9 +183,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
         })),
       );
       if (freshProfile !== profile) onProfileUpdated(freshProfile);
-    } catch {
-      // The locally saved add-on state remains available if Nuvio is offline.
-    }
+    } catch {}
   };
 
   const syncStremioAddonsForProfile = async (profile: UserProfile | null | undefined, addons: AddonDescriptor[]) => {
@@ -407,6 +408,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
         {tab === 'general' && <GeneralSection prefs={prefs} setPref={setPref} />}
         {tab === 'appearance' && <AppearanceSection prefs={prefs} setPref={setPref} />}
         {tab === 'playback' && <PlaybackSection prefs={prefs} setPref={setPref} />}
+        {tab === 'shortcuts' && <ShortcutsSection />}
         {tab === 'content' && <ContentSection prefs={prefs} setPref={setPref} installedAddons={installedAddons} disabledAddonKeys={disabledAddonKeys} />}
         {tab === 'addons' && (
           <AddonsSection

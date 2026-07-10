@@ -24,6 +24,7 @@ import {
   RotateCcw,
   RotateCw,
   ListPlus,
+  Settings,
   Share2,
   SkipForward,
   Volume1,
@@ -43,12 +44,14 @@ import type { Video } from '../core/types';
 import { TrackPopover } from './player/TrackPopover';
 import { CastPopover } from './player/CastPopover';
 import { TorrentStatsPopover } from './player/TorrentStatsPopover';
+import { PlayerSettingsPopover } from './player/PlayerSettingsPopover';
 import { SegmentMarkerPanel } from './player/SegmentMarkerPanel';
 import { Popover } from './ui/Popover';
 import { corePlaybackIntroLookupContentId } from '../core/engine';
 import { imdbButtonFor, updateDiscordPresence } from '../core/discordPresence';
 import { castDisconnect, castPlay, castPause, castSeek, castSetVolume, discoverCastDevices, proxyMediaUrl, resolveCastMediaUrl, startCasting } from '../core/cast';
 import type { CastDevice } from '../core/cast';
+import { comboFromEvent, findActionForCombo, formatCombo, loadShortcutOverrides, onShortcutsChanged, resolveCombo, type ShortcutOverrides } from '../core/shortcuts';
 
 type Chapter = { title: string; startMs: number };
 type SkipSegment = { type: string; startTime: number; endTime: number };
@@ -173,10 +176,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const preMiniPlayerSizeRef = useRef<PhysicalSize | null>(null);
   const preMiniPlayerPosRef = useRef<PhysicalPosition | null>(null);
   const [castPopoverOpen, setCastPopoverOpen] = useState(false);
+  const [showPlayerSettings, setShowPlayerSettings] = useState(false);
   const [showSegmentMarker, setShowSegmentMarker] = useState(false);
   const [introDbImdbId, setIntroDbImdbId] = useState<string | null>(null);
   const introDbSubmitEnabled = prefs?.introDbSubmitEnabled === true;
   const introDbApiKey = typeof prefs?.introDbApiKey === 'string' ? prefs.introDbApiKey : '';
+  const [anime4kEnabled, setAnime4kEnabledState] = useState(() => String(prefs?.animeUpscalingMode ?? 'off') !== 'off');
   const [showTorrentPopover, setShowTorrentPopover] = useState(false);
   const [castDevices, setCastDevices] = useState<CastDevice[]>([]);
   const [castDiscovering, setCastDiscovering] = useState(false);
@@ -197,6 +202,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const seekOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({});
+  useEffect(() => {
+    loadShortcutOverrides().then(setShortcutOverrides);
+    return onShortcutsChanged(setShortcutOverrides);
+  }, []);
+  const cycleAbLoopRef = useRef<() => void>(() => {});
+  const openCastPopoverRef = useRef<() => Promise<void>>(async () => {});
+  const takeScreenshotRef = useRef<() => Promise<void>>(async () => {});
   const [showStats, setShowStats] = useState(false);
   const [statsSnap, setStatsSnap] = useState<EmbeddedMpvStatus | null>(null);
   const [torrentStatsSnap, setTorrentStatsSnap] = useState<TorrentStats | null>(null);
@@ -221,6 +234,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const audioTrackBtnRef = useRef<HTMLButtonElement>(null);
   const speedBtnRef = useRef<HTMLButtonElement>(null);
   const castBtnRef = useRef<HTMLButtonElement>(null);
+  const playerSettingsBtnRef = useRef<HTMLButtonElement>(null);
   const torrentBtnRef = useRef<HTMLButtonElement>(null);
   const segFillRefs = useRef<(HTMLDivElement | null)[]>([]);
   const segBufRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -713,66 +727,102 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       resetActivity();
-      switch (e.code) {
-        case 'Space':
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (holdTimerRef.current) return;
+        holdActiveRef.current = false;
+        preSpeedRef.current = playbackSpeed;
+        holdTimerRef.current = setTimeout(() => {
+          holdActiveRef.current = true;
+          sendCmd('set speed 2.00');
+          flashFeedback('speed', '2×');
+        }, 300);
+        return;
+      }
+      if (e.shiftKey && /^Digit[1-9]$/.test(e.code)) {
+        const index = parseInt(e.code.replace('Digit', ''), 10) - 1;
+        if (index < chaptersRef.current.length) {
           e.preventDefault();
-          if (holdTimerRef.current) return;
-          holdActiveRef.current = false;
-          preSpeedRef.current = playbackSpeed;
-          holdTimerRef.current = setTimeout(() => {
-            holdActiveRef.current = true;
-            sendCmd('set speed 2.00');
-            flashFeedback('speed', '2×');
-          }, 300);
-          break;
-        case 'ArrowLeft':
+          sendCmd(`set chapter ${index}`);
+          flashFeedback('seekFwd', chaptersRef.current[index].title || `${t('player.chapter')} ${index + 1}`);
+        }
+        return;
+      }
+      if (/^Digit[1-9]$/.test(e.code)) {
+        e.preventDefault();
+        const pct = parseInt(e.code.replace('Digit', ''), 10) * 10;
+        startSeekOverlay();
+        flashFeedback(pct < (posRef.current / Math.max(1, durRef.current) * 100) ? 'seekBack' : 'seekFwd', `${pct}%`);
+        sendCmd(`seek ${pct} absolute-percent`);
+        return;
+      }
+      if (e.code === 'Digit0') {
+        e.preventDefault();
+        startSeekOverlay();
+        flashFeedback('seekBack', '0%');
+        sendCmd('seek 0 absolute');
+        return;
+      }
+      if (e.code === 'Enter') {
+        if (triggerActiveSkip()) e.preventDefault();
+        return;
+      }
+      if (e.code === 'F11') {
+        e.preventDefault();
+        void toggleFullscreen();
+        return;
+      }
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        if (showShortcutsHelp) { setShowShortcutsHelp(false); return; }
+        if (contextMenu) { setContextMenu(null); return; }
+        if (showEpisodePanel) { setShowEpisodePanel(false); episodePanelOpenRef.current = false; return; }
+        if (trackPopover) { setTrackPopover(null); return; }
+        if (isFullscreenRef.current) { isFullscreenRef.current = false; void getCurrentWindow().setFullscreen(false); }
+        return;
+      }
+      if (e.code === 'Backspace') {
+        if (contextMenu || showEpisodePanel || trackPopover || showShortcutsHelp) return;
+        e.preventDefault();
+        void closePlayer();
+        return;
+      }
+
+      const action = findActionForCombo(comboFromEvent(e), 'player', shortcutOverrides);
+      switch (action) {
+        case 'player_seek_back':
           e.preventDefault();
           startSeekOverlay();
           flashFeedback('seekBack', '-10s');
           sendCmd('seek -10 relative');
           break;
-        case 'ArrowRight':
+        case 'player_seek_forward':
           e.preventDefault();
           startSeekOverlay();
           flashFeedback('seekFwd', '+10s');
           sendCmd('seek 10 relative');
           break;
-        case 'ArrowUp':
+        case 'player_volume_up':
           e.preventDefault();
           sendCmd('add volume 5');
           break;
-        case 'ArrowDown':
+        case 'player_volume_down':
           e.preventDefault();
           sendCmd('add volume -5');
           break;
-        case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Digit5':
-        case 'Digit6': case 'Digit7': case 'Digit8': case 'Digit9': {
-          e.preventDefault();
-          const pct = parseInt(e.code.replace('Digit', ''), 10) * 10;
-          startSeekOverlay();
-          flashFeedback(pct < (posRef.current / Math.max(1, durRef.current) * 100) ? 'seekBack' : 'seekFwd', `${pct}%`);
-          sendCmd(`seek ${pct} absolute-percent`);
-          break;
-        }
-        case 'Digit0':
-          e.preventDefault();
-          startSeekOverlay();
-          flashFeedback('seekBack', '0%');
-          sendCmd('seek 0 absolute');
-          break;
-        case 'KeyJ':
+        case 'player_seek_big_back':
           e.preventDefault();
           startSeekOverlay();
           flashFeedback('seekBack', t('player.seek_big_back'));
           sendCmd('seek -60 relative');
           break;
-        case 'KeyL':
+        case 'player_seek_big_forward':
           e.preventDefault();
           startSeekOverlay();
           flashFeedback('seekFwd', t('player.seek_big_forward'));
           sendCmd('seek 60 relative');
           break;
-        case 'KeyK':
+        case 'player_play_pause':
           e.preventDefault();
           {
             const icon = pausedRef.current ? 'play' : 'pause';
@@ -781,7 +831,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             sendCmd('cycle pause');
           }
           break;
-        case 'BracketLeft': {
+        case 'player_speed_decrease': {
           e.preventDefault();
           const next = Math.max(0.25, parseFloat((playbackSpeed - 0.25).toFixed(2)));
           sendCmd(`set speed ${next}`);
@@ -789,7 +839,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           flashFeedback('speed', t('player.speed_decrease'));
           break;
         }
-        case 'BracketRight': {
+        case 'player_speed_increase': {
           e.preventDefault();
           const next = Math.min(4, parseFloat((playbackSpeed + 0.25).toFixed(2)));
           sendCmd(`set speed ${next}`);
@@ -797,79 +847,86 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           flashFeedback('speed', t('player.speed_increase'));
           break;
         }
-        case 'KeyC':
+        case 'player_cycle_subtitle':
           e.preventDefault();
           sendCmd('cycle sub');
           break;
-        case 'KeyA':
-          if (!e.shiftKey) {
-            e.preventDefault();
-            sendCmd('cycle audio');
-          }
+        case 'player_cycle_audio':
+          e.preventDefault();
+          sendCmd('cycle audio');
           break;
-        case 'KeyI':
+        case 'player_toggle_stats':
           e.preventDefault();
           setShowStats((s) => !s);
           break;
-        case 'Period':
+        case 'player_frame_step_forward':
           e.preventDefault();
           sendCmd('frame-step');
           flashFeedback('seekFwd', t('player.frame_step'));
           break;
-        case 'Comma':
+        case 'player_frame_step_back':
           e.preventDefault();
           sendCmd('frame-back-step');
           flashFeedback('seekBack', t('player.frame_back_step'));
           break;
-        case 'KeyS':
+        case 'player_skip_active':
           if (triggerActiveSkip()) e.preventDefault();
           break;
-        case 'Enter':
-          if (triggerActiveSkip()) e.preventDefault();
-          break;
-        case 'KeyN':
-          if (e.shiftKey && nextEpSubtitle) {
+        case 'player_next_episode':
+          if (nextEpSubtitle) {
             e.preventDefault();
             void emit('native-player-next-episode', null);
           }
           break;
-        case 'KeyM':
+        case 'player_mute':
           e.preventDefault();
           sendCmd('cycle mute');
           break;
-        case 'KeyZ':
+        case 'player_sub_delay_earlier':
           e.preventDefault();
           flashFeedback('subDelay', t('player.subtitle_delay_earlier'));
           sendCmd('add sub-delay -0.100');
           break;
-        case 'KeyX':
+        case 'player_sub_delay_later':
           e.preventDefault();
           flashFeedback('subDelay', t('player.subtitle_delay_later'));
           sendCmd('add sub-delay 0.100');
           break;
-        case 'KeyF':
-        case 'F11':
+        case 'player_fullscreen':
           e.preventDefault();
           void toggleFullscreen();
           break;
-        case 'Slash':
-          if (e.shiftKey) {
-            e.preventDefault();
-            setShowShortcutsHelp((s) => !s);
-          }
-          break;
-        case 'Escape':
+        case 'player_toggle_shortcuts_help':
           e.preventDefault();
-          if (showShortcutsHelp) { setShowShortcutsHelp(false); return; }
-          if (contextMenu) { setContextMenu(null); return; }
-          if (showEpisodePanel) { setShowEpisodePanel(false); episodePanelOpenRef.current = false; return; }
-          if (trackPopover) { setTrackPopover(null); return; }
-          if (isFullscreenRef.current) { isFullscreenRef.current = false; void getCurrentWindow().setFullscreen(false); }
+          setShowShortcutsHelp((s) => !s);
           break;
-        case 'Backspace':
-          if (contextMenu || showEpisodePanel || trackPopover || showShortcutsHelp) return;
+        case 'player_toggle_pip':
           e.preventDefault();
-          void closePlayer();
+          void toggleMiniPlayer();
+          break;
+        case 'player_open_cast':
+          e.preventDefault();
+          void openCastPopoverRef.current();
+          break;
+        case 'player_ab_loop':
+          e.preventDefault();
+          cycleAbLoopRef.current();
+          break;
+        case 'player_screenshot':
+          e.preventDefault();
+          void takeScreenshotRef.current();
+          break;
+        case 'player_seek_start':
+          e.preventDefault();
+          startSeekOverlay();
+          flashFeedback('seekBack', '0%');
+          sendCmd('seek 0 absolute');
+          break;
+        case 'player_seek_end':
+          e.preventDefault();
+          startSeekOverlay();
+          flashFeedback('seekFwd', '100%');
+          sendCmd('seek 100 absolute-percent');
           break;
         default:
           break;
@@ -897,7 +954,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [closePlayer, contextMenu, flashFeedback, nextEpSubtitle, playbackSpeed, resetActivity, showEpisodePanel, showShortcutsHelp, startSeekOverlay, toggleFullscreen, trackPopover, triggerActiveSkip]);
+  }, [closePlayer, contextMenu, flashFeedback, nextEpSubtitle, playbackSpeed, resetActivity, shortcutOverrides, showEpisodePanel, showShortcutsHelp, startSeekOverlay, toggleFullscreen, toggleMiniPlayer, trackPopover, triggerActiveSkip]);
 
   useEffect(() => {
     return () => {
@@ -990,6 +1047,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     void onDispatch?.(JSON.stringify({ type: 'settingsChanged', key, value }));
   }, [onDispatch]);
 
+  const toggleAnime4k = useCallback((enabled: boolean) => {
+    setAnime4kEnabledState(enabled);
+    invoke('player_set_anime4k_enabled', { enabled }).catch(() => undefined);
+    setSubtitlePref('animeUpscalingMode', enabled ? 'anime4k_m' : 'off');
+  }, [setSubtitlePref]);
+
   const [subtitleDelay, setSubtitleDelayState] = useState(0);
   const [subtitleFont, setSubtitleFontState] = useState(() => String(prefs?.subtitleFont ?? 'default'));
   const [subtitleSize, setSubtitleSizeState] = useState(() => Number(prefs?.subtitleSize ?? 100) || 100);
@@ -1034,6 +1097,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     setCastDevices(await discoverCastDevices());
     setCastDiscovering(false);
   }, [castPopoverOpen, resetActivity]);
+  useEffect(() => { openCastPopoverRef.current = openCastPopover; }, [openCastPopover]);
 
   const selectCastDevice = useCallback(async (device: CastDevice) => {
     let status: EmbeddedMpvStatus | null = null;
@@ -1082,6 +1146,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       flashFeedback('abLoop', t('player.ab_loop_cleared'));
     }
   }, [abLoopStage, resetActivity, flashFeedback]);
+  useEffect(() => { cycleAbLoopRef.current = cycleAbLoop; }, [cycleAbLoop]);
 
   const takeScreenshot = useCallback(async () => {
     resetActivity();
@@ -1092,6 +1157,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       flashFeedback('screenshot', t('player.screenshot_failed'));
     }
   }, [resetActivity, flashFeedback, title]);
+  useEffect(() => { takeScreenshotRef.current = takeScreenshot; }, [takeScreenshot]);
 
   const copyTimestamp = useCallback(async () => {
     const text = fmtTime(posRef.current);
@@ -1354,6 +1420,15 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         >
           <PictureInPicture2 size={20} />
         </button>
+        <button
+          ref={playerSettingsBtnRef}
+          onClick={(e) => { e.stopPropagation(); resetActivity(); setShowPlayerSettings((v) => !v); }}
+          className="fluxa-ibtn"
+          style={{ ...styles.iconBtn, color: '#fff' }}
+          title={t('player.settings')}
+        >
+          <Settings size={20} />
+        </button>
         {introDbSubmitEnabled && introDbApiKey && (
           <button
             onClick={(e) => { e.stopPropagation(); resetActivity(); setShowSegmentMarker((v) => !v); }}
@@ -1471,6 +1546,15 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         />
       )}
 
+      {showPlayerSettings && (
+        <PlayerSettingsPopover
+          anchorRef={playerSettingsBtnRef}
+          onClose={() => setShowPlayerSettings(false)}
+          anime4kEnabled={anime4kEnabled}
+          onToggleAnime4k={toggleAnime4k}
+        />
+      )}
+
       {showShortcutsHelp && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
@@ -1485,35 +1569,43 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
               {([
                 { heading: t('player.shortcut_group_playback'), rows: [
                   ['Space', t('player.shortcut_play_pause_hold')],
-                  ['K', t('player.shortcut_play_pause')],
-                  ['M', t('player.shortcut_mute')],
+                  [formatCombo(resolveCombo('player_play_pause', shortcutOverrides)), t('player.shortcut_play_pause')],
+                  [formatCombo(resolveCombo('player_mute', shortcutOverrides)), t('player.shortcut_mute')],
                 ]},
                 { heading: t('player.shortcut_group_seek'), rows: [
-                  ['← →', t('player.shortcut_seek_10')],
-                  ['J  L', t('player.shortcut_seek_60')],
+                  [`${formatCombo(resolveCombo('player_seek_back', shortcutOverrides))}  ${formatCombo(resolveCombo('player_seek_forward', shortcutOverrides))}`, t('player.shortcut_seek_10')],
+                  [`${formatCombo(resolveCombo('player_seek_big_back', shortcutOverrides))}  ${formatCombo(resolveCombo('player_seek_big_forward', shortcutOverrides))}`, t('player.shortcut_seek_60')],
                   ['0 – 9', t('player.shortcut_percent_seek')],
+                  ['Shift + 1 – 9', t('player.shortcut_chapter_jump')],
+                  [`${formatCombo(resolveCombo('player_seek_start', shortcutOverrides))} / ${formatCombo(resolveCombo('player_seek_end', shortcutOverrides))}`, t('player.shortcut_seek_start_end')],
                 ]},
                 { heading: t('player.shortcut_group_speed'), rows: [
-                  ['[ ]', t('player.shortcut_speed_step')],
+                  [`${formatCombo(resolveCombo('player_speed_decrease', shortcutOverrides))} ${formatCombo(resolveCombo('player_speed_increase', shortcutOverrides))}`, t('player.shortcut_speed_step')],
                 ]},
                 { heading: t('player.shortcut_group_volume'), rows: [
-                  ['↑ ↓', t('player.shortcut_volume')],
+                  [`${formatCombo(resolveCombo('player_volume_up', shortcutOverrides))} ${formatCombo(resolveCombo('player_volume_down', shortcutOverrides))}`, t('player.shortcut_volume')],
                 ]},
                 { heading: t('player.shortcut_group_frame'), rows: [
-                  [', .', t('player.shortcut_frame_step')],
-                  ['Z  X', t('player.shortcut_sub_delay')],
+                  [`${formatCombo(resolveCombo('player_frame_step_back', shortcutOverrides))} ${formatCombo(resolveCombo('player_frame_step_forward', shortcutOverrides))}`, t('player.shortcut_frame_step')],
+                  [`${formatCombo(resolveCombo('player_sub_delay_earlier', shortcutOverrides))}  ${formatCombo(resolveCombo('player_sub_delay_later', shortcutOverrides))}`, t('player.shortcut_sub_delay')],
                 ]},
                 { heading: t('player.shortcut_group_tracks'), rows: [
-                  ['C', t('player.shortcut_cycle_sub')],
-                  ['A', t('player.shortcut_cycle_audio')],
+                  [formatCombo(resolveCombo('player_cycle_subtitle', shortcutOverrides)), t('player.shortcut_cycle_sub')],
+                  [formatCombo(resolveCombo('player_cycle_audio', shortcutOverrides)), t('player.shortcut_cycle_audio')],
                 ]},
                 { heading: t('player.shortcut_group_interface'), rows: [
-                  ['F / F11', t('player.shortcut_fullscreen')],
-                  ['S / Enter', t('player.shortcut_skip')],
-                  ['Shift+N', t('player.shortcut_next_ep')],
-                  ['I', t('player.shortcut_stats')],
-                  ['?', t('player.shortcut_this_help')],
+                  [`${formatCombo(resolveCombo('player_fullscreen', shortcutOverrides))} / F11`, t('player.shortcut_fullscreen')],
+                  [`${formatCombo(resolveCombo('player_skip_active', shortcutOverrides))} / Enter`, t('player.shortcut_skip')],
+                  [formatCombo(resolveCombo('player_next_episode', shortcutOverrides)), t('player.shortcut_next_ep')],
+                  [formatCombo(resolveCombo('player_toggle_stats', shortcutOverrides)), t('player.shortcut_stats')],
+                  [formatCombo(resolveCombo('player_toggle_shortcuts_help', shortcutOverrides)), t('player.shortcut_this_help')],
                   ['Backspace', t('player.shortcut_close')],
+                ]},
+                { heading: t('player.shortcut_group_extras'), rows: [
+                  [formatCombo(resolveCombo('player_toggle_pip', shortcutOverrides)), t('player.shortcut_pip')],
+                  [formatCombo(resolveCombo('player_open_cast', shortcutOverrides)), t('player.shortcut_cast')],
+                  [formatCombo(resolveCombo('player_ab_loop', shortcutOverrides)), t('player.shortcut_ab_loop')],
+                  [formatCombo(resolveCombo('player_screenshot', shortcutOverrides)), t('player.shortcut_screenshot')],
                 ]},
               ] as { heading: string; rows: [string, string][] }[]).map(({ heading, rows }) => (
                 <div key={heading} style={{ marginBottom: '1rem' }}>

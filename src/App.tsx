@@ -21,15 +21,21 @@ const BROWSING_LABELS: Record<NavRoute, string> = {
   calendar: 'Browsing Calendar',
   settings: 'In Settings',
 };
+import * as Sentry from '@sentry/react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { UpdateModal, startUpdateCheck } from './components/UpdateModal';
-import { HomeScreen } from './screens/HomeScreen';
-import { SearchScreen } from './screens/SearchScreen';
-import { DetailScreen } from './screens/DetailScreen';
-import { LibraryScreen } from './screens/LibraryScreen';
-import { SettingsScreen } from './screens/SettingsScreen';
-const DiscoverScreen = React.lazy(() => import('./screens/DiscoverScreen').then((m) => ({ default: m.DiscoverScreen })));
-const CalendarScreen = React.lazy(() => import('./screens/CalendarScreen').then((m) => ({ default: m.CalendarScreen })));
+import { HomeScreen as HomeScreenBase } from './screens/HomeScreen';
+import { SearchScreen as SearchScreenBase } from './screens/SearchScreen';
+import { DetailScreen as DetailScreenBase } from './screens/DetailScreen';
+import { LibraryScreen as LibraryScreenBase } from './screens/LibraryScreen';
+import { SettingsScreen as SettingsScreenBase } from './screens/SettingsScreen';
+const HomeScreen = Sentry.withProfiler(HomeScreenBase, { name: 'HomeScreen' });
+const SearchScreen = Sentry.withProfiler(SearchScreenBase, { name: 'SearchScreen' });
+const DetailScreen = Sentry.withProfiler(DetailScreenBase, { name: 'DetailScreen' });
+const LibraryScreen = Sentry.withProfiler(LibraryScreenBase, { name: 'LibraryScreen' });
+const SettingsScreen = Sentry.withProfiler(SettingsScreenBase, { name: 'SettingsScreen' });
+const DiscoverScreen = React.lazy(() => import('./screens/DiscoverScreen').then((m) => ({ default: Sentry.withProfiler(m.DiscoverScreen, { name: 'DiscoverScreen' }) })));
+const CalendarScreen = React.lazy(() => import('./screens/CalendarScreen').then((m) => ({ default: Sentry.withProfiler(m.CalendarScreen, { name: 'CalendarScreen' }) })));
 const ProfileSelectionScreen = React.lazy(() => import('./screens/ProfileSelectionScreen').then((m) => ({ default: m.ProfileSelectionScreen })));
 const WelcomeScreen = React.lazy(() => import('./screens/WelcomeScreen').then((m) => ({ default: m.WelcomeScreen })));
 import { NuvioStatusBanner } from './components/NuvioStatusBanner';
@@ -39,6 +45,8 @@ import { setActiveProfileId, createProfileObject, saveProfile, loadProfiles } fr
 import { invalidateLibraryKeyCache } from './core/libraryOps';
 import { storageWrite, storageRead } from './core/engine';
 import { toggleWindowFullscreen, watchWindowGeometry } from './core/windowGeometry';
+import { comboFromEvent, findActionForCombo, loadShortcutOverrides, onShortcutsChanged, type ShortcutOverrides } from './core/shortcuts';
+import { focusNearestCard, isNavCard } from './core/spatialNav';
 import { notify } from './core/notifications';
 import { setLanguage, t } from './i18n';
 import { dispatchAction } from './core/engine';
@@ -284,11 +292,34 @@ export default function App() {
     if (activeRoute === 'search') { navigateRoute(lastNonSearchRouteRef.current); }
   }, [detailMeta, activeRoute, navigateRoute, closePlayer]);
 
+  const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>({});
   useEffect(() => {
-    const shortcutRoutes: Record<string, NavRoute> = { '1': 'home', '2': 'library', '3': 'discover', '4': 'calendar', '5': 'settings' };
+    loadShortcutOverrides().then(setShortcutOverrides);
+    return onShortcutsChanged(setShortcutOverrides);
+  }, []);
+
+  useEffect(() => {
+    const directions: Record<string, 'up' | 'down' | 'left' | 'right'> = {
+      ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+    };
     const onKeyDown = (e: KeyboardEvent) => {
       if (nativePlayerActive) return;
-      if (e.key === 'F11' || e.code === 'F11') {
+      const direction = directions[e.key];
+      if (!direction || !isNavCard(document.activeElement)) return;
+      if (focusNearestCard(document.activeElement, direction)) e.preventDefault();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [nativePlayerActive]);
+
+  useEffect(() => {
+    const navRoutes: Record<string, NavRoute> = {
+      nav_home: 'home', nav_library: 'library', nav_discover: 'discover', nav_calendar: 'calendar', nav_settings: 'settings',
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (nativePlayerActive) return;
+      const combo = comboFromEvent(e);
+      if (findActionForCombo(combo, 'global', shortcutOverrides) === 'toggle_window_fullscreen') {
         e.preventDefault();
         windowFullscreenRef.current = !windowFullscreenRef.current;
         void toggleWindowFullscreen().finally(refreshWindowFullscreen);
@@ -302,28 +333,27 @@ export default function App() {
       }
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
-      if (e.ctrlKey && e.key === 'f') {
+      const globalAction = findActionForCombo(combo, 'global', shortcutOverrides);
+      if (globalAction === 'focus_search') {
         e.preventDefault();
         setSearchFocusSignal((n) => n + 1);
         return;
       }
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === '/') {
-        e.preventDefault();
-        setSearchFocusSignal((n) => n + 1);
-        return;
-      }
-      if (e.key === 'Backspace') {
+      if (globalAction === 'go_back') {
         e.preventDefault();
         goBack();
         return;
       }
-      const route = shortcutRoutes[e.key];
-      if (route) navigateRoute(route);
+      const route = globalAction ? navRoutes[globalAction] : undefined;
+      if (route) { navigateRoute(route); return; }
+      if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        setSearchFocusSignal((n) => n + 1);
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [nativePlayerActive, navigateRoute, goBack, refreshWindowFullscreen]);
+  }, [nativePlayerActive, navigateRoute, goBack, refreshWindowFullscreen, shortcutOverrides]);
 
   const dispatch = useCallback(async (actionJson: string) => {
     const result = await dispatchAction(actionJson);
@@ -388,7 +418,7 @@ export default function App() {
   const handleSearchQueryChange = useCallback((query: string) => { setGlobalSearchQuery(query); }, []);
   const handleDiscoverBack = useCallback(() => { setDiscoverInitialGenre(null); setActiveRoute('home'); }, []);
 
-  const handleResumeFromContinueWatching = useCallback((meta: Meta) => {
+  const handleResumeFromContinueWatching = useCallback((meta: Meta, resumeAtOverride?: number) => {
     const item = meta as LibraryItem;
     const episode: Video | null = item.lastVideoId ? {
       id: item.lastVideoId,
@@ -398,6 +428,7 @@ export default function App() {
       number: item.lastEpisodeNumber,
       thumbnail: item.lastEpisodeThumbnail,
     } : null;
+    const resumeAt = resumeAtOverride ?? item.timeOffset;
 
     const art = playerArtwork(meta, episode);
     artworkPrefetchRef.current = prefetchPlayerArtwork(art.background, art.logo).catch(() => undefined);
@@ -414,13 +445,33 @@ export default function App() {
       if (!resumeStream) {
         setDetailInitialEpisode(episode);
         setDetailAutoShowStreams(true);
-        setDetailResumeAt(item.timeOffset ?? undefined);
+        setDetailResumeAt(resumeAt ?? undefined);
         setDetailMeta(meta);
         return;
       }
-      await guardedPlay(resumeStream, meta, episode, item.timeOffset, item.duration);
+      await guardedPlay(resumeStream, meta, episode, resumeAt, item.duration);
     })();
   }, [guardedPlay]);
+
+  const handleStartOverContinueWatching = useCallback((meta: Meta) => {
+    handleResumeFromContinueWatching(meta, 0);
+  }, [handleResumeFromContinueWatching]);
+
+  const handlePlayManually = useCallback((meta: Meta) => {
+    const item = meta as LibraryItem;
+    const episode: Video | null = item.lastVideoId ? {
+      id: item.lastVideoId,
+      name: item.lastEpisodeName,
+      season: item.lastEpisodeSeason,
+      episode: item.lastEpisodeNumber,
+      number: item.lastEpisodeNumber,
+      thumbnail: item.lastEpisodeThumbnail,
+    } : null;
+    setDetailInitialEpisode(episode);
+    setDetailAutoShowStreams(true);
+    setDetailResumeAt(item.timeOffset ?? undefined);
+    setDetailMeta(meta);
+  }, []);
 
   const prefs = React.useMemo(() => appPrefs(state), [state.settings?.values]);
   const uiScale = prefString(prefs, 'uiScale', '100');
@@ -640,6 +691,8 @@ export default function App() {
             onNavigateDetail={handleNavigateDetail}
             onPlay={handleHomePlay}
             onResume={handleResumeFromContinueWatching}
+            onStartOver={handleStartOverContinueWatching}
+            onPlayManually={handlePlayManually}
             isActive={!showDetail && activeRoute === 'home'}
             onScrolledChange={setHomeScrolled}
             resetKey={homeResetKey}

@@ -272,6 +272,23 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
     return found?.thumbnail ? found : selectedEpisode;
   }, [selectedEpisode, episodes]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const target = e.target as HTMLElement | null;
+      if (target && target !== document.body && target.closest('input, textarea, button, [role="button"], [contenteditable="true"]')) return;
+      e.preventDefault();
+      if (isSeries) {
+        const ep = selectedEpisode ?? filteredEps[0] ?? episodes[0];
+        if (ep) openEpisodeSources(ep);
+      } else {
+        openMovieSources();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isSeries, selectedEpisode, filteredEps, episodes, openEpisodeSources, openMovieSources]);
+
   const castMembers = useMemo(() => buildCastMembers(displayMeta).slice(0, 12), [displayMeta]);
 
   const directorLinks = useMemo(

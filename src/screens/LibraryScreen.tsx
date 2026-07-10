@@ -53,6 +53,21 @@ export const LibraryScreen = React.memo(function LibraryScreen({
 
   const changeTab = (v: Tab) => { setTab(v); setViewPref('libraryTab', v); };
   const changeSort = (v: 'recent' | 'title' | 'rating') => { setSortBy(v); setViewPref('librarySort', v); };
+
+  const TAB_ORDER: Tab[] = ['watchlist', 'watching', 'completed', 'dropped', 'collections', 'airing', 'rated', 'history'];
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (e.code !== 'BracketLeft' && e.code !== 'BracketRight') return;
+      e.preventDefault();
+      const idx = TAB_ORDER.indexOf(tab);
+      const delta = e.code === 'BracketRight' ? 1 : -1;
+      changeTab(TAB_ORDER[(idx + delta + TAB_ORDER.length) % TAB_ORDER.length]);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [tab]);
   const [viewAllFolder, setViewAllFolder] = useState<{ title: string; items: Meta[]; groups: Array<{ type: string; items: Meta[] }> } | null>(null);
   const collectionsScrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
@@ -117,7 +132,6 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     onProfileUpdated?.(updated);
     if (!updated.nuvioAccessToken) return;
 
-    // Keep the local save responsive and durable even when Nuvio is unavailable.
     try {
       const freshProfile = await freshNuvioProfile(updated);
       const token = freshProfile.nuvioAccessToken;
@@ -125,7 +139,6 @@ export const LibraryScreen = React.memo(function LibraryScreen({
       await nuvioPushCollections(token, freshProfile.nuvioProfileIndex ?? 1, next);
       if (freshProfile !== updated) onProfileUpdated?.(freshProfile);
     } catch {
-      // Keep the local collection intact when the remote write cannot complete.
     }
   }
 
