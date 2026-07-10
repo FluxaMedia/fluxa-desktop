@@ -307,6 +307,13 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     try {
       await withCloseTimeout(embeddedMpvHide(), 400).catch(() => undefined);
       const status = await withCloseTimeout(embeddedMpvStatus(), 700).catch(() => null);
+      if (!status && captureMeta) {
+        debugLog('closePlayer: embeddedMpvStatus timed out, final progress save skipped');
+        Sentry.captureMessage('closePlayer: final progress save skipped (status timeout)', {
+          level: 'warning',
+          extra: { metaId: captureMeta.id },
+        });
+      }
       await withCloseTimeout(embeddedMpvStop(), 900).catch(() => undefined);
       await withCloseTimeout(destroyEmbeddedMpv(), 900).catch(() => undefined);
       closingPlayerRef.current = false;
@@ -414,6 +421,48 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     lastResumeAtSecondsRef.current = undefined;
     lastTotalDurationSecondsRef.current = undefined;
   }, [stateRef, updateState]);
+
+  const saveProgressTick = useCallback(async () => {
+    if (closingPlayerRef.current || !inNativePlayerRef.current) return;
+    const captureMeta = playingMetaRef.current;
+    if (!captureMeta) return;
+    const captureEpisode = playingEpisodeRef.current;
+    const captureStream = playingStreamRef.current;
+    const status = await embeddedMpvStatus().catch(() => null);
+    if (!status) return;
+    const timePos = parseFloat(status.timePos ?? '0');
+    const duration = parseFloat(status.duration ?? '0');
+    if (!(timePos > 30 && duration > 0)) return;
+    try {
+      const saveResult = await dispatchAction(JSON.stringify({
+        type: 'savePlaybackProgressRequested',
+        meta: captureMeta,
+        timeOffset: Math.floor(timePos),
+        duration: Math.floor(duration),
+        lastVideoId: captureEpisode?.id ?? null,
+        lastStreamIndex: stateRef.current.player.currentStreamIndex ?? null,
+        lastEpisodeName: captureEpisode?.name ?? captureEpisode?.title ?? null,
+        lastEpisodeSeason: captureEpisode?.season ?? null,
+        lastEpisodeNumber: captureEpisode?.episode ?? captureEpisode?.number ?? null,
+        lastEpisodeThumbnail: captureEpisode?.thumbnail ?? null,
+        lastStreamUrl: captureStream?.playableUrl ?? captureStream?.url ?? null,
+        lastStreamTitle: captureStream?.title ?? captureStream?.name ?? null,
+        lastAudioLanguage: null,
+        lastSubtitleLanguage: null,
+        scrobbleTraktPause: false,
+      }));
+      if (saveResult) {
+        updateState(saveResult.state);
+        if (saveResult.effects.length > 0) await pumpEffects(saveResult.effects, updateState);
+      }
+    } catch {}
+  }, [stateRef, updateState]);
+
+  useEffect(() => {
+    if (!playerUrl) return;
+    const interval = setInterval(() => { void saveProgressTick(); }, 30000);
+    return () => clearInterval(interval);
+  }, [playerUrl, saveProgressTick]);
 
   const handlePlay = useCallback(async (
     stream: Stream,
