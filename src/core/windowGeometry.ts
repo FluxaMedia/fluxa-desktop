@@ -1,8 +1,12 @@
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { availableMonitors, getCurrentWindow } from '@tauri-apps/api/window';
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import { storageRead, storageWrite } from './engine';
 
 type WindowGeometry = { width: number; height: number; x: number; y: number };
+
+const MIN_SAVED_WINDOW_WIDTH = 640;
+const MIN_SAVED_WINDOW_HEIGHT = 480;
+const MIN_VISIBLE_WINDOW_EDGE = 128;
 
 let suppressed = false;
 
@@ -16,8 +20,28 @@ export async function restoreWindowGeometry(): Promise<void> {
   const win = getCurrentWindow();
   try {
     if (await win.isFullscreen()) return;
-    await win.setSize(new PhysicalSize(geometry.width, geometry.height));
-    await win.setPosition(new PhysicalPosition(geometry.x, geometry.y));
+    if (!Number.isSafeInteger(geometry.width) || !Number.isSafeInteger(geometry.height)
+      || !Number.isSafeInteger(geometry.x) || !Number.isSafeInteger(geometry.y)
+      || geometry.width < MIN_SAVED_WINDOW_WIDTH || geometry.height < MIN_SAVED_WINDOW_HEIGHT) return;
+    const monitors = await availableMonitors();
+    const monitor = monitors.find(({ workArea }) => {
+      const left = workArea.position.x;
+      const top = workArea.position.y;
+      const right = left + workArea.size.width;
+      const bottom = top + workArea.size.height;
+      return geometry.x < right - MIN_VISIBLE_WINDOW_EDGE
+        && geometry.x + geometry.width > left + MIN_VISIBLE_WINDOW_EDGE
+        && geometry.y < bottom - MIN_VISIBLE_WINDOW_EDGE
+        && geometry.y + geometry.height > top + MIN_VISIBLE_WINDOW_EDGE;
+    });
+    if (!monitor) return;
+    const { position, size } = monitor.workArea;
+    const width = Math.min(geometry.width, size.width);
+    const height = Math.min(geometry.height, size.height);
+    const x = Math.min(Math.max(geometry.x, position.x), position.x + size.width - width);
+    const y = Math.min(Math.max(geometry.y, position.y), position.y + size.height - height);
+    await win.setSize(new PhysicalSize(width, height));
+    await win.setPosition(new PhysicalPosition(x, y));
   } catch { /* ignore */ }
 }
 
@@ -40,6 +64,7 @@ export function watchWindowGeometry(): () => void {
       try {
         if (await win.isFullscreen()) return;
         const size = await win.outerSize();
+        if (size.width < MIN_SAVED_WINDOW_WIDTH || size.height < MIN_SAVED_WINDOW_HEIGHT) return;
         const pos = await win.outerPosition();
         await storageWrite('windowGeometry', { width: size.width, height: size.height, x: pos.x, y: pos.y });
       } catch { /* ignore */ }
