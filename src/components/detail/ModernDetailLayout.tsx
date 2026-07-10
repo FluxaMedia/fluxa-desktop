@@ -144,13 +144,13 @@ export function ModernDetailLayout({
 
   const seriesTabs = [
     { id: 'episodes', label: t('auto.episodes') },
-    { id: 'related', label: t('auto.similar_titles') },
     { id: 'details', label: t('common.details') },
+    { id: 'related', label: t('auto.similar_titles') },
   ];
 
   const movieTabs = [
-    { id: 'related', label: t('auto.similar_titles') },
     { id: 'details', label: t('common.details') },
+    { id: 'related', label: t('auto.similar_titles') },
   ];
 
   return (
