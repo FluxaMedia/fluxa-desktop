@@ -188,12 +188,25 @@ export default function App() {
     setWelcomeCompleted,
   } = useAppInit(updateState, setActiveRoute, storedPrefsRef);
 
-  const { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame } = usePlayer({
+  const { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit } = usePlayer({
     stateRef,
     activeProfile,
     updateState,
     onProfileUpdated: setActiveProfile,
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    listen('native-app-close-requested', () => {
+      void flushProgressOnQuit()
+        .catch(() => undefined)
+        .finally(() => { void invoke('app_close_flush_done').catch(() => undefined); });
+    })
+      .then((fn) => { if (cancelled) fn(); else unlisten = fn; })
+      .catch(() => undefined);
+    return () => { cancelled = true; unlisten?.(); };
+  }, [flushProgressOnQuit]);
 
   useEffect(() => watchWindowGeometry(), []);
 

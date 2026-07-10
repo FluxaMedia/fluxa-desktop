@@ -83,6 +83,7 @@ pub struct DesktopState {
     pub torrent_server_base_url: Mutex<Option<String>>,
     pub torrent_stream_link: Mutex<Option<String>>,
     pub torrent_generation: Mutex<Option<u64>>,
+    pub close_flush_done: AtomicBool,
 }
 
 impl Default for DesktopState {
@@ -120,6 +121,7 @@ impl Default for DesktopState {
             torrent_server_base_url: Mutex::new(None),
             torrent_stream_link: Mutex::new(None),
             torrent_generation: Mutex::new(None),
+            close_flush_done: AtomicBool::new(false),
         }
     }
 }
@@ -132,6 +134,19 @@ fn debug_log(msg: String) {
         println!("[perf] {msg}");
     }
     log::debug!("[app] {msg}");
+}
+
+#[tauri::command]
+fn app_close_flush_done(app: tauri::AppHandle, state: State<DesktopState>) {
+    if state
+        .close_flush_done
+        .swap(true, std::sync::atomic::Ordering::SeqCst)
+    {
+        return;
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.close();
+    }
 }
 
 #[tauri::command]
@@ -608,6 +623,33 @@ pub fn run() {
                 }
             });
 
+            if let Some(main_window) = app.get_webview_window("main") {
+                let close_handle = app.handle().clone();
+                main_window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        let state = close_handle.state::<DesktopState>();
+                        if state.close_flush_done.load(std::sync::atomic::Ordering::SeqCst) {
+                            return;
+                        }
+                        api.prevent_close();
+                        let handle = close_handle.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = handle.emit("native-app-close-requested", ());
+                            tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+                            let state = handle.state::<DesktopState>();
+                            if !state
+                                .close_flush_done
+                                .swap(true, std::sync::atomic::Ordering::SeqCst)
+                            {
+                                if let Some(window) = handle.get_webview_window("main") {
+                                    let _ = window.close();
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+
             #[cfg(target_os = "windows")]
             if let Some(main_window) = app.get_webview_window("main") {
                 let store_size = |window: &tauri::WebviewWindow| {
@@ -633,6 +675,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             debug_log,
+            app_close_flush_done,
             set_diagnostic_mode,
             export_diagnostic_log,
             engine_init,
