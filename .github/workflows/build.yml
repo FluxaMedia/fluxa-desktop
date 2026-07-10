@@ -75,17 +75,16 @@ jobs:
       # attach to and decode silently falls back to software on every vendor.
       # VCPKG_INSTALLATION_ROOT is C:\vcpkg on windows runners; it is a machine
       # env var, not visible to ${{ env.* }} expressions, so it is hardcoded.
-      - name: Cache vcpkg binary packages
+      - name: Cache vcpkg ANGLE build
         uses: actions/cache@v4
         with:
-          path: C:\Users\runneradmin\AppData\Local\vcpkg\archives
-          key: vcpkg-angle-binaries-x64-windows-v1
-          restore-keys: vcpkg-angle-binaries-x64-windows-
+          path: |
+            C:\vcpkg\installed
+            C:\vcpkg\packages
+          key: vcpkg-angle-x64-windows-v1
 
       - name: Build ANGLE via vcpkg
         shell: bash
-        env:
-          VCPKG_DEFAULT_BINARY_CACHE: C:\Users\runneradmin\AppData\Local\vcpkg\archives
         run: |
           "$VCPKG_INSTALLATION_ROOT/vcpkg" install angle:x64-windows
           mkdir -p src-tauri/lib
