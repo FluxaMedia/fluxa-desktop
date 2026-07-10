@@ -695,6 +695,7 @@
   "player.pause": "Duraklat",
   "player.mute": "Sessize Al",
   "player.unmute": "Sesi Aç",
+  "player.muted": "Sessiz",
   "player.next_label": "Sıradaki: %s",
   "player.speed_label": "Hız: %s",
   "player.normal": "Normal",

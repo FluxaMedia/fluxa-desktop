@@ -695,6 +695,7 @@
   "player.pause": "Pause",
   "player.mute": "Mute",
   "player.unmute": "Unmute",
+  "player.muted": "Muted",
   "player.next_label": "Next: %s",
   "player.speed_label": "Speed: %s",
   "player.normal": "Normal",

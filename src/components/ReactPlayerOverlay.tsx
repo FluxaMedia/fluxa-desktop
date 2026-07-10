@@ -56,7 +56,7 @@ import { comboFromEvent, findActionForCombo, formatCombo, loadShortcutOverrides,
 type Chapter = { title: string; startMs: number };
 type SkipSegment = { type: string; startTime: number; endTime: number };
 type ActiveSkip = { label: string; startMs: number; endMs: number };
-type FeedbackFlash = { icon: 'play' | 'pause' | 'seekBack' | 'seekFwd' | 'speed' | 'abLoop' | 'screenshot' | 'subDelay'; label: string };
+type FeedbackFlash = { icon: 'play' | 'pause' | 'seekBack' | 'seekFwd' | 'speed' | 'abLoop' | 'screenshot' | 'subDelay' | 'volume'; label: string };
 
 function fmtTime(s: number): string {
   if (!isFinite(s) || s < 0) return '0:00';
@@ -826,10 +826,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           break;
         case 'player_volume_up':
           e.preventDefault();
+          flashFeedback('volume', '');
           sendCmd('add volume 5');
           break;
         case 'player_volume_down':
           e.preventDefault();
+          flashFeedback('volume', '');
           sendCmd('add volume -5');
           break;
         case 'player_seek_big_back':
@@ -1002,6 +1004,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       sendCmd(`seek ${seconds} relative`);
       return;
     }
+    flashFeedback('volume', '');
     sendCmd(`add volume ${e.deltaY < 0 ? 5 : -5}`);
   }, [flashFeedback, resetActivity, startSeekOverlay]);
 
@@ -1479,7 +1482,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           {feedback.icon === 'abLoop' && <Repeat size={20} />}
           {feedback.icon === 'screenshot' && <Camera size={20} />}
           {feedback.icon === 'subDelay' && <Captions size={20} />}
-          {feedback.label && <span>{feedback.label}</span>}
+          {feedback.icon === 'volume' && (
+            muted ? <VolumeOff size={20} /> : volumeLevel < 50 ? <Volume1 size={20} /> : <Volume2 size={20} />
+          )}
+          {feedback.icon === 'volume' ? (
+            <span>{muted ? t('player.muted') : `${Math.round(volumeLevel)}%`}</span>
+          ) : (
+            feedback.label && <span>{feedback.label}</span>
+          )}
         </div>
       )}
 
