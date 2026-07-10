@@ -1047,6 +1047,7 @@
   "player.status_fetching_peers": "Fetching peers (%s) · %s%",
   "player.status_loading_stream": "Loading stream",
   "player.status_trying_next_source": "Trying next source",
+  "player.torrent_no_peers": "Couldn't find any peers for this torrent.",
   "player.playback_error": "Playback failed",
   "player.error_show_details": "Show technical details",
   "player.error_hide_details": "Hide technical details",

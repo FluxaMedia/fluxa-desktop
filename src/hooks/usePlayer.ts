@@ -597,13 +597,26 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
           await new Promise((r) => setTimeout(r, 700));
         }
       };
+      const waitForTorrentReady = async () => {
+        const deadline = Date.now() + 60_000;
+        while (Date.now() < deadline) {
+          if (isCancelled()) return;
+          const ts = await playerTorrentStats().catch(() => null);
+          if (ts?.stat === -1) throw new Error(t('player.torrent_no_peers'));
+          if (ts && ts.stat !== 0) return;
+          await new Promise((r) => setTimeout(r, 700));
+        }
+        throw new Error(t('player.torrent_no_peers'));
+      };
       try {
         debugLog('handlePlay:starting torrent stream');
         setLoadingStatus(t('player.status_starting_torrent'));
         void pollTorrentStatus();
         const localUrl = await startTorrentStream(JSON.stringify(stream), title.contentTitle, appPrefs(stateRef.current));
-        statusPollActive = false;
         debugLog(`handlePlay:torrent stream started localUrl=${localUrl?.slice(0, 80)}`);
+        if (isCancelled()) { statusPollActive = false; return; }
+        await waitForTorrentReady();
+        statusPollActive = false;
         if (isCancelled()) return;
         setLoadingStatus(t('player.status_loading_stream'));
         await playInEmbeddedMpv(generation, localUrl, title, true, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, undefined, animeDetection.isAnime);

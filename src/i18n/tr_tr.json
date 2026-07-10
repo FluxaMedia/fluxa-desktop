@@ -1047,6 +1047,7 @@
   "player.status_fetching_peers": "Eşler getiriliyor (%s) · %s%",
   "player.status_loading_stream": "Yayın yükleniyor",
   "player.status_trying_next_source": "Sonraki kaynak deneniyor",
+  "player.torrent_no_peers": "Bu torrent için hiç eş (peer) bulunamadı.",
   "player.playback_error": "Oynatma başarısız oldu",
   "player.error_show_details": "Teknik detayları göster",
   "player.error_hide_details": "Teknik detayları gizle",
