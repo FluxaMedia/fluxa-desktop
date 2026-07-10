@@ -1,5 +1,6 @@
 import React from 'react';
 import { t } from '../i18n';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 const FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function AddonAddedDialog({ addonName, onConfirm }: Props) {
+  useEscapeKey(onConfirm);
   return (
     <div style={S.backdrop} onClick={onConfirm}>
       <div style={S.dialog} onClick={(e) => e.stopPropagation()}>

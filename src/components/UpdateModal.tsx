@@ -2,6 +2,7 @@ import React from 'react';
 import { check as checkUpdate, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { t } from '../i18n';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 export type UpdateState =
   | { phase: 'idle' }
@@ -59,9 +60,9 @@ export async function installUpdate(
 }
 
 export function UpdateModal({ state, onClose }: Props) {
+  const canClose = state.phase !== 'idle' && state.phase !== 'downloading' && state.phase !== 'installing';
+  useEscapeKey(() => { if (canClose) onClose(); });
   if (state.phase === 'idle') return null;
-
-  const canClose = state.phase !== 'downloading' && state.phase !== 'installing';
 
   return (
     <div style={overlay} onClick={canClose ? onClose : undefined}>
