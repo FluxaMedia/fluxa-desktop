@@ -669,6 +669,7 @@ pub fn run() {
             player_load,
             player_render_frame,
             player_command,
+            player_set_anime4k_enabled,
             player_show_loading,
             player_hide,
             player_set_title,

@@ -112,8 +112,7 @@ fn mpv_options_from_preferences(
                     .get("cacheSizeBytes")
                     .and_then(Value::as_i64)
                     .unwrap_or(100_000_000);
-                let back_bytes = ((back_ms / 1000) * 1_310_720)
-                    .clamp(10_000_000, cache_bytes);
+                let back_bytes = ((back_ms / 1000) * 1_310_720).clamp(10_000_000, cache_bytes);
                 options.push(("demuxer-max-back-bytes".to_string(), back_bytes.to_string()));
             }
         }
@@ -139,7 +138,10 @@ fn mpv_options_from_preferences(
     if let Some(app) = app {
         let state = app.state::<DesktopState>();
         if let Ok(dir) = custom_fonts::fonts_dir(&state) {
-            options.push(("sub-fonts-dir".to_string(), dir.to_string_lossy().into_owned()));
+            options.push((
+                "sub-fonts-dir".to_string(),
+                dir.to_string_lossy().into_owned(),
+            ));
         }
     }
     push_anime_upscaling_options(
@@ -401,7 +403,10 @@ pub async fn player_init(app: AppHandle, state: State<'_, DesktopState>) -> Resu
                 Ok(r) => *renderer = Some(r),
                 Err(error) => {
                     log::error!("player_init: MpvRenderer::new failed: {error}");
-                    sentry::capture_message(&format!("MpvRenderer::new failed: {error}"), sentry::Level::Error);
+                    sentry::capture_message(
+                        &format!("MpvRenderer::new failed: {error}"),
+                        sentry::Level::Error,
+                    );
                     return Err(error);
                 }
             }
@@ -519,7 +524,12 @@ pub fn player_set_cursor_visible(state: State<DesktopState>, visible: bool) {
 }
 
 #[tauri::command]
-pub fn player_set_title(app: AppHandle, state: State<DesktopState>, title: String, episode_title: Option<String>) {
+pub fn player_set_title(
+    app: AppHandle,
+    state: State<DesktopState>,
+    title: String,
+    episode_title: Option<String>,
+) {
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     if let Some(surface) = state.native_player_surface.lock().unwrap().as_ref() {
         surface.set_title(title.clone(), episode_title.clone());
@@ -667,6 +677,38 @@ pub fn player_render_frame(
 }
 
 #[tauri::command]
+pub fn player_set_anime4k_enabled(
+    app: AppHandle,
+    state: State<DesktopState>,
+    enabled: bool,
+) -> Result<(), String> {
+    let commands: Vec<String> = if enabled {
+        let shader_path = resolve_shader_path(Some(&app), "Anime4K_Upscale_CNN_x2_M.glsl")
+            .ok_or_else(|| "Anime4K shader not found".to_string())?
+            .replace('\\', "/");
+        vec![
+            format!("set glsl-shaders \"{shader_path}\""),
+            "set scale ewa_lanczossharp".to_string(),
+            "set cscale ewa_lanczossoft".to_string(),
+            "set dscale mitchell".to_string(),
+            "set correct-downscaling yes".to_string(),
+            "set linear-downscaling yes".to_string(),
+        ]
+    } else {
+        vec![
+            "set glsl-shaders \"\"".to_string(),
+            "set scale bilinear".to_string(),
+            "set cscale bilinear".to_string(),
+            "set dscale mitchell".to_string(),
+        ]
+    };
+    for command in commands {
+        with_renderer_retry(&state, 60, |renderer| renderer.command_string(&command))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn player_command(state: State<DesktopState>, command: String) -> Result<(), String> {
     if command == "stop" {
         *state.eof_next_fired.lock().unwrap() = true;
@@ -790,10 +832,12 @@ pub fn player_track_options(
     state: State<DesktopState>,
     track_type: String,
 ) -> Vec<mpv_render::PlayerTrackOption> {
-    with_renderer_retry(&state, 80, |renderer| Ok(renderer.track_options(&track_type)))
-        .ok()
-        .flatten()
-        .unwrap_or_default()
+    with_renderer_retry(&state, 80, |renderer| {
+        Ok(renderer.track_options(&track_type))
+    })
+    .ok()
+    .flatten()
+    .unwrap_or_default()
 }
 
 #[tauri::command]
