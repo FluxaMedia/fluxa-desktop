@@ -169,8 +169,8 @@ export function Toggle({
           width: '1.25rem',
           height: '1.25rem',
           borderRadius: '50%',
-          background: '#fff',
-          transition: 'left 0.2s',
+          background: checked ? '#000' : '#fff',
+          transition: 'left 0.2s, background 0.2s',
         }}
       />
     </div>
