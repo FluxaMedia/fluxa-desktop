@@ -49,9 +49,7 @@ export function ProfileSelectionScreen({ onProfileSelected, onProfilesChanged }:
             avatar_color_hex: profile.color ?? null,
             avatar_url: profile.avatarUrl ?? null,
           })));
-        } catch {
-          // Local deletion succeeds even if Nuvio is temporarily unreachable.
-        }
+        } catch {}
       })();
     }
   };

@@ -24,10 +24,6 @@ export interface NuvioImportReport {
 }
 
 export interface NuvioImportOptions {
-  /**
-   * Preferences are currently device-global, while Nuvio data is profile-scoped.
-   * Only import them for the profile the user selected for this device.
-   */
   includeSettings?: boolean;
 }
 

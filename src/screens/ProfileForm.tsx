@@ -175,9 +175,7 @@ export function ProfileForm({
             avatar_color_hex: candidate.color ?? null,
             avatar_url: candidate.avatarUrl ?? null,
           })));
-        } catch {
-          // The local profile remains saved and can be reconciled later.
-        }
+        } catch {}
       }
       onSaved(updated);
     } finally {

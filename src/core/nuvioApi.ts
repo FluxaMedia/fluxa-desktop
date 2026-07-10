@@ -278,7 +278,6 @@ export async function nuvioPushAddons(
   return post('/rest/v1/rpc/sync_push_addons', { p_profile_id: profileId, p_addons: addons }, token);
 }
 
-/** Reconciles an add-on list using the REST mutations used by Nuvio's web client. */
 export async function nuvioReplaceAddons(
   token: string,
   userId: string,
