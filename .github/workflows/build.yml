@@ -168,10 +168,20 @@ jobs:
       - name: Fetch libmpv (KhooLy/mpv gpu-next fork)
         run: ./src-tauri/fetch-libmpv.sh "$LIBMPV_TAG"
 
+      - name: Deduplicate LC_RPATH entries in libmpv.dylib
+        run: |
+          DYLIB="$(ls src-tauri/lib/libmpv*.dylib | head -n1)"
+          while true; do
+            DUP="$(otool -l "$DYLIB" | grep -A2 LC_RPATH | grep 'path ' | awk '{print $2}' | sort | uniq -d | head -n1)"
+            [ -z "$DUP" ] && break
+            install_name_tool -delete_rpath "$DUP" "$DYLIB"
+          done
+
       - name: Verify libmpv.dylib is intact
         run: |
           DYLIB="$(ls src-tauri/lib/libmpv*.dylib | head -n1)"
           otool -L "$DYLIB"
+          otool -l "$DYLIB" | grep -A2 LC_RPATH
           lipo -info "$DYLIB"
 
       - name: npm install
