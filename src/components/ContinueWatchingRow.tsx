@@ -94,8 +94,23 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
   const [cardFields, setCardFields] = React.useState(lastCardFields);
   const cardFieldsKey = React.useMemo(
     () => `${artworkPreference}|${isHorizontal}|${visibleItems.map((m) => {
-      const vid = (m as unknown as { lastVideoId?: string }).lastVideoId ?? '';
-      return `${m.id}:${vid}`;
+      const item = m as unknown as {
+        lastVideoId?: string;
+        lastEpisodeName?: string;
+        lastEpisodeSeason?: number;
+        lastEpisodeNumber?: number;
+        lastEpisodeThumbnail?: string;
+      };
+      return [
+        m.id,
+        m.poster ?? '',
+        m.background ?? '',
+        item.lastVideoId ?? '',
+        item.lastEpisodeName ?? '',
+        item.lastEpisodeSeason ?? '',
+        item.lastEpisodeNumber ?? '',
+        item.lastEpisodeThumbnail ?? '',
+      ].join(':');
     }).join(',')}`,
     [artworkPreference, isHorizontal, visibleItems],
   );
@@ -195,7 +210,12 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
     const pi = item as unknown as Record<string, unknown>;
     const ni = next.items[i] as unknown as Record<string, unknown>;
     return pi.id === ni.id && pi.timeOffset === ni.timeOffset && pi.duration === ni.duration
-      && pi.lastVideoId === ni.lastVideoId;
+      && pi.poster === ni.poster && pi.background === ni.background
+      && pi.lastVideoId === ni.lastVideoId
+      && pi.lastEpisodeName === ni.lastEpisodeName
+      && pi.lastEpisodeSeason === ni.lastEpisodeSeason
+      && pi.lastEpisodeNumber === ni.lastEpisodeNumber
+      && pi.lastEpisodeThumbnail === ni.lastEpisodeThumbnail;
   });
 });
 

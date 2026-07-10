@@ -281,8 +281,8 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
       setAddonUrl('');
       setAddonInstallStatus({ loading: false, error: null });
       setAddedAddonName(normalizedAddon.manifest?.name || normalizedAddon.transportUrl);
-      onDispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false, profile: activeProfile ?? null }));
-      onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: prefs.language, profile: activeProfile ?? null }));
+      await onDispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false, profile: activeProfile ?? null }));
+      await onDispatch(JSON.stringify({ type: 'homeLoadRequested', force: true, language: prefs.language, profile: activeProfile ?? null }));
     } catch (error) {
       setAddonInstallStatus({ loading: false, error: error instanceof Error ? error.message : String(error) });
     }

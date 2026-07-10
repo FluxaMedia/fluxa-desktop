@@ -46,18 +46,22 @@ export async function resolvePlaybackSubtitles(
     extraRaw: subtitleExtraArgs ?? '',
   });
   await Promise.all((plan?.requests ?? []).map(async (request) => {
-    const resourceUrl = typeof request.url === 'string' ? request.url : '';
-    if (!resourceUrl) return;
-    const data = await tryFetchSubtitleResource(resourceUrl);
-    const parsed = await coreResourceParsePlan({
-      kind: 'subtitles',
-      response: { subtitles: data },
-      addonName: request.addonName,
-    });
-    const rawSubtitles = ((parsed?.subtitles as unknown[] | undefined) ?? data);
-    const normalized = await coreNormalizeAddonSubtitles(rawSubtitles, resourceUrl);
-    for (const raw of normalized) {
-      pushSubtitle(normalizeSubtitle(raw, String(request.addonName ?? 'Subtitle')));
+    try {
+      const resourceUrl = typeof request.url === 'string' ? request.url : '';
+      if (!resourceUrl) return;
+      const data = await tryFetchSubtitleResource(resourceUrl);
+      const parsed = await coreResourceParsePlan({
+        kind: 'subtitles',
+        response: { subtitles: data },
+        addonName: request.addonName,
+      });
+      const rawSubtitles = ((parsed?.subtitles as unknown[] | undefined) ?? data);
+      const normalized = await coreNormalizeAddonSubtitles(rawSubtitles, resourceUrl);
+      for (const raw of normalized) {
+        pushSubtitle(normalizeSubtitle(raw, String(request.addonName ?? 'Subtitle')));
+      }
+    } catch {
+      return;
     }
   }));
 

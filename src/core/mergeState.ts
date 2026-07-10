@@ -133,9 +133,15 @@ function libraryItemRenderEqual(a: LibraryItem, b: LibraryItem): boolean {
     a.id === b.id &&
     a.name === b.name &&
     a.poster === b.poster &&
+    a.background === b.background &&
+    a.logo === b.logo &&
     a.timeOffset === b.timeOffset &&
     a.duration === b.duration &&
     a.lastVideoId === b.lastVideoId &&
+    a.lastEpisodeName === b.lastEpisodeName &&
+    a.lastEpisodeSeason === b.lastEpisodeSeason &&
+    a.lastEpisodeNumber === b.lastEpisodeNumber &&
+    a.lastEpisodeThumbnail === b.lastEpisodeThumbnail &&
     a.continueWatchingBadge === b.continueWatchingBadge &&
     a.newEpisodeReleasedAt === b.newEpisodeReleasedAt
   );

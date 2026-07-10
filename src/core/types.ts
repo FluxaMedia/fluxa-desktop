@@ -120,6 +120,8 @@ export interface LibraryItem {
   name: string;
   type: string;
   poster?: string;
+  background?: string;
+  logo?: string;
   timeOffset?: number;
   duration?: number;
   lastVideoId?: string;
