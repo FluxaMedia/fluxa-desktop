@@ -94,7 +94,7 @@ export function ModernDetailLayout({
   onMovieSources, onBackToEpisodes, onPlaySource, onPlay,
   onToggleWatchlist, onToggleCompleted, onToggleDropped, onBgError,
 }: ModernDetailProps) {
-  const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details'>(() => isSeries ? 'episodes' : 'related');
+  const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details'>(() => isSeries ? 'episodes' : 'details');
   const [prevSeasonDialog, setPrevSeasonDialog] = useState<{ season: number; unwatchedPrev: number[] } | null>(null);
 
   const { seasonWatchedMap, dispatchMarkSeason, toggleEpisodeWatched } = useSeasonWatched({
