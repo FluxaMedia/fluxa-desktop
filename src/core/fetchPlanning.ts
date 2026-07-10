@@ -7,6 +7,7 @@ import { _appVersion, platformFetch } from './httpClient';
 import type { AddonDescriptor, Video } from './types';
 
 const FETCH_PLAN_CONCURRENCY = 12;
+const STREAM_FETCH_TIMEOUT_MS = 30_000;
 
 export type FetchPlanRequest = {
   url?: unknown;
@@ -37,7 +38,7 @@ export async function fetchParsedAddonResource(
   try {
     const response = await platformFetch(url, {
       headers: { 'User-Agent': `Fluxa/${_appVersion}` },
-      signal,
+      signal: signal ?? (resource === 'stream' ? AbortSignal.timeout(STREAM_FETCH_TIMEOUT_MS) : undefined),
     });
     statusCode = response.status;
     body = await response.text();

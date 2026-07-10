@@ -208,6 +208,7 @@ export function EpisodePanel({
   isLoadingStreams,
   isLoadingEpisodes,
   availableAddons,
+  streamAddonCount,
   onBackToEpisodes,
   onEpisodeClick,
   onPlaySource,
@@ -232,6 +233,7 @@ export function EpisodePanel({
   isLoadingStreams: boolean;
   isLoadingEpisodes?: boolean;
   availableAddons: string[];
+  streamAddonCount: number;
   onBackToEpisodes: () => void;
   onEpisodeClick: (ep: Video) => void;
   onPlaySource: (stream: Stream) => void;
@@ -305,6 +307,7 @@ export function EpisodePanel({
           streams={streams}
           isLoading={isLoadingStreams}
           availableAddons={availableAddons}
+          streamAddonCount={streamAddonCount}
           onBack={onBackToEpisodes}
           onPlay={onPlaySource}
         />

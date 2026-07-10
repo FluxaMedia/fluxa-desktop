@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import { ArrowLeft, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react';
 import { MovieCard } from '../components/MovieCard';
 import { posterPrefsFromState, type PosterPrefs } from '../core/posterPrefs';
-import { addRecentSearch, clearRecentSearches, loadRecentSearches, removeRecentSearch } from '../core/searchHistory';
+import { addRecentSearch, clearRecentSearches, loadRecentSearches, removeRecentSearch, type RecentSearch } from '../core/searchHistory';
 import type { AppState, HomeCategory, Meta } from '../core/types';
 import { getLanguage, t } from '../i18n';
 
@@ -32,7 +32,7 @@ const searchResultsCache = new Map<string, HomeCategory[]>();
 
 export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch, onNavigateDetail, query, onQueryChange, onBack }: Props) {
   const [typeFilter, setTypeFilter] = useState('');
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const search = state.search;
   const posterPrefs = posterPrefsFromState(state, 0.85);
   const trimmedQuery = query.trim();
@@ -60,8 +60,12 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
     onQueryChange(t(genreKey));
   };
 
-  const handleRecentClick = (value: string) => {
-    onQueryChange(value);
+  const handleRecentClick = (recent: RecentSearch) => {
+    if (recent.meta) {
+      onNavigateDetail(recent.meta);
+      return;
+    }
+    onQueryChange(recent.query);
   };
 
   const handleRemoveRecent = (value: string) => {
@@ -125,10 +129,10 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
             <div style={styles.recentGrid}>
               {recentSearches.map((item) => (
                 <RecentSearchChip
-                  key={item}
-                  value={item}
+                  key={item.query}
+                  value={item.query}
                   onClick={() => handleRecentClick(item)}
-                  onRemove={() => handleRemoveRecent(item)}
+                  onRemove={() => handleRemoveRecent(item.query)}
                 />
               ))}
             </div>

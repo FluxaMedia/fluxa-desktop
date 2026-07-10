@@ -48,6 +48,7 @@ export type ModernDetailProps = {
   omdbRatings?: { rottenTomatoes?: string; metascore?: string } | null;
   fanartArtwork?: { hdLogo?: string } | null;
   availableAddons: string[];
+  streamAddonCount: number;
   poster: ReturnType<typeof posterPrefsFromState>;
   onBack: () => void;
   onDispatch: (actionJson: string) => void;
@@ -87,7 +88,7 @@ export function ModernDetailLayout({
   selectedSeason, selectedEpisode, showSources, streams, episodePlan, similarItems,
   displayTrailers, trailerMetadata, castMembers, directorLinks, peopleImages,
   watchedMap, progressMap, continueWatchingEntry, isInWatchlist, isDropped, isCompleted,
-  omdbRatings, fanartArtwork, availableAddons, poster,
+  omdbRatings, fanartArtwork, availableAddons, streamAddonCount, poster,
   trailerOnHero, blurUnwatchedEpisodes, spoilerHideEpisodeInfo, detailSeasonSelectorMode: _detailSeasonSelectorMode, episodeCardsLayout,
   onBack, onDispatch, onNavigateDetail, onNavigateGenre, onSeasonChange, onEpisodeClick,
   onMovieSources, onBackToEpisodes, onPlaySource, onPlay,
@@ -415,7 +416,7 @@ export function ModernDetailLayout({
       {showSources && selectedEpisode && isSeries && (
         <div style={MS.overlayBackdrop} onClick={onBackToEpisodes}>
           <div style={MS.overlaySheet} onClick={(e) => e.stopPropagation()}>
-            <InlineSourceList episode={selectedEpisode} meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} onBack={onBackToEpisodes} onPlay={onPlaySource} />
+            <InlineSourceList episode={selectedEpisode} meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} streamAddonCount={streamAddonCount} onBack={onBackToEpisodes} onPlay={onPlaySource} />
           </div>
         </div>
       )}
@@ -423,7 +424,7 @@ export function ModernDetailLayout({
       {showSources && !isSeries && (
         <div style={MS.overlayBackdrop} onClick={onBackToEpisodes}>
           <div style={MS.overlaySheet} onClick={(e) => e.stopPropagation()}>
-            <MovieSourcePanel meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)} onClose={onBackToEpisodes} />
+            <MovieSourcePanel meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} streamAddonCount={streamAddonCount} onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)} onClose={onBackToEpisodes} />
           </div>
         </div>
       )}

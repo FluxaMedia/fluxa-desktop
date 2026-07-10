@@ -126,6 +126,7 @@ export function MovieSourcePanel({
   streams,
   isLoading,
   availableAddons,
+  streamAddonCount,
   onPlay,
   onClose,
 }: {
@@ -133,6 +134,7 @@ export function MovieSourcePanel({
   streams: Stream[];
   isLoading: boolean;
   availableAddons: string[];
+  streamAddonCount: number;
   onPlay: (stream: Stream) => void;
   onClose?: () => void;
 }) {
@@ -175,6 +177,12 @@ export function MovieSourcePanel({
         />
       )}
 
+      {isLoading && streamAddonCount > addonNames.length && (
+        <div style={{ padding: '0.5rem 1rem 0', color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', fontWeight: 600 }}>
+          {t('sources.searching_addons', streamAddonCount - addonNames.length)}
+        </div>
+      )}
+
       <div style={EP.inlineSources}>
         {isLoading && visibleStreams.length === 0 && <div style={SS.center}><div style={spinnerStyle} /></div>}
         {!isLoading && visibleStreams.length === 0 && (
@@ -201,6 +209,7 @@ export function InlineSourceList({
   streams,
   isLoading,
   availableAddons,
+  streamAddonCount,
   onBack,
   onPlay,
 }: {
@@ -209,6 +218,7 @@ export function InlineSourceList({
   streams: Stream[];
   isLoading: boolean;
   availableAddons: string[];
+  streamAddonCount: number;
   onBack: () => void;
   onPlay: (stream: Stream) => void;
 }) {
@@ -257,6 +267,12 @@ export function InlineSourceList({
           onSelect={setSelectedAddon}
           style={{ padding: '0 1rem 0.625rem', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}
         />
+      )}
+
+      {isLoading && streamAddonCount > addonNames.length && (
+        <div style={{ padding: '0 1rem 0.5rem', color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', fontWeight: 600 }}>
+          {t('sources.searching_addons', streamAddonCount - addonNames.length)}
+        </div>
       )}
 
       <div style={EP.inlineSources}>

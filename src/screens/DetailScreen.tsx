@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Play } from 'lucide-react';
 import { coreDetailEpisodePlan } from '../core/engine';
+import { coreSupportsResource } from '../core/addonManifest';
+import { loadAddons } from '../core/libraryOps';
 import { appPrefs, prefBool, prefString } from '../core/appPrefs';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { seasonPosterUrl } from '../core/seasonPosters';
@@ -75,6 +77,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   const [selectedSeason, setSelectedSeason] = useState(initialEpisode?.season ?? 1);
   const [selectedEpisode, setSelectedEpisode] = useState<Video | null>(initialEpisode ?? null);
   const [showSources, setShowSources] = useState(autoShowStreams ?? false);
+  const [streamAddonCount, setStreamAddonCount] = useState(0);
   const [peopleImages, setPeopleImages] = useState<Record<string, string>>({});
   const [trailerMetadata, setTrailerMetadata] = useState<TrailerMetadata>({});
   const [episodePlan, setEpisodePlan] = useState<{
@@ -154,6 +157,17 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
     [detail.visibleStreams, detail.streams, prefs],
   );
   const poster = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
+
+  useEffect(() => {
+    let active = true;
+    void loadAddons()
+      .then(async (addons) => {
+        const supported = await Promise.all(addons.map((addon) => coreSupportsResource(addon.manifest, 'stream', meta.type, meta.id)));
+        if (active) setStreamAddonCount(supported.filter(Boolean).length);
+      })
+      .catch(() => { if (active) setStreamAddonCount(0); });
+    return () => { active = false; };
+  }, [meta.id, meta.type]);
   const displayTrailers = useMemo(
     () => detail.trailers?.length ? detail.trailers : (displayMeta.trailers ?? []),
     [detail.trailers, displayMeta.trailers],
@@ -367,6 +381,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
           omdbRatings={omdbRatings}
           fanartArtwork={fanartArtwork}
           availableAddons={detail.availableAddons ?? []}
+          streamAddonCount={streamAddonCount}
           poster={poster}
           trailerOnHero={trailerOnHero}
           blurUnwatchedEpisodes={blurUnwatchedEpisodes}
@@ -551,6 +566,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
             isLoadingStreams={!!detail.isLoadingStreams}
             isLoadingEpisodes={detail.isLoading && filteredEps.length === 0}
             availableAddons={detail.availableAddons ?? []}
+            streamAddonCount={streamAddonCount}
             onBackToEpisodes={() => setShowSources(false)}
             onEpisodeClick={handleEpisodeClick}
             onPlaySource={(stream) => onPlay(stream, displayMeta, selectedEpisodeEnriched, episodeResumeAt, streams)}
@@ -569,6 +585,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
             streams={streams}
             isLoading={!!detail.isLoadingStreams}
             availableAddons={detail.availableAddons ?? []}
+            streamAddonCount={streamAddonCount}
             onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)}
           />
         )}

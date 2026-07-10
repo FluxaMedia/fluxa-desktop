@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search as SearchIcon, X, Clock } from 'lucide-react';
 import { t, getLanguage } from '../i18n';
-import { addRecentSearch, loadRecentSearches, clearRecentSearches } from '../core/searchHistory';
+import { addRecentSearch, loadRecentSearches, clearRecentSearches, type RecentSearch } from '../core/searchHistory';
 import { setSearchPartialHandler } from '../core/catalogEffects';
 import type { AppState, Meta } from '../core/types';
 
@@ -21,7 +21,7 @@ const MAX_SUGGESTIONS = 6;
 export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, onDispatch, onNavigateDetail }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [focused, setFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -104,10 +104,15 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
     onBack?.();
   };
 
+  const saveRecentSearch = (value: string, meta?: Meta) => {
+    const next = addRecentSearch(value, recentSearches, meta);
+    setRecentSearches(next);
+  };
+
   const submit = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
-    setRecentSearches((current) => addRecentSearch(trimmed, current));
+    saveRecentSearch(trimmed);
     onSearch(trimmed);
     inputRef.current?.blur();
   };
@@ -151,15 +156,21 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
   };
 
   const handleSuggestionClick = (meta: Meta) => {
-    setRecentSearches((current) => addRecentSearch(inputValue.trim(), current));
+    saveRecentSearch(meta.name, meta);
     setExpanded(false);
     setInputValue('');
     onNavigateDetail(meta);
   };
 
-  const handleRecentClick = (value: string) => {
-    setInputValue(value);
-    submit(value);
+  const handleRecentClick = (recent: RecentSearch) => {
+    if (recent.meta) {
+      setExpanded(false);
+      setInputValue('');
+      onNavigateDetail(recent.meta);
+      return;
+    }
+    setInputValue(recent.query);
+    submit(recent.query);
   };
 
   const handleClearHistory = () => {
@@ -271,14 +282,14 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
               </div>
               {recentSearches.map((item, index) => (
                 <button
-                  key={item}
+                  key={item.query}
                   style={{ ...dropdownStyles.row, background: activeIndex === index ? 'rgba(255,255,255,0.06)' : 'transparent' }}
                   onMouseDown={(e) => { e.preventDefault(); handleRecentClick(item); }}
                   onMouseEnter={(e) => { setActiveIndex(index); (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                 >
                   <Clock size={15} color="rgba(255,255,255,0.4)" style={{ flexShrink: 0 }} />
-                  <span style={dropdownStyles.rowText}>{item}</span>
+                  <span style={dropdownStyles.rowText}>{item.query}</span>
                 </button>
               ))}
             </>
