@@ -169,38 +169,6 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     await navigator.clipboard.writeText(json);
   }
 
-  if (viewAllFolder) {
-    return (
-      <CategoryGridScreen
-        title={viewAllFolder.title}
-        items={viewAllFolder.items}
-        groups={viewAllFolder.groups}
-        posterPrefs={posterPrefs}
-        onNavigateDetail={onNavigateDetail}
-        onBack={() => setViewAllFolder(null)}
-        onDispatch={onDispatch}
-      />
-    );
-  }
-
-  if (editingCollection !== null) {
-    const initial = editingCollection === 'new' ? null : editingCollection;
-    return (
-      <div style={{ position: 'relative', height: '100%', paddingLeft: `${NAV_RAIL_WIDTH}rem`, background: '#040508', boxSizing: 'border-box' }}>
-        <CollectionEditorScreen
-          accent={accent}
-          initial={initial}
-          allCollections={collections}
-          catalogOptions={homeCategories}
-          onDismiss={() => setEditingCollection(null)}
-          onSave={(c) => void handleSaveCollection(c)}
-          onImportJson={(json) => void handleImportJson(json)}
-          onExportAll={() => void handleExportAll()}
-        />
-      </div>
-    );
-  }
-
   const smartLists = useMemo(() => {
     const all = uniqueLibraryItems([...watchlist, ...watching, ...completed, ...dropped, ...progressItems]);
     const airing = uniqueLibraryItems([...watching, ...watchlist])
@@ -302,6 +270,38 @@ export const LibraryScreen = React.memo(function LibraryScreen({
       ? { type: 'toggleWatchlistRequested', item }
       : { type: 'toggleLibraryStatusRequested', list: tab, item });
   };
+
+  if (viewAllFolder) {
+    return (
+      <CategoryGridScreen
+        title={viewAllFolder.title}
+        items={viewAllFolder.items}
+        groups={viewAllFolder.groups}
+        posterPrefs={posterPrefs}
+        onNavigateDetail={onNavigateDetail}
+        onBack={() => setViewAllFolder(null)}
+        onDispatch={onDispatch}
+      />
+    );
+  }
+
+  if (editingCollection !== null) {
+    const initial = editingCollection === 'new' ? null : editingCollection;
+    return (
+      <div style={{ position: 'relative', height: '100%', paddingLeft: `${NAV_RAIL_WIDTH}rem`, background: '#040508', boxSizing: 'border-box' }}>
+        <CollectionEditorScreen
+          accent={accent}
+          initial={initial}
+          allCollections={collections}
+          catalogOptions={homeCategories}
+          onDismiss={() => setEditingCollection(null)}
+          onSave={(c) => void handleSaveCollection(c)}
+          onImportJson={(json) => void handleImportJson(json)}
+          onExportAll={() => void handleExportAll()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div style={styles.screen}>
