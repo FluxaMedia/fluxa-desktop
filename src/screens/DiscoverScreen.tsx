@@ -94,6 +94,8 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
 
   const isFinal = !discover.isLoading && resultsMatchCurrentKey && results.length > 0;
   const displayResults = isFinal ? results : (cachedResults ?? []);
+  const isWaitingForResults = !!selectedCatalog && !cachedResults && !resultsMatchCurrentKey;
+  const isLoading = discover.isLoading || discover.catalogsLoading || isWaitingForResults;
 
   const typeOptions = useMemo(() => {
     const types = ['movie', 'series'];
@@ -166,13 +168,13 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
               onSelect={(v) => setExtraValue(v === '__all__' ? null : v)}
             />
           )}
-          {discover.isLoading
+          {isLoading
             ? <div style={S.loadingDot} />
             : displayResults.length > 0 && <span style={S.resultCount}>{t('discover.result_count', displayResults.length)}</span>
           }
         </div>
 
-        {discover.isLoading && displayResults.length === 0 ? (
+        {isLoading && displayResults.length === 0 ? (
           <div style={S.loadingGrid}>
             {Array.from({ length: 24 }).map((_, i) => (
               <div key={i} style={{ borderRadius: '0.625rem', background: '#1B212B', aspectRatio: '2/3', animation: 'pulse 1.6s ease-in-out infinite', animationDelay: `${(i % 8) * 0.07}s` }} />

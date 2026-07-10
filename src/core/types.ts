@@ -357,6 +357,7 @@ export interface LibraryStateSlice {
 
 export interface DiscoverState {
   isLoading?: boolean;
+  catalogsLoading?: boolean;
   results?: Meta[];
   filters?: DiscoverFilter[];
   catalogs?: DiscoverCatalog[];
