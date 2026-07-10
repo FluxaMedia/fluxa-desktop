@@ -439,7 +439,7 @@ async fn player_torrent_stats(state: State<'_, DesktopState>) -> Result<Option<V
     let response = client
         .post(&url)
         .json(&serde_json::json!({ "action": "get", "link": link, "file_id": file_id }))
-        .timeout(std::time::Duration::from_secs(3))
+        .timeout(std::time::Duration::from_secs(50))
         .send()
         .await
         .map_err(|e| e.to_string())?;

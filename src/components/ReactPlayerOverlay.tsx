@@ -139,6 +139,7 @@ interface Props {
   currentEpisode?: Video | null;
   isTorrentStream?: boolean;
   initialPosterUrl?: string;
+  initialLogoUrl?: string;
   metaId?: string;
   initialSubtitleUrl?: string;
   initialStreamHeaders?: Record<string, string>;
@@ -149,7 +150,7 @@ interface Props {
   onDispatch?: (actionJson: string) => Promise<void> | void;
 }
 
-export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, metaId, initialSubtitleUrl, initialStreamHeaders, playbackError, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
+export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, initialLogoUrl, metaId, initialSubtitleUrl, initialStreamHeaders, playbackError, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(100);
@@ -235,6 +236,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [showStats, setShowStats] = useState(false);
   const [statsSnap, setStatsSnap] = useState<EmbeddedMpvStatus | null>(null);
   const [torrentStatsSnap, setTorrentStatsSnap] = useState<TorrentStats | null>(null);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [bufferingProgress, setBufferingProgress] = useState(0);
   const bufferHistoryRef = useRef<number[]>([]);
   const netSpeedHistoryRef = useRef<number[]>([]);
   const [torrentSpeedHistory, setTorrentSpeedHistory] = useState<number[]>([]);
@@ -505,6 +508,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       liveStatusRef.current = status;
 
       const pausedForCache = status.pausedForCache === 'yes';
+      const cacheProgress = parseFloat(status.cacheBufferingState ?? '');
+      setIsBuffering(pausedForCache);
+      if (pausedForCache) setBufferingProgress(Number.isFinite(cacheProgress) ? Math.max(0, Math.min(100, cacheProgress)) : 0);
       if (pausedForCache && !prevPausedForCacheRef.current) stallCountRef.current++;
       prevPausedForCacheRef.current = pausedForCache;
 
@@ -640,6 +646,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       const ts = raw && typeof raw.stat === 'number' ? raw : null;
       torrentStatsRef.current = ts;
       setTorrentStatsSnap(ts);
+      if (liveStatusRef.current?.pausedForCache === 'yes' && ts) setBufferingProgress(Math.max(0, Math.min(100, ts.preload)));
       if (ts) setTorrentSpeedHistory((h) => [...h.slice(-(SPARKLINE_MAX_SAMPLES - 1)), ts.download_speed]);
     };
     void tick();
@@ -1308,6 +1315,19 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       onWheel={onOverlayWheel}
       onContextMenu={(e) => { e.preventDefault(); resetActivity(); setContextMenu({ x: e.clientX, y: e.clientY }); }}
     >
+      {isBuffering && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'rgba(0,0,0,0.48)', pointerEvents: 'none' }}>
+          {initialLogoUrl && (
+            <div style={{ position: 'relative', width: 'min(30rem, 72vw)', height: '10rem' }}>
+              <img src={initialLogoUrl} alt="" className="fluxa-loading-logo-dim fluxa-loading-motion" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: 0.35, filter: 'drop-shadow(0 0.25rem 1.5rem rgba(0,0,0,0.8)) brightness(0.72)' }} />
+              <div className="fluxa-loading-logo-reveal" style={{ position: 'absolute', inset: 0, clipPath: `inset(0 ${(100 - bufferingProgress).toFixed(2)}% 0 0)` }}>
+                <img src={initialLogoUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 0.25rem 1.5rem rgba(0,0,0,0.8))' }} />
+              </div>
+            </div>
+          )}
+          <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.0125rem', textShadow: '0 1px 0.5rem rgba(0,0,0,0.8)' }}>{t('player.status_buffering_percent', Math.round(bufferingProgress))}</div>
+        </div>
+      )}
       <style>{`
         @keyframes fluxa-seek-spin { to { transform: rotate(360deg); } }
         @keyframes fluxa-skip-in { from { opacity: 0; transform: translateX(0.75rem); } to { opacity: 1; transform: translateX(0); } }

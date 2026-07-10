@@ -70,6 +70,7 @@ interface UsePlayerResult {
   playerEpisode: Video | null;
   playerUsesTorrent: boolean;
   playerPosterUrl: string | undefined;
+  playerLogoUrl: string | undefined;
   playerMetaId: string | undefined;
   playerSubtitleUrl: string | undefined;
   playerStreamHeaders: Record<string, string> | undefined;
@@ -102,6 +103,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   const [playerEpisodeTitle, setPlayerEpisodeTitle] = useState<string | undefined>();
   const [playerEpisode, setPlayerEpisode] = useState<Video | null>(null);
   const [playerPosterUrl, setPlayerPosterUrl] = useState<string | undefined>();
+  const [playerLogoUrl, setPlayerLogoUrl] = useState<string | undefined>();
   const [playerMetaId, setPlayerMetaId] = useState<string | undefined>();
   const [playerSubtitleUrl, setPlayerSubtitleUrl] = useState<string | undefined>();
   const [playerStreamHeaders, setPlayerStreamHeaders] = useState<Record<string, string> | undefined>();
@@ -295,6 +297,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerTitle(undefined);
     setPlayerEpisode(null);
     setPlayerPosterUrl(undefined);
+    setPlayerLogoUrl(undefined);
     setPlayerMetaId(undefined);
     setPlayerSubtitleUrl(undefined);
     setPlayerStreamHeaders(undefined);
@@ -499,6 +502,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     const earlyTitle = playerDisplayTitle(meta, episode, stream);
     const earlyArtwork = playerArtwork(meta, episode);
     setPlayerPosterUrl(earlyArtwork.background ?? meta?.poster);
+    setPlayerLogoUrl(earlyArtwork.logo ?? undefined);
     setPlayerMetaId(meta?.id);
     setPlayerStreamHeaders(stream.behaviorHints?.proxyHeaders);
     artworkPrefetchRef.current = prefetchPlayerArtwork(earlyArtwork.background, earlyArtwork.logo).catch(() => undefined);
@@ -549,6 +553,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     const title = playbackPlan?.title ?? earlyTitle;
     if (playbackPlan?.artwork) {
       pendingArtworkRef.current = playbackPlan.artwork;
+      setPlayerLogoUrl(playbackPlan.artwork.logo ?? undefined);
       setPlayerLoadingOverlay((prev) =>
         prev ? { ...prev, background: playbackPlan.artwork!.background, logo: playbackPlan.artwork!.logo } : prev,
       );
@@ -785,5 +790,5 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerLoadingOverlay((prev) => (prev?.error ? prev : null));
   }, []);
 
-  return { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit: saveProgressTick };
+  return { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerLogoUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit: saveProgressTick };
 }
