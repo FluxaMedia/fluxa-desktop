@@ -77,9 +77,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
 
   const panelMeta = hoveredMeta ?? selectedMeta;
 
-  const genreOptions = (discover.filters ?? [])
-    .find((f) => f.name.toLowerCase() === 'genre')
-    ?.options ?? FALLBACK_GENRES;
+  const genreOptions = FALLBACK_GENRES;
 
   useEffect(() => {
     if (discoverResultsCache.has(key)) return;
