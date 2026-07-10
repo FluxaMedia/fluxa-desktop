@@ -292,6 +292,16 @@ export async function corePlayerBufferTargets(request: unknown): Promise<unknown
   return coreInvoke('playerBufferTargets', JSON.stringify(request));
 }
 
+export type TorrentStatusInfo = {
+  bufferProgress: number;
+  isPlayableEnough: boolean;
+  statusKey: string;
+};
+
+export async function coreTorrentStatusInfo(status: unknown): Promise<TorrentStatusInfo | null> {
+  return coreInvoke('torrentStatusInfo', JSON.stringify(status));
+}
+
 export async function coreOfflineDownloadPlan(request: unknown): Promise<unknown | null> {
   return coreInvoke('offlineDownloadPlan', JSON.stringify(request));
 }

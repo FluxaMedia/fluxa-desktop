@@ -105,6 +105,7 @@ export const CORE_METHODS = [
   'tmdbVideoToTrailer',
   'toggleMetadataFeedLimited',
   'torrentRuntimeInfo',
+  'torrentStatusInfo',
   'traktMarkWatchedBody',
   'traktPlaybackItemsDedup',
   'traktPlaybackItemsToLibrary',

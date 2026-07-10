@@ -71,6 +71,8 @@ export type TorrentStats = {
   total_peers: number;
   progress: number;
   preload: number;
+  loaded_size: number;
+  preload_size: number;
   stat: number;
   stat_string: string;
 };

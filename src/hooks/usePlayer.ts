@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import * as Sentry from '@sentry/react';
-import { dispatchAction, coreDetectAnimePlayback, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream } from '../core/engine';
+import { dispatchAction, coreDetectAnimePlayback, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream, coreTorrentStatusInfo } from '../core/engine';
 
 function debugLog(msg: string) {
   void invoke('debug_log', { msg }).catch(() => {});
@@ -603,7 +603,10 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
           if (isCancelled()) return;
           const ts = await playerTorrentStats().catch(() => null);
           if (ts?.stat === -1) throw new Error(t('player.torrent_no_peers'));
-          if (ts && ts.stat !== 0) return;
+          if (ts) {
+            const info = await coreTorrentStatusInfo(ts).catch(() => null);
+            if (info?.isPlayableEnough) return;
+          }
           await new Promise((r) => setTimeout(r, 700));
         }
         throw new Error(t('player.torrent_no_peers'));
