@@ -275,7 +275,7 @@ fn push_anime_upscaling_options(
     };
 
     options.push(("scale".to_string(), "ewa_lanczossharp".to_string()));
-    options.push(("cscale".to_string(), "ewa_lanczossoft".to_string()));
+    options.push(("cscale".to_string(), "ewa_lanczos".to_string()));
     options.push(("dscale".to_string(), "mitchell".to_string()));
     options.push(("correct-downscaling".to_string(), "yes".to_string()));
     options.push(("linear-downscaling".to_string(), "yes".to_string()));
@@ -322,7 +322,8 @@ fn resolve_anime4k_chain(app: Option<&AppHandle>, quality: &str) -> Option<Strin
         let path = resolve_shader_path(app, shader_name)?;
         paths.push(path.replace('\\', "/"));
     }
-    Some(paths.join(":"))
+    let separator = if cfg!(target_os = "windows") { ";" } else { ":" };
+    Some(paths.join(separator))
 }
 
 fn anime4k_should_apply(preferences: &Value) -> bool {
@@ -752,7 +753,7 @@ pub fn player_set_anime4k_enabled(
         vec![
             vec!["change-list".to_string(), "glsl-shaders".to_string(), "set".to_string(), chain_path],
             vec!["set".to_string(), "scale".to_string(), "ewa_lanczossharp".to_string()],
-            vec!["set".to_string(), "cscale".to_string(), "ewa_lanczossoft".to_string()],
+            vec!["set".to_string(), "cscale".to_string(), "ewa_lanczos".to_string()],
             vec!["set".to_string(), "dscale".to_string(), "mitchell".to_string()],
             vec!["set".to_string(), "correct-downscaling".to_string(), "yes".to_string()],
             vec!["set".to_string(), "linear-downscaling".to_string(), "yes".to_string()],
