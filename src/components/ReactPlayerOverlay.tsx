@@ -740,15 +740,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
   const triggerActiveSkip = useCallback(() => {
     if (!activeSkip) return false;
-    resetActivity();
     sendCmd(`set time-pos ${Math.floor(activeSkip.endMs / 1000)}`);
     flashFeedback('seekFwd', activeSkip.label);
     return true;
-  }, [activeSkip, flashFeedback, resetActivity]);
+  }, [activeSkip, flashFeedback]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      resetActivity();
       if (e.code === 'Space') {
         e.preventDefault();
         if (holdTimerRef.current) return;
@@ -978,7 +976,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [closePlayer, contextMenu, flashFeedback, nextEpSubtitle, playbackSpeed, resetActivity, shortcutOverrides, showEpisodePanel, showShortcutsHelp, startSeekOverlay, toggleFullscreen, toggleMiniPlayer, trackPopover, triggerActiveSkip]);
+  }, [closePlayer, contextMenu, flashFeedback, nextEpSubtitle, playbackSpeed, shortcutOverrides, showEpisodePanel, showShortcutsHelp, startSeekOverlay, toggleFullscreen, toggleMiniPlayer, trackPopover, triggerActiveSkip]);
 
   useEffect(() => {
     return () => {
