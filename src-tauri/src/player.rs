@@ -341,7 +341,7 @@ fn css_hex_with_alpha_to_mpv_color(value: &str, opacity: f64) -> Option<String> 
     let hex = value.trim().strip_prefix('#')?;
     if hex.len() == 6 && hex.chars().all(|ch| ch.is_ascii_hexdigit()) {
         let alpha = (opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
-        Some(format!("#{hex}{alpha:02X}"))
+        Some(format!("#{alpha:02X}{hex}"))
     } else {
         None
     }
