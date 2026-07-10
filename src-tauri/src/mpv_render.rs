@@ -421,6 +421,7 @@ impl MpvRenderer {
         renderer.set_option("cache-secs", "30")?;
         renderer.set_option("demuxer-max-bytes", "150MiB")?;
         renderer.set_option("demuxer-readahead-secs", "10")?;
+        renderer.set_option("ytdl", "no")?;
 
         // Lower audio latency and proper app name for PulseAudio/PipeWire
         renderer.set_option("audio-buffer", "0.2")?;
