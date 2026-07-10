@@ -1942,6 +1942,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
               e.stopPropagation();
               resetActivity();
               sendCmd(`add volume ${e.deltaY < 0 ? 5 : -5}`);
+              flashFeedback('volume', '');
               setShowVolumeSlider(true);
               setVolumeScrolling(true);
               if (volumeScrollTimer.current) clearTimeout(volumeScrollTimer.current);
@@ -1958,6 +1959,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
                 forceTooltip={volumeScrolling}
                 onChange={(v) => {
                   resetActivity();
+                  flashFeedback('volume', '');
                   if (activeCastDeviceIdRef.current) { castSetVolume(v / 100); return; }
                   sendCmd(`set volume ${v}`);
                   if (muted && v > 0) sendCmd('set mute no');
