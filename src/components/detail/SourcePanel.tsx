@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { t } from '../../i18n';
 import { EP, MS, SS, spinnerStyle } from './detailStyles';
 import type { Meta, Stream, Video } from '../../core/types';
+import { useDragScroll } from '../../hooks/useDragScroll';
 
 export function streamDisplayText(value: string | undefined): string | undefined {
   const text = value?.replace(/\\r\\n|\\n|\\r/g, '\n').replace(/\r\n|\r/g, '\n').trim();
@@ -45,8 +46,17 @@ function AddonFilterPills({ addonNames, selectedAddon, onSelect, style }: {
   style?: React.CSSProperties;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dragProps = useDragScroll(scrollRef);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const el = scrollRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    el.scrollLeft += event.deltaY;
+    event.preventDefault();
+  }, []);
 
   const checkScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -73,7 +83,7 @@ function AddonFilterPills({ addonNames, selectedAddon, onSelect, style }: {
       {canScrollLeft && (
         <PillScrollArrow direction="left" onClick={() => scrollRef.current?.scrollBy({ left: -160, behavior: 'smooth' })} />
       )}
-      <div ref={scrollRef} style={EP.sourcePills}>
+      <div ref={scrollRef} style={EP.sourcePills} onWheel={handleWheel} {...dragProps}>
         <button style={{ ...(selectedAddon === null ? SS.pill : SS.pillMuted), cursor: 'pointer', border: 'none', flexShrink: 0 }} onClick={() => onSelect(null)}>{t('auto.all')}</button>
         {addonNames.map((addon) => (
           <button
