@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
@@ -165,6 +165,18 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [countdown, setCountdown] = useState<number | null>(null);
   const [nextEpDismissed, setNextEpDismissed] = useState(false);
   const [episodes, setEpisodes] = useState<EpisodeInfo[]>([]);
+  const nextEpThumbnail = useMemo(() => {
+    if (!currentEpisode) return null;
+    const sorted = [...episodes].sort((a, b) => {
+      const sa = a.season ?? 1, sb = b.season ?? 1;
+      if (sa !== sb) return sa - sb;
+      return (a.episode ?? a.number ?? 0) - (b.episode ?? b.number ?? 0);
+    });
+    const curSeason = currentEpisode.season ?? 1;
+    const curEp = currentEpisode.episode ?? currentEpisode.number ?? 0;
+    const curIndex = sorted.findIndex((ep) => (ep.season ?? 1) === curSeason && (ep.episode ?? ep.number ?? 0) === curEp);
+    return curIndex >= 0 ? sorted[curIndex + 1]?.thumbnail ?? null : null;
+  }, [episodes, currentEpisode]);
   const [showEpisodePanel, setShowEpisodePanel] = useState(false);
   const [activeSkip, setActiveSkip] = useState<ActiveSkip | null>(null);
   const [autoSkipSegments, setAutoSkipSegments] = useState(false);
@@ -603,7 +615,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       }
 
       setShowNextEpCard((prev) => {
-        const next = !isPaused && dur > 0 && !!nextEpSubtitle && !nextEpDismissed && (pos / dur) * 100 >= nextEpThreshold;
+        const next = dur > 0 && !!nextEpSubtitle && !nextEpDismissed && (pos / dur) * 100 >= nextEpThreshold;
         return prev === next ? prev : next;
       });
     };
@@ -1285,11 +1297,13 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     >
       <style>{`
         @keyframes fluxa-seek-spin { to { transform: rotate(360deg); } }
-        @keyframes fluxa-skip-in { from { opacity: 0; transform: translateY(0.375rem); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fluxa-skip-in { from { opacity: 0; transform: translateX(0.75rem); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes fluxa-nextep-in { from { opacity: 0; transform: translateX(0.75rem); } to { opacity: 1; transform: translateX(0); } }
         .fluxa-ibtn { opacity: 0.8; transition: opacity 0.15s, background 0.12s; }
         .fluxa-ibtn:hover { opacity: 1; background: rgba(255,255,255,0.09) !important; }
-        .fluxa-skip-btn { animation: fluxa-skip-in 0.18s ease-out; transition: background 0.12s, border-color 0.12s; }
-        .fluxa-skip-btn:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.22) !important; }
+        .fluxa-skip-btn { animation: fluxa-skip-in 0.2s cubic-bezier(0.16, 1, 0.3, 1); transition: background 0.12s, border-color 0.12s, transform 0.12s; }
+        .fluxa-skip-btn:hover { background: rgba(30,33,42,0.96) !important; border-color: rgba(255,255,255,0.5) !important; transform: translateY(-0.0625rem); }
+        .fluxa-skip-btn:active { transform: translateY(0); }
         .fluxa-skip-btn:focus-visible { outline: 0.125rem solid rgba(255,255,255,0.4); outline-offset: 0.125rem; }
         .fluxa-cursor-hidden, .fluxa-cursor-hidden * { cursor: none !important; }
         .fluxa-seek-track { transition: height 0.15s ease; }
@@ -1464,15 +1478,15 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       )}
 
       {activeSkip && (
-        <div style={{ position: 'absolute', bottom: '6.625rem', right: '1.375rem', zIndex: 4 }}>
+        <div style={{ position: 'absolute', bottom: '6.625rem', right: 0, zIndex: 4 }}>
           <button
             onClick={(e) => { e.stopPropagation(); resetActivity(); sendCmd(`set time-pos ${Math.floor(activeSkip.endMs / 1000)}`); }}
             className="fluxa-skip-btn"
             style={styles.skipBtn}
           >
-            <SkipForward size={17} />
+            <SkipForward size={18} />
             {activeSkip.label}
-            <div ref={skipFillRef} style={{ position: 'absolute', left: 0, bottom: 0, height: '0.125rem', width: '0%', background: 'rgba(255,255,255,0.4)' }} />
+            <div ref={skipFillRef} style={{ position: 'absolute', left: 0, bottom: 0, height: '0.125rem', width: '0%', background: 'var(--primary-accent-color)' }} />
           </button>
         </div>
       )}
@@ -1480,9 +1494,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       {showNextEpCard && nextEpSubtitle && !showEpisodePanel && (
         <NextEpCard
           subtitle={nextEpSubtitle}
+          thumbnail={nextEpThumbnail}
           countdown={countdown}
           countdownTotal={autoPlayCountdownSecs}
-          bottom={activeSkip ? 160 : 106}
+          bottom={activeSkip ? 168 : 106}
           onPlay={() => { resetActivity(); void emit('native-player-next-episode', null); }}
           onDismiss={() => setNextEpDismissed(true)}
         />
@@ -2082,15 +2097,16 @@ const styles = {
 
   skipBtn: {
     appearance: 'none',
-    background: 'rgba(20,22,28,0.92)',
+    background: 'rgba(20,22,28,0.9)',
+    backdropFilter: 'blur(0.75rem)',
     boxShadow: 'none',
     outline: 'none',
-    border: '1px solid rgba(255,255,255,0.14)',
-    borderRadius: '0.5rem',
+    border: '1px solid rgba(255,255,255,0.35)',
+    borderRadius: '0.5rem 0 0 0.5rem',
     color: '#fff',
     fontSize: '0.9375rem',
     fontWeight: 600,
-    padding: '0.75rem 1.375rem',
+    padding: '0.75rem 1.4375rem',
     cursor: 'pointer',
     letterSpacing: '0.0125rem',
     display: 'flex',
