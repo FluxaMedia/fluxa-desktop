@@ -85,7 +85,7 @@ export function usePlayerNativeEvents({
         ).catch(() => undefined);
 
         const prefs = appPrefs(stateRef.current);
-        let chosenStream: Stream = currentStream;
+        let chosenStream: Stream | null = null;
         const prefetched = prefetchedNextEpRef.current;
         if (prefetched?.episodeId === nextEp.id) {
           chosenStream = prefetched.stream;
@@ -97,9 +97,13 @@ export function usePlayerNativeEvents({
             const result = await Promise.race([fetchStreamsForEpisode(nextEp.id, meta.type), timeout]);
             const streams = result.streams as Stream[];
             if (streams.length > 0) {
-              chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs))) as Stream | null ?? currentStream;
+              chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs))) as Stream | null ?? streams[0];
             }
           } catch {}
+        }
+        if (!chosenStream) {
+          if (!closingPlayerRef.current) await onPlayerError(t('player.no_playable_url'));
+          return;
         }
         try { await handlePlay(chosenStream, meta, nextEp); } catch {}
       })();
