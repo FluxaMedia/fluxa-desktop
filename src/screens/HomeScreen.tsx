@@ -13,6 +13,21 @@ import { httpFetchText, prewarmYoutubeTrailerConfig } from '../core/engine';
 import { fetchTmdbTrailers } from '../core/detailEffects';
 import type { AppState, HomeCategory, Meta, Trailer } from '../core/types';
 import { getLanguage, t } from '../i18n';
+import { useInViewport } from '../hooks/useInViewport';
+
+const ROW_PLACEHOLDER_HEIGHT = 340;
+
+function LazyRow({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inViewport = useInViewport(ref, '1000px');
+  const shownRef = useRef(false);
+  if (inViewport) shownRef.current = true;
+  return (
+    <div ref={ref} style={shownRef.current ? undefined : { minHeight: ROW_PLACEHOLDER_HEIGHT }}>
+      {shownRef.current ? children : null}
+    </div>
+  );
+}
 
 interface Props {
   state: AppState;
@@ -339,33 +354,33 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
             onItemClick={onNavigateDetail}
           />
         )}
-        {categories.map((cat) =>
-          cat.type === 'collection' ? (
-            <CollectionShelfRow
-              key={cat.id}
-              title={cat.name}
-              folders={cat.items}
-              onFolderClick={handleFolderTileClick}
-              addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
-              gifAutoplayEnabled={gifAutoplayEnabled}
-            />
-          ) : (
-            <ShelfRow
-              key={cat.id}
-              title={formatCatalogTitle(cat.name, cat.type)}
-              items={catalogExtra[cat.id]?.length ? [...cat.items, ...catalogExtra[cat.id]] : cat.items}
-              onItemClick={onNavigateDetail}
-              onViewAll={handleViewAll}
-              isLoading={cat.items.length === 0 && !!home.isLoading}
-              posterPrefs={posterPrefs}
-              topTenEnabled={topTenFeedKeys.has(cat.id)}
-              addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
-              onNearEnd={nearEndCallbacks.get(cat.id)}
-              isLoadingMore={loadingMoreCategoryId === cat.id}
-              onDispatch={onDispatch}
-            />
-          )
-        )}
+        {categories.map((cat) => (
+          <LazyRow key={cat.id}>
+            {cat.type === 'collection' ? (
+              <CollectionShelfRow
+                title={cat.name}
+                folders={cat.items}
+                onFolderClick={handleFolderTileClick}
+                addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
+                gifAutoplayEnabled={gifAutoplayEnabled}
+              />
+            ) : (
+              <ShelfRow
+                title={formatCatalogTitle(cat.name, cat.type)}
+                items={catalogExtra[cat.id]?.length ? [...cat.items, ...catalogExtra[cat.id]] : cat.items}
+                onItemClick={onNavigateDetail}
+                onViewAll={handleViewAll}
+                isLoading={cat.items.length === 0 && !!home.isLoading}
+                posterPrefs={posterPrefs}
+                topTenEnabled={topTenFeedKeys.has(cat.id)}
+                addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
+                onNearEnd={nearEndCallbacks.get(cat.id)}
+                isLoadingMore={loadingMoreCategoryId === cat.id}
+                onDispatch={onDispatch}
+              />
+            )}
+          </LazyRow>
+        ))}
       </div>
     </div>
   );

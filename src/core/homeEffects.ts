@@ -13,6 +13,8 @@ import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
 import { tryFetchJson } from './httpClient';
 import type { AddonDescriptor } from './types';
 
+const HOME_FEED_FETCH_CONCURRENCY = 6;
+
 interface MetadataFeedOption {
   key: string;
   label: string;
@@ -110,25 +112,23 @@ export async function readHomeBootstrap(
     : availableKeys;
   const visibleFeeds = metadataFeeds.filter((feed) => effectiveKeys.includes(feed.key));
 
-  const categoryResults = await Promise.all(
-    visibleFeeds.map(async (feed) => {
-      const extraJson = feed.genre ? JSON.stringify({ genre: feed.genre }) : undefined;
-      const url = await buildResourceUrl(feed.transportUrl, 'catalog', feed.type, feed.id, extraJson);
-      const data = (await tryFetchJson(url)) as { metas?: unknown[] } | null;
-      const metas = Array.isArray(data?.metas) ? data.metas : [];
-      if (metas.length === 0) return null;
-      return {
-        id: feed.key,
-        name: feed.homeTitle ?? feed.label,
-        semanticName: feed.homeTitle ?? feed.label,
-        type: feed.type,
-        items: metas,
-        addonName: feed.label.split(' - ')[0] ?? feed.label,
-        transportUrl: feed.transportUrl,
-        catalogId: feed.id,
-      };
-    }),
-  );
+  const categoryResults = await runWithConcurrency(visibleFeeds, HOME_FEED_FETCH_CONCURRENCY, async (feed) => {
+    const extraJson = feed.genre ? JSON.stringify({ genre: feed.genre }) : undefined;
+    const url = await buildResourceUrl(feed.transportUrl, 'catalog', feed.type, feed.id, extraJson);
+    const data = (await tryFetchJson(url)) as { metas?: unknown[] } | null;
+    const metas = Array.isArray(data?.metas) ? data.metas : [];
+    if (metas.length === 0) return null;
+    return {
+      id: feed.key,
+      name: feed.homeTitle ?? feed.label,
+      semanticName: feed.homeTitle ?? feed.label,
+      type: feed.type,
+      items: metas,
+      addonName: feed.label.split(' - ')[0] ?? feed.label,
+      transportUrl: feed.transportUrl,
+      catalogId: feed.id,
+    };
+  });
   const categories = categoryResults.filter((c): c is NonNullable<typeof c> => c !== null);
 
   const profile = await loadActiveProfile();
