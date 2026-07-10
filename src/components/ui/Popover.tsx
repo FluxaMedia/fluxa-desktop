@@ -21,6 +21,7 @@ interface PopoverProps {
   gap?: number;
   matchWidth?: boolean;
   width?: number | string;
+  minWidth?: number | string;
   maxWidth?: number | string;
   maxHeight?: number | string;
   padding?: string;
@@ -32,7 +33,7 @@ const VIEWPORT_MARGIN = 8;
 
 export function Popover({
   open, onClose, anchorRef, point, placement = 'bottom-end', gap = 8,
-  matchWidth, width, maxWidth, maxHeight, padding = '0.375rem 0', zIndex = 10000, children,
+  matchWidth, width, minWidth, maxWidth, maxHeight, padding = '0.375rem 0', zIndex = 10000, children,
 }: PopoverProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number; anchorWidth?: number } | null>(null);
@@ -118,6 +119,7 @@ export function Popover({
         visibility: position ? 'visible' : 'hidden',
         padding,
         width: matchWidth && position?.anchorWidth ? position.anchorWidth : width,
+        minWidth,
         maxWidth,
         maxHeight,
         overflowX: 'hidden',

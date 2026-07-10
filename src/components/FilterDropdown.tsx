@@ -23,7 +23,7 @@ export function FilterDropdown({
           style={{ flexShrink: 0, color: 'rgba(255,255,255,0.6)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
         />
       </button>
-      <Popover open={open} onClose={() => setOpen(false)} anchorRef={btnRef} placement="bottom-start" width="10rem" maxHeight="18.75rem" padding="0.25rem">
+      <Popover open={open} onClose={() => setOpen(false)} anchorRef={btnRef} placement="bottom-start" matchWidth minWidth="10rem" maxHeight="18.75rem" padding="0.25rem">
         {options.map((opt) => (
           <button
             key={opt.value}
