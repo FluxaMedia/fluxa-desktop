@@ -7,6 +7,7 @@ use crate::mpv_render;
 use crate::DesktopState;
 use fluxa_core::FluxaCore;
 use serde_json::{json, Value};
+use std::process::Command;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tauri::path::BaseDirectory;
@@ -149,6 +150,7 @@ fn mpv_options_from_preferences(
         app,
         get("animeUpscalingMode"),
         get("animeUpscalingQuality"),
+        get("animeUpscalingModePreset"),
         preferences
             .get("isAnimePlayback")
             .and_then(Value::as_bool)
@@ -215,6 +217,30 @@ fn mpv_options_from_preferences(
     } else {
         options.push(("sub-shadow-offset".to_string(), "0".to_string()));
     }
+    match get("subtitleCharacterEdge") {
+        Some("none") => {
+            options.push(("sub-border-size".to_string(), "0".to_string()));
+            options.push(("sub-shadow-offset".to_string(), "0".to_string()));
+        }
+        Some("raised") => {
+            options.push(("sub-border-size".to_string(), "1.5".to_string()));
+            options.push(("sub-shadow-offset".to_string(), "-1".to_string()));
+        }
+        Some("depressed") => {
+            options.push(("sub-border-size".to_string(), "1.5".to_string()));
+            options.push(("sub-shadow-offset".to_string(), "1".to_string()));
+        }
+        Some("uniform") => {
+            options.push(("sub-border-size".to_string(), "3".to_string()));
+            options.push(("sub-shadow-offset".to_string(), "0".to_string()));
+        }
+        Some("drop-shadow") => {
+            options.push(("sub-border-size".to_string(), "0".to_string()));
+            options.push(("sub-shadow-offset".to_string(), "3".to_string()));
+            options.push(("sub-shadow-color".to_string(), "#80000000".to_string()));
+        }
+        _ => {}
+    }
     let audio_languages = if anime_japanese {
         language_list(&[
             Some("ja"),
@@ -260,6 +286,7 @@ fn push_anime_upscaling_options(
     app: Option<&AppHandle>,
     mode: Option<&str>,
     quality: Option<&str>,
+    mode_preset: Option<&str>,
     is_anime_playback: bool,
 ) -> bool {
     options.push(("glsl-shaders".to_string(), String::new()));
@@ -269,8 +296,9 @@ fn push_anime_upscaling_options(
         "anime4k_s" | "anime4k_m" | "anime4k_l" if is_anime_playback => mode.unwrap_or("off"),
         _ => return false,
     };
-    let Some(chain_path) = resolve_anime4k_chain(app, quality) else {
-        log::warn!("Anime4K shader chain for '{quality}' was not found");
+    let mode_preset = mode_preset.unwrap_or("a");
+    let Some(chain_path) = resolve_anime4k_chain(app, quality, mode_preset) else {
+        log::warn!("Anime4K shader chain for '{quality}'/'{mode_preset}' was not found");
         return false;
     };
 
@@ -283,42 +311,83 @@ fn push_anime_upscaling_options(
     true
 }
 
-fn anime4k_chain_shaders(quality: &str) -> &'static [&'static str] {
-    match quality {
-        "anime4k_s" => &[
-            "Anime4K_Clamp_Highlights.glsl",
-            "Anime4K_Upscale_Denoise_CNN_x2_M.glsl",
-            "Anime4K_AutoDownscalePre_x2.glsl",
-            "Anime4K_AutoDownscalePre_x4.glsl",
-            "Anime4K_Restore_CNN_S.glsl",
-            "Anime4K_Upscale_CNN_x2_S.glsl",
-            "Anime4K_Thin_VeryFast.glsl",
-        ],
-        "anime4k_l" => &[
-            "Anime4K_Clamp_Highlights.glsl",
-            "Anime4K_Restore_CNN_VL.glsl",
-            "Anime4K_Upscale_CNN_x2_VL.glsl",
-            "Anime4K_AutoDownscalePre_x2.glsl",
-            "Anime4K_AutoDownscalePre_x4.glsl",
-            "Anime4K_Upscale_CNN_x2_M.glsl",
-            "Anime4K_Thin_HQ.glsl",
-        ],
-        _ => &[
-            "Anime4K_Clamp_Highlights.glsl",
-            "Anime4K_Restore_CNN_M.glsl",
-            "Anime4K_Upscale_CNN_x2_M.glsl",
-            "Anime4K_AutoDownscalePre_x2.glsl",
-            "Anime4K_AutoDownscalePre_x4.glsl",
-            "Anime4K_Upscale_CNN_x2_S.glsl",
-            "Anime4K_Thin_Fast.glsl",
-        ],
+fn anime4k_thin_shader(tier: &str) -> &'static str {
+    match tier {
+        "anime4k_s" => "Anime4K_Thin_VeryFast.glsl",
+        "anime4k_l" => "Anime4K_Thin_HQ.glsl",
+        _ => "Anime4K_Thin_Fast.glsl",
     }
 }
 
-fn resolve_anime4k_chain(app: Option<&AppHandle>, quality: &str) -> Option<String> {
-    let shader_names = anime4k_chain_shaders(quality);
+fn anime4k_chain_shaders(tier: &str, mode: &str) -> Vec<String> {
+    let mut chain = vec!["Anime4K_Clamp_Highlights.glsl".to_string()];
+
+    if tier == "anime4k_s" {
+        match mode {
+            "b" | "bb" => chain.push("Anime4K_Restore_CNN_Soft_S.glsl".to_string()),
+            "c" | "ca" => chain.push("Anime4K_Upscale_Denoise_CNN_x2_S.glsl".to_string()),
+            _ => chain.push("Anime4K_Restore_CNN_S.glsl".to_string()),
+        }
+        if !matches!(mode, "c" | "ca") {
+            chain.push("Anime4K_Upscale_CNN_x2_S.glsl".to_string());
+        }
+    } else {
+        let (primary, secondary) = if tier == "anime4k_l" { ("VL", "M") } else { ("M", "S") };
+        match mode {
+            "b" => {
+                chain.push(format!("Anime4K_Restore_CNN_Soft_{primary}.glsl"));
+                chain.push(format!("Anime4K_Upscale_CNN_x2_{primary}.glsl"));
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push(format!("Anime4K_Upscale_CNN_x2_{secondary}.glsl"));
+            }
+            "bb" => {
+                chain.push(format!("Anime4K_Restore_CNN_Soft_{primary}.glsl"));
+                chain.push(format!("Anime4K_Upscale_CNN_x2_{primary}.glsl"));
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push(format!("Anime4K_Restore_CNN_Soft_{secondary}.glsl"));
+                chain.push(format!("Anime4K_Upscale_CNN_x2_{secondary}.glsl"));
+            }
+            "c" => {
+                chain.push(format!("Anime4K_Upscale_Denoise_CNN_x2_{primary}.glsl"));
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push(format!("Anime4K_Upscale_CNN_x2_{secondary}.glsl"));
+            }
+            "ca" => {
+                chain.push(format!("Anime4K_Upscale_Denoise_CNN_x2_{primary}.glsl"));
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push(format!("Anime4K_Restore_CNN_{secondary}.glsl"));
+                chain.push(format!("Anime4K_Upscale_CNN_x2_{secondary}.glsl"));
+            }
+            "aa" => {
+                chain.push(format!("Anime4K_Restore_CNN_{primary}.glsl"));
+                chain.push(format!("Anime4K_Upscale_CNN_x2_{primary}.glsl"));
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push(format!("Anime4K_Restore_CNN_{secondary}.glsl"));
+                chain.push(format!("Anime4K_Upscale_CNN_x2_{secondary}.glsl"));
+            }
+            _ => {
+                chain.push(format!("Anime4K_Restore_CNN_{primary}.glsl"));
+                chain.push(format!("Anime4K_Upscale_CNN_x2_{primary}.glsl"));
+                chain.push("Anime4K_AutoDownscalePre_x2.glsl".to_string());
+                chain.push("Anime4K_AutoDownscalePre_x4.glsl".to_string());
+                chain.push(format!("Anime4K_Upscale_CNN_x2_{secondary}.glsl"));
+            }
+        }
+    }
+
+    chain.push(anime4k_thin_shader(tier).to_string());
+    chain
+}
+
+fn resolve_anime4k_chain(app: Option<&AppHandle>, tier: &str, mode: &str) -> Option<String> {
+    let shader_names = anime4k_chain_shaders(tier, mode);
     let mut paths = Vec::with_capacity(shader_names.len());
-    for shader_name in shader_names {
+    for shader_name in &shader_names {
         let path = resolve_shader_path(app, shader_name)?;
         paths.push(path.replace('\\', "/"));
     }
@@ -746,10 +815,15 @@ pub fn player_set_anime4k_enabled(
     state: State<DesktopState>,
     enabled: bool,
     quality: Option<String>,
+    mode: Option<String>,
 ) -> Result<(), String> {
     let commands: Vec<Vec<String>> = if enabled {
-        let chain_path = resolve_anime4k_chain(Some(&app), quality.as_deref().unwrap_or("anime4k_m"))
-            .ok_or_else(|| "Anime4K shader chain not found".to_string())?;
+        let chain_path = resolve_anime4k_chain(
+            Some(&app),
+            quality.as_deref().unwrap_or("anime4k_m"),
+            mode.as_deref().unwrap_or("a"),
+        )
+        .ok_or_else(|| "Anime4K shader chain not found".to_string())?;
         vec![
             vec!["change-list".to_string(), "glsl-shaders".to_string(), "set".to_string(), chain_path],
             vec!["set".to_string(), "scale".to_string(), "ewa_lanczossharp".to_string()],
@@ -790,6 +864,74 @@ pub fn player_command(state: State<DesktopState>, command: String) -> Result<(),
         Ok(None) => Err("player renderer is not initialized".to_string()),
         Err(e) => Err(e),
     }
+}
+
+fn selected_external_subtitle_source(renderer: &mpv_render::MpvRenderer) -> Option<String> {
+    let count = renderer.query_property("track-list/count")?.parse::<usize>().ok()?;
+    for index in 0..count {
+        if renderer.query_property(&format!("track-list/{index}/type")).as_deref() != Some("sub")
+            || renderer.query_property(&format!("track-list/{index}/selected")).as_deref() != Some("yes")
+        {
+            continue;
+        }
+        if let Some(source) = renderer.query_property(&format!("track-list/{index}/external-filename")) {
+            if !source.trim().is_empty() {
+                return Some(source);
+            }
+        }
+    }
+    None
+}
+
+async fn load_subtitle_text(source: &str) -> Result<String, String> {
+    if source.starts_with("http://") || source.starts_with("https://") {
+        return reqwest::get(source).await.map_err(|error| error.to_string())?.text().await.map_err(|error| error.to_string());
+    }
+    let path = source.strip_prefix("file://").unwrap_or(source);
+    std::fs::read_to_string(path).map_err(|error| error.to_string())
+}
+
+fn speech_intervals_from_media(source: &str, analysis_seconds: f64) -> Result<Vec<Value>, String> {
+    let output = Command::new("ffmpeg")
+        .args(["-hide_banner", "-nostats", "-t", &analysis_seconds.to_string(), "-i", source, "-map", "0:a:0", "-af", "silencedetect=n=-35dB:d=0.2", "-f", "null", "-"])
+        .output()
+        .map_err(|error| format!("could not run ffmpeg: {error}"))?;
+    let log = String::from_utf8_lossy(&output.stderr);
+    let mut speech_start = 0.0;
+    let mut intervals = Vec::new();
+    for line in log.lines() {
+        if let Some(value) = line.split("silence_start:").nth(1).and_then(|value| value.trim().parse::<f64>().ok()) {
+            if value - speech_start >= 0.2 {
+                intervals.push(json!({ "start": speech_start, "end": value }));
+            }
+        }
+        if let Some(value) = line.split("silence_end:").nth(1).and_then(|value| value.trim().split_whitespace().next()?.parse::<f64>().ok()) {
+            speech_start = value;
+        }
+    }
+    if analysis_seconds - speech_start >= 0.2 {
+        intervals.push(json!({ "start": speech_start, "end": analysis_seconds }));
+    }
+    if intervals.is_empty() {
+        return Err("no speech activity could be detected".to_string());
+    }
+    Ok(intervals)
+}
+
+#[tauri::command]
+pub async fn player_auto_sync_subtitles(state: State<'_, DesktopState>) -> Result<Value, String> {
+    let (media_source, subtitle_source, duration) = with_renderer_retry(&state, 60, |renderer| {
+        Ok((renderer.query_property("path"), selected_external_subtitle_source(renderer), renderer.query_property("duration")))
+    })?.ok_or_else(|| "player renderer is not initialized".to_string())?;
+    let media_source = media_source.ok_or_else(|| "media source is unavailable".to_string())?;
+    let subtitle_source = subtitle_source.ok_or_else(|| "automatic sync requires an external subtitle track".to_string())?;
+    let subtitle_text = load_subtitle_text(&subtitle_source).await?;
+    let analysis_seconds = duration.and_then(|value| value.parse::<f64>().ok()).filter(|value| *value > 0.0).unwrap_or(600.0).min(600.0);
+    let speech_intervals = tauri::async_runtime::spawn_blocking(move || speech_intervals_from_media(&media_source, analysis_seconds)).await.map_err(|error| error.to_string())??;
+    let request = json!({ "subtitleText": subtitle_text, "speechIntervals": speech_intervals });
+    FluxaCore::subtitle_sync_estimate_json(&request.to_string())
+        .and_then(|result| serde_json::from_str(&result).ok())
+        .ok_or_else(|| "could not determine a reliable subtitle delay".to_string())
 }
 
 #[tauri::command]

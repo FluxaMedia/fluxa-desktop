@@ -27,6 +27,7 @@ import {
   Settings,
   Share2,
   SkipForward,
+  Sparkles,
   Volume1,
   Volume2,
   VolumeOff,
@@ -56,7 +57,9 @@ import { comboFromEvent, findActionForCombo, formatCombo, loadShortcutOverrides,
 type Chapter = { title: string; startMs: number };
 type SkipSegment = { type: string; startTime: number; endTime: number };
 type ActiveSkip = { label: string; startMs: number; endMs: number };
-type FeedbackFlash = { icon: 'play' | 'pause' | 'seekBack' | 'seekFwd' | 'speed' | 'abLoop' | 'screenshot' | 'subDelay' | 'volume'; label: string };
+type FeedbackFlash = { icon: 'play' | 'pause' | 'seekBack' | 'seekFwd' | 'speed' | 'abLoop' | 'screenshot' | 'subDelay' | 'volume' | 'anime4k'; label: string };
+
+const ANIME4K_MODES = ['a', 'b', 'c', 'aa', 'bb', 'ca'] as const;
 
 function fmtTime(s: number): string {
   if (!isFinite(s) || s < 0) return '0:00';
@@ -195,6 +198,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const introDbSubmitEnabled = prefs?.introDbSubmitEnabled === true;
   const introDbApiKey = typeof prefs?.introDbApiKey === 'string' ? prefs.introDbApiKey : '';
   const [anime4kEnabled, setAnime4kEnabledState] = useState(false);
+  const [anime4kMode, setAnime4kMode] = useState(() => String(prefs?.animeUpscalingModePreset ?? 'a'));
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     void invoke<boolean>('player_get_anime4k_enabled').then(setAnime4kEnabledState).catch(() => undefined);
@@ -233,6 +237,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const cycleAbLoopRef = useRef<() => void>(() => {});
   const openCastPopoverRef = useRef<() => Promise<void>>(async () => {});
   const takeScreenshotRef = useRef<() => Promise<void>>(async () => {});
+  const cycleAnime4kModeRef = useRef<(direction: 1 | -1) => void>(() => {});
   const [showStats, setShowStats] = useState(false);
   const [statsSnap, setStatsSnap] = useState<EmbeddedMpvStatus | null>(null);
   const [torrentStatsSnap, setTorrentStatsSnap] = useState<TorrentStats | null>(null);
@@ -957,6 +962,14 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           flashFeedback('seekFwd', '100%');
           sendCmd('seek 100 absolute-percent');
           break;
+        case 'player_anime4k_mode_next':
+          e.preventDefault();
+          cycleAnime4kModeRef.current(1);
+          break;
+        case 'player_anime4k_mode_prev':
+          e.preventDefault();
+          cycleAnime4kModeRef.current(-1);
+          break;
         default:
           break;
       }
@@ -1073,7 +1086,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     setTrackPopover(null);
   }, []);
 
-  const setSubtitlePref = useCallback(<K extends string>(key: K, value: string) => {
+  const setSubtitlePref = useCallback(<K extends string>(key: K, value: string | boolean) => {
     void onDispatch?.(JSON.stringify({ type: 'settingsChanged', key, value }));
   }, [onDispatch]);
 
@@ -1082,13 +1095,45 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     invoke('player_set_anime4k_enabled', {
       enabled,
       quality: String(prefs?.animeUpscalingQuality ?? 'anime4k_m'),
+      mode: anime4kMode,
     }).catch(() => setAnime4kEnabledState(!enabled));
-  }, [prefs]);
+  }, [prefs, anime4kMode]);
+
+  const cycleAnime4kMode = useCallback((direction: 1 | -1) => {
+    if (!anime4kEnabled) return;
+    setAnime4kMode((current) => {
+      const index = ANIME4K_MODES.indexOf(current as typeof ANIME4K_MODES[number]);
+      const nextIndex = (index === -1 ? 0 : index + direction + ANIME4K_MODES.length) % ANIME4K_MODES.length;
+      const next = ANIME4K_MODES[nextIndex];
+      invoke('player_set_anime4k_enabled', {
+        enabled: true,
+        quality: String(prefs?.animeUpscalingQuality ?? 'anime4k_m'),
+        mode: next,
+      }).catch(() => undefined);
+      void setSubtitlePref('animeUpscalingModePreset', next);
+      flashFeedback('anime4k', t(`player.anime4k_mode_${next}`));
+      return next;
+    });
+  }, [anime4kEnabled, prefs, setSubtitlePref, flashFeedback]);
 
   const [subtitleDelay, setSubtitleDelayState] = useState(0);
+  const [autoSyncingSubtitles, setAutoSyncingSubtitles] = useState(false);
   const [subtitleFont, setSubtitleFontState] = useState(() => String(prefs?.subtitleFont ?? 'default'));
   const [subtitleSize, setSubtitleSizeState] = useState(() => Number(prefs?.subtitleSize ?? 100) || 100);
   const [subtitleColor, setSubtitleColorState] = useState(() => String(prefs?.subtitleColor ?? '#FFFFFF'));
+  const [subtitleTextOpacity, setSubtitleTextOpacity] = useState(() => String(prefs?.subtitleTextOpacity ?? '1.0'));
+  const [subtitleBackgroundColor, setSubtitleBackgroundColor] = useState(() => String(prefs?.subtitleBackgroundColor ?? '#000000'));
+  const [subtitleBackgroundOpacity, setSubtitleBackgroundOpacity] = useState(() => String(prefs?.subtitleBackgroundOpacity ?? '0.5'));
+  const [subtitleOutlineColor, setSubtitleOutlineColor] = useState(() => String(prefs?.subtitleOutlineColor ?? '#000000'));
+  const [subtitleOutlineOpacity, setSubtitleOutlineOpacity] = useState(() => String(prefs?.subtitleOutlineOpacity ?? '1.0'));
+  const [subtitleForceStyle, setSubtitleForceStyle] = useState(() => prefs?.subtitleForceStyle === true);
+  const [subtitleCharacterEdge, setSubtitleCharacterEdge] = useState(() => String(prefs?.subtitleCharacterEdge ?? 'uniform'));
+  const [subtitleShadow, setSubtitleShadow] = useState(() => prefs?.subtitleShadow === true);
+
+  const mpvColor = useCallback((color: string, opacity: string) => {
+    const alpha = Math.round(Math.max(0, Math.min(1, Number(opacity) || 0)) * 255).toString(16).padStart(2, '0').toUpperCase();
+    return `#${alpha}${color.replace(/^#/, '')}`;
+  }, []);
 
   const adjustSubtitleDelay = useCallback((delta: number) => {
     setSubtitleDelayState((prev) => {
@@ -1103,6 +1148,22 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     setSubtitleDelayState(0);
   }, []);
 
+  const autoSyncSubtitles = useCallback(async () => {
+    if (autoSyncingSubtitles) return;
+    setAutoSyncingSubtitles(true);
+    try {
+      const result = await invoke<{ delaySeconds: number }>('player_auto_sync_subtitles');
+      const delay = Math.round(result.delaySeconds * 10) / 10;
+      sendCmd(`set sub-delay ${delay.toFixed(3)}`);
+      setSubtitleDelayState(delay);
+      flashFeedback('subDelay', `${delay > 0 ? '+' : ''}${delay.toFixed(1)}s`);
+    } catch {
+      flashFeedback('subDelay', t('player.subtitle_auto_sync_failed'));
+    } finally {
+      setAutoSyncingSubtitles(false);
+    }
+  }, [autoSyncingSubtitles, flashFeedback]);
+
   const chooseSubtitleFont = useCallback((font: string) => {
     sendCmd(`set sub-font "${font === 'default' ? 'sans-serif' : font}"`);
     setSubtitleFontState(font);
@@ -1116,10 +1177,64 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   }, [setSubtitlePref]);
 
   const chooseSubtitleColor = useCallback((color: string) => {
-    sendCmd(`set sub-color "${color}"`);
+    sendCmd(`set sub-color "${mpvColor(color, subtitleTextOpacity)}"`);
     setSubtitleColorState(color);
     setSubtitlePref('subtitleColor', color);
-  }, [setSubtitlePref]);
+  }, [mpvColor, setSubtitlePref, subtitleTextOpacity]);
+
+  const chooseSubtitleStyle = useCallback((key: 'subtitleTextOpacity' | 'subtitleBackgroundColor' | 'subtitleBackgroundOpacity' | 'subtitleOutlineColor' | 'subtitleOutlineOpacity' | 'subtitleForceStyle' | 'subtitleCharacterEdge' | 'subtitleShadow', value: string | boolean) => {
+    if (key === 'subtitleTextOpacity') {
+      const opacity = String(value);
+      setSubtitleTextOpacity(opacity);
+      sendCmd(`set sub-color "${mpvColor(subtitleColor, opacity)}"`);
+    } else if (key === 'subtitleBackgroundColor') {
+      const color = String(value);
+      setSubtitleBackgroundColor(color);
+      sendCmd(`set sub-back-color "${mpvColor(color, subtitleBackgroundOpacity)}"`);
+    } else if (key === 'subtitleBackgroundOpacity') {
+      const opacity = String(value);
+      setSubtitleBackgroundOpacity(opacity);
+      sendCmd(`set sub-back-color "${mpvColor(subtitleBackgroundColor, opacity)}"`);
+    } else if (key === 'subtitleOutlineColor') {
+      const color = String(value);
+      setSubtitleOutlineColor(color);
+      sendCmd(`set sub-border-color "${mpvColor(color, subtitleOutlineOpacity)}"`);
+    } else if (key === 'subtitleOutlineOpacity') {
+      const opacity = String(value);
+      setSubtitleOutlineOpacity(opacity);
+      sendCmd(`set sub-border-color "${mpvColor(subtitleOutlineColor, opacity)}"`);
+    } else if (key === 'subtitleForceStyle') {
+      const enabled = value === true;
+      setSubtitleForceStyle(enabled);
+      sendCmd(`set sub-ass-override ${enabled ? 'force' : 'no'}`);
+    } else if (key === 'subtitleCharacterEdge') {
+      const edge = String(value);
+      setSubtitleCharacterEdge(edge);
+      if (edge === 'none') {
+        sendCmd('set sub-border-size 0');
+        sendCmd('set sub-shadow-offset 0');
+      } else if (edge === 'raised') {
+        sendCmd('set sub-border-size 1.5');
+        sendCmd('set sub-shadow-offset -1');
+      } else if (edge === 'depressed') {
+        sendCmd('set sub-border-size 1.5');
+        sendCmd('set sub-shadow-offset 1');
+      } else if (edge === 'drop-shadow') {
+        sendCmd('set sub-border-size 0');
+        sendCmd('set sub-shadow-offset 3');
+        sendCmd('set sub-shadow-color "#80000000"');
+      } else {
+        sendCmd('set sub-border-size 3');
+        sendCmd('set sub-shadow-offset 0');
+      }
+    } else {
+      const enabled = value === true;
+      setSubtitleShadow(enabled);
+      sendCmd(`set sub-shadow-offset ${enabled ? '3' : '0'}`);
+      if (enabled) sendCmd('set sub-shadow-color "#80000000"');
+    }
+    setSubtitlePref(key, value);
+  }, [mpvColor, setSubtitlePref, subtitleBackgroundColor, subtitleBackgroundOpacity, subtitleColor, subtitleOutlineColor, subtitleOutlineOpacity]);
 
   const openCastPopover = useCallback(async () => {
     resetActivity();
@@ -1190,6 +1305,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     }
   }, [resetActivity, flashFeedback, title]);
   useEffect(() => { takeScreenshotRef.current = takeScreenshot; }, [takeScreenshot]);
+  useEffect(() => { cycleAnime4kModeRef.current = cycleAnime4kMode; }, [cycleAnime4kMode]);
 
   const copyTimestamp = useCallback(async () => {
     const text = fmtTime(posRef.current);
@@ -1500,6 +1616,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           {feedback.icon === 'abLoop' && <Repeat size={20} />}
           {feedback.icon === 'screenshot' && <Camera size={20} />}
           {feedback.icon === 'subDelay' && <Captions size={20} />}
+          {feedback.icon === 'anime4k' && <Sparkles size={20} />}
           {feedback.icon === 'volume' && (
             muted ? <VolumeOff size={20} /> : volumeLevel < 50 ? <Volume1 size={20} /> : <Volume2 size={20} />
           )}
@@ -1566,11 +1683,22 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           subtitleFont={subtitleFont}
           subtitleSize={subtitleSize}
           subtitleColor={subtitleColor}
+          subtitleTextOpacity={subtitleTextOpacity}
+          subtitleBackgroundColor={subtitleBackgroundColor}
+          subtitleBackgroundOpacity={subtitleBackgroundOpacity}
+          subtitleOutlineColor={subtitleOutlineColor}
+          subtitleOutlineOpacity={subtitleOutlineOpacity}
+          subtitleForceStyle={subtitleForceStyle}
+          subtitleCharacterEdge={subtitleCharacterEdge}
+          subtitleShadow={subtitleShadow}
           onAdjustSubtitleDelay={adjustSubtitleDelay}
           onResetSubtitleDelay={resetSubtitleDelay}
+          autoSyncing={autoSyncingSubtitles}
+          onAutoSyncSubtitles={() => { void autoSyncSubtitles(); }}
           onChooseSubtitleFont={chooseSubtitleFont}
           onChooseSubtitleSize={chooseSubtitleSize}
           onChooseSubtitleColor={chooseSubtitleColor}
+          onChooseSubtitleStyle={chooseSubtitleStyle}
         />
       )}
 

@@ -110,6 +110,7 @@ export function Popover({
       className="ui-popover"
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
+      onWheel={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
       style={{
         ...POPOVER_SURFACE,

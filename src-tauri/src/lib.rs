@@ -741,6 +741,7 @@ pub fn run() {
             player_load,
             player_render_frame,
             player_command,
+            player_auto_sync_subtitles,
             player_set_anime4k_enabled,
             player_get_anime4k_enabled,
             player_show_loading,

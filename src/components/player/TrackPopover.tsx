@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
-import { Check, ChevronDown, ChevronLeft, Settings } from 'lucide-react';
+import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { Check, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { t } from '../../i18n';
 import type { PlayerTrackOption } from '../../core/mpvPlayer';
 import { Popover } from '../ui/Popover';
@@ -7,8 +7,10 @@ import { BUILTIN_SUBTITLE_FONTS } from '../../core/subtitleFonts';
 import { listCustomFonts } from '../../core/customFonts';
 
 const SUBTITLE_SIZES = [75, 100, 125, 150, 200];
+const SUBTITLE_OPACITIES = ['1.0', '0.75', '0.5', '0.25', '0.0'];
 const SUBTITLE_COLORS: { value: string; labelKey: string }[] = [
   { value: '#FFFFFF', labelKey: 'auto.white' },
+  { value: '#000000', labelKey: 'auto.black' },
   { value: '#FFE45C', labelKey: 'auto.yellow' },
   { value: '#FF5D5D', labelKey: 'auto.red' },
   { value: '#3F7CFF', labelKey: 'auto.blue' },
@@ -106,6 +108,8 @@ function trackSourceLabel(track: PlayerTrackOption): string {
 }
 
 type TrackGroup = { key: string; label: string; tracks: PlayerTrackOption[] };
+type SubtitleStylePage = 'delay' | 'textColor' | 'textOpacity' | 'size' | 'font' | 'characterEdge' | 'outlineColor' | 'outlineOpacity' | 'backgroundColor' | 'backgroundOpacity' | 'forceStyle' | 'shadow';
+const CHARACTER_EDGES = ['none', 'raised', 'depressed', 'uniform', 'drop-shadow'] as const;
 
 function groupTracks(tracks: PlayerTrackOption[]): TrackGroup[] {
   const groups = new Map<string, TrackGroup>();
@@ -136,41 +140,12 @@ const rowBtn: CSSProperties = {
   color: 'rgba(255,255,255,0.7)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left',
 };
 
-function StyleDropdown<T extends string>({ value, options, renderTrigger, renderOption, onChange }: {
-  value: T;
-  options: T[];
-  renderTrigger: (value: T) => ReactNode;
-  renderOption: (value: T) => ReactNode;
-  onChange: (value: T) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const btnRef = useRef<HTMLButtonElement>(null);
+function SubtitleStyleNavigationRow({ label, value, onClick }: { label: string; value: ReactNode; onClick: () => void }) {
   return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '0.375rem', color: '#fff', fontSize: '0.8125rem', padding: '0.4375rem 0.5rem', cursor: 'pointer' }}
-      >
-        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>{renderTrigger(value)}</span>
-        <ChevronDown size={14} style={{ flexShrink: 0, color: 'rgba(255,255,255,0.45)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.14s' }} />
-      </button>
-      <Popover open={open} onClose={() => setOpen(false)} anchorRef={btnRef} placement="bottom-start" matchWidth maxHeight="12rem" padding="0.25rem" zIndex={10001}>
-        {options.map((opt) => (
-          <button
-            key={opt}
-            type="button"
-            className="ui-popover-row"
-            onClick={() => { onChange(opt); setOpen(false); }}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: opt === value ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', borderRadius: '0.375rem', color: opt === value ? '#fff' : 'rgba(255,255,255,0.72)', fontSize: '0.8125rem', padding: '0.4375rem 0.625rem', cursor: 'pointer', textAlign: 'left' }}
-          >
-            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>{renderOption(opt)}</span>
-            {opt === value && <Check size={14} style={{ flexShrink: 0, color: 'var(--primary-accent-color)' }} />}
-          </button>
-        ))}
-      </Popover>
-    </>
+    <button type="button" onClick={onClick} style={{ width: '100%', minHeight: '2.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', background: 'none', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.78)', fontSize: '0.75rem', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+      <span>{label}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', maxWidth: '55%', color: 'rgba(255,255,255,0.72)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}<ChevronRight size={14} style={{ flexShrink: 0, color: 'rgba(255,255,255,0.4)' }} /></span>
+    </button>
   );
 }
 
@@ -188,23 +163,35 @@ interface TrackPopoverProps {
   subtitleFont?: string;
   subtitleSize?: number;
   subtitleColor?: string;
+  subtitleTextOpacity?: string;
+  subtitleBackgroundColor?: string;
+  subtitleBackgroundOpacity?: string;
+  subtitleOutlineColor?: string;
+  subtitleOutlineOpacity?: string;
+  subtitleForceStyle?: boolean;
+  subtitleCharacterEdge?: string;
+  subtitleShadow?: boolean;
   onAdjustSubtitleDelay?: (delta: number) => void;
   onResetSubtitleDelay?: () => void;
+  autoSyncing?: boolean;
+  onAutoSyncSubtitles?: () => void;
   onChooseSubtitleFont?: (font: string) => void;
   onChooseSubtitleSize?: (size: number) => void;
   onChooseSubtitleColor?: (color: string) => void;
+  onChooseSubtitleStyle?: (key: 'subtitleTextOpacity' | 'subtitleBackgroundColor' | 'subtitleBackgroundOpacity' | 'subtitleOutlineColor' | 'subtitleOutlineOpacity' | 'subtitleForceStyle' | 'subtitleCharacterEdge' | 'subtitleShadow', value: string | boolean) => void;
 }
 
 export function TrackPopover({
   type, audioTracks, subTracks, playbackSpeed, anchorRef, onClose,
   onSetSpeed, onSelectTrack, onDisableSubs,
-  subtitleDelay = 0, subtitleFont = 'default', subtitleSize = 100, subtitleColor = '#FFFFFF',
-  onAdjustSubtitleDelay, onResetSubtitleDelay, onChooseSubtitleFont, onChooseSubtitleSize, onChooseSubtitleColor,
+  subtitleDelay = 0, subtitleFont = 'default', subtitleSize = 100, subtitleColor = '#FFFFFF', subtitleTextOpacity = '1.0', subtitleBackgroundColor = '#000000', subtitleBackgroundOpacity = '0.5', subtitleOutlineColor = '#000000', subtitleOutlineOpacity = '1.0', subtitleForceStyle = false, subtitleCharacterEdge = 'uniform', subtitleShadow = false,
+  onAdjustSubtitleDelay, onResetSubtitleDelay, autoSyncing = false, onAutoSyncSubtitles, onChooseSubtitleFont, onChooseSubtitleSize, onChooseSubtitleColor, onChooseSubtitleStyle,
 }: TrackPopoverProps) {
   const [showStyle, setShowStyle] = useState(false);
+  const [stylePage, setStylePage] = useState<SubtitleStylePage | null>(null);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [customFontFamilies, setCustomFontFamilies] = useState<string[]>([]);
-  useEffect(() => { setShowStyle(false); setOpenGroup(null); }, [type]);
+  useEffect(() => { setShowStyle(false); setStylePage(null); setOpenGroup(null); }, [type]);
   useEffect(() => { void listCustomFonts().then((fonts) => setCustomFontFamilies(fonts.map((f) => f.family))); }, []);
   const fontOptions = [...BUILTIN_SUBTITLE_FONTS, ...customFontFamilies];
 
@@ -232,23 +219,35 @@ export function TrackPopover({
       anchorRef={anchorRef}
       placement="top"
       width={type === 'speed' ? 150 : 260}
-      maxHeight="22.5rem"
+      maxHeight="34rem"
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', justifyContent: 'space-between', padding: '0.25rem 0.875rem 0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', minWidth: 0 }}>
-          {activeGroup && !showStyle && (
+          {(activeGroup && !showStyle) || stylePage ? (
             <button
               className="ui-popover-icon"
-              onClick={() => setOpenGroup(null)}
+              onClick={() => stylePage ? setStylePage(null) : setOpenGroup(null)}
               style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: '0.1875rem', display: 'flex' }}
               title={t('player.back')}
             >
               <ChevronLeft size={14} />
             </button>
-          )}
+          ) : null}
           <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.05rem', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {showStyle
-              ? t('player.subtitle_settings')
+              ? stylePage === 'delay' ? t('player.subtitle_delay')
+                : stylePage === 'textColor' ? t('player.subtitle_color')
+                  : stylePage === 'textOpacity' ? t('auto.text_transparency')
+                    : stylePage === 'size' ? t('player.subtitle_size')
+                      : stylePage === 'font' ? t('player.subtitle_font')
+                        : stylePage === 'outlineColor' ? t('settings.subtitle.outline_color')
+                          : stylePage === 'outlineOpacity' ? t('settings.subtitle.outline_opacity')
+                            : stylePage === 'backgroundColor' ? t('auto.background_color')
+                              : stylePage === 'backgroundOpacity' ? t('auto.background_transparency')
+                                : stylePage === 'characterEdge' ? t('player.subtitle_character_edge')
+                                  : stylePage === 'forceStyle' ? t('settings.subtitle_force_style')
+                                  : stylePage === 'shadow' ? t('settings.subtitle_shadow')
+                                    : t('player.subtitle_settings')
               : activeGroup
                 ? activeGroup.label
                 : type === 'audio' ? t('player.audio_title') : type === 'sub' ? t('player.subtitles_title') : t('player.speed_title')}
@@ -257,7 +256,7 @@ export function TrackPopover({
         {type === 'sub' && !activeGroup && (
           <button
             className="ui-popover-icon"
-            onClick={() => setShowStyle((v) => !v)}
+            onClick={() => setShowStyle((v) => { if (v) setStylePage(null); return !v; })}
             style={{ background: 'none', border: 'none', color: showStyle ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: '0.1875rem', display: 'flex', flexShrink: 0 }}
             title={t('player.subtitle_settings')}
           >
@@ -267,44 +266,28 @@ export function TrackPopover({
       </div>
       {type === 'sub' && showStyle ? (
         <div style={{ padding: '0 0.875rem 0.625rem' }}>
-          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_delay')}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-            <button className="ui-popover-chip" onClick={() => onAdjustSubtitleDelay?.(-0.5)} style={styleBtn}>−0.5s</button>
-            <span style={{ color: '#fff', fontSize: '0.8125rem', minWidth: '3.25rem', textAlign: 'center' }}>{subtitleDelay > 0 ? '+' : ''}{subtitleDelay.toFixed(1)}s</span>
-            <button className="ui-popover-chip" onClick={() => onAdjustSubtitleDelay?.(0.5)} style={styleBtn}>+0.5s</button>
-            <button className="ui-popover-chip" onClick={() => onResetSubtitleDelay?.()} style={{ ...styleBtn, marginLeft: 'auto' }}>{t('player.subtitle_reset')}</button>
-          </div>
-          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_font')}</div>
-          <div style={{ marginBottom: '0.75rem' }}>
-            <StyleDropdown
-              value={subtitleFont}
-              options={fontOptions}
-              onChange={(font) => onChooseSubtitleFont?.(font)}
-              renderTrigger={(font) => <span style={{ fontFamily: font === 'default' ? undefined : font }}>{font === 'default' ? t('settings.subtitle_font_default') : font}</span>}
-              renderOption={(font) => <span style={{ fontFamily: font === 'default' ? undefined : font }}>{font === 'default' ? t('settings.subtitle_font_default') : font}</span>}
-            />
-          </div>
-          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_size')}</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '0.75rem' }}>
-            {SUBTITLE_SIZES.map((size) => (
-              <button
-                key={size}
-                className="ui-popover-chip"
-                onClick={() => onChooseSubtitleSize?.(size)}
-                style={{ ...styleBtn, background: subtitleSize === size ? 'rgba(255,255,255,0.16)' : styleBtn.background }}
-              >
-                {size}%
-              </button>
-            ))}
-          </div>
-          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem', marginBottom: '0.375rem' }}>{t('player.subtitle_color')}</div>
-          <StyleDropdown
-            value={subtitleColor}
-            options={SUBTITLE_COLORS.map((c) => c.value)}
-            onChange={(color) => onChooseSubtitleColor?.(color)}
-            renderTrigger={(color) => <ColorOption color={color} />}
-            renderOption={(color) => <ColorOption color={color} />}
-          />
+          {!stylePage ? <>
+            <SubtitleStyleNavigationRow label={t('player.subtitle_delay')} value={`${subtitleDelay > 0 ? '+' : ''}${subtitleDelay.toFixed(1)}s`} onClick={() => setStylePage('delay')} />
+            <SubtitleStyleNavigationRow label={t('player.subtitle_color')} value={<ColorOption color={subtitleColor} />} onClick={() => setStylePage('textColor')} />
+            <SubtitleStyleNavigationRow label={t('auto.text_transparency')} value={`${Math.round(Number(subtitleTextOpacity) * 100)}%`} onClick={() => setStylePage('textOpacity')} />
+            <SubtitleStyleNavigationRow label={t('player.subtitle_size')} value={`${subtitleSize}%`} onClick={() => setStylePage('size')} />
+            <SubtitleStyleNavigationRow label={t('player.subtitle_font')} value={subtitleFont === 'default' ? t('settings.subtitle_font_default') : subtitleFont} onClick={() => setStylePage('font')} />
+            <SubtitleStyleNavigationRow label={t('player.subtitle_character_edge')} value={t(`player.subtitle_edge_${subtitleCharacterEdge.replace('-', '_')}`)} onClick={() => setStylePage('characterEdge')} />
+            <SubtitleStyleNavigationRow label={t('settings.subtitle.outline_color')} value={<ColorOption color={subtitleOutlineColor} />} onClick={() => setStylePage('outlineColor')} />
+            <SubtitleStyleNavigationRow label={t('settings.subtitle.outline_opacity')} value={`${Math.round(Number(subtitleOutlineOpacity) * 100)}%`} onClick={() => setStylePage('outlineOpacity')} />
+            <SubtitleStyleNavigationRow label={t('auto.background_color')} value={<ColorOption color={subtitleBackgroundColor} />} onClick={() => setStylePage('backgroundColor')} />
+            <SubtitleStyleNavigationRow label={t('auto.background_transparency')} value={`${Math.round(Number(subtitleBackgroundOpacity) * 100)}%`} onClick={() => setStylePage('backgroundOpacity')} />
+            <SubtitleStyleNavigationRow label={t('settings.subtitle_force_style')} value={subtitleForceStyle ? t('common.on') : t('common.off')} onClick={() => setStylePage('forceStyle')} />
+            <SubtitleStyleNavigationRow label={t('settings.subtitle_shadow')} value={subtitleShadow ? t('common.on') : t('common.off')} onClick={() => setStylePage('shadow')} />
+          </> : <div style={{ paddingBottom: '0.25rem' }}>
+            {stylePage === 'delay' && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '1rem 0' }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.625rem' }}><button className="ui-popover-chip" onClick={() => onAdjustSubtitleDelay?.(-0.5)} style={styleBtn}>−0.5s</button><span style={{ color: '#fff', fontSize: '0.8125rem', minWidth: '3.25rem', textAlign: 'center' }}>{subtitleDelay > 0 ? '+' : ''}{subtitleDelay.toFixed(1)}s</span><button className="ui-popover-chip" onClick={() => onAdjustSubtitleDelay?.(0.5)} style={styleBtn}>+0.5s</button><button className="ui-popover-chip" onClick={() => onResetSubtitleDelay?.()} style={styleBtn}>{t('player.subtitle_reset')}</button></div><button className="ui-popover-chip" disabled={autoSyncing} onClick={onAutoSyncSubtitles} style={{ ...styleBtn, opacity: autoSyncing ? 0.55 : 1 }}>{autoSyncing ? t('player.subtitle_auto_syncing') : t('player.subtitle_auto_sync')}</button></div>}
+            {stylePage === 'font' && fontOptions.map((font) => <button key={font} className="ui-popover-row" onClick={() => { onChooseSubtitleFont?.(font); setStylePage(null); }} style={{ ...rowBtn, color: font === subtitleFont ? '#fff' : rowBtn.color, fontFamily: font === 'default' ? undefined : font }}><span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{font === subtitleFont && <Check size={14} />}</span>{font === 'default' ? t('settings.subtitle_font_default') : font}</button>)}
+            {stylePage === 'size' && SUBTITLE_SIZES.map((size) => <button key={size} className="ui-popover-row" onClick={() => { onChooseSubtitleSize?.(size); setStylePage(null); }} style={{ ...rowBtn, color: size === subtitleSize ? '#fff' : rowBtn.color }}><span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{size === subtitleSize && <Check size={14} />}</span>{size}%</button>)}
+            {stylePage === 'characterEdge' && CHARACTER_EDGES.map((edge) => <button key={edge} className="ui-popover-row" onClick={() => { onChooseSubtitleStyle?.('subtitleCharacterEdge', edge); setStylePage(null); }} style={{ ...rowBtn, color: edge === subtitleCharacterEdge ? '#fff' : rowBtn.color }}><span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{edge === subtitleCharacterEdge && <Check size={14} />}</span>{t(`player.subtitle_edge_${edge.replace('-', '_')}`)}</button>)}
+            {(['textColor', 'outlineColor', 'backgroundColor'] as const).includes(stylePage as 'textColor' | 'outlineColor' | 'backgroundColor') && SUBTITLE_COLORS.map(({ value }) => <button key={value} className="ui-popover-row" onClick={() => { if (stylePage === 'textColor') onChooseSubtitleColor?.(value); else onChooseSubtitleStyle?.(stylePage === 'outlineColor' ? 'subtitleOutlineColor' : 'subtitleBackgroundColor', value); setStylePage(null); }} style={{ ...rowBtn, color: (stylePage === 'textColor' ? subtitleColor : stylePage === 'outlineColor' ? subtitleOutlineColor : subtitleBackgroundColor) === value ? '#fff' : rowBtn.color }}><span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{(stylePage === 'textColor' ? subtitleColor : stylePage === 'outlineColor' ? subtitleOutlineColor : subtitleBackgroundColor) === value && <Check size={14} />}</span><ColorOption color={value} /></button>)}
+            {(['textOpacity', 'outlineOpacity', 'backgroundOpacity'] as const).includes(stylePage as 'textOpacity' | 'outlineOpacity' | 'backgroundOpacity') && SUBTITLE_OPACITIES.map((opacity) => <button key={opacity} className="ui-popover-row" onClick={() => { onChooseSubtitleStyle?.(stylePage === 'textOpacity' ? 'subtitleTextOpacity' : stylePage === 'outlineOpacity' ? 'subtitleOutlineOpacity' : 'subtitleBackgroundOpacity', opacity); setStylePage(null); }} style={{ ...rowBtn, color: (stylePage === 'textOpacity' ? subtitleTextOpacity : stylePage === 'outlineOpacity' ? subtitleOutlineOpacity : subtitleBackgroundOpacity) === opacity ? '#fff' : rowBtn.color }}><span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{(stylePage === 'textOpacity' ? subtitleTextOpacity : stylePage === 'outlineOpacity' ? subtitleOutlineOpacity : subtitleBackgroundOpacity) === opacity && <Check size={14} />}</span>{Math.round(Number(opacity) * 100)}%</button>)}
+            {(['forceStyle', 'shadow'] as const).includes(stylePage as 'forceStyle' | 'shadow') && [true, false].map((enabled) => <button key={String(enabled)} className="ui-popover-row" onClick={() => { onChooseSubtitleStyle?.(stylePage === 'forceStyle' ? 'subtitleForceStyle' : 'subtitleShadow', enabled); setStylePage(null); }} style={{ ...rowBtn, color: (stylePage === 'forceStyle' ? subtitleForceStyle : subtitleShadow) === enabled ? '#fff' : rowBtn.color }}><span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{(stylePage === 'forceStyle' ? subtitleForceStyle : subtitleShadow) === enabled && <Check size={14} />}</span>{enabled ? t('common.on') : t('common.off')}</button>)}
+          </div>}
         </div>
       ) : type === 'speed' ? (
         [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((s) => (

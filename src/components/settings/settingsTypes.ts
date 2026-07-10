@@ -54,6 +54,7 @@ export interface Prefs {
   mpvCustomOptions: string;
   animeUpscalingMode: string;
   animeUpscalingQuality: string;
+  animeUpscalingModePreset: string;
   frameInterpolationMode: string;
   streamSourceSelectionMode: string;
   streamSourceRegexPattern: string;
@@ -90,6 +91,7 @@ export interface Prefs {
   subtitleOutlineColor: string;
   subtitleOutlineOpacity: string;
   subtitleForceStyle: boolean;
+  subtitleCharacterEdge: string;
   subtitleFont: string;
   downloadSourceSelectionMode: string;
   downloadSourceRegexPattern: string;
@@ -180,6 +182,7 @@ export const DEFAULT_PREFS: Prefs = {
   mpvCustomOptions: '',
   animeUpscalingMode: 'off',
   animeUpscalingQuality: 'anime4k_m',
+  animeUpscalingModePreset: 'a',
   frameInterpolationMode: 'off',
   streamSourceSelectionMode: 'manual',
   streamSourceRegexPattern: '',
@@ -216,6 +219,7 @@ export const DEFAULT_PREFS: Prefs = {
   subtitleOutlineColor: '#000000',
   subtitleOutlineOpacity: '1.0',
   subtitleForceStyle: false,
+  subtitleCharacterEdge: 'uniform',
   subtitleFont: 'default',
   downloadSourceSelectionMode: 'first',
   downloadSourceRegexPattern: '',
