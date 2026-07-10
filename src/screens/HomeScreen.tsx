@@ -20,6 +20,8 @@ interface Props {
   onNavigateDetail: (meta: Meta) => void;
   onPlay: (meta: Meta) => void;
   onResume: (meta: Meta) => void;
+  onStartOver: (meta: Meta) => void;
+  onPlayManually: (meta: Meta) => void;
   onOpenSettings?: () => void;
   // Home stays mounted while hidden (it's the heaviest screen — re-mounting it on every
   // visit was costing a visible stutter), so this tells HeroSection to pause its
@@ -64,7 +66,7 @@ async function loadFolderItems(folderCategory: HomeCategory): Promise<FolderItem
   };
 }
 
-export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, onOpenSettings, isActive, onScrolledChange, resetKey }: Props) {
+export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, onStartOver, onPlayManually, onOpenSettings, isActive, onScrolledChange, resetKey }: Props) {
   const home = state.home;
   const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[]; groups?: Array<{ type: string; items: Meta[] }> } | null>(null);
   const [folderLoading, setFolderLoading] = useState(false);
@@ -323,6 +325,9 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
             remainingFormat={cwRemainingFormat}
             progressDirection={cwProgressDirection}
             onItemClick={onResume}
+            onNavigateDetail={onNavigateDetail}
+            onStartOver={onStartOver}
+            onPlayManually={onPlayManually}
             onDispatch={onDispatch}
           />
         )}
@@ -356,6 +361,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
               addonIcon={cat.addonName ? addonIconByName.get(cat.addonName) : undefined}
               onNearEnd={nearEndCallbacks.get(cat.id)}
               isLoadingMore={loadingMoreCategoryId === cat.id}
+              onDispatch={onDispatch}
             />
           )
         )}
@@ -370,6 +376,8 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   prev.onNavigateDetail === next.onNavigateDetail &&
   prev.onPlay === next.onPlay &&
   prev.onResume === next.onResume &&
+  prev.onStartOver === next.onStartOver &&
+  prev.onPlayManually === next.onPlayManually &&
   prev.onOpenSettings === next.onOpenSettings &&
   prev.isActive === next.isActive &&
   prev.resetKey === next.resetKey,

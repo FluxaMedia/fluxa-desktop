@@ -81,6 +81,9 @@ export const ThisWeekRow = React.memo(function ThisWeekRow({
             dismissing={false}
             hideActions
             onClick={onItemClick}
+            onGoToDetails={onItemClick}
+            onStartOver={noop}
+            onPlayManually={noop}
             onMarkWatched={noop}
             onDrop={noop}
             onDismissAnimationEnd={noop}

@@ -17,6 +17,9 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
   remainingFormat,
   progressDirection,
   onItemClick,
+  onNavigateDetail,
+  onStartOver,
+  onPlayManually,
   onDispatch,
 }: {
   items: Meta[];
@@ -25,6 +28,9 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
   remainingFormat: string;
   progressDirection: string;
   onItemClick: (m: Meta) => void;
+  onNavigateDetail: (m: Meta) => void;
+  onStartOver: (m: Meta) => void;
+  onPlayManually: (m: Meta) => void;
   onDispatch: (actionJson: string) => void | Promise<void>;
 }) {
   const isHorizontal = cwLayout !== 'vertical';
@@ -148,6 +154,9 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
             dismissing={dismissingIds.has(meta.id)}
             pending={pendingIds.has(meta.id)}
             onClick={onItemClick}
+            onGoToDetails={onNavigateDetail}
+            onStartOver={onStartOver}
+            onPlayManually={onPlayManually}
             onMarkWatched={(item) => {
               markWatchedVideoIds.current.set(item.id, (item as unknown as { lastVideoId?: string | null }).lastVideoId ?? null);
               startDismiss(item, () => void markContinueWatchingItemWatched(item, onDispatch));
@@ -169,7 +178,9 @@ export const ContinueWatchingRow = React.memo(function ContinueWatchingRow({
 }, (prev, next) => {
   if (prev.cwLayout !== next.cwLayout || prev.artworkPreference !== next.artworkPreference ||
       prev.remainingFormat !== next.remainingFormat || prev.progressDirection !== next.progressDirection ||
-      prev.onItemClick !== next.onItemClick || prev.onDispatch !== next.onDispatch) return false;
+      prev.onItemClick !== next.onItemClick || prev.onDispatch !== next.onDispatch ||
+      prev.onNavigateDetail !== next.onNavigateDetail || prev.onStartOver !== next.onStartOver ||
+      prev.onPlayManually !== next.onPlayManually) return false;
   if (prev.items === next.items) return true;
   if (prev.items.length !== next.items.length) return false;
   return prev.items.every((item, i) => {

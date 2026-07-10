@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, X, Info, Play, RotateCcw, Trash2 } from 'lucide-react';
 import type { LibraryItem, Meta } from '../core/types';
 import {
   formatRemaining,
@@ -7,6 +7,7 @@ import {
   formatReleaseCountdown,
   formatAirDay,
 } from '../core/continueWatchingUtils';
+import { ContextMenu } from './ui/ContextMenu';
 import { t } from '../i18n';
 
 const MAX_ARTWORK_RETRIES = 2;
@@ -48,6 +49,9 @@ export function ContinueCard({
   pending,
   hideActions,
   onClick,
+  onGoToDetails,
+  onStartOver,
+  onPlayManually,
   onMarkWatched,
   onDrop,
   onDismissAnimationEnd,
@@ -62,11 +66,15 @@ export function ContinueCard({
   pending?: boolean;
   hideActions?: boolean;
   onClick: (m: Meta) => void;
+  onGoToDetails: (m: Meta) => void;
+  onStartOver: (m: Meta) => void;
+  onPlayManually: (m: Meta) => void;
   onMarkWatched: (m: Meta) => void;
   onDrop: (m: Meta) => void;
   onDismissAnimationEnd: (m: Meta) => void;
 }) {
   const [hovered, setHovered] = React.useState(false);
+  const [menuPoint, setMenuPoint] = React.useState<{ x: number; y: number } | null>(null);
   const [imgError, setImgError] = React.useState(false);
   const [imgLoaded, setImgLoaded] = React.useState(false);
   const [artworkOverride, setArtworkOverride] = React.useState<string | null>(null);
@@ -182,6 +190,11 @@ export function ContinueCard({
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!dismissing && !pending) onClick(meta); }
       }}
+      onContextMenu={(e) => {
+        if (dismissing || pending || hideActions) return;
+        e.preventDefault();
+        setMenuPoint({ x: e.clientX, y: e.clientY });
+      }}
       onTransitionEnd={(e) => {
         if (dismissing && e.propertyName === 'opacity') onDismissAnimationEnd(meta);
       }}
@@ -243,6 +256,16 @@ export function ContinueCard({
         </div>
         )}
       </div>
+      <ContextMenu
+        point={menuPoint}
+        onClose={() => setMenuPoint(null)}
+        items={[
+          { icon: <Info size={15} />, label: t('home.view_details'), onSelect: () => onGoToDetails(meta) },
+          { icon: <Play size={15} />, label: t('home.play_manually'), onSelect: () => onPlayManually(meta) },
+          { icon: <RotateCcw size={15} />, label: t('detail.resume_dialog_start_over'), onSelect: () => onStartOver(meta) },
+          { icon: <Trash2 size={15} />, label: t('common.remove'), onSelect: () => onDrop(meta), danger: true },
+        ]}
+      />
     </div>
   );
 }

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { Plus, Check } from 'lucide-react';
 import { t } from '../i18n';
 import type { Meta } from '../core/types';
 import type { PosterPrefs } from '../core/posterPrefs';
 import { rpdbPosterUrl } from '../core/rpdb';
 import { cardImageUrl } from '../core/imageSizes';
+import { ContextMenu } from './ui/ContextMenu';
 
 interface Props {
   meta: Meta;
@@ -15,6 +17,7 @@ interface Props {
   topTenRank?: number;
   addonIcon?: string;
   onClick?: (meta: Meta) => void;
+  onDispatch?: (actionJson: string) => void | Promise<void>;
 }
 
 export const MovieCard = React.memo(function MovieCard({
@@ -27,10 +30,12 @@ export const MovieCard = React.memo(function MovieCard({
   topTenRank,
   addonIcon,
   onClick,
+  onDispatch,
 }: Props) {
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [rpdbFailed, setRpdbFailed] = useState(false);
+  const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
 
   const anyMeta = meta as unknown as Record<string, unknown>;
   const isWatched = anyMeta.watched === true || anyMeta.notWatched === false;
@@ -105,6 +110,11 @@ export const MovieCard = React.memo(function MovieCard({
             e.preventDefault();
             onClick?.(meta);
           }
+        }}
+        onContextMenu={(e) => {
+          if (!onDispatch) return;
+          e.preventDefault();
+          setMenuPoint({ x: e.clientX, y: e.clientY });
         }}
       >
         {/* Poster image */}
@@ -282,13 +292,31 @@ export const MovieCard = React.memo(function MovieCard({
           )}
         </div>
       )}
+      {onDispatch && (
+        <ContextMenu
+          point={menuPoint}
+          onClose={() => setMenuPoint(null)}
+          items={[
+            {
+              icon: <Plus size={15} />,
+              label: t('common.add_to_library'),
+              onSelect: () => onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: meta })),
+            },
+            {
+              icon: <Check size={15} />,
+              label: t('detail.mark_watched'),
+              onSelect: () => onDispatch(JSON.stringify({ type: 'toggleLibraryStatusRequested', list: 'completed', item: meta })),
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }, (prev, next) => {
   if (prev.width !== next.width || prev.height !== next.height || prev.radius !== next.radius) return false;
   if (prev.hideTitle !== next.hideTitle || prev.layout !== next.layout) return false;
   if (prev.topTenRank !== next.topTenRank || prev.addonIcon !== next.addonIcon) return false;
-  if (prev.onClick !== next.onClick) return false;
+  if (prev.onClick !== next.onClick || prev.onDispatch !== next.onDispatch) return false;
   if (prev.meta === next.meta) return true;
   const pm = prev.meta as unknown as Record<string, unknown>;
   const nm = next.meta as unknown as Record<string, unknown>;

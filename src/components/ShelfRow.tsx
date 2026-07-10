@@ -22,6 +22,7 @@ interface Props {
   addonIcon?: string;
   onNearEnd?: () => void;
   isLoadingMore?: boolean;
+  onDispatch?: (actionJson: string) => void | Promise<void>;
 }
 
 export const ShelfRow = React.memo(function ShelfRow({
@@ -37,6 +38,7 @@ export const ShelfRow = React.memo(function ShelfRow({
   addonIcon,
   onNearEnd,
   isLoadingMore,
+  onDispatch,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragScroll = useDragScroll(scrollRef);
@@ -112,6 +114,7 @@ export const ShelfRow = React.memo(function ShelfRow({
                   topTenRank={topTenEnabled && idx < 10 ? idx + 1 : undefined}
                   addonIcon={addonIcon}
                   onClick={onItemClick}
+                  onDispatch={onDispatch}
                 />
               ))}
           {!isLoading && isLoadingMore && (
@@ -136,6 +139,7 @@ export const ShelfRow = React.memo(function ShelfRow({
   if (prev.cardWidth !== next.cardWidth || prev.cardHeight !== next.cardHeight) return false;
   if (prev.onItemClick !== next.onItemClick || prev.onViewAll !== next.onViewAll) return false;
   if (prev.onNearEnd !== next.onNearEnd || prev.isLoadingMore !== next.isLoadingMore) return false;
+  if (prev.onDispatch !== next.onDispatch) return false;
   if (prev.items === next.items) return true;
   if (prev.items.length !== next.items.length) return false;
   return prev.items.every((item, i) => item.id === next.items[i]?.id);
