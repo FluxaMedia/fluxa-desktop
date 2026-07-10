@@ -242,6 +242,7 @@ const FolderTileCard = React.memo(function FolderTileCard({
             alt={folder.name}
             loading="lazy"
             decoding="async"
+            draggable={false}
             style={collStyles.img}
             onError={handleStaticError}
           />
@@ -251,6 +252,7 @@ const FolderTileCard = React.memo(function FolderTileCard({
             src={folder.focusGifUrl}
             alt=""
             loading="lazy"
+            draggable={false}
             style={{ ...collStyles.img, position: 'absolute', inset: 0 }}
             onError={() => setGifError(true)}
           />

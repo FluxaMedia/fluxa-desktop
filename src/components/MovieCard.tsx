@@ -131,6 +131,7 @@ export const MovieCard = React.memo(function MovieCard({
                 alt={meta.name}
                 loading="lazy"
                 decoding="async"
+                draggable={false}
                 style={{
                   width: '100%',
                   height: '100%',

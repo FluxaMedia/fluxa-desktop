@@ -201,7 +201,7 @@ export function ContinueCard({
     >
       <div style={cwStyles.imageArea}>
         {artwork && !imgError ? (
-          <img ref={artworkImgRef} key={artworkRetryKey} src={artworkSrc ?? undefined} alt={meta.name} loading="lazy" decoding="async" style={{ ...cwStyles.artwork, opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.22s ease' }} onLoad={() => setImgLoaded(true)} onError={handleArtworkError} />
+          <img ref={artworkImgRef} key={artworkRetryKey} src={artworkSrc ?? undefined} alt={meta.name} loading="lazy" decoding="async" draggable={false} style={{ ...cwStyles.artwork, opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.22s ease' }} onLoad={() => setImgLoaded(true)} onError={handleArtworkError} />
         ) : (
           <div style={cwStyles.thumbPlaceholder}>
             <span style={cwStyles.placeholderText}>{meta.name.slice(0, 1).toUpperCase()}</span>
