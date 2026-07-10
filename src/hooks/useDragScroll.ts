@@ -7,13 +7,13 @@ const DRAG_THRESHOLD = 4;
 export function useDragScroll(
   scrollRef: React.RefObject<HTMLDivElement | null>,
 ): Pick<React.HTMLAttributes<HTMLDivElement>, 'onPointerDown' | 'onPointerMove' | 'onPointerUp' | 'onPointerCancel' | 'onClickCapture' | 'onDragStart'> {
-  const dragRef = useRef<{ pointerId: number; startX: number; startScrollLeft: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{ pointerId: number; startX: number; startScrollLeft: number; moved: boolean; captured: boolean } | null>(null);
   const suppressClickRef = useRef(false);
 
   const finishDrag = (target: HTMLDivElement, pointerId: number) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== pointerId) return;
-    if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+    if (drag.captured && target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
     suppressClickRef.current = drag.moved;
     dragRef.current = null;
   };
@@ -28,15 +28,19 @@ export function useDragScroll(
         startX: event.clientX,
         startScrollLeft: el.scrollLeft,
         moved: false,
+        captured: false,
       };
-      event.currentTarget.setPointerCapture(event.pointerId);
     },
     onPointerMove: (event) => {
       const drag = dragRef.current;
       const el = scrollRef.current;
       if (!drag || !el || drag.pointerId !== event.pointerId) return;
       const distance = event.clientX - drag.startX;
-      if (!drag.moved && Math.abs(distance) >= DRAG_THRESHOLD) drag.moved = true;
+      if (!drag.moved && Math.abs(distance) >= DRAG_THRESHOLD) {
+        drag.moved = true;
+        drag.captured = true;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
       if (!drag.moved) return;
       el.scrollLeft = drag.startScrollLeft - distance;
       event.preventDefault();
