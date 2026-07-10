@@ -795,6 +795,7 @@ export default function App() {
           episodeLine={playerLoadingOverlay.episodeLine}
           status={playerLoadingOverlay.status}
           error={playerLoadingOverlay.error}
+          isTorrentStream={playerUsesTorrent}
           onBack={closePlayer}
         />
       )}

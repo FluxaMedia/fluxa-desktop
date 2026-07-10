@@ -1,6 +1,7 @@
 import { ChevronLeft, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { subscribePlayerStatus } from '../core/playerStatusStore';
+import { playerTorrentStats } from '../core/mpvPlayer';
 import { t } from '../i18n';
 
 interface Props {
@@ -10,13 +11,14 @@ interface Props {
   episodeLine?: string;
   status?: string;
   error?: string | null;
+  isTorrentStream?: boolean;
   onBack?: () => void;
 }
 
 const BUFFER_TARGET_SECS = 5;
 const MIN_VISIBLE_PROGRESS = 0.045;
 
-export function PlayerLoadingOverlay({ background, logo, title, episodeLine, status, error, onBack }: Props) {
+export function PlayerLoadingOverlay({ background, logo, title, episodeLine, status, error, isTorrentStream, onBack }: Props) {
   const [hasMeasuredProgress, setHasMeasuredProgress] = useState(false);
   const [progress, setProgress] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -51,6 +53,23 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
       }
     });
   }, [failed]);
+
+  useEffect(() => {
+    if (failed || !isTorrentStream) return;
+    let cancelled = false;
+    const poll = async () => {
+      const ts = await playerTorrentStats().catch(() => null);
+      if (cancelled || !ts) return;
+      const next = (ts.preload || 0) / 100;
+      if (next > 0) {
+        setHasMeasuredProgress(true);
+        setProgress((prev) => Math.max(prev, MIN_VISIBLE_PROGRESS, Math.min(1, next)));
+      }
+    };
+    void poll();
+    const id = setInterval(() => { void poll(); }, 500);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [failed, isTorrentStream]);
 
   return (
     <div
