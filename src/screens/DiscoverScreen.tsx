@@ -85,7 +85,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
     if (discoverResultsCache.has(key)) return;
     const timer = window.setTimeout(() => {
       lastDispatchedKeyRef.current = key;
-      onDispatch(JSON.stringify({ type: 'discoverRequested', contentType, sortBy, genre, language: getLanguage() }));
+      onDispatch(JSON.stringify({ type: 'discoverRequested', contentType, filters: { genre, sortBy }, language: getLanguage() }));
     }, 200);
     return () => window.clearTimeout(timer);
   }, [contentType, sortBy, genre]);

@@ -85,7 +85,7 @@ export async function runDiscover(payload: Record<string, unknown>): Promise<unk
   const contentType = payload.contentType as string;
   const filters = payload.filters as Record<string, string> | undefined;
   const genre = (payload.genre as string | null | undefined) ?? filters?.genre;
-  const sortBy = payload.sortBy as string | undefined;
+  const sortBy = (payload.sortBy as string | undefined) ?? filters?.sortBy;
   const addons = await loadAddons();
   const values = await fetchPlannedResources(
     { kind: 'discover', contentType, genre, addons },
