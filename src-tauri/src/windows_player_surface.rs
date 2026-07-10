@@ -21,7 +21,7 @@ use windows_sys::Win32::Graphics::Dwm::{
     DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND,
 };
 use windows_sys::Win32::Graphics::Gdi::HDC;
-use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetDC};
+use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetDC, GetDeviceCaps, VREFRESH};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::ColorSystem::GetICMProfileW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -122,6 +122,16 @@ fn ensure_renderer_for_surface(app: &AppHandle, hdc: HDC) -> Result<(), String> 
             }
         }
         *renderer = Some(fresh);
+    }
+    if hdc != 0 {
+        if let Some(r) = renderer.as_ref() {
+            let hz = unsafe { GetDeviceCaps(hdc, VREFRESH) };
+            if hz > 1 {
+                if let Err(e) = r.set_option("display-fps-override", &hz.to_string()) {
+                    log::warn!("failed to set display-fps-override: {e}");
+                }
+            }
+        }
     }
     Ok(())
 }

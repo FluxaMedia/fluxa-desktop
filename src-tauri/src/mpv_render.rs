@@ -32,6 +32,7 @@ const MPV_RENDER_PARAM_SW_POINTER: c_int = 20;
 
 const MPV_EVENT_NONE: c_int = 0;
 const MPV_EVENT_LOG_MESSAGE: c_int = 2;
+const MPV_EVENT_COMMAND_REPLY: c_int = 5;
 const MPV_EVENT_END_FILE: c_int = 7;
 const MPV_EVENT_PLAYBACK_RESTART: c_int = 21;
 const MPV_END_FILE_REASON_EOF: c_int = 0;
@@ -110,6 +111,7 @@ type MpvRenderContextCreate =
     unsafe extern "C" fn(*mut *mut MpvRenderContext, *mut MpvHandle, *mut MpvRenderParam) -> c_int;
 type MpvRenderContextRender =
     unsafe extern "C" fn(*mut MpvRenderContext, *mut MpvRenderParam) -> c_int;
+type MpvRenderContextUpdate = unsafe extern "C" fn(*mut MpvRenderContext) -> u64;
 type MpvRenderContextReportSwap = unsafe extern "C" fn(*mut MpvRenderContext);
 type MpvRenderContextSetParameter =
     unsafe extern "C" fn(*mut MpvRenderContext, MpvRenderParam) -> c_int;
@@ -130,6 +132,7 @@ struct MpvApi {
     mpv_error_string: MpvErrorString,
     mpv_render_context_create: MpvRenderContextCreate,
     mpv_render_context_render: MpvRenderContextRender,
+    mpv_render_context_update: MpvRenderContextUpdate,
     mpv_render_context_report_swap: MpvRenderContextReportSwap,
     mpv_render_context_set_parameter: MpvRenderContextSetParameter,
     mpv_render_context_free: MpvRenderContextFree,
@@ -177,6 +180,9 @@ impl MpvApi {
             let mpv_render_context_render = *library
                 .get::<MpvRenderContextRender>(b"mpv_render_context_render\0")
                 .map_err(load_error)?;
+            let mpv_render_context_update = *library
+                .get::<MpvRenderContextUpdate>(b"mpv_render_context_update\0")
+                .map_err(load_error)?;
             let mpv_render_context_report_swap = *library
                 .get::<MpvRenderContextReportSwap>(b"mpv_render_context_report_swap\0")
                 .map_err(load_error)?;
@@ -206,6 +212,7 @@ impl MpvApi {
                 mpv_error_string,
                 mpv_render_context_create,
                 mpv_render_context_render,
+                mpv_render_context_update,
                 mpv_render_context_report_swap,
                 mpv_render_context_set_parameter,
                 mpv_render_context_free,
@@ -409,6 +416,7 @@ impl MpvRenderer {
         renderer.set_option("hwdec-codecs", "all")?;
 
         renderer.set_option("video-sync", "audio")?;
+        renderer.set_option("display-fps-override", "60")?;
 
         // Start playback immediately without waiting for the cache to fill.
         // cache-pause-initial=yes (default in many MPV builds) causes MPV to pause
@@ -583,8 +591,8 @@ impl MpvRenderer {
     ) -> Result<(), String> {
         let title = title.unwrap_or("Subtitle");
         match language.filter(|value| !value.is_empty()) {
-            Some(language) => self.command_async_args(&["sub-add", url, "auto", title, language]),
-            None => self.command_async_args(&["sub-add", url, "auto", title]),
+            Some(language) => self.command_args(&["sub-add", url, "auto", title, language]),
+            None => self.command_args(&["sub-add", url, "auto", title]),
         }
     }
 
@@ -614,7 +622,7 @@ impl MpvRenderer {
         }
     }
 
-    fn command_async_args(&self, args: &[&str]) -> Result<(), String> {
+    pub fn command_args(&self, args: &[&str]) -> Result<(), String> {
         let c_args = args
             .iter()
             .map(|arg| CString::new(*arg).map_err(|error| error.to_string()))
@@ -643,6 +651,8 @@ impl MpvRenderer {
         let width = width.clamp(2, 1920);
         let height = height.clamp(2, 1080);
         self.ensure_buffer(width, height);
+
+        unsafe { (self.api.mpv_render_context_update)(self.render_context) };
 
         let mut size = [width, height];
         let format = CString::new("rgb0").unwrap();
@@ -708,6 +718,8 @@ impl MpvRenderer {
         if self.render_context.is_null() {
             self.create_opengl_context()?;
         }
+
+        unsafe { (self.api.mpv_render_context_update)(self.render_context) };
 
         // Linux/GTK: query the offscreen FBO that GTK's GLArea binds.
         // Windows/macOS: render into the default framebuffer (FBO 0).
@@ -891,6 +903,12 @@ impl MpvRenderer {
                             error: None,
                         });
                     }
+                }
+                MPV_EVENT_COMMAND_REPLY if event.error < 0 => {
+                    log::warn!(
+                        "mpv async command failed: {}",
+                        self.api.error_string(event.error)
+                    );
                 }
                 MPV_EVENT_PLAYBACK_RESTART => {
                     if self.pending_unpause {
@@ -1088,7 +1106,16 @@ impl MpvRenderer {
 
     pub fn apply_options(&self, options: &[(String, String)]) -> Result<(), String> {
         for (name, value) in options {
-            if let Err(error) = self.set_option(name, value) {
+            let result = if name == "glsl-shaders" {
+                if value.is_empty() {
+                    self.command_args(&["change-list", name, "clr", ""])
+                } else {
+                    self.command_args(&["change-list", name, "set", value])
+                }
+            } else {
+                self.command_args(&["set", name, value])
+            };
+            if let Err(error) = result {
                 log::warn!("mpv preference skipped: {error}");
             }
         }

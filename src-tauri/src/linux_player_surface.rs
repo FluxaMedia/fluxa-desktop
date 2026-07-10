@@ -486,12 +486,24 @@ fn prepare_and_load(
         .as_mut()
         .ok_or_else(|| "player renderer is not initialized".to_string())?;
     renderer.prepare_opengl_context()?;
+    if let Some(fps) = monitor_refresh_fps(gl_area) {
+        if let Err(e) = renderer.set_option("display-fps-override", &format!("{fps:.3}")) {
+            log::warn!("failed to set display-fps-override: {e}");
+        }
+    }
     if let Some(icc) = query_x11_icc_profile() {
         if let Err(e) = renderer.set_icc_profile(&icc) {
             log::warn!("failed to set ICC profile: {e}");
         }
     }
     renderer.load(url, start_at)
+}
+
+fn monitor_refresh_fps(gl_area: &gtk::GLArea) -> Option<f64> {
+    let window = gl_area.window()?;
+    let monitor = gl_area.display().monitor_at_window(&window)?;
+    let mhz = monitor.refresh_rate();
+    (mhz > 0).then(|| f64::from(mhz) / 1000.0)
 }
 
 // X11-only; no equivalent mechanism under Wayland.

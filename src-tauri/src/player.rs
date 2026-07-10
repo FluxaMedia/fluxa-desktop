@@ -303,6 +303,10 @@ fn anime4k_should_apply(preferences: &Value) -> bool {
 
 fn resolve_shader_path(app: Option<&AppHandle>, shader_name: &str) -> Option<String> {
     let resource_path = format!("assets/mpv-shaders/anime4k/{shader_name}");
+    let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&resource_path);
+    if cfg!(debug_assertions) && dev_path.exists() {
+        return Some(dev_path.to_string_lossy().into_owned());
+    }
     if let Some(app) = app {
         if let Ok(path) = app.path().resolve(&resource_path, BaseDirectory::Resource) {
             if path.exists() {
@@ -311,7 +315,6 @@ fn resolve_shader_path(app: Option<&AppHandle>, shader_name: &str) -> Option<Str
         }
     }
 
-    let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&resource_path);
     if dev_path.exists() {
         return Some(dev_path.to_string_lossy().into_owned());
     }
@@ -332,6 +335,7 @@ fn push_frame_interpolation_options(options: &mut Vec<(String, String)>, mode: O
             options.push(("tscale-clamp".to_string(), "0.0".to_string()));
         }
         _ => {
+            options.push(("video-sync".to_string(), "audio".to_string()));
             options.push(("interpolation".to_string(), "no".to_string()));
         }
     }
@@ -389,7 +393,7 @@ pub async fn player_init(app: AppHandle, state: State<'_, DesktopState>) -> Resu
     log::info!("player_init: start");
     state.pending_hide.store(false, Ordering::Release);
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     {
         let app_clone = app.clone();
         let native_ready = tauri::async_runtime::spawn_blocking(move || {
@@ -399,24 +403,9 @@ pub async fn player_init(app: AppHandle, state: State<'_, DesktopState>) -> Resu
         .await
         .map_err(|e| e.to_string())?;
         if native_ready {
-            log::info!("player_init: ok (Windows native surface)");
-            return Ok(());
-        }
-        log::warn!("player_init: Windows native player surface unavailable, using software video rendering");
-    }
-
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        let app_clone = app.clone();
-        let native_ready = tauri::async_runtime::spawn_blocking(move || {
-            let state = app_clone.state::<DesktopState>();
-            ensure_native_player_surface(&app_clone, &state).is_some()
-        })
-        .await
-        .map_err(|e| e.to_string())?;
-        if native_ready {
-            log::info!("player_init: ok (native surface)");
-            return Ok(());
+            log::info!("player_init: native surface ready");
+        } else {
+            log::warn!("player_init: native player surface unavailable, using software video rendering");
         }
     }
 
@@ -724,28 +713,29 @@ pub fn player_set_anime4k_enabled(
     enabled: bool,
     quality: Option<String>,
 ) -> Result<(), String> {
-    let commands: Vec<String> = if enabled {
+    let commands: Vec<Vec<String>> = if enabled {
         let shader_path = resolve_shader_path(Some(&app), anime_shader_name(quality.as_deref().unwrap_or("anime4k_m")))
             .ok_or_else(|| "Anime4K shader not found".to_string())?
             .replace('\\', "/");
         vec![
-            format!("set glsl-shaders \"{shader_path}\""),
-            "set scale ewa_lanczossharp".to_string(),
-            "set cscale ewa_lanczossoft".to_string(),
-            "set dscale mitchell".to_string(),
-            "set correct-downscaling yes".to_string(),
-            "set linear-downscaling yes".to_string(),
+            vec!["change-list".to_string(), "glsl-shaders".to_string(), "set".to_string(), shader_path],
+            vec!["set".to_string(), "scale".to_string(), "ewa_lanczossharp".to_string()],
+            vec!["set".to_string(), "cscale".to_string(), "ewa_lanczossoft".to_string()],
+            vec!["set".to_string(), "dscale".to_string(), "mitchell".to_string()],
+            vec!["set".to_string(), "correct-downscaling".to_string(), "yes".to_string()],
+            vec!["set".to_string(), "linear-downscaling".to_string(), "yes".to_string()],
         ]
     } else {
         vec![
-            "set glsl-shaders \"\"".to_string(),
-            "set scale bilinear".to_string(),
-            "set cscale bilinear".to_string(),
-            "set dscale mitchell".to_string(),
+            vec!["change-list".to_string(), "glsl-shaders".to_string(), "clr".to_string(), String::new()],
+            vec!["set".to_string(), "scale".to_string(), "bilinear".to_string()],
+            vec!["set".to_string(), "cscale".to_string(), "bilinear".to_string()],
+            vec!["set".to_string(), "dscale".to_string(), "mitchell".to_string()],
         ]
     };
     for command in commands {
-        with_renderer_retry(&state, 60, |renderer| renderer.command_string(&command))?;
+        let args = command.iter().map(String::as_str).collect::<Vec<_>>();
+        with_renderer_retry(&state, 60, |renderer| renderer.command_args(&args))?;
     }
     *state.anime4k_enabled.lock().unwrap() = enabled;
     let _ = app.emit("player-anime4k-state", serde_json::json!({ "enabled": enabled }));
