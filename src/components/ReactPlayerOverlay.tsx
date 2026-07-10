@@ -1937,7 +1937,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             <RotateCw size={22} />
           </button>
           <div
-            style={{ display: 'flex', alignItems: 'center', position: 'relative' }}
+            style={{ display: 'flex', alignItems: 'center', position: 'relative', flexShrink: 0 }}
             onMouseEnter={() => { if (volumeHideTimer.current) clearTimeout(volumeHideTimer.current); setShowVolumeSlider(true); }}
             onMouseLeave={() => { volumeHideTimer.current = setTimeout(() => setShowVolumeSlider(false), 200); }}
             onWheel={(e) => {
@@ -1953,7 +1953,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             <button onClick={(e) => { e.stopPropagation(); resetActivity(); setMuted((prev) => !prev); sendCmd('cycle mute'); }} className="fluxa-ibtn" style={styles.iconBtn} title={muted ? t('player.unmute') : t('player.mute')}>
               <IconVolume muted={muted} level={volumeLevel} />
             </button>
-            <div style={{ width: showVolumeSlider ? '5.75rem' : 0, opacity: showVolumeSlider ? 1 : 0, pointerEvents: showVolumeSlider ? 'auto' : 'none', transition: 'width 0.18s ease, opacity 0.18s ease', overflow: 'hidden', display: 'flex', alignItems: 'center', paddingLeft: showVolumeSlider ? '0.25rem' : 0 }}>
+            <div style={{ width: showVolumeSlider ? '5.75rem' : 0, flexShrink: 0, opacity: showVolumeSlider ? 1 : 0, pointerEvents: showVolumeSlider ? 'auto' : 'none', transition: 'width 0.18s ease, opacity 0.18s ease', overflow: 'hidden', display: 'flex', alignItems: 'center', paddingLeft: showVolumeSlider ? '0.25rem' : 0 }}>
               <VolumeBar
                 value={muted ? 0 : volumeLevel}
                 max={130}
