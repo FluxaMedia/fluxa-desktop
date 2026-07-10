@@ -347,11 +347,18 @@ async fn stop_torrent_stream(state: State<'_, DesktopState>) -> Result<bool, Str
     *state.torrent_stream_link.lock().unwrap() = None;
     *state.torrent_stream_file_id.lock().unwrap() = None;
     let generation = state.torrent_generation.lock().unwrap().take();
-    Ok(tauri::async_runtime::spawn_blocking(move || {
+    let data_dir = state.data_dir.lock().unwrap().clone();
+    let stopped = tauri::async_runtime::spawn_blocking(move || {
         fluxa_streaming_engine::stop_torrent_server(generation)
     })
     .await
-    .unwrap_or(false))
+    .unwrap_or(false);
+    if let Some(data_dir) = data_dir {
+        tauri::async_runtime::spawn_blocking(move || {
+            let _ = fs::remove_dir_all(data_dir.join("torrent-cache"));
+        });
+    }
+    Ok(stopped)
 }
 
 #[tauri::command]
@@ -591,6 +598,11 @@ pub fn run() {
             let state = app.state::<DesktopState>();
             *state.data_dir.lock().unwrap() = Some(data_dir.clone());
             let _ = fs::create_dir_all(&data_dir);
+
+            let torrent_cache_dir = data_dir.join("torrent-cache");
+            std::thread::spawn(move || {
+                let _ = fs::remove_dir_all(&torrent_cache_dir);
+            });
 
             if let Ok(cache_dir) = app.path().app_cache_dir() {
                 std::thread::spawn(move || {
