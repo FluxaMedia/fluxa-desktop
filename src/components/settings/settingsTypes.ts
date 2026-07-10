@@ -38,6 +38,7 @@ export interface Prefs {
   continueWatchingProgressDirection: string;
   continueWatchingEnabled: boolean;
   continueWatchingKeepScheduled: boolean;
+  continueWatchingShowThisWeek: boolean;
   detailEpisodeViewMode: string;
   trailerOnHero: boolean;
   blurUnwatchedEpisodes: boolean;
@@ -161,6 +162,7 @@ export const DEFAULT_PREFS: Prefs = {
   continueWatchingProgressDirection: 'remaining',
   continueWatchingEnabled: true,
   continueWatchingKeepScheduled: false,
+  continueWatchingShowThisWeek: true,
   detailEpisodeViewMode: 'legacy',
   trailerOnHero: false,
   blurUnwatchedEpisodes: false,

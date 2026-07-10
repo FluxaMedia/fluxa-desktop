@@ -806,6 +806,8 @@
   "settings.continue_watching_hide_titles": "Etiketleri Gizle",
   "settings.cw_keep_scheduled": "Yaklaşanları İzlemeye Devam Et'te tut",
   "settings.cw_keep_scheduled_desc": "Bu hafta yayınlanacak bölümleri yalnızca Bu Hafta satırında değil, İzlemeye Devam Et'te de göster.",
+  "settings.cw_show_this_week": "Bu Hafta satırını göster",
+  "settings.cw_show_this_week_desc": "Bu hafta yayınlanacak bölümler için ayrı bir satır göster.",
   "settings.landscape_mode": "Yatay Afişler",
   "downloads.download": "İndir",
   "downloads.subtitles_title": "Offline oynatma için altyazı eklensin mi?",

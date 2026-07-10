@@ -259,9 +259,10 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const cwRemainingFormat = String(cwSettingsValues?.continueWatchingRemainingFormat ?? 'time');
   const cwProgressDirection = String(cwSettingsValues?.continueWatchingProgressDirection ?? 'remaining');
   const keepScheduled = prefBool(prefs, 'continueWatchingKeepScheduled', false);
+  const showThisWeek = prefBool(prefs, 'continueWatchingShowThisWeek', true);
   const { thisWeek, continueWatching: cwItems } = useMemo(
-    () => partitionThisWeek(continueWatching, keepScheduled),
-    [continueWatching, keepScheduled],
+    () => partitionThisWeek(continueWatching, keepScheduled || !showThisWeek),
+    [continueWatching, keepScheduled, showThisWeek],
   );
 
   if (home.isLoading && !billboard && categories.length === 0) {
@@ -331,7 +332,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
             onDispatch={onDispatch}
           />
         )}
-        {showContinueWatching && thisWeek.length > 0 && (
+        {showContinueWatching && showThisWeek && thisWeek.length > 0 && (
           <ThisWeekRow
             items={thisWeek}
             artworkPreference={cwArtwork}
