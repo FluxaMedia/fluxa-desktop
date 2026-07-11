@@ -126,19 +126,23 @@ export function MovieSourcePanel({
   streams,
   isLoading,
   availableAddons,
+  failedAddons,
   streamAddonCount,
   onPlay,
   onAddonChange,
   onClose,
+  onRetryFailed,
 }: {
   meta: Meta;
   streams: Stream[];
   isLoading: boolean;
   availableAddons: string[];
+  failedAddons?: string[];
   streamAddonCount: number;
   onPlay: (stream: Stream) => void;
   onAddonChange?: (addon: string | null) => void;
   onClose?: () => void;
+  onRetryFailed?: () => void;
 }) {
   const [selectedAddon, setSelectedAddon] = useState<string | null>(null);
 
@@ -192,6 +196,10 @@ export function MovieSourcePanel({
         </div>
       )}
 
+      {!isLoading && !!failedAddons?.length && (
+        <FailedAddonsNotice count={failedAddons.length} onRetry={onRetryFailed} />
+      )}
+
       <div key={selectedAddon ?? 'all'} style={EP.inlineSources}>
         {isLoading && visibleStreams.length === 0 && <div style={SS.center}><div style={spinnerStyle} /></div>}
         {!isLoading && visibleStreams.length === 0 && (
@@ -212,26 +220,46 @@ export function MovieSourcePanel({
   );
 }
 
+function FailedAddonsNotice({ count, onRetry }: { count: number; onRetry?: () => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.5rem 1rem', margin: '0.375rem 1rem 0', background: 'rgba(255,255,255,0.06)', borderRadius: '0.375rem' }}>
+      <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.75rem', fontWeight: 600 }}>{t('sources.addons_failed', count)}</span>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          style={{ background: 'none', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '0.25rem', color: '#FFF', fontSize: '0.75rem', fontWeight: 600, padding: '0.25rem 0.625rem', cursor: 'pointer', flexShrink: 0 }}
+        >
+          {t('sources.retry')}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function InlineSourceList({
   episode,
   meta,
   streams,
   isLoading,
   availableAddons,
+  failedAddons,
   streamAddonCount,
   onBack,
   onPlay,
   onAddonChange,
+  onRetryFailed,
 }: {
   episode: Video;
   meta: Meta;
   streams: Stream[];
   isLoading: boolean;
   availableAddons: string[];
+  failedAddons?: string[];
   streamAddonCount: number;
   onBack: () => void;
   onPlay: (stream: Stream) => void;
   onAddonChange?: (addon: string | null) => void;
+  onRetryFailed?: () => void;
 }) {
   const [selectedAddon, setSelectedAddon] = useState<string | null>(null);
 
@@ -291,6 +319,10 @@ export function InlineSourceList({
         <div style={{ padding: '0 1rem 0.5rem', color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', fontWeight: 600 }}>
           {t('sources.searching_addons', streamAddonCount - addonNames.length)}
         </div>
+      )}
+
+      {!isLoading && !!failedAddons?.length && (
+        <FailedAddonsNotice count={failedAddons.length} onRetry={onRetryFailed} />
       )}
 
       <div key={selectedAddon ?? 'all'} style={EP.inlineSources}>

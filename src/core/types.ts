@@ -311,6 +311,7 @@ export interface DetailState {
   streams?: Stream[];
   visibleStreams?: Stream[];
   availableAddons?: string[];
+  failedAddons?: string[];
   selectedAddon?: string | null;
   trailers?: Trailer[];
   similarItems?: Meta[];

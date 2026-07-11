@@ -13,6 +13,7 @@ import { fetchTraktSimilarItems, fetchSimklSimilarItems } from './similarTitles'
 import { isTraktConnected, isSimklConnected } from './profiles';
 import type { AppState, Video } from './types';
 import { DEFAULT_APP_PREFS, prefBool, prefString } from './appPrefs';
+import { stringValue } from './playerUtils';
 
 interface TmdbRequest {
   contentType: string;
@@ -169,6 +170,7 @@ export async function fetchDetailStreams(
   const contentType = payload.contentType as string;
 
   const partialDispatches: Promise<void>[] = [];
+  const failedAddonNames = new Set<string>();
 
   const values = await fetchPlannedResources(
     { kind: 'streams', addons, contentType, requestIds },
@@ -193,6 +195,8 @@ export async function fetchDetailStreams(
           );
         }
       : undefined,
+    undefined,
+    (addonName) => failedAddonNames.add(addonName),
   );
 
   // Ensure all partial dispatches complete before completeEffect runs
@@ -204,9 +208,12 @@ export async function fetchDetailStreams(
     (streams as Array<{ addonName?: string }>).map((s) => s.addonName).filter(Boolean),
   )] as string[];
 
+  for (const addonName of availableAddons) failedAddonNames.delete(addonName);
+
   return {
     streams,
     availableAddons,
+    failedAddons: [...failedAddonNames],
     hasStreamProviders: streams.length > 0,
   };
 }
@@ -282,6 +289,24 @@ async function fetchFanartArtwork(
   const hdBackdrop = response.moviebackground?.[0]?.url;
   if (!hdLogo && !hdBackdrop) return null;
   return { hdLogo, hdBackdrop };
+}
+
+export async function fetchContentLogo(
+  id: string,
+  contentType: string,
+  language: string,
+  apiKey: string,
+  fanartApiKey: string,
+): Promise<string | undefined> {
+  try {
+    const meta = await fetchMetaDetail({ id, contentType }) as Record<string, unknown> | null;
+    const addonLogo = meta
+      ? stringValue(meta.logo) ?? stringValue(meta.logoUrl) ?? stringValue(meta.titleLogo) ?? stringValue(meta.titleLogoUrl)
+      : undefined;
+    if (addonLogo) return addonLogo;
+  } catch {}
+  const artwork = await fetchFanartArtwork({ contentType, id, language, apiKey }, fanartApiKey);
+  return artwork?.hdLogo;
 }
 
 async function fetchSimilarItems({
