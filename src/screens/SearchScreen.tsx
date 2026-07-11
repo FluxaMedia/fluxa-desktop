@@ -190,6 +190,7 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
                 title={formatCatalogTitle(category.name, category.type)}
                 items={category.items}
                 onItemClick={onNavigateDetail}
+                onDispatch={onDispatch}
                 posterPrefs={posterPrefs}
               />
             ))}
@@ -229,11 +230,13 @@ function SearchCategoryRow({
   title,
   items,
   onItemClick,
+  onDispatch,
   posterPrefs,
 }: {
   title: string;
   items: Meta[];
   onItemClick: (meta: Meta) => void;
+  onDispatch: (actionJson: string) => void;
   posterPrefs: PosterPrefs;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -286,6 +289,7 @@ function SearchCategoryRow({
               layout={posterPrefs.layout}
               hideTitle={posterPrefs.hideTitles}
               onClick={onItemClick}
+              onDispatch={onDispatch}
             />
           ))}
         </div>
