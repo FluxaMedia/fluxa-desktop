@@ -106,14 +106,25 @@ function mergeContinueWatching(
   let allSame = prev.length === next.length;
   const merged = next.map(nextItem => {
     const prevItem = prevById.get(nextItem.id);
-    if (!prevItem || !libraryItemRenderEqual(prevItem, nextItem)) {
+    if (!prevItem) {
       allSame = false;
       return nextItem;
     }
-    return prevItem;
+    const backfilled = backfillLibraryItem(prevItem, nextItem);
+    if (libraryItemRenderEqual(prevItem, backfilled)) return prevItem;
+    allSame = false;
+    return backfilled;
   });
 
   return allSame ? prev : merged;
+}
+
+function backfillLibraryItem(prev: LibraryItem, next: LibraryItem): LibraryItem {
+  if (prev.id !== next.id) return next;
+  const name = next.name || prev.name;
+  const lastEpisodeName = next.lastEpisodeName || prev.lastEpisodeName;
+  if (name === next.name && lastEpisodeName === next.lastEpisodeName) return next;
+  return { ...next, name, lastEpisodeName };
 }
 
 function metaRenderEqual(a: Meta, b: Meta): boolean {
