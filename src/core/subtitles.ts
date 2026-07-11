@@ -8,14 +8,20 @@ import type { Stream, Meta, Video, AddonDescriptor } from './types';
 import { stringValue } from './playerUtils';
 import type { PlayerSubtitleSource } from './playerUtils';
 
+export type ResolvedSubtitles = {
+  subtitles: PlayerSubtitleSource[];
+  failedAddons: string[];
+};
+
 export async function resolvePlaybackSubtitles(
   stream: Stream,
   meta: Meta | undefined,
   episode: Video | null | undefined,
   subtitleExtraArgs: string | undefined,
   addons: AddonDescriptor[],
-): Promise<PlayerSubtitleSource[]> {
+): Promise<ResolvedSubtitles> {
   const subtitles: PlayerSubtitleSource[] = [];
+  const failedAddons: string[] = [];
   const seen = new Set<string>();
 
   const pushSubtitle = (subtitle: PlayerSubtitleSource | null | undefined) => {
@@ -36,7 +42,7 @@ export async function resolvePlaybackSubtitles(
 
   const contentType = meta?.type;
   const id = episode?.id ?? meta?.id;
-  if (!contentType || !id) return subtitles;
+  if (!contentType || !id) return { subtitles, failedAddons };
 
   const plan = await coreResourceFetchPlan({
     kind: 'subtitles',
@@ -46,6 +52,7 @@ export async function resolvePlaybackSubtitles(
     extraRaw: subtitleExtraArgs ?? '',
   });
   await Promise.all((plan?.requests ?? []).map(async (request) => {
+    const addonName = String(request.addonName ?? 'Subtitle');
     try {
       const resourceUrl = typeof request.url === 'string' ? request.url : '';
       if (!resourceUrl) return;
@@ -58,10 +65,10 @@ export async function resolvePlaybackSubtitles(
       const rawSubtitles = ((parsed?.subtitles as unknown[] | undefined) ?? data);
       const normalized = await coreNormalizeAddonSubtitles(rawSubtitles, resourceUrl);
       for (const raw of normalized) {
-        pushSubtitle(normalizeSubtitle(raw, String(request.addonName ?? 'Subtitle')));
+        pushSubtitle(normalizeSubtitle(raw, addonName));
       }
     } catch {
-      return;
+      failedAddons.push(addonName);
     }
   }));
 
@@ -82,7 +89,7 @@ export async function resolvePlaybackSubtitles(
     subtitles.unshift(preferred);
   }
 
-  return subtitles;
+  return { subtitles, failedAddons };
 }
 
 async function tryFetchSubtitleResource(resourceUrl: string): Promise<unknown[]> {

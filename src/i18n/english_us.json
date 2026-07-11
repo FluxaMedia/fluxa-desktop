@@ -1219,6 +1219,8 @@
   "player.back": "Back",
   "player.playback_error_title": "Playback failed",
   "player.playback_error_detail": "The stream stopped playing because of an error. You can go back and try a different source.",
+  "player.subtitle_addons_failed_title": "Warning",
+  "player.subtitle_addons_failed": "The following subtitle addons failed: %s",
   "player.cast": "Cast",
   "player.ab_loop": "A-B Loop",
   "player.ab_loop_a_set": "Loop point A set",

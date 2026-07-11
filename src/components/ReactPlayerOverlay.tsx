@@ -6,7 +6,6 @@ import { currentMonitor, getCurrentWindow } from '@tauri-apps/api/window';
 import { PhysicalPosition, PhysicalSize } from '@tauri-apps/api/dpi';
 import {
   AudioLines,
-  AlertTriangle,
   Camera,
   Captions,
   Cast,
@@ -38,6 +37,7 @@ import { embeddedMpvRenderFrame, embeddedMpvSetCursorVisible, playerGetPlaybackI
 import { subscribePlayerStatus } from '../core/playerStatusStore';
 import type { PlayerTrackOption } from '../core/mpvPlayer';
 import { VolumeBar } from './player/VolumeBar';
+import { Toast } from './Toast';
 import { NextEpCard } from './player/NextEpCard';
 import { EpisodePanel, epLabel } from './player/EpisodePanel';
 import type { EpisodeInfo } from './player/EpisodePanel';
@@ -148,13 +148,15 @@ interface Props {
   initialStreamHeaders?: Record<string, string>;
   playbackUrl?: string | null;
   playbackError?: string | null;
+  subtitleWarning?: string[] | null;
+  onDismissSubtitleWarning?: () => void;
   softwareVideoActive?: boolean;
   bannerOffset?: number;
   prefs?: Record<string, unknown>;
   onDispatch?: (actionJson: string) => Promise<void> | void;
 }
 
-export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, initialLogoUrl, metaId, initialSubtitleUrl, initialStreamHeaders, playbackUrl, playbackError, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
+export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, initialLogoUrl, metaId, initialSubtitleUrl, initialStreamHeaders, playbackUrl, playbackError, subtitleWarning, onDismissSubtitleWarning, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(100);
@@ -1127,7 +1129,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [subtitleCaptureCues, setSubtitleCaptureCues] = useState<SubtitleCaptureCue[]>([]);
   const [subtitleCaptureTime, setSubtitleCaptureTime] = useState<number | null>(null);
   const [subtitleFont, setSubtitleFontState] = useState(() => String(prefs?.subtitleFont ?? 'default'));
-  const [subtitleSize, setSubtitleSizeState] = useState(() => Number(prefs?.subtitleSize ?? 100) || 100);
+  const subtitleSizeRef = useRef(Number(prefs?.subtitleSize ?? 100) || 100);
+  const [subtitleSize, setSubtitleSizeState] = useState(() => subtitleSizeRef.current);
   const [subtitleColor, setSubtitleColorState] = useState(() => String(prefs?.subtitleColor ?? '#FFFFFF'));
   const [subtitleTextOpacity, setSubtitleTextOpacity] = useState(() => String(prefs?.subtitleTextOpacity ?? '1.0'));
   const [subtitleBackgroundColor, setSubtitleBackgroundColor] = useState(() => String(prefs?.subtitleBackgroundColor ?? '#000000'));
@@ -1194,17 +1197,17 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
   const chooseSubtitleSize = useCallback((size: number) => {
     sendCmd(`set sub-scale ${(size / 100).toFixed(2)}`);
+    subtitleSizeRef.current = size;
     setSubtitleSizeState(size);
     setSubtitlePref('subtitleSize', String(size));
   }, [setSubtitlePref]);
 
   const adjustSubtitleSize = useCallback((delta: number) => {
-    setSubtitleSizeState((previous) => {
-      const size = Math.max(50, Math.min(200, previous + delta));
-      sendCmd(`set sub-scale ${(size / 100).toFixed(2)}`);
-      setSubtitlePref('subtitleSize', String(size));
-      return size;
-    });
+    const size = Math.max(50, Math.min(200, subtitleSizeRef.current + delta));
+    subtitleSizeRef.current = size;
+    sendCmd(`set sub-scale ${(size / 100).toFixed(2)}`);
+    setSubtitleSizeState(size);
+    setSubtitlePref('subtitleSize', String(size));
   }, [setSubtitlePref]);
 
   const chooseSubtitleColor = useCallback((color: string) => {
@@ -1503,57 +1506,45 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         <div
           style={{
             position: 'absolute',
-            inset: 0,
+            top: `calc(${bannerOffset}px + 1rem)`,
+            right: '1rem',
             zIndex: 40,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1.25rem',
-            background: 'rgba(0,0,0,0.62)',
-            backdropFilter: 'blur(0.5rem)',
           }}
           onMouseDown={(e) => e.stopPropagation()}
           onMouseUp={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          <div
-            style={{
-              width: '33.75rem',
-              maxWidth: '100%',
-              background: 'rgba(13,15,22,0.94)',
-              border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: '0.5rem',
-              padding: '1.375rem 1.5rem',
-              boxShadow: '0 1.125rem 4.375rem rgba(0,0,0,0.6)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '0.625rem' }}>
-              <AlertTriangle size={21} color="#ff6b6b" />
-              <h2 style={{ margin: 0, color: '#fff', fontSize: '1.1875rem', lineHeight: '1.5625rem' }}>{t('player.playback_error_title')}</h2>
-            </div>
-            <p style={{ margin: '0 0 0.75rem', color: 'rgba(255,255,255,0.68)', fontSize: '0.8125rem', lineHeight: '1.1875rem' }}>
-              {t('player.playback_error_detail')}
-            </p>
-            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: 'rgba(255,255,255,0.82)', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '0.375rem', padding: '0.625rem 0.75rem', fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: '1.0625rem', maxHeight: '10rem', overflowY: 'auto' }}>
-              {playbackError}
-            </pre>
-            <button
-              onClick={(e) => { e.stopPropagation(); void closePlayer(); }}
-              style={{
-                marginTop: '1rem',
-                height: '2.25rem',
-                padding: '0 0.875rem',
-                borderRadius: '0.4375rem',
-                border: '1px solid rgba(255,255,255,0.14)',
-                background: 'rgba(255,255,255,0.08)',
-                color: '#fff',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              {t('player.back')}
-            </button>
-          </div>
+          <Toast
+            variant="error"
+            title={t('player.playback_error_title')}
+            message={t('player.playback_error_detail')}
+            details={playbackError}
+            detailsLabel={t('player.error_show_details')}
+            detailsHideLabel={t('player.error_hide_details')}
+            actions={[{ label: t('player.back'), onClick: () => void closePlayer(), primary: true }]}
+            onClose={() => void closePlayer()}
+          />
+        </div>
+      )}
+
+      {!playbackError && subtitleWarning && subtitleWarning.length > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: `calc(${bannerOffset}px + 1rem)`,
+            right: '1rem',
+            zIndex: 40,
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Toast
+            variant="warning"
+            title={t('player.subtitle_addons_failed_title')}
+            message={t('player.subtitle_addons_failed', subtitleWarning.join(', '))}
+            onClose={onDismissSubtitleWarning}
+          />
         </div>
       )}
 

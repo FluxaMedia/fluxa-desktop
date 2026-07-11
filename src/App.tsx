@@ -190,7 +190,7 @@ export default function App() {
     setWelcomeCompleted,
   } = useAppInit(updateState, setActiveRoute, storedPrefsRef);
 
-  const { playerLoadingOverlay, playerUrl, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerLogoUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit } = usePlayer({
+  const { playerLoadingOverlay, playerUrl, playerPlaybackError, playerSubtitleWarning, dismissSubtitleWarning, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerLogoUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit } = usePlayer({
     stateRef,
     activeProfile,
     updateState,
@@ -826,6 +826,8 @@ export default function App() {
             prefs={prefs}
             onDispatch={dispatch}
             playbackError={playerPlaybackError}
+            subtitleWarning={playerSubtitleWarning}
+            onDismissSubtitleWarning={dismissSubtitleWarning}
             softwareVideoActive={softwareVideoActive}
             bannerOffset={bannerOffset}
           />

@@ -1219,6 +1219,8 @@
   "player.back": "Geri",
   "player.playback_error_title": "Oynatma başarısız oldu",
   "player.playback_error_detail": "Akış bir hata nedeniyle durdu. Geri dönüp farklı bir kaynak deneyebilirsin.",
+  "player.subtitle_addons_failed_title": "Uyarı",
+  "player.subtitle_addons_failed": "Şu altyazı eklentileri başarısız oldu: %s",
   "player.cast": "Yayınla",
   "player.ab_loop": "A-B Döngüsü",
   "player.ab_loop_a_set": "A noktası ayarlandı",

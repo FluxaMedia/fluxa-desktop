@@ -40,10 +40,11 @@ import {
   isEpisodeReleasedForPlayback,
   withCloseTimeout,
 } from '../core/playerUtils';
-import type { PlayerDisplayTitle, PlayerArtwork, PlaybackPreparePlan, PlayerSubtitleSource } from '../core/playerUtils';
+import type { PlayerDisplayTitle, PlayerArtwork, PlaybackPreparePlan } from '../core/playerUtils';
 import { traktScrobbleOnClose, simklScrobbleOnClose } from '../core/scrobble';
 import { saveProfile } from '../core/profiles';
 import { resolvePlaybackSubtitles } from '../core/subtitles';
+import type { ResolvedSubtitles } from '../core/subtitles';
 import { persistLastPlaybackSource } from '../core/libraryStorage';
 import type { AppState, Meta, Video, Stream, AddonDescriptor, UserProfile } from '../core/types';
 import { usePlayerNativeEvents } from './usePlayerNativeEvents';
@@ -85,6 +86,8 @@ interface UsePlayerResult {
   playerSubtitleUrl: string | undefined;
   playerStreamHeaders: Record<string, string> | undefined;
   playerPlaybackError: string | null;
+  playerSubtitleWarning: string[] | null;
+  dismissSubtitleWarning: () => void;
   handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number, sourceCandidates?: Stream[]) => Promise<void>;
   closePlayer: () => Promise<void>;
   notifyFirstFrame: () => void;
@@ -120,6 +123,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   const [playerUsesTorrent, setPlayerUsesTorrent] = useState(false);
   const [playerLoadingOverlay, setPlayerLoadingOverlay] = useState<PlayerLoadingOverlayState | null>(null);
   const [playerPlaybackError, setPlayerPlaybackError] = useState<string | null>(null);
+  const [playerSubtitleWarning, setPlayerSubtitleWarning] = useState<string[] | null>(null);
 
   const activeProfileRef = useRef<UserProfile | null>(null);
   const mpvInitializedRef = useRef(false);
@@ -251,7 +255,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     url: string,
     title: PlayerDisplayTitle | undefined,
     usesTorrent: boolean,
-    subtitlesPromise: Promise<PlayerSubtitleSource[]>,
+    subtitlesPromise: Promise<ResolvedSubtitles>,
     artworkPromise: Promise<unknown> | undefined,
     resumeAtSeconds?: number,
     totalDurationSeconds?: number,
@@ -297,15 +301,21 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     }
     await embeddedMpvSetHttpHeaders(httpHeaders).catch(() => undefined);
     await embeddedMpvLoad(url, resumeAtSeconds, totalDurationSeconds);
-    const subtitles = await subtitlesPromise.catch(() => [] as PlayerSubtitleSource[]);
+    const { subtitles, failedAddons } = await subtitlesPromise.catch(() => ({ subtitles: [], failedAddons: [] } as ResolvedSubtitles));
     if (isCancelled()) return;
     const castableSubtitle = subtitles.find((s) => /^https?:\/\//i.test(s.url));
     setPlayerSubtitleUrl(castableSubtitle?.url);
+    const failedTrackAddons: string[] = [];
     await Promise.all(
       subtitles.map((subtitle) =>
-        embeddedMpvAddSubtitle(subtitle.url, subtitle.addonName ?? subtitle.label, subtitle.lang).catch(() => undefined),
+        embeddedMpvAddSubtitle(subtitle.url, subtitle.addonName ?? subtitle.label, subtitle.lang).catch(() => {
+          if (subtitle.addonName) failedTrackAddons.push(subtitle.addonName);
+        }),
       ),
     );
+    if (isCancelled()) return;
+    const allFailedAddons = Array.from(new Set([...failedAddons, ...failedTrackAddons]));
+    setPlayerSubtitleWarning(allFailedAddons.length ? allFailedAddons : null);
   }, [stateRef]);
 
   const closePlayer = useCallback(async () => {
@@ -328,6 +338,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerUsesTorrent(false);
     setPlayerLoadingOverlay(null);
     setPlayerPlaybackError(null);
+    setPlayerSubtitleWarning(null);
     inNativePlayerRef.current = false;
     await playerClearSkipInfo();
     void playerClearChapters();
@@ -531,6 +542,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   ) => {
     debugLog('handlePlay:start');
     setPlayerPlaybackError(null);
+    setPlayerSubtitleWarning(null);
     try {
     const generation = ++playGenerationRef.current;
     const isCancelled = () => generation !== playGenerationRef.current;
@@ -642,7 +654,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       episode,
       playbackPlan?.subtitleExtraArgs,
       stateRef.current.addons.installed ?? [] as AddonDescriptor[],
-    ).catch(() => [] as PlayerSubtitleSource[]);
+    ).catch(() => ({ subtitles: [], failedAddons: [] } as ResolvedSubtitles));
 
     await playerClearSkipInfo();
     const skipPrefs = appPrefs(stateRef.current);
@@ -899,6 +911,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerLogoUrl(artwork.logo ?? undefined);
     setPlayerMetaId(meta.id);
     setPlayerPlaybackError(null);
+    setPlayerSubtitleWarning(null);
     setPlayerLoadingOverlay({
       background: artwork.background,
       logo: artwork.logo,
@@ -934,5 +947,9 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerLoadingOverlay((prev) => (prev?.error ? prev : null));
   }, []);
 
-  return { playerLoadingOverlay, playerUrl, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerLogoUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit: saveProgressTick };
+  const dismissSubtitleWarning = useCallback(() => {
+    setPlayerSubtitleWarning(null);
+  }, []);
+
+  return { playerLoadingOverlay, playerUrl, playerPlaybackError, playerSubtitleWarning, dismissSubtitleWarning, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerLogoUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit: saveProgressTick };
 }
