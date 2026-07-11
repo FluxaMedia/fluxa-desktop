@@ -568,7 +568,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           pos > 0.15;
         const voReady = !noVideoTrack && status.voConfigured === 'yes' && status.framesRendered >= 2;
         const activeVideoPlayback = !noVideoTrack && status.hasVideoTrack && hasVideoDimensions && playbackAdvancing;
-        if (voReady || activeVideoPlayback || noVideoTrack) {
+        if (!status.resuming && (voReady || activeVideoPlayback || noVideoTrack)) {
           firstFrameFiredRef.current = true;
           sendCmd('set pause no');
           onFirstFrame();

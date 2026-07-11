@@ -63,6 +63,7 @@ export type EmbeddedMpvStatus = {
   framesRendered: number;
   hasVideoTrack: boolean;
   trackListReady: boolean;
+  resuming: boolean;
 };
 
 export type TorrentStats = {

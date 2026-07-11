@@ -243,6 +243,7 @@ pub struct MpvRenderer {
     log_ring: std::collections::VecDeque<(c_int, String)>,
     frames_rendered: u64,
     pending_unpause: bool,
+    pending_seek_seconds: Option<f64>,
     current_url: Option<String>,
 }
 
@@ -304,6 +305,7 @@ pub struct PlayerStatus {
     frames_rendered: u64,
     has_video_track: bool,
     track_list_ready: bool,
+    resuming: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -396,6 +398,7 @@ impl MpvRenderer {
             log_ring: std::collections::VecDeque::new(),
             frames_rendered: 0,
             pending_unpause: false,
+            pending_seek_seconds: None,
             current_url: None,
         };
 
@@ -467,6 +470,7 @@ impl MpvRenderer {
             log_ring: std::collections::VecDeque::new(),
             frames_rendered: 0,
             pending_unpause: false,
+            pending_seek_seconds: None,
             current_url: None,
         };
 
@@ -506,13 +510,8 @@ impl MpvRenderer {
         self.log_ring.clear();
         self.frames_rendered = 0;
         self.pending_unpause = true;
-        // Pass start position as a per-file option directly in the loadfile command.
-        // This is the most reliable way to seek on open — no timing dependency.
-        if let Some(secs) = start_at.filter(|&s| s > 0) {
-            self.command_string(&format!("loadfile \"{escaped}\" replace 0 start={secs}"))?;
-        } else {
-            self.command_string(&format!("loadfile \"{escaped}\" replace"))?;
-        }
+        self.pending_seek_seconds = start_at.filter(|&s| s > 0).map(|s| s as f64);
+        self.command_string(&format!("loadfile \"{escaped}\" replace"))?;
         self.command_string("set pause yes")?;
         self.loaded = true;
         Ok(())
@@ -912,7 +911,9 @@ impl MpvRenderer {
                     );
                 }
                 MPV_EVENT_PLAYBACK_RESTART => {
-                    if self.pending_unpause {
+                    if let Some(secs) = self.pending_seek_seconds.take() {
+                        let _ = self.command_string(&format!("seek {secs:.3} absolute+exact"));
+                    } else if self.pending_unpause {
                         self.pending_unpause = false;
                         let _ = self.command_string("set pause no");
                     }
@@ -991,6 +992,7 @@ impl MpvRenderer {
             frames_rendered: self.frames_rendered,
             has_video_track,
             track_list_ready,
+            resuming: self.pending_seek_seconds.is_some(),
         }
     }
 
