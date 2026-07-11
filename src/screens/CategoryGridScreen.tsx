@@ -108,8 +108,8 @@ export function CategoryGridScreen({ title, items, groups, isLoading = false, lo
             ))}
           </div>
         ) : loadError && items.length === 0 ? (
-          <div style={S.panelEmpty}>
-            <TriangleAlert size={40} style={{ color: 'rgba(255,255,255,0.35)' }} />
+          <div style={S.gridEmpty}>
+            <TriangleAlert size={72} style={{ color: 'rgba(255,255,255,0.35)' }} />
             <p style={S.errorTitle}>{t('home.folder_load_failed')}</p>
             <p style={S.errorBody}>{t('home.folder_load_failed_body')}</p>
           </div>
@@ -447,13 +447,17 @@ const S: Record<string, React.CSSProperties> = {
     color: 'rgba(255,255,255,0.28)', fontSize: '0.8125rem',
     textAlign: 'center', margin: 0,
   },
+  gridEmpty: {
+    flex: 1, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: '1.25rem', padding: '2rem',
+  },
   errorTitle: {
-    color: '#FFFFFF', fontSize: '0.9375rem', fontWeight: 700,
+    color: '#FFFFFF', fontSize: '1.5rem', fontWeight: 700,
     textAlign: 'center', margin: 0,
   },
   errorBody: {
-    color: 'rgba(255,255,255,0.6)', fontSize: '0.8125rem',
-    textAlign: 'center', margin: 0, maxWidth: '28rem', lineHeight: 1.5,
+    color: 'rgba(255,255,255,0.6)', fontSize: '1.0625rem',
+    textAlign: 'center', margin: 0, maxWidth: '34rem', lineHeight: 1.6,
   },
 };
 
