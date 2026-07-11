@@ -77,6 +77,14 @@ export function GeneralSection({ prefs, setPref }: { prefs: Prefs; setPref: <K e
         onToggle={(v) => setPref('automaticUpdates', v)}
       />
     </SettingsSection>
+    <SettingsSection title={t('settings.search')} subtitle={t('settings.search_desc')}>
+      <ToggleTile
+        title={t('settings.search_suggestions_open_detail')}
+        subtitle={t('settings.search_suggestions_open_detail_desc')}
+        checked={prefs.searchSuggestionsOpenDetail}
+        onToggle={(v) => setPref('searchSuggestionsOpenDetail', v)}
+      />
+    </SettingsSection>
     <SettingsSection title={t('settings.notifications')} subtitle={t('settings.notifications_desc')}>
       <ToggleTile
         title={t('settings.notifications_master') || 'Bildirimleri Etkinleştir'}

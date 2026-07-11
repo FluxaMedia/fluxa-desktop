@@ -47,6 +47,8 @@ export interface Prefs {
   showHeroSection: boolean;
   homeHeroAutoplayTrailer: boolean;
   homeHeroAutoplayTrailerDelaySecs: string;
+  detailHeroAutoplayTrailer: boolean;
+  detailHeroAutoplayTrailerDelaySecs: string;
   heroFeedToggles: string[];
   homeFeedToggles: string[];
   topTenFeedToggles: string[];
@@ -116,6 +118,7 @@ export interface Prefs {
   syncCwSourceOfTruth: string;
   syncCwRanking: string;
   similarTitlesSource: string;
+  searchSuggestionsOpenDetail: boolean;
 }
 
 export interface TraktTokenResponse {
@@ -175,6 +178,8 @@ export const DEFAULT_PREFS: Prefs = {
   showHeroSection: true,
   homeHeroAutoplayTrailer: false,
   homeHeroAutoplayTrailerDelaySecs: '2',
+  detailHeroAutoplayTrailer: false,
+  detailHeroAutoplayTrailerDelaySecs: '2',
   heroFeedToggles: [],
   homeFeedToggles: [],
   topTenFeedToggles: [],
@@ -247,4 +252,5 @@ export const DEFAULT_PREFS: Prefs = {
   syncCwSourceOfTruth: 'most_recent',
   syncCwRanking: 'last_watched',
   similarTitlesSource: 'auto',
+  searchSuggestionsOpenDetail: false,
 };

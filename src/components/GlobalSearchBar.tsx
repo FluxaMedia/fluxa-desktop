@@ -3,6 +3,7 @@ import { Search as SearchIcon, X, Clock } from 'lucide-react';
 import { t, getLanguage } from '../i18n';
 import { addRecentSearch, loadRecentSearches, clearRecentSearches, type RecentSearch } from '../core/searchHistory';
 import { setSearchPartialHandler } from '../core/catalogEffects';
+import { appPrefs, prefBool } from '../core/appPrefs';
 import type { AppState, Meta } from '../core/types';
 
 interface Props {
@@ -156,10 +157,15 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
   };
 
   const handleSuggestionClick = (meta: Meta) => {
-    saveRecentSearch(meta.name, meta);
-    setExpanded(false);
-    setInputValue('');
-    onNavigateDetail(meta);
+    const openDetail = prefBool(appPrefs(state), 'searchSuggestionsOpenDetail', false);
+    if (openDetail) {
+      saveRecentSearch(meta.name, meta);
+      setExpanded(false);
+      setInputValue('');
+      onNavigateDetail(meta);
+      return;
+    }
+    submit(meta.name);
   };
 
   const handleRecentClick = (recent: RecentSearch) => {
