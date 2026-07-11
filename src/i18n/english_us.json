@@ -1269,6 +1269,7 @@
   "auth.nuvio.import.collections": "Collections",
   "nuvio.status.offline": "Nuvio servers unreachable — using local data",
   "nuvio.status.online": "Connected to Nuvio",
+  "nuvio.status.noInternet": "No internet connection — using local data",
   "auth.profile.eyebrow": "One more step",
   "auth.profile.title": "Set up your profile",
   "auth.profile.subtitle": "Give your primary profile a name. You can always change it later.",

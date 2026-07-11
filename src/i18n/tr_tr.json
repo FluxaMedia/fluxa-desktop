@@ -1269,6 +1269,7 @@
   "auth.nuvio.import.collections": "Koleksiyonlar",
   "nuvio.status.offline": "Nuvio sunucularına ulaşılamıyor — yerel veriler kullanılıyor",
   "nuvio.status.online": "Nuvio'ya bağlandı",
+  "nuvio.status.noInternet": "İnternet bağlantısı yok — yerel veriler kullanılıyor",
   "auth.profile.eyebrow": "Son bir adım",
   "auth.profile.title": "Profilini oluştur",
   "auth.profile.subtitle": "Birincil profiline bir isim ver. İstersen daha sonra değiştirebilirsin.",

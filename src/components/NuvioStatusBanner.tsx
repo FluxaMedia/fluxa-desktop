@@ -4,16 +4,17 @@ import { t } from '../i18n';
 
 interface Props {
   serverDown: boolean;
+  offline: boolean;
   justRecovered: boolean;
   dismissed: boolean;
   onDismiss: () => void;
 }
 
-export function NuvioStatusBanner({ serverDown, justRecovered, dismissed, onDismiss }: Props) {
-  const visible = (serverDown && !dismissed) || justRecovered;
+export function NuvioStatusBanner({ serverDown, offline, justRecovered, dismissed, onDismiss }: Props) {
+  const visible = ((serverDown || offline) && !dismissed) || justRecovered;
   if (!visible) return null;
 
-  const isGreen = justRecovered && !serverDown;
+  const isGreen = justRecovered && !serverDown && !offline;
 
   return (
     <div style={{
@@ -27,13 +28,13 @@ export function NuvioStatusBanner({ serverDown, justRecovered, dismissed, onDism
       alignItems: 'center',
       justifyContent: 'center',
       gap: '0.5rem',
-      background: isGreen ? 'rgba(22, 163, 74, 0.94)' : 'rgba(185, 28, 28, 0.94)',
+      background: isGreen ? 'rgba(22, 163, 74, 0.94)' : offline ? 'rgba(64, 64, 64, 0.94)' : 'rgba(185, 28, 28, 0.94)',
       backdropFilter: 'blur(0.5rem)',
       transition: 'background 0.3s',
       padding: '0 1rem',
     }}>
       <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#fff', letterSpacing: '0.01em' }}>
-        {isGreen ? t('nuvio.status.online') : t('nuvio.status.offline')}
+        {isGreen ? t('nuvio.status.online') : offline ? t('nuvio.status.noInternet') : t('nuvio.status.offline')}
       </span>
       {!isGreen && (
         <button

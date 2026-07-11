@@ -408,7 +408,7 @@ export default function App() {
     void dispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
   }, [activeProfileId, applyStoredPrefs, dispatch, setAllProfiles, setActiveProfile]);
 
-  const { serverDown, justRecovered, dismissed, dismiss } = useNuvioConnectivity(activeProfile, handleNuvioSynced);
+  const { serverDown, offline, justRecovered, dismissed, dismiss } = useNuvioConnectivity(activeProfile, handleNuvioSynced);
 
   const handleNavigateDetail = useCallback((meta: Meta) => {
     setDetailInitialEpisode(null);
@@ -768,6 +768,7 @@ export default function App() {
 
       <NuvioStatusBanner
         serverDown={serverDown}
+        offline={offline}
         justRecovered={justRecovered}
         dismissed={dismissed}
         onDismiss={dismiss}
