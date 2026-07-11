@@ -65,7 +65,7 @@ function openPopoverMenu() {
 }
 
 async function switchToSeries(user: ReturnType<typeof userEvent.setup>) {
-  const typeDropdown = screen.getByText('Movie').closest('button')!;
+  const typeDropdown = screen.getByText('Movies').closest('button')!;
   await user.click(typeDropdown);
   const menu = openPopoverMenu();
   await user.click(within(menu).getByText('Series'));

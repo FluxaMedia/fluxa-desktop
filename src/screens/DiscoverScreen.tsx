@@ -34,6 +34,13 @@ function cacheKey(catalogKey: string | null, extraName: string | null, extraValu
   return `${catalogKey ?? ''}|${extraName ?? ''}|${extraValue ?? ''}`;
 }
 
+function isSearchOnlyCatalog(cat: { extra?: Array<{ name?: string; isRequired?: boolean; options?: string[] }> }): boolean {
+  const extra = cat.extra ?? [];
+  const requiresSearch = extra.some((e) => e.name === 'search' && e.isRequired);
+  if (!requiresSearch) return false;
+  return !extra.some((e) => e.name !== 'search' && e.name !== 'skip' && (e.options?.length ?? 0) > 0);
+}
+
 function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre }: Props) {
   const discover = state.discover;
   const [contentType, setContentType] = useState<string>('movie');
@@ -101,12 +108,13 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
     const types = ['movie', 'series'];
     for (const addon of state.addons?.installed ?? []) {
       for (const cat of addon.manifest?.catalogs ?? addon.catalogs ?? []) {
-        if (cat.type && !types.includes(cat.type)) types.push(cat.type);
+        if (!cat.type || types.includes(cat.type) || isSearchOnlyCatalog(cat)) continue;
+        types.push(cat.type);
       }
     }
     return types.map((ty) => ({
       value: ty,
-      label: ty === 'movie' ? t('auto.movie') : ty === 'series' ? t('auto.series') : ty.charAt(0).toUpperCase() + ty.slice(1),
+      label: ty === 'movie' ? t('auto.movies') : ty === 'series' ? t('auto.series') : ty.charAt(0).toUpperCase() + ty.slice(1),
     }));
   }, [state.addons?.installed]);
 
