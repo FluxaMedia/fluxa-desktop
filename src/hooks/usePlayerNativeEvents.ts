@@ -97,7 +97,7 @@ export function usePlayerNativeEvents({
             const result = await Promise.race([fetchStreamsForEpisode(nextEp.id, meta.type), timeout]);
             const streams = result.streams as Stream[];
             if (streams.length > 0) {
-              chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs))) as Stream | null ?? streams[0];
+              chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs), nextEp.id)) as Stream | null ?? streams[0];
             }
           } catch {}
         }
@@ -140,7 +140,7 @@ export function usePlayerNativeEvents({
           const result = await Promise.race([fetchStreamsForEpisode(ep.id, meta.type), timeout]);
           const streams = result.streams as Stream[];
           if (streams.length > 0) {
-            chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs))) as Stream | null ?? streams[0];
+            chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs), ep.id)) as Stream | null ?? streams[0];
           }
         } catch {}
         if (!chosenStream) {

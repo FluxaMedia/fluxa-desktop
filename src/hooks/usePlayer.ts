@@ -731,7 +731,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
               const result = await fetchStreamsForEpisode(resolvedPlayableNextEp.id, meta?.type ?? 'series');
               const streams = result.streams as Stream[];
               if (streams.length > 0) {
-                const chosen = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(stream), JSON.stringify(prefs))) as Stream | null ?? streams[0];
+                const chosen = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(stream), JSON.stringify(prefs), resolvedPlayableNextEp.id)) as Stream | null ?? streams[0];
                 prefetchedNextEpRef.current = { episodeId: resolvedPlayableNextEp.id, stream: chosen };
               }
             } catch {}

@@ -656,8 +656,9 @@ export async function coreSelectNextEpisodeStream(
   streamsJson: string,
   currentStreamJson: string,
   prefsJson: string,
+  nextVideoId: string,
 ): Promise<unknown | null> {
-  return coreInvoke('selectNextEpisodeStream', JSON.stringify({ streamsJson, currentStreamJson, prefsJson }));
+  return coreInvoke('selectNextEpisodeStream', JSON.stringify({ streamsJson, currentStreamJson, prefsJson, nextVideoId }));
 }
 
 export async function coreImportCollections(rawJson: string): Promise<unknown[] | null> {
