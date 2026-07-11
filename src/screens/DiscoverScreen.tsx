@@ -114,10 +114,16 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
     pendingPagingKeyRef.current = null;
   }, [key]);
 
-  const displayResults = useMemo(
-    () => [...baseResults, ...(pagingExtra[key] ?? [])],
-    [baseResults, pagingExtra, key],
-  );
+  const displayResults = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: Meta[] = [];
+    for (const item of [...baseResults, ...(pagingExtra[key] ?? [])]) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      merged.push(item);
+    }
+    return merged;
+  }, [baseResults, pagingExtra, key]);
 
   const handleLoadMore = useCallback(() => {
     if (!selectedCatalog?.transportUrl || !selectedCatalog.id) return;
@@ -143,8 +149,17 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
       pagingNoMoreRef.current.add(pendingKey);
       return;
     }
-    setPagingExtra((prev) => ({ ...prev, [pendingKey]: [...(prev[pendingKey] ?? []), ...items] }));
-  }, [discover.paging]);
+    setPagingExtra((prev) => {
+      const existing = prev[pendingKey] ?? [];
+      const knownIds = new Set([...baseResults.map((m) => m.id), ...existing.map((m) => m.id)]);
+      const newItems = items.filter((item) => !knownIds.has(item.id));
+      if (newItems.length === 0) {
+        pagingNoMoreRef.current.add(pendingKey);
+        return prev;
+      }
+      return { ...prev, [pendingKey]: [...existing, ...newItems] };
+    });
+  }, [discover.paging, baseResults]);
 
   const typeOptions = useMemo(() => {
     const types = ['movie', 'series'];
