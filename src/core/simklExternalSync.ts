@@ -76,6 +76,64 @@ export async function syncSimklNow(payload: Record<string, unknown>): Promise<un
   return { synced: true, provider: 'simkl', continueWatchingCount: items.length, watchlistCount: 0 };
 }
 
+export async function fetchSimklCalendarItems(token: string, clientId: string): Promise<Record<string, unknown>[]> {
+  const headers: HeadersInit = {
+    'Authorization': `Bearer ${token}`,
+    'simkl-api-key': clientId,
+    'Content-Type': 'application/json',
+  };
+  const start = new Date();
+  start.setDate(start.getDate() - 14);
+  const startIso = start.toISOString().slice(0, 10);
+  const days = 90;
+
+  const [shows, movies] = await Promise.all([
+    platformFetch(`https://api.simkl.com/calendar/shows/${startIso}/${days}?extended=full`, { headers })
+      .then((res) => (res.ok ? res.json() : [])).catch(() => []),
+    platformFetch(`https://api.simkl.com/calendar/movies/${startIso}/${days}?extended=full`, { headers })
+      .then((res) => (res.ok ? res.json() : [])).catch(() => []),
+  ]);
+
+  const showItems = (Array.isArray(shows) ? shows : []).map((raw) => {
+    const entry = raw as Record<string, unknown>;
+    const episode = entry.episode as Record<string, unknown> | undefined;
+    const show = entry.show as Record<string, unknown> | undefined;
+    const ids = show?.ids as Record<string, unknown> | undefined;
+    const imdb = typeof ids?.imdb === 'string' ? ids.imdb : undefined;
+    const tmdb = ids?.tmdb != null ? `tmdb:${ids.tmdb}` : undefined;
+    const seriesId = imdb ?? tmdb;
+    const dateIso = typeof entry.date === 'string' ? entry.date : undefined;
+    if (!seriesId || !dateIso) return null;
+    return {
+      id: `${seriesId}:${episode?.season}:${episode?.episode}`,
+      title: show?.title,
+      episodeTitle: episode?.title,
+      dateIso,
+      contentId: seriesId,
+      seriesId,
+    } as Record<string, unknown>;
+  }).filter((item): item is Record<string, unknown> => item !== null);
+
+  const movieItems = (Array.isArray(movies) ? movies : []).map((raw) => {
+    const entry = raw as Record<string, unknown>;
+    const movie = entry.movie as Record<string, unknown> | undefined;
+    const ids = movie?.ids as Record<string, unknown> | undefined;
+    const imdb = typeof ids?.imdb === 'string' ? ids.imdb : undefined;
+    const tmdb = ids?.tmdb != null ? `tmdb:${ids.tmdb}` : undefined;
+    const contentId = imdb ?? tmdb;
+    const dateIso = typeof entry.date === 'string' ? entry.date : undefined;
+    if (!contentId || !dateIso) return null;
+    return {
+      id: contentId,
+      title: movie?.title,
+      dateIso,
+      contentId,
+    } as Record<string, unknown>;
+  }).filter((item): item is Record<string, unknown> => item !== null);
+
+  return [...showItems, ...movieItems];
+}
+
 export async function pushMarkWatchedSimkl(
   videoIds: string[],
   watched: boolean,

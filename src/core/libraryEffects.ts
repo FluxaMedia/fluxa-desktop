@@ -18,6 +18,8 @@ import { buildContinueWatching, effectRunnerLibraryKey, loadActiveProfile, loadA
 import { pushLibraryStatusExternal, pushMarkWatchedExternal, pushPlaybackProgressExternal, pushWatchlistExternal, type WatchedEpisodeInfo, type WatchProgressInfo } from './externalSync';
 import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
 import { fetchTraktCalendarItems } from './traktExternalSync';
+import { fetchSimklCalendarItems } from './simklExternalSync';
+import { fetchAniListCalendarItems } from './anilistExternalSync';
 import { getOAuthClientId } from './traktSync';
 import { notify } from './notifications';
 import { t } from '../i18n';
@@ -79,19 +81,35 @@ export async function refreshWatchlistAirDates(): Promise<void> {
 
 export async function refreshExternalCalendarItems(): Promise<void> {
   const profile = await loadActiveProfile();
-  const token = profile?.traktAccessToken;
-  if (!token) return;
-  if (profile?.traktTokenExpiresAt && Date.now() / 1000 > profile.traktTokenExpiresAt) return;
+  if (!profile) return;
 
-  try {
-    const clientId = await getOAuthClientId('trakt');
-    const items = await fetchTraktCalendarItems(token, clientId);
-    const lib = await loadLibrary();
-    lib.externalCalendarItems = items;
-    await saveLibrary(lib);
-    invalidateCalendarCache();
-  } catch {
+  const tasks: Promise<Record<string, unknown>[]>[] = [];
+
+  if (profile.traktAccessToken && !(profile.traktTokenExpiresAt && Date.now() / 1000 > profile.traktTokenExpiresAt)) {
+    tasks.push((async () => {
+      const clientId = await getOAuthClientId('trakt');
+      return fetchTraktCalendarItems(profile.traktAccessToken!, clientId);
+    })().catch(() => []));
   }
+
+  if (profile.simklAccessToken) {
+    tasks.push((async () => {
+      const clientId = await getOAuthClientId('simkl');
+      return fetchSimklCalendarItems(profile.simklAccessToken!, clientId);
+    })().catch(() => []));
+  }
+
+  if (profile.anilistAccessToken) {
+    tasks.push(fetchAniListCalendarItems(profile.anilistAccessToken).catch(() => []));
+  }
+
+  if (tasks.length === 0) return;
+
+  const results = await Promise.all(tasks);
+  const lib = await loadLibrary();
+  lib.externalCalendarItems = results.flat();
+  await saveLibrary(lib);
+  invalidateCalendarCache();
 }
 
 const NOTIFIED_EPISODES_KEY = 'notified_released_episode_ids';
