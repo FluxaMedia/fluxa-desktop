@@ -39,8 +39,10 @@ const CalendarScreen = React.lazy(() => import('./screens/CalendarScreen').then(
 const ProfileSelectionScreen = React.lazy(() => import('./screens/ProfileSelectionScreen').then((m) => ({ default: m.ProfileSelectionScreen })));
 const WelcomeScreen = React.lazy(() => import('./screens/WelcomeScreen').then((m) => ({ default: m.WelcomeScreen })));
 import { NuvioStatusBanner } from './components/NuvioStatusBanner';
+import { OfflineBanner } from './components/OfflineBanner';
 import { P2PDialog } from './components/P2PDialog';
 import { useNuvioConnectivity } from './hooks/useNuvioConnectivity';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { setActiveProfileId, createProfileObject, saveProfile, loadProfiles } from './core/profiles';
 import { invalidateLibraryKeyCache } from './core/libraryOps';
 import { storageWrite, storageRead } from './core/engine';
@@ -408,7 +410,8 @@ export default function App() {
     void dispatch(JSON.stringify({ type: 'libraryHydrateRequested' }));
   }, [activeProfileId, applyStoredPrefs, dispatch, setAllProfiles, setActiveProfile]);
 
-  const { serverDown, offline, justRecovered, dismissed, dismiss } = useNuvioConnectivity(activeProfile, handleNuvioSynced);
+  const { serverDown, justRecovered, dismissed, dismiss } = useNuvioConnectivity(activeProfile, handleNuvioSynced);
+  const isOnline = useOnlineStatus();
 
   const handleNavigateDetail = useCallback((meta: Meta) => {
     setDetailInitialEpisode(null);
@@ -766,13 +769,16 @@ export default function App() {
       </ErrorBoundary>
       </div>
 
-      <NuvioStatusBanner
-        serverDown={serverDown}
-        offline={offline}
-        justRecovered={justRecovered}
-        dismissed={dismissed}
-        onDismiss={dismiss}
-      />
+      {isOnline ? (
+        <NuvioStatusBanner
+          serverDown={serverDown}
+          justRecovered={justRecovered}
+          dismissed={dismissed}
+          onDismiss={dismiss}
+        />
+      ) : (
+        <OfflineBanner online={isOnline} />
+      )}
       {p2pDialog && (
         <P2PDialog
           mode={p2pDialog.mode}

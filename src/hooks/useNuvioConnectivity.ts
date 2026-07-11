@@ -67,18 +67,6 @@ export function useNuvioConnectivity(activeProfile: UserProfile | null, onSynced
   const [serverDown, setServerDown] = useState(false);
   const [justRecovered, setJustRecovered] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  const [offline, setOffline] = useState(!navigator.onLine);
-
-  useEffect(() => {
-    const onOnline = () => setOffline(false);
-    const onOffline = () => setOffline(true);
-    window.addEventListener('online', onOnline);
-    window.addEventListener('offline', onOffline);
-    return () => {
-      window.removeEventListener('online', onOnline);
-      window.removeEventListener('offline', onOffline);
-    };
-  }, []);
 
   useEffect(() => {
     const token = activeProfile?.nuvioAccessToken;
@@ -141,5 +129,5 @@ export function useNuvioConnectivity(activeProfile: UserProfile | null, onSynced
 
   const dismiss = useCallback(() => setDismissed(true), []);
 
-  return { serverDown: serverDown && !offline, offline, justRecovered, dismissed, dismiss };
+  return { serverDown, justRecovered, dismissed, dismiss };
 }
