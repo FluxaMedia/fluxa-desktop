@@ -59,6 +59,7 @@ export const CORE_METHODS = [
   'offlineDownloadPlan',
   'parseAddonResourceResult',
   'parseAndPlanAddonResource',
+  'parseAnimeSkipResults',
   'parseAniskipResults',
   'parseIntroDbSegments',
   'parseManifest',

@@ -185,8 +185,18 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
     <SettingsSection title={t('settings.skip_segments')} subtitle={t('settings.use_introdb_desc')}>
       <ToggleTile title={t('settings.use_introdb')} subtitle={t('settings.use_introdb_desc')} checked={prefs.useIntroDb} onToggle={(v) => setPref('useIntroDb', v)} />
       <ToggleTile title={t('settings.use_aniskip')} subtitle={t('settings.use_aniskip_desc')} checked={prefs.useAniSkip} onToggle={(v) => setPref('useAniSkip', v)} />
+      <ToggleTile title={t('settings.use_animeskip')} subtitle={t('settings.use_animeskip_desc')} checked={prefs.useAnimeSkip} onToggle={(v) => setPref('useAnimeSkip', v)} />
+      {prefs.useAnimeSkip && (
+        <InputTile
+          title={t('settings.animeskip_client_id')}
+          subtitle={t('settings.animeskip_client_id_desc')}
+          value={prefs.animeSkipClientId}
+          placeholder={t('settings.api_key_placeholder')}
+          onChange={(v) => setPref('animeSkipClientId', v)}
+        />
+      )}
       <ToggleTile title={t('settings.use_chapter_skip')} subtitle={t('settings.use_chapter_skip_desc')} checked={prefs.useChapterSkip} onToggle={(v) => setPref('useChapterSkip', v)} />
-      {(prefs.useIntroDb || prefs.useAniSkip) && (
+      {(prefs.useIntroDb || prefs.useAniSkip || prefs.useAnimeSkip) && (
         <ToggleTile title={t('settings.auto_skip')} subtitle={t('settings.auto_skip_desc')} checked={prefs.autoSkipIntro} onToggle={(v) => setPref('autoSkipIntro', v)} />
       )}
       {prefs.useIntroDb && (

@@ -718,16 +718,18 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         const prefs = appPrefs(stateRef.current);
         const useIntroDb = prefBool(prefs, 'useIntroDb', true);
         const useAniSkip = prefBool(prefs, 'useAniSkip', true);
+        const useAnimeSkip = prefBool(prefs, 'useAnimeSkip', false);
+        const animeSkipClientId = prefString(prefs, 'animeSkipClientId', '');
         const needVideos = !episodeList.length && !!meta?.id && !!meta?.type && !!episode;
 
         const [segmentResult, fetchedVideos] = await Promise.all([
           (async () => {
-            if ((!useIntroDb && !useAniSkip) || !meta?.id || !episode) return [];
+            if ((!useIntroDb && !useAniSkip && !useAnimeSkip) || !meta?.id || !episode) return [];
             const imdbId = await corePlaybackIntroLookupContentId(meta.id);
             if (!imdbId) return [];
             const season = episode.season ?? 1;
             const epNum = episode.episode ?? episode.number ?? 1;
-            return fetchPlaybackSkipSegments({ imdbId, season, episode: epNum, title: meta.name, useIntroDb, useAniSkip });
+            return fetchPlaybackSkipSegments({ imdbId, season, episode: epNum, title: meta.name, useIntroDb, useAniSkip, useAnimeSkip, animeSkipClientId });
           })(),
           needVideos ? fetchMetaVideos(meta!.id, meta!.type) : Promise.resolve([] as Video[]),
         ]);

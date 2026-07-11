@@ -6,12 +6,13 @@ getVersion().then((v) => { _appVersion = v; }).catch(() => {});
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 
+const NO_CORS_HOSTS = new Set(['api.introdb.app', 'api.aniskip.com', 'api.anime-skip.com']);
+
 export async function platformFetch(url: string, init?: RequestInit): Promise<Response> {
   const signal = init?.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
-  // Try native fetch first — no IPC overhead, uses the browser's HTTP stack.
-  // Stremio-compatible addons require CORS headers (Access-Control-Allow-Origin: *)
-  // so this works for all addon catalog/resource requests.
-  // Fall back to tauriFetch for authenticated API calls or CORS-restricted endpoints.
+  if (NO_CORS_HOSTS.has(new URL(url).hostname)) {
+    return tauriFetch(url, { ...init, signal });
+  }
   const { ['User-Agent']: _omitted, ...nativeHeaders } = (init?.headers ?? {}) as Record<string, string>;
   try {
     return await fetch(url, { ...init, headers: nativeHeaders, signal });
@@ -29,9 +30,9 @@ export async function fetchJson(url: string, init?: RequestInit): Promise<unknow
   return res.json();
 }
 
-export async function tryFetchJson(url: string): Promise<unknown | null> {
+export async function tryFetchJson(url: string, init?: RequestInit): Promise<unknown | null> {
   try {
-    return await fetchJson(url);
+    return await fetchJson(url, init);
   } catch (err) {
     console.error(`tryFetchJson failed for ${redactSecrets(url)}`, err);
     return null;

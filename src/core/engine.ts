@@ -561,6 +561,10 @@ export async function coreParseAniskipResults(resultsJson: string): Promise<unkn
   return coreInvoke('parseAniskipResults', resultsJson);
 }
 
+export async function coreParseAnimeSkipResults(resultsJson: string): Promise<unknown[] | null> {
+  return coreInvoke('parseAnimeSkipResults', resultsJson);
+}
+
 export async function coreUniqueIntroSegments(
   segmentsAJson: string, segmentsBJson: string,
 ): Promise<unknown[] | null> {

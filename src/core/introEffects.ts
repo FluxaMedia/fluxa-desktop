@@ -1,10 +1,11 @@
 export type IntroSegmentResult = { startTime: number; endTime: number; type: string };
 
 import {
+  coreMergeIntroSegments,
+  coreParseAnimeSkipResults,
   coreParseAniskipResults,
   coreParseIntroDbSegments,
   corePlaybackIntroLookupContentId,
-  coreUniqueIntroSegments,
 } from './engine';
 import { loadAddons } from './libraryOps';
 import { fetchPlannedResources } from './fetchPlanning';
@@ -38,6 +39,8 @@ export async function fetchIntroSegments(payload: Record<string, unknown>): Prom
   const title = typeof payload.title === 'string' ? payload.title : '';
   const useIntroDb = payload.useIntroDb !== false;
   const useAniSkip = payload.useAniSkip !== false;
+  const useAnimeSkip = payload.useAnimeSkip === true;
+  const animeSkipClientId = typeof payload.animeSkipClientId === 'string' ? payload.animeSkipClientId : '';
 
   const sources: unknown[][] = [];
 
@@ -51,15 +54,98 @@ export async function fetchIntroSegments(payload: Record<string, unknown>): Prom
   if (useAniSkip && title && episode > 0) {
     const malId = await resolveMalId(title);
     if (malId) {
-      const data = await tryFetchJson(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?types=op,ed,recap`);
+      const params = new URLSearchParams({ episodeLength: '0' });
+      for (const type of ['op', 'ed', 'recap']) params.append('types', type);
+      const data = await tryFetchJson(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?${params}`);
       const parsed = await coreParseAniskipResults(JSON.stringify(data));
       if (parsed) sources.push(parsed);
     }
   }
 
+  if (useAnimeSkip && animeSkipClientId && title && episode > 0) {
+    const parsed = await fetchAnimeSkipSegments(animeSkipClientId, title, season, episode);
+    if (parsed) sources.push(parsed);
+  }
+
   if (sources.length === 0) return [];
   if (sources.length === 1) return sources[0];
-  return (await coreUniqueIntroSegments(JSON.stringify(sources[0]), JSON.stringify(sources[1]))) ?? [];
+  return (await coreMergeIntroSegments(JSON.stringify(sources))) ?? [];
+}
+
+async function fetchAnimeSkipSegments(
+  clientId: string,
+  title: string,
+  season: number,
+  episode: number,
+): Promise<unknown[] | null> {
+  const anilistId = await resolveAnilistId(title);
+  const show = anilistId
+    ? await animeSkipGraphql<{ findShowsByExternalId?: Array<{ id?: string }> }>(
+        clientId,
+        `query ($service: String!, $serviceId: String!) {
+          findShowsByExternalId(service: $service, serviceId: $serviceId) { id }
+        }`,
+        { service: 'anilist.co', serviceId: String(anilistId) },
+      )
+    : null;
+  const showId = show?.findShowsByExternalId?.[0]?.id;
+  if (!showId) return null;
+
+  const episodesData = await animeSkipGraphql<{
+    findEpisodesByShowId?: Array<{ id?: string; season?: string | null; number?: string | null; absoluteNumber?: string | null }>;
+  }>(
+    clientId,
+    `query ($showId: ID!) {
+      findEpisodesByShowId(showId: $showId) { id season number absoluteNumber }
+    }`,
+    { showId },
+  );
+  const episodes = episodesData?.findEpisodesByShowId ?? [];
+  const matched = episodes.find((ep) =>
+    (season <= 0 || ep.season == null || Number(ep.season) === season) && Number(ep.number) === episode,
+  ) ?? episodes.find((ep) => Number(ep.absoluteNumber) === episode);
+  if (!matched?.id) return null;
+
+  const timestampsData = await animeSkipGraphql<{
+    findTimestampsByEpisodeId?: Array<{ at?: number; type?: { name?: string } }>;
+  }>(
+    clientId,
+    `query ($episodeId: ID!) {
+      findTimestampsByEpisodeId(episodeId: $episodeId) { at type { name } }
+    }`,
+    { episodeId: matched.id },
+  );
+  const timestamps = timestampsData?.findTimestampsByEpisodeId ?? [];
+  if (timestamps.length === 0) return null;
+  return coreParseAnimeSkipResults(JSON.stringify(timestamps));
+}
+
+async function animeSkipGraphql<T>(
+  clientId: string,
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<T | null> {
+  const data = await tryFetchJson('https://api.anime-skip.com/graphql', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Client-ID': clientId },
+    body: JSON.stringify({ query, variables }),
+  });
+  return (data as { data?: T } | null)?.data ?? null;
+}
+
+async function resolveAnilistId(title: string): Promise<number | null> {
+  const query = title.replace(/\s+\(\d{4}\)$/, '').trim();
+  if (query.length < 2) return null;
+  const data = await tryFetchJson('https://graphql.anilist.co', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query: `query ($search: String) { Media(search: $search, type: ANIME) { id } }`,
+      variables: { search: query },
+    }),
+  });
+  const id = (data as { data?: { Media?: { id?: number } } } | null)?.data?.Media?.id;
+  return typeof id === 'number' && id > 0 ? id : null;
 }
 
 export async function submitIntroDbSegments(payload: {

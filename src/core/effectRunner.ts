@@ -428,6 +428,8 @@ export async function fetchPlaybackSkipSegments(opts: {
   title: string;
   useIntroDb?: boolean;
   useAniSkip?: boolean;
+  useAnimeSkip?: boolean;
+  animeSkipClientId?: string;
 }): Promise<IntroSegmentResult[]> {
   return fetchIntroSegments(opts) as Promise<IntroSegmentResult[]>;
 }
