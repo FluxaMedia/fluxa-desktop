@@ -288,6 +288,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const controlsVisibleRef = useRef(true);
   const episodePanelOpenRef = useRef(false);
   const firstFrameFiredRef = useRef(false);
+  useEffect(() => {
+    firstFrameFiredRef.current = false;
+  }, [currentEpisode?.id]);
   const isFullscreenRef = useRef(false);
   const activeSkipKeyRef = useRef<string | null>(null);
   const discordPresenceKeyRef = useRef<string | null>(null);

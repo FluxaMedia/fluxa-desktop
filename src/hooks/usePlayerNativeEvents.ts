@@ -73,7 +73,7 @@ export function usePlayerNativeEvents({
         }
         if (!nextEp || !meta || !currentStream) return;
 
-        void embeddedMpvStop().catch(() => undefined);
+        await embeddedMpvStop().catch(() => undefined);
         const nextTitle = playerDisplayTitle(meta, nextEp, currentStream);
         const nextArtwork = playerArtwork(meta, nextEp);
         void embeddedMpvSetTitle(nextTitle.contentTitle, nextTitle.episodeLine).catch(() => undefined);
@@ -121,7 +121,7 @@ export function usePlayerNativeEvents({
       if (!ep) return;
 
       void (async () => {
-        void embeddedMpvStop().catch(() => undefined);
+        await embeddedMpvStop().catch(() => undefined);
         const nextTitle = playerDisplayTitle(meta, ep, currentStream);
         const nextArtwork = playerArtwork(meta, ep);
         void embeddedMpvSetTitle(nextTitle.contentTitle, nextTitle.episodeLine).catch(() => undefined);

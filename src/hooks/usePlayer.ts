@@ -698,7 +698,10 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
           needVideos ? fetchMetaVideos(meta!.id, meta!.type) : Promise.resolve([] as Video[]),
         ]);
 
-        if (fetchedVideos.length > 0) void playerSetEpisodes(JSON.stringify(fetchedVideos));
+        if (fetchedVideos.length > 0) {
+          void playerSetEpisodes(JSON.stringify(fetchedVideos));
+          if (playingMetaRef.current) playingMetaRef.current = { ...playingMetaRef.current, videos: fetchedVideos };
+        }
 
         const videoList = fetchedVideos.length > 0 ? fetchedVideos : episodeList;
         let resolvedNextEp = nextEp;
