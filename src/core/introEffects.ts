@@ -42,30 +42,31 @@ export async function fetchIntroSegments(payload: Record<string, unknown>): Prom
   const useAnimeSkip = payload.useAnimeSkip === true;
   const animeSkipClientId = typeof payload.animeSkipClientId === 'string' ? payload.animeSkipClientId : '';
 
-  const sources: unknown[][] = [];
-
-  if (useIntroDb && imdbId && season > 0 && episode > 0) {
-    const url = `https://api.introdb.app/segments?imdb_id=${encodeURIComponent(imdbId)}&season=${season}&episode=${episode}`;
-    const data = await tryFetchJson(url);
-    const parsed = await coreParseIntroDbSegments(JSON.stringify(data));
-    if (parsed) sources.push(parsed);
-  }
-
-  if (useAniSkip && title && episode > 0) {
-    const malId = await resolveMalId(title);
-    if (malId) {
-      const params = new URLSearchParams({ episodeLength: '0' });
-      for (const type of ['op', 'ed', 'recap']) params.append('types', type);
-      const data = await tryFetchJson(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?${params}`);
-      const parsed = await coreParseAniskipResults(JSON.stringify(data));
-      if (parsed) sources.push(parsed);
-    }
-  }
-
-  if (useAnimeSkip && animeSkipClientId && title && episode > 0) {
-    const parsed = await fetchAnimeSkipSegments(animeSkipClientId, title, season, episode);
-    if (parsed) sources.push(parsed);
-  }
+  const [introDbSegments, aniSkipSegments, animeSkipSegments] = await Promise.all([
+    useIntroDb && imdbId && season > 0 && episode > 0
+      ? (async () => {
+          const url = `https://api.introdb.app/segments?imdb_id=${encodeURIComponent(imdbId)}&season=${season}&episode=${episode}`;
+          const data = await tryFetchJson(url);
+          return coreParseIntroDbSegments(JSON.stringify(data));
+        })()
+      : Promise.resolve(null),
+    useAniSkip && title && episode > 0
+      ? (async () => {
+          const malId = await resolveMalId(title);
+          if (!malId) return null;
+          const params = new URLSearchParams({ episodeLength: '0' });
+          for (const type of ['op', 'ed', 'recap']) params.append('types', type);
+          const data = await tryFetchJson(`https://api.aniskip.com/v2/skip-times/${malId}/${episode}?${params}`);
+          return coreParseAniskipResults(JSON.stringify(data));
+        })()
+      : Promise.resolve(null),
+    useAnimeSkip && animeSkipClientId && title && episode > 0
+      ? fetchAnimeSkipSegments(animeSkipClientId, title, season, episode)
+      : Promise.resolve(null),
+  ]);
+  const sources = [introDbSegments, aniSkipSegments, animeSkipSegments].filter(
+    (segments): segments is unknown[] => Array.isArray(segments),
+  );
 
   if (sources.length === 0) return [];
   if (sources.length === 1) return sources[0];

@@ -705,7 +705,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     };
     poll();
     const interval = setInterval(poll, 2000);
-    return () => clearInterval(interval);
+    let unlisten: (() => void) | undefined;
+    void listen('player-skip-info-updated', () => { void poll(); }).then((stop) => { unlisten = stop; });
+    return () => { clearInterval(interval); unlisten?.(); };
   }, []);
 
   useEffect(() => {

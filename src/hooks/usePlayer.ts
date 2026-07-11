@@ -329,7 +329,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerLoadingOverlay(null);
     setPlayerPlaybackError(null);
     inNativePlayerRef.current = false;
-    void playerClearSkipInfo();
+    await playerClearSkipInfo();
     void playerClearChapters();
     void playerClearEpisodes();
     try {
@@ -644,7 +644,20 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       stateRef.current.addons.installed ?? [] as AddonDescriptor[],
     ).catch(() => [] as PlayerSubtitleSource[]);
 
-    void playerClearSkipInfo();
+    await playerClearSkipInfo();
+    const skipPrefs = appPrefs(stateRef.current);
+    const skipThreshold = Number(prefString(skipPrefs, 'nextEpisodeThresholdPercent', '85')) || 85;
+    const skipAutoPlay = prefBool(skipPrefs, 'autoPlayNextEpisode', true);
+    const skipCountdown = Number(prefString(skipPrefs, 'autoPlayCountdownSecs', '7')) || 7;
+    const playableInitialNextEp = nextEp && isEpisodeReleasedForPlayback(nextEp) ? nextEp : null;
+    await playerSetSkipInfo(
+      '[]',
+      playableInitialNextEp ? formatNextEpisodeSubtitle(playableInitialNextEp) : undefined,
+      skipThreshold,
+      skipAutoPlay,
+      skipCountdown,
+      prefBool(skipPrefs, 'autoSkipIntro', false),
+    );
     void playerClearChapters();
     const episodeList = meta?.videos ?? [];
     void playerSetEpisodes(JSON.stringify(episodeList));
@@ -655,6 +668,27 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       stateRef.current.addons.installed ?? [],
     );
     debugLog(`handlePlay:anime detection confidence=${animeDetection.confidence} isAnime=${animeDetection.isAnime} reasons=${animeDetection.reasons.join(', ')}`);
+    const skipSegmentsPromise = (async () => {
+      const useIntroDb = prefBool(skipPrefs, 'useIntroDb', true);
+      const useAniSkip = prefBool(skipPrefs, 'useAniSkip', true);
+      const useAnimeSkip = prefBool(skipPrefs, 'useAnimeSkip', false);
+      if ((!useIntroDb && !useAniSkip && !useAnimeSkip) || !episode) return [];
+      const imdbId = useIntroDb && meta?.id ? await corePlaybackIntroLookupContentId(meta.id) : '';
+      const season = episode.season ?? 1;
+      const epNum = episode.episode ?? episode.number ?? 1;
+      return fetchPlaybackSkipSegments({ imdbId, season, episode: epNum, title: meta?.name ?? '', useIntroDb, useAniSkip, useAnimeSkip, animeSkipClientId: prefString(skipPrefs, 'animeSkipClientId', '') });
+    })();
+    void skipSegmentsPromise.then((segments) => {
+      if (isCancelled() || segments.length === 0) return;
+      return playerSetSkipInfo(
+        JSON.stringify(segments),
+        playableInitialNextEp ? formatNextEpisodeSubtitle(playableInitialNextEp) : undefined,
+        skipThreshold,
+        skipAutoPlay,
+        skipCountdown,
+        prefBool(skipPrefs, 'autoSkipIntro', false),
+      );
+    }).catch(() => undefined);
 
     let loadingStatusPollActive = true;
     const pollMpvLoadingStatus = async () => {
@@ -767,34 +801,14 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       }
     }
 
-    const playableNextEp = nextEp && isEpisodeReleasedForPlayback(nextEp) ? nextEp : null;
-    if (playableNextEp) {
-      const prefs0 = appPrefs(stateRef.current);
-      const threshold0 = Number(prefString(prefs0, 'nextEpisodeThresholdPercent', '85')) || 85;
-      const autoPlay0 = prefBool(prefs0, 'autoPlayNextEpisode', true);
-      const countdown0 = Number(prefString(prefs0, 'autoPlayCountdownSecs', '7')) || 7;
-      void playerSetSkipInfo('[]', formatNextEpisodeSubtitle(playableNextEp), threshold0, autoPlay0, countdown0, prefBool(prefs0, 'autoSkipIntro', false));
-    }
-
     // Background: fetch skip segments + prefetch next episode stream
     void (async () => {
       try {
         const prefs = appPrefs(stateRef.current);
-        const useIntroDb = prefBool(prefs, 'useIntroDb', true);
-        const useAniSkip = prefBool(prefs, 'useAniSkip', true);
-        const useAnimeSkip = prefBool(prefs, 'useAnimeSkip', false);
-        const animeSkipClientId = prefString(prefs, 'animeSkipClientId', '');
         const needVideos = !nextEp && !!meta?.id && !!meta?.type && !!episode;
 
         const [segmentResult, fetchedVideos] = await Promise.all([
-          (async () => {
-            if ((!useIntroDb && !useAniSkip && !useAnimeSkip) || !meta?.id || !episode) return [];
-            const imdbId = await corePlaybackIntroLookupContentId(meta.id);
-            if (!imdbId) return [];
-            const season = episode.season ?? 1;
-            const epNum = episode.episode ?? episode.number ?? 1;
-            return fetchPlaybackSkipSegments({ imdbId, season, episode: epNum, title: meta.name, useIntroDb, useAniSkip, useAnimeSkip, animeSkipClientId });
-          })(),
+          skipSegmentsPromise,
           needVideos ? fetchMetaVideos(meta!.id, meta!.type) : Promise.resolve([] as Video[]),
         ]);
 

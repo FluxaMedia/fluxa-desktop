@@ -1294,6 +1294,7 @@ pub fn player_clear_chapters(state: State<DesktopState>) {
 
 #[tauri::command]
 pub fn player_set_skip_info(
+    app: AppHandle,
     state: State<DesktopState>,
     segments_json: String,
     next_ep_subtitle: Option<String>,
@@ -1322,13 +1323,15 @@ pub fn player_set_skip_info(
     if let Some(v) = auto_skip_segments {
         *state.auto_skip_segments.lock().unwrap() = v;
     }
+    let _ = app.emit("player-skip-info-updated", ());
 }
 
 #[tauri::command]
-pub fn player_clear_skip_info(state: State<DesktopState>) {
+pub fn player_clear_skip_info(app: AppHandle, state: State<DesktopState>) {
     *state.skip_segments_json.lock().unwrap() = None;
     *state.next_ep_subtitle.lock().unwrap() = String::new();
     *state.eof_next_fired.lock().unwrap() = false;
+    let _ = app.emit("player-skip-info-updated", ());
 }
 
 #[tauri::command]
