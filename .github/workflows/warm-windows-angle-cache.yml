@@ -29,4 +29,4 @@ jobs:
       - name: Build ANGLE
         if: steps.angle-cache.outputs.cache-hit != 'true'
         shell: bash
-        run: "$VCPKG_INSTALLATION_ROOT/vcpkg" install angle:x64-windows
+        run: '"$VCPKG_INSTALLATION_ROOT/vcpkg" install angle:x64-windows'
