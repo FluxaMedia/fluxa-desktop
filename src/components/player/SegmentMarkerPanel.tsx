@@ -40,19 +40,27 @@ export function SegmentMarkerPanel({ onClose, getPosMs, imdbId, season, episode,
   const [draftStartMs, setDraftStartMs] = useState<number | null>(null);
   const [pending, setPending] = useState<PendingSegment[]>([]);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [error, setError] = useState<string | null>(null);
 
   const hasContext = !!imdbId && !!season && !!episode;
 
-  const startDraft = () => setDraftStartMs(getPosMs());
+  const startDraft = () => { setStatus('idle'); setError(null); setDraftStartMs(getPosMs()); };
   const cancelDraft = () => setDraftStartMs(null);
   const stopDraft = () => {
     if (draftStartMs == null) return;
     const endMs = getPosMs();
     if (endMs <= draftStartMs) { setDraftStartMs(null); return; }
+    if (endMs - draftStartMs < 5_000 || endMs - draftStartMs > 180_000) {
+      setError(t('player.mark_segment_duration_error'));
+      setDraftStartMs(null);
+      return;
+    }
+    setStatus('idle');
+    setError(null);
     setPending((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, type: segType, startMs: draftStartMs, endMs }]);
     setDraftStartMs(null);
   };
-  const removePending = (id: string) => setPending((prev) => prev.filter((s) => s.id !== id));
+  const removePending = (id: string) => { setStatus('idle'); setError(null); setPending((prev) => prev.filter((s) => s.id !== id)); };
 
   const submit = async () => {
     if (!hasContext || pending.length === 0) return;
@@ -67,8 +75,9 @@ export function SegmentMarkerPanel({ onClose, getPosMs, imdbId, season, episode,
       });
       setStatus('success');
       setPending([]);
-    } catch {
+    } catch (reason) {
       setStatus('error');
+      setError(reason instanceof Error ? reason.message : t('player.mark_segment_error_unknown'));
     }
   };
 
@@ -102,6 +111,7 @@ export function SegmentMarkerPanel({ onClose, getPosMs, imdbId, season, episode,
 
       {hasContext && (
         <>
+          <div style={{ color: 'rgba(255,255,255,0.52)', fontSize: '0.75rem', lineHeight: 1.45 }}>{t('player.mark_segment_help')}</div>
           <div style={{ display: 'flex', gap: '0.375rem' }}>
             {TYPE_OPTIONS.map((opt) => (
               <button
@@ -186,7 +196,7 @@ export function SegmentMarkerPanel({ onClose, getPosMs, imdbId, season, episode,
           </button>
 
           {status === 'success' && <div style={{ color: '#54D17A', fontSize: '0.75rem' }}>{t('player.mark_segment_success')}</div>}
-          {status === 'error' && <div style={{ color: 'var(--primary-accent-color)', fontSize: '0.75rem' }}>{t('player.mark_segment_error')}</div>}
+          {error && <div style={{ color: '#FF8A3D', fontSize: '0.75rem', lineHeight: 1.4 }}>{status === 'error' ? t('player.mark_segment_error', error) : error}</div>}
         </>
       )}
     </div>

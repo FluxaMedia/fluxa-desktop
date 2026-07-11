@@ -159,19 +159,21 @@ export async function submitIntroDbSegments(payload: {
   if (!apiKey || !imdbId || season <= 0 || episode <= 0 || segments.length === 0) {
     throw new Error('invalid_submission');
   }
-  await fetchJson('https://api.introdb.app/segments', {
+  await Promise.all(segments.map((segment) => fetchJson('https://api.introdb.app/submit', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      'X-API-Key': apiKey,
     },
     body: JSON.stringify({
       imdb_id: imdbId,
       season,
       episode,
-      segments: segments.map((s) => ({ start_time: s.startTime, end_time: s.endTime, type: s.type })),
+      segment_type: segment.type,
+      start_sec: segment.startTime / 1000,
+      end_sec: segment.endTime / 1000,
     }),
-  });
+  })));
 }
 
 async function resolveMalId(title: string): Promise<number | null> {
