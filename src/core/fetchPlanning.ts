@@ -7,7 +7,7 @@ import { _appVersion, platformFetch } from './httpClient';
 import type { AddonDescriptor, Video } from './types';
 
 const FETCH_PLAN_CONCURRENCY = 12;
-const STREAM_FETCH_TIMEOUT_MS = 30_000;
+const STREAM_FETCH_TIMEOUT_MS = 60_000;
 
 export type FetchPlanRequest = {
   url?: unknown;
@@ -33,17 +33,22 @@ export async function fetchParsedAddonResource(
   season?: unknown,
   signal?: AbortSignal,
 ): Promise<Record<string, unknown> | null> {
+  const retriesLeft = resource === 'stream' && !signal ? 1 : 0;
   let statusCode = 0;
   let body: string | null = null;
-  try {
-    const response = await platformFetch(url, {
-      headers: { 'User-Agent': `Fluxa/${_appVersion}` },
-      signal: signal ?? (resource === 'stream' ? AbortSignal.timeout(STREAM_FETCH_TIMEOUT_MS) : undefined),
-    });
-    statusCode = response.status;
-    body = await response.text();
-  } catch {
-    statusCode = 0;
+  for (let attempt = 0; attempt <= retriesLeft; attempt++) {
+    try {
+      const response = await platformFetch(url, {
+        headers: { 'User-Agent': `Fluxa/${_appVersion}` },
+        signal: signal ?? (resource === 'stream' ? AbortSignal.timeout(STREAM_FETCH_TIMEOUT_MS) : undefined),
+      });
+      statusCode = response.status;
+      body = await response.text();
+    } catch {
+      statusCode = 0;
+      body = null;
+    }
+    if (statusCode > 0) break;
   }
   const result = await coreParseAndPlanAddonResource(
     resource,

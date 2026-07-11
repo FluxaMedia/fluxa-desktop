@@ -42,13 +42,14 @@ export async function syncSimklNow(payload: Record<string, unknown>): Promise<un
     'Content-Type': 'application/json',
   };
 
+  const syncSignal = () => AbortSignal.timeout(60_000);
   const [showsRes, moviesRes, wlShowsRes, wlMoviesRes, doneShowsRes, doneMoviesRes] = await Promise.all([
-    platformFetch('https://api.simkl.com/sync/all-items/shows/watching?extended=full', { headers }),
-    platformFetch('https://api.simkl.com/sync/all-items/movies/watching?extended=full', { headers }),
-    platformFetch('https://api.simkl.com/sync/all-items/shows/plantowatch?extended=full', { headers }),
-    platformFetch('https://api.simkl.com/sync/all-items/movies/plantowatch?extended=full', { headers }),
-    platformFetch('https://api.simkl.com/sync/all-items/shows/completed?extended=full', { headers }),
-    platformFetch('https://api.simkl.com/sync/all-items/movies/completed?extended=full', { headers }),
+    platformFetch('https://api.simkl.com/sync/all-items/shows/watching?extended=full', { headers, signal: syncSignal() }),
+    platformFetch('https://api.simkl.com/sync/all-items/movies/watching?extended=full', { headers, signal: syncSignal() }),
+    platformFetch('https://api.simkl.com/sync/all-items/shows/plantowatch?extended=full', { headers, signal: syncSignal() }),
+    platformFetch('https://api.simkl.com/sync/all-items/movies/plantowatch?extended=full', { headers, signal: syncSignal() }),
+    platformFetch('https://api.simkl.com/sync/all-items/shows/completed?extended=full', { headers, signal: syncSignal() }),
+    platformFetch('https://api.simkl.com/sync/all-items/movies/completed?extended=full', { headers, signal: syncSignal() }),
   ]);
 
   const showsData = showsRes.ok ? JSON.stringify(await showsRes.json()) : '[]';
