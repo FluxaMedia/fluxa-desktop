@@ -13,7 +13,7 @@ import {
 import { platformFetch } from './httpClient';
 import { buildContinueWatching } from './libraryOps';
 import { storageRead, storageWrite } from './engine';
-import type { UserProfile } from './types';
+import type { NuvioCollectionSource, UserProfile } from './types';
 import { saveProfile } from './profiles';
 import { fetchPlannedResources } from './fetchPlanning';
 
@@ -396,6 +396,32 @@ export async function importNuvioProfileData(
               catalogId: String(s.catalogId ?? ''),
               type: String(s.type ?? 'movie'),
             };
+          }),
+          sources: ((f.sources as Array<Record<string, unknown>>) ?? []).flatMap((s): NuvioCollectionSource[] => {
+            const provider = String(s.provider ?? '').toLowerCase();
+            if (provider === 'trakt' && typeof s.traktListId === 'number') {
+              return [{
+                provider: 'trakt',
+                title: typeof s.title === 'string' ? s.title : undefined,
+                mediaType: typeof s.mediaType === 'string' ? s.mediaType : undefined,
+                traktListId: s.traktListId,
+                sortBy: typeof s.sortBy === 'string' ? s.sortBy : undefined,
+                sortHow: typeof s.sortHow === 'string' ? s.sortHow : undefined,
+              }];
+            }
+            if (provider === 'tmdb' && typeof s.tmdbSourceType === 'string') {
+              return [{
+                provider: 'tmdb',
+                title: typeof s.title === 'string' ? s.title : undefined,
+                mediaType: typeof s.mediaType === 'string' ? s.mediaType : undefined,
+                tmdbSourceType: s.tmdbSourceType,
+                tmdbId: typeof s.tmdbId === 'number' ? s.tmdbId : undefined,
+                sortBy: typeof s.sortBy === 'string' ? s.sortBy : undefined,
+                sortHow: typeof s.sortHow === 'string' ? s.sortHow : undefined,
+                filters: s.filters && typeof s.filters === 'object' && !Array.isArray(s.filters) ? s.filters as Record<string, unknown> : undefined,
+              }];
+            }
+            return [];
           }),
         })),
       }));

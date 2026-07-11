@@ -14,6 +14,7 @@ import { t } from '../i18n';
 import { CategoryGridScreen } from './CategoryGridScreen';
 import { CollectionEditorScreen } from './CollectionEditorScreen';
 import { CollectionsTab } from '../components/library/CollectionsTab';
+import { isNuvioCollectionSource, loadNuvioCollectionSource } from '../core/collectionSources';
 
 type Tab = 'watchlist' | 'watching' | 'completed' | 'dropped' | 'collections' | 'airing' | 'rated' | 'history';
 
@@ -123,6 +124,22 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     }
     const groups = Array.from(groupsByType, ([type, items]) => ({ type, items }));
     return { items: groups.flatMap((g) => g.items), groups };
+  }
+
+  async function openFolder(folder: UserCollectionFolder, title: string) {
+    savedScrollRef.current = collectionsScrollRef.current?.scrollTop ?? 0;
+    const local = getItemsForFolder(folder);
+    setViewAllFolder({ title, ...local });
+    const specialSources = (folder.sources ?? []).filter(isNuvioCollectionSource);
+    if (!specialSources.length) return;
+    const batches = await Promise.all(specialSources.map((source) => loadNuvioCollectionSource(source)));
+    const groupsByType = new Map(local.groups.map((group) => [group.type, [...group.items]]));
+    for (let index = 0; index < batches.length; index += 1) {
+      const type = specialSources[index].mediaType?.toUpperCase() === 'TV' ? 'series' : 'movie';
+      groupsByType.set(type, [...(groupsByType.get(type) ?? []), ...batches[index]]);
+    }
+    const groups = Array.from(groupsByType, ([type, items]) => ({ type, items }));
+    setViewAllFolder({ title, items: groups.flatMap((group) => group.items), groups });
   }
 
   async function saveCollections(next: UserCollection[]) {
@@ -415,8 +432,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
             collections={collections}
             accent={accent}
             onFolderClick={(folder, folderTitle) => {
-              savedScrollRef.current = collectionsScrollRef.current?.scrollTop ?? 0;
-              setViewAllFolder({ title: folderTitle, ...getItemsForFolder(folder) });
+              void openFolder(folder, folderTitle);
             }}
             onEditCollection={(col) => setEditingCollection(col)}
             onDeleteCollection={(id) => void handleDeleteCollection(id)}

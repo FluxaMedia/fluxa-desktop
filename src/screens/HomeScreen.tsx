@@ -11,9 +11,10 @@ import { appPrefs, prefBool, prefString } from '../core/appPrefs';
 import { buildResourceUrl } from '../core/addonManifest';
 import { httpFetchText, prewarmYoutubeTrailerConfig } from '../core/engine';
 import { fetchTmdbTrailers } from '../core/detailEffects';
-import type { AppState, HomeCategory, Meta, Trailer } from '../core/types';
+import type { AppState, HomeCategory, Meta, NuvioCollectionSource, Trailer } from '../core/types';
 import { getLanguage, t } from '../i18n';
 import { useInViewport } from '../hooks/useInViewport';
+import { isNuvioCollectionSource, loadNuvioCollectionSource } from '../core/collectionSources';
 
 const ROW_PLACEHOLDER_HEIGHT = 340;
 
@@ -55,10 +56,17 @@ interface FolderItemsResult {
 
 type FolderSourceBatch = { type: string; items: Meta[] };
 
+type AddonFolderSource = { transportUrl: string; catalogId: string; type: string; genre?: string };
+type FolderSource = AddonFolderSource | NuvioCollectionSource;
+
 async function loadFolderSourcePage(
-  source: { transportUrl: string; catalogId: string; type: string; genre?: string },
+  source: FolderSource,
   skip: number,
 ): Promise<FolderSourceBatch> {
+  if (isNuvioCollectionSource(source)) {
+    const type = source.mediaType?.toUpperCase() === 'TV' ? 'series' : 'movie';
+    return { type, items: await loadNuvioCollectionSource(source, Math.floor(skip / 50) + 1) };
+  }
   const extra: Record<string, unknown> = {};
   if (source.genre) extra.genre = source.genre;
   if (skip > 0) extra.skip = skip;
@@ -88,7 +96,7 @@ function groupBatches(batches: FolderSourceBatch[]): FolderItemsResult {
 }
 
 async function loadFolderItems(folderCategory: HomeCategory): Promise<FolderItemsResult> {
-  const sources = folderCategory.catalogSources ?? [];
+  const sources = (folderCategory.catalogSources ?? []) as FolderSource[];
   const batches = await Promise.all(sources.map((source) => loadFolderSourcePage(source, 0)));
   return groupBatches(batches);
 }
@@ -100,7 +108,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const [folderError, setFolderError] = useState(false);
   const [folderLoadingMore, setFolderLoadingMore] = useState(false);
   const [folderPaginated, setFolderPaginated] = useState(false);
-  const folderSourcesRef = useRef<HomeCategory['catalogSources']>([]);
+  const folderSourcesRef = useRef<FolderSource[]>([]);
   const folderSkipsRef = useRef<number[]>([]);
   const folderExhaustedRef = useRef<boolean[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -181,7 +189,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const handleFolderTileClick = useCallback(async (folderMeta: Meta) => {
     const allCats = (home.categories ?? []) as HomeCategory[];
     const folderCat = allCats.find((c) => c.id === folderMeta.id && c.type === 'collection_folder');
-    const sources = folderCat?.catalogSources ?? [];
+    const sources = (folderCat?.catalogSources ?? []) as FolderSource[];
     if (!sources.length) return;
     savedScrollRef.current = scrollRef.current?.scrollTop ?? 0;
     setViewAllCategory({ title: folderMeta.name, items: [] });
@@ -211,7 +219,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     try {
       const batches = await Promise.all(sources.map((source, i) => (
         folderExhaustedRef.current[i]
-          ? Promise.resolve<FolderSourceBatch>({ type: source.type, items: [] })
+          ? Promise.resolve<FolderSourceBatch>({ type: isNuvioCollectionSource(source) && source.mediaType?.toUpperCase() === 'TV' ? 'series' : ('type' in source ? source.type : 'movie'), items: [] })
           : loadFolderSourcePage(source, folderSkipsRef.current[i] ?? 0)
       )));
       batches.forEach((b, i) => {

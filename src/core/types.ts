@@ -200,6 +200,18 @@ export interface CatalogSource {
   type: string;
 }
 
+export interface NuvioCollectionSource {
+  provider: 'trakt' | 'tmdb';
+  title?: string;
+  mediaType?: string;
+  traktListId?: number;
+  tmdbSourceType?: string;
+  tmdbId?: number;
+  sortBy?: string;
+  sortHow?: string;
+  filters?: Record<string, unknown>;
+}
+
 export interface UserCollectionFolder {
   id: string;
   title: string;
@@ -211,6 +223,7 @@ export interface UserCollectionFolder {
   hideTitle?: boolean;
   focusGifEnabled?: boolean;
   catalogSources?: CatalogSource[];
+  sources?: NuvioCollectionSource[];
   coverEmoji?: string;
   coverImageUrl?: string;
   focusGifUrl?: string;
