@@ -402,9 +402,9 @@ export async function readCalendarMonth(payload: Record<string, unknown>): Promi
   const localItems = (libraryItems as LibraryItem[])
     .filter((item) => item.type === 'series' && typeof item.nextEpisodeAirDate === 'string')
     .map((item) => {
-      const dateIso = String(item.nextEpisodeAirDate).slice(0, 10);
+      const dateIso = String(item.nextEpisodeAirDate);
       return {
-        id: `${item.id}:${dateIso}`,
+        id: `${item.id}:${dateIso.slice(0, 10)}`,
         title: item.name,
         name: item.name,
         dateIso,
