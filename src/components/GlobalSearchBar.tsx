@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search as SearchIcon, X, Clock } from 'lucide-react';
 import { t, getLanguage } from '../i18n';
-import { addRecentSearch, loadRecentSearches, clearRecentSearches, type RecentSearch } from '../core/searchHistory';
+import { addRecentSearch, loadRecentSearches, clearRecentSearches, removeRecentSearch, type RecentSearch } from '../core/searchHistory';
 import { setSearchPartialHandler } from '../core/catalogEffects';
 import { appPrefs, prefBool } from '../core/appPrefs';
 import type { AppState, Meta } from '../core/types';
@@ -186,6 +186,10 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
     setRecentSearches(clearRecentSearches());
   };
 
+  const handleRemoveRecent = (value: string) => {
+    setRecentSearches((current) => removeRecentSearch(value, current));
+  };
+
   if (!expanded) {
     return (
       <button
@@ -290,16 +294,27 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
                 </button>
               </div>
               {recentSearches.map((item, index) => (
-                <button
+                <div
                   key={item.query}
-                  style={{ ...dropdownStyles.row, background: activeIndex === index ? 'rgba(255,255,255,0.06)' : 'transparent' }}
-                  onMouseDown={(e) => { e.preventDefault(); handleRecentClick(item); }}
-                  onMouseEnter={(e) => { setActiveIndex(index); (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                  style={{ ...dropdownStyles.row, padding: '0 0.25rem 0 0.5rem', background: activeIndex === index ? 'rgba(255,255,255,0.06)' : 'transparent' }}
+                  onMouseEnter={(e) => { setActiveIndex(index); (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.06)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
                 >
-                  <Clock size={15} color="rgba(255,255,255,0.4)" style={{ flexShrink: 0 }} />
-                  <span style={dropdownStyles.rowText}>{item.query}</span>
-                </button>
+                  <button
+                    style={dropdownStyles.rowMain}
+                    onMouseDown={(e) => { e.preventDefault(); handleRecentClick(item); }}
+                  >
+                    <Clock size={15} color="rgba(255,255,255,0.4)" style={{ flexShrink: 0 }} />
+                    <span style={dropdownStyles.rowText}>{item.query}</span>
+                  </button>
+                  <button
+                    title={t('common.remove')}
+                    style={dropdownStyles.rowRemove}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveRecent(item.query); }}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
               ))}
             </>
           )}
@@ -393,5 +408,31 @@ const dropdownStyles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
+  },
+  rowMain: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.625rem',
+    flex: 1,
+    minWidth: 0,
+    height: '100%',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    padding: 0,
+  },
+  rowRemove: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    width: '1.625rem',
+    height: '1.625rem',
+    borderRadius: '0.375rem',
+    border: 'none',
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.4)',
+    cursor: 'pointer',
+    padding: 0,
   },
 };
