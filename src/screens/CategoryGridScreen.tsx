@@ -109,9 +109,9 @@ export function CategoryGridScreen({ title, items, groups, isLoading = false, lo
           </div>
         ) : loadError && items.length === 0 ? (
           <div style={S.panelEmpty}>
-            <TriangleAlert size={40} style={{ color: 'rgba(255,255,255,0.2)' }} />
+            <TriangleAlert size={40} style={{ color: 'rgba(255,255,255,0.35)' }} />
             <p style={S.errorTitle}>{t('home.folder_load_failed')}</p>
-            <p style={S.panelEmptyText}>{t('home.folder_load_failed_body')}</p>
+            <p style={S.errorBody}>{t('home.folder_load_failed_body')}</p>
           </div>
         ) : (
           <VirtualizedPosterGrid
@@ -448,8 +448,12 @@ const S: Record<string, React.CSSProperties> = {
     textAlign: 'center', margin: 0,
   },
   errorTitle: {
-    color: 'rgba(255,255,255,0.6)', fontSize: '0.9375rem', fontWeight: 700,
+    color: '#FFFFFF', fontSize: '0.9375rem', fontWeight: 700,
     textAlign: 'center', margin: 0,
+  },
+  errorBody: {
+    color: 'rgba(255,255,255,0.6)', fontSize: '0.8125rem',
+    textAlign: 'center', margin: 0, maxWidth: '28rem', lineHeight: 1.5,
   },
 };
 
