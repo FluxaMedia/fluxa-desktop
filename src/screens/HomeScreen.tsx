@@ -85,6 +85,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const home = state.home;
   const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[]; groups?: Array<{ type: string; items: Meta[] }> } | null>(null);
   const [folderLoading, setFolderLoading] = useState(false);
+  const [folderError, setFolderError] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
 
@@ -164,11 +165,12 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     if (!folderCat?.catalogSources?.length) return;
     savedScrollRef.current = scrollRef.current?.scrollTop ?? 0;
     setViewAllCategory({ title: folderMeta.name, items: [] });
+    setFolderError(false);
     setFolderLoading(true);
     try {
       const { items, groups } = await loadFolderItems(folderCat);
-      if (items.length) setViewAllCategory({ title: folderMeta.name, items, groups });
-      else setViewAllCategory(null);
+      setViewAllCategory({ title: folderMeta.name, items, groups });
+      setFolderError(items.length === 0);
     } finally {
       setFolderLoading(false);
     }
@@ -316,6 +318,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
         items={viewAllCategory.items}
         groups={viewAllCategory.groups}
         isLoading={folderLoading}
+        loadError={!folderLoading && folderError}
         posterPrefs={posterPrefs}
         onNavigateDetail={onNavigateDetail}
         onBack={() => setViewAllCategory(null)}

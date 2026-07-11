@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, LayoutGrid, Play, Plus } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Play, Plus, TriangleAlert } from 'lucide-react';
 import type { Meta } from '../core/types';
 import type { PosterPrefs } from '../core/posterPrefs';
 import { ModernTabBar } from '../components/detail/DetailButtons';
@@ -10,6 +10,7 @@ interface Props {
   items: Meta[];
   groups?: Array<{ type: string; items: Meta[] }>;
   isLoading?: boolean;
+  loadError?: boolean;
   posterPrefs: PosterPrefs;
   onNavigateDetail: (meta: Meta) => void;
   onBack: () => void;
@@ -31,7 +32,7 @@ const GRID_MIN_COLUMN_WIDTH = 150;
 const GRID_OVERSCAN_ROWS = 3;
 const SCROLL_HOVER_IDLE_MS = 180;
 
-export function CategoryGridScreen({ title, items, groups, isLoading = false, posterPrefs, onNavigateDetail, onBack, onDispatch }: Props) {
+export function CategoryGridScreen({ title, items, groups, isLoading = false, loadError = false, posterPrefs, onNavigateDetail, onBack, onDispatch }: Props) {
   const [hoveredMeta, setHoveredMeta] = useState<Meta | null>(null);
   const [selectedMeta, setSelectedMeta] = useState<Meta | null>(null);
   const [activeTab, setActiveTab] = useState('all');
@@ -105,6 +106,12 @@ export function CategoryGridScreen({ title, items, groups, isLoading = false, po
             {Array.from({ length: 24 }).map((_, i) => (
               <div key={i} style={{ borderRadius: '0.625rem', background: '#1B212B', aspectRatio: '2/3', animation: 'pulse 1.6s ease-in-out infinite', animationDelay: `${(i % 8) * 0.07}s` }} />
             ))}
+          </div>
+        ) : loadError && items.length === 0 ? (
+          <div style={S.panelEmpty}>
+            <TriangleAlert size={40} style={{ color: 'rgba(255,255,255,0.2)' }} />
+            <p style={S.errorTitle}>{t('home.folder_load_failed')}</p>
+            <p style={S.panelEmptyText}>{t('home.folder_load_failed_body')}</p>
           </div>
         ) : (
           <VirtualizedPosterGrid
@@ -438,6 +445,10 @@ const S: Record<string, React.CSSProperties> = {
   },
   panelEmptyText: {
     color: 'rgba(255,255,255,0.28)', fontSize: '0.8125rem',
+    textAlign: 'center', margin: 0,
+  },
+  errorTitle: {
+    color: 'rgba(255,255,255,0.6)', fontSize: '0.9375rem', fontWeight: 700,
     textAlign: 'center', margin: 0,
   },
 };
