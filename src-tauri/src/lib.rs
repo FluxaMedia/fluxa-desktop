@@ -513,6 +513,7 @@ pub fn run() {
 
     std::env::set_var("MPV_LIBMPV_RENDER_BACKEND", "gpu-next");
     tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
