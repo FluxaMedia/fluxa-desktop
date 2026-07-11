@@ -233,10 +233,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
               onSelect={(v) => setExtraValue(v === '__all__' ? null : v)}
             />
           )}
-          {isLoading
-            ? <div style={S.loadingDot} />
-            : displayResults.length > 0 && <span style={S.resultCount}>{t('discover.result_count', displayResults.length)}</span>
-          }
+          {isLoading && <div style={S.loadingDot} />}
         </div>
 
         {isLoading && displayResults.length === 0 ? (
@@ -282,7 +279,6 @@ const S: Record<string, React.CSSProperties> = {
   screen: { display: 'flex', width: 'calc(100% - 6.5rem)', height: 'calc(100% - 3.25rem)', marginLeft: '6.5rem', marginTop: '3.25rem', background: '#09091280', overflow: 'hidden' },
   left: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' },
   filterBar: { display: 'flex', alignItems: 'center', gap: '0.625rem', padding: '0.625rem 1.5rem', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.05)' },
-  resultCount: { marginLeft: 'auto', color: 'rgba(255,255,255,0.3)', fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.0187rem' },
   loadingDot: { marginLeft: 'auto', width: '0.375rem', height: '0.375rem', borderRadius: '50%', background: 'rgba(255,255,255,0.25)', animation: 'pulse 1.2s ease-in-out infinite', flexShrink: 0 },
   loadingGrid: { flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(9.375rem, 1fr))', gap: '1.75rem 1.125rem', padding: '1.25rem 1.5rem 3.75rem', alignContent: 'start', scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent', contain: 'layout paint style' },
   empty: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.625rem' },
