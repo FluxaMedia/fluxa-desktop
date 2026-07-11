@@ -1,5 +1,4 @@
 import {
-  coreCalendarItemsFromMeta,
   coreLibraryApplyMarkWatched,
   coreLibraryLocalStatePlan,
   coreMergeProgressMeta,
@@ -400,13 +399,26 @@ export async function readCalendarMonth(payload: Record<string, unknown>): Promi
     ...(((lib.continueWatching as unknown[] | undefined) ?? [])),
   ];
   const seen = new Set<string>();
-  const localItemsNested = await Promise.all(libraryItems.map((raw) => coreCalendarItemsFromMeta(JSON.stringify(raw), monthPrefix)));
-  const localItems = localItemsNested.flat().filter((item) => {
-    const id = String((item as Record<string, unknown>).id ?? '');
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
+  const localItems = (libraryItems as LibraryItem[])
+    .filter((item) => item.type === 'series' && typeof item.nextEpisodeAirDate === 'string')
+    .map((item) => {
+      const dateIso = String(item.nextEpisodeAirDate).slice(0, 10);
+      return {
+        id: `${item.id}:${dateIso}`,
+        title: item.name,
+        name: item.name,
+        dateIso,
+        poster: item.poster,
+        contentId: item.id,
+        seriesId: item.id,
+      };
+    })
+    .filter((item) => !monthPrefix || item.dateIso.startsWith(monthPrefix))
+    .filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
   const externalItems = ((lib.externalCalendarItems as unknown[] | undefined) ?? [])
     .filter((item) => {
       const dateIso = (item as Record<string, unknown>).dateIso as string | undefined;
