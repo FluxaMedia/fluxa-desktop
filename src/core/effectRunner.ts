@@ -266,6 +266,9 @@ async function runEffect(
     case 'fetchCatalogPage':
       value = await fetchCatalogPage(p);
       break;
+    case 'fetchDiscoverPage':
+      value = await fetchCatalogPage(p);
+      break;
     case 'runSearch':
       value = await runSearch(p);
       break;

@@ -10,6 +10,7 @@ const GRID_GAP_X = 18;
 const GRID_GAP_Y = 28;
 const GRID_MIN_COLUMN_WIDTH = 150;
 const GRID_OVERSCAN_ROWS = 6;
+const NEAR_END_THRESHOLD_PX = 800;
 
 export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
   items,
@@ -19,6 +20,7 @@ export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
   onHover,
   onClick,
   onScrollActivity,
+  onNearEnd,
   resetKey,
 }: {
   items: Meta[];
@@ -28,6 +30,7 @@ export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
   onHover: (m: Meta | null) => boolean;
   onClick: (m: Meta) => void;
   onScrollActivity: () => void;
+  onNearEnd?: () => void;
   resetKey?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -101,6 +104,9 @@ export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
           ? current
           : { width: node.clientWidth, height: node.clientHeight, scrollTop: node.scrollTop },
       );
+      if (node.scrollTop + node.clientHeight >= node.scrollHeight - NEAR_END_THRESHOLD_PX) {
+        onNearEnd?.();
+      }
     });
   };
 

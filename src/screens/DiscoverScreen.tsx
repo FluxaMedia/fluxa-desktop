@@ -23,6 +23,8 @@ interface DiscoverCatalog {
   key: string;
   label: string;
   type: string;
+  transportUrl?: string;
+  id?: string;
   extras?: Array<{
     name: string;
     options: string[];
@@ -100,9 +102,49 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
   }
 
   const isFinal = !discover.isLoading && resultsMatchCurrentKey && results.length > 0;
-  const displayResults = isFinal ? results : (cachedResults ?? []);
+  const baseResults = isFinal ? results : (cachedResults ?? []);
   const isWaitingForResults = !!selectedCatalog && !cachedResults && !resultsMatchCurrentKey;
   const isLoading = discover.isLoading || discover.catalogsLoading || isWaitingForResults;
+
+  const [pagingExtra, setPagingExtra] = useState<Record<string, Meta[]>>({});
+  const pagingNoMoreRef = useRef<Set<string>>(new Set());
+  const pendingPagingKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    pendingPagingKeyRef.current = null;
+  }, [key]);
+
+  const displayResults = useMemo(
+    () => [...baseResults, ...(pagingExtra[key] ?? [])],
+    [baseResults, pagingExtra, key],
+  );
+
+  const handleLoadMore = useCallback(() => {
+    if (!selectedCatalog?.transportUrl || !selectedCatalog.id) return;
+    if (isLoading || pagingNoMoreRef.current.has(key) || pendingPagingKeyRef.current) return;
+    pendingPagingKeyRef.current = key;
+    onDispatch(JSON.stringify({
+      type: 'discoverPageRequested',
+      transportUrl: selectedCatalog.transportUrl,
+      contentType: selectedCatalog.type,
+      catalogId: selectedCatalog.id,
+      skip: displayResults.length,
+      genre: extraValue,
+    }));
+  }, [selectedCatalog, key, extraValue, displayResults.length, isLoading, onDispatch]);
+
+  useEffect(() => {
+    const paging = discover.paging;
+    const pendingKey = pendingPagingKeyRef.current;
+    if (!paging || !pendingKey || paging.isLoading) return;
+    pendingPagingKeyRef.current = null;
+    const items = Array.isArray(paging.items) ? paging.items : [];
+    if (paging.error || items.length === 0) {
+      pagingNoMoreRef.current.add(pendingKey);
+      return;
+    }
+    setPagingExtra((prev) => ({ ...prev, [pendingKey]: [...(prev[pendingKey] ?? []), ...items] }));
+  }, [discover.paging]);
 
   const typeOptions = useMemo(() => {
     const types = ['movie', 'series'];
@@ -202,6 +244,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
             onHover={handlePosterHover}
             onClick={handlePosterClick}
             onScrollActivity={handleGridScroll}
+            onNearEnd={handleLoadMore}
           />
         )}
       </div>

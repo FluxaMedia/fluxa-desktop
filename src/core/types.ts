@@ -372,6 +372,12 @@ export interface LibraryStateSlice {
   lastWriteError?: string | null;
 }
 
+export interface DiscoverPaging {
+  isLoading?: boolean;
+  items?: Meta[];
+  error?: string | null;
+}
+
 export interface DiscoverState {
   isLoading?: boolean;
   catalogsLoading?: boolean;
@@ -380,6 +386,7 @@ export interface DiscoverState {
   catalogs?: DiscoverCatalog[];
   selectedCatalogKey?: string | null;
   error?: string | null;
+  paging?: DiscoverPaging;
 }
 
 export interface DiscoverCatalog {
@@ -387,6 +394,8 @@ export interface DiscoverCatalog {
   label: string;
   type: string;
   extras?: DiscoverFilter[];
+  transportUrl?: string;
+  id?: string;
 }
 
 export interface DiscoverFilter {
