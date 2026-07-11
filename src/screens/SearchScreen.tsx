@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Clock, X } from 'lucide-react';
 import { MovieCard } from '../components/MovieCard';
+import { appPrefs, prefBool } from '../core/appPrefs';
 import { posterPrefsFromState, type PosterPrefs } from '../core/posterPrefs';
 import { addRecentSearch, clearRecentSearches, loadRecentSearches, removeRecentSearch, type RecentSearch } from '../core/searchHistory';
 import type { AppState, HomeCategory, Meta } from '../core/types';
@@ -61,7 +62,8 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
   };
 
   const handleRecentClick = (recent: RecentSearch) => {
-    if (recent.meta) {
+    const openDetail = prefBool(appPrefs(state), 'searchSuggestionsOpenDetail', false);
+    if (openDetail && recent.meta) {
       onNavigateDetail(recent.meta);
       return;
     }

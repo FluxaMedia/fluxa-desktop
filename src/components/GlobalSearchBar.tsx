@@ -169,14 +169,17 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
   };
 
   const handleRecentClick = (recent: RecentSearch) => {
-    if (recent.meta) {
+    const openDetail = prefBool(appPrefs(state), 'searchSuggestionsOpenDetail', false);
+    if (openDetail && recent.meta) {
       setExpanded(false);
       setInputValue('');
       onNavigateDetail(recent.meta);
       return;
     }
+    setExpanded(false);
     setInputValue(recent.query);
-    submit(recent.query);
+    saveRecentSearch(recent.query);
+    onSearch(recent.query);
   };
 
   const handleClearHistory = () => {
