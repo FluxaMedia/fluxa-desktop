@@ -1198,6 +1198,15 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     setSubtitlePref('subtitleSize', String(size));
   }, [setSubtitlePref]);
 
+  const adjustSubtitleSize = useCallback((delta: number) => {
+    setSubtitleSizeState((previous) => {
+      const size = Math.max(50, Math.min(200, previous + delta));
+      sendCmd(`set sub-scale ${(size / 100).toFixed(2)}`);
+      setSubtitlePref('subtitleSize', String(size));
+      return size;
+    });
+  }, [setSubtitlePref]);
+
   const chooseSubtitleColor = useCallback((color: string) => {
     sendCmd(`set sub-color "${mpvColor(color, subtitleTextOpacity)}"`);
     setSubtitleColorState(color);
@@ -1722,6 +1731,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           onApplySubtitleCapture={applySubtitleCapture}
           onChooseSubtitleFont={chooseSubtitleFont}
           onChooseSubtitleSize={chooseSubtitleSize}
+          onAdjustSubtitleSize={adjustSubtitleSize}
           onChooseSubtitleColor={chooseSubtitleColor}
           onChooseSubtitleStyle={chooseSubtitleStyle}
         />
