@@ -30,6 +30,7 @@ import {
   stopTorrentStream,
 } from '../core/mpvPlayer';
 import { fetchPlaybackSkipSegments, fetchStreamsForEpisode, fetchMetaVideos, pumpEffects } from '../core/effectRunner';
+import { fetchContentLogo } from '../core/detailEffects';
 import { appPrefs, prefBool, prefString } from '../core/appPrefs';
 import { getLanguage, t } from '../i18n';
 import {
@@ -508,6 +509,20 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     artworkPrefetchRef.current = prefetchPlayerArtwork(earlyArtwork.background, earlyArtwork.logo).catch(() => undefined);
     let loadingArtworkPromise = showPlayerLoading(generation, earlyTitle, earlyArtwork);
 
+    if (!earlyArtwork.logo && meta?.id && meta?.type) {
+      const logoPrefs = appPrefs(stateRef.current);
+      const tmdbApiKey = prefString(logoPrefs, 'tmdbApiKey');
+      const fanartApiKey = prefString(logoPrefs, 'fanartApiKey');
+      void fetchContentLogo(meta.id, meta.type, getLanguage(), tmdbApiKey, fanartApiKey)
+        .then((logo) => {
+          if (!logo || isCancelled()) return;
+          if (playingMetaRef.current) playingMetaRef.current = { ...playingMetaRef.current, logo };
+          setPlayerLogoUrl(logo);
+          setPlayerLoadingOverlay((prev) => (prev ? { ...prev, logo } : prev));
+        })
+        .catch(() => undefined);
+    }
+
     const effectiveTotalDuration = totalDurationSeconds
       ?? (meta?.id ? (stateRef.current.library.lastWrite?.progress as Record<string, import('../core/types').LibraryItem> | undefined)?.[meta.id]?.duration : undefined);
     lastTotalDurationSecondsRef.current = effectiveTotalDuration;
@@ -605,22 +620,27 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     };
 
     if (playbackPlan?.mode === 'torrent') {
+      const MAX_PEER_RETRIES = 2;
+      const TORRENT_READY_FIRST_ATTEMPT_MS = 15_000;
+      const TORRENT_READY_RETRY_BUDGET_MS = 45_000;
+      const TORRENT_READY_PER_RETRY_MS = Math.floor(TORRENT_READY_RETRY_BUDGET_MS / MAX_PEER_RETRIES);
       let statusPollActive = true;
-      const pollTorrentStatus = async () => {
+      const retrySuffix = (retryIndex: number) => (retryIndex > 0 ? ` ${t('player.status_retry_attempt', retryIndex, MAX_PEER_RETRIES)}` : '');
+      const pollTorrentStatus = async (retryIndex: number) => {
         while (statusPollActive && !isCancelled()) {
           const ts = await playerTorrentStats().catch(() => null);
           if (!statusPollActive || isCancelled()) return;
           const percent = ts && typeof ts.preload === 'number' ? Math.max(0, Math.min(100, Math.round(ts.preload))) : 0;
           if (ts && ts.active_peers > 0) {
-            setLoadingStatus(t('player.status_fetching_peers', ts.active_peers, percent));
+            setLoadingStatus(t('player.status_fetching_peers', ts.active_peers, percent) + retrySuffix(retryIndex));
           } else {
-            setLoadingStatus(t('player.status_fetching_torrent', percent));
+            setLoadingStatus(t('player.status_fetching_torrent', percent) + retrySuffix(retryIndex));
           }
           await new Promise((r) => setTimeout(r, 700));
         }
       };
-      const waitForTorrentReady = async () => {
-        const deadline = Date.now() + 60_000;
+      const waitForTorrentReady = async (budgetMs: number) => {
+        const deadline = Date.now() + budgetMs;
         while (Date.now() < deadline) {
           if (isCancelled()) return;
           const ts = await playerTorrentStats().catch(() => null);
@@ -634,15 +654,29 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         throw new Error(t('player.torrent_no_peers'));
       };
       try {
-        debugLog('handlePlay:starting torrent stream');
-        setLoadingStatus(t('player.status_starting_torrent'));
-        void pollTorrentStatus();
-        const localUrl = await startTorrentStream(JSON.stringify(stream), title.contentTitle, appPrefs(stateRef.current));
-        debugLog(`handlePlay:torrent stream started localUrl=${localUrl?.slice(0, 80)}`);
-        if (isCancelled()) { statusPollActive = false; return; }
-        await waitForTorrentReady();
-        statusPollActive = false;
-        if (isCancelled()) return;
+        let localUrl: string | null = null;
+        for (let retryIndex = 0; retryIndex <= MAX_PEER_RETRIES; retryIndex++) {
+          try {
+            debugLog(`handlePlay:starting torrent stream retryIndex=${retryIndex}`);
+            statusPollActive = true;
+            setLoadingStatus(t('player.status_starting_torrent') + retrySuffix(retryIndex));
+            void pollTorrentStatus(retryIndex);
+            localUrl = await startTorrentStream(JSON.stringify(stream), title.contentTitle, appPrefs(stateRef.current));
+            debugLog(`handlePlay:torrent stream started localUrl=${localUrl?.slice(0, 80)}`);
+            if (isCancelled()) { statusPollActive = false; return; }
+            await waitForTorrentReady(retryIndex === 0 ? TORRENT_READY_FIRST_ATTEMPT_MS : TORRENT_READY_PER_RETRY_MS);
+            statusPollActive = false;
+            break;
+          } catch (retryErr) {
+            statusPollActive = false;
+            if (isCancelled()) return;
+            if (retryIndex >= MAX_PEER_RETRIES) throw retryErr;
+            debugLog(`handlePlay:torrent retry ${retryIndex} failed, retrying`);
+            await stopTorrentStream().catch(() => false);
+            localUrl = null;
+          }
+        }
+        if (isCancelled() || !localUrl) return;
         setLoadingStatus(t('player.status_loading_stream'));
         void pollMpvLoadingStatus();
         await playInEmbeddedMpv(generation, localUrl, title, true, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, undefined, animeDetection.isAnime);

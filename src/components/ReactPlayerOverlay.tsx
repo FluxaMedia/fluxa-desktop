@@ -566,7 +566,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           status.pause !== 'yes' &&
           status.pausedForCache !== 'yes' &&
           pos > 0.15;
-        const voReady = !noVideoTrack && status.voConfigured === 'yes' && status.framesRendered >= 2;
+        const voReady = !noVideoTrack && status.voConfigured === 'yes' && status.framesRendered >= 2 && status.pausedForCache !== 'yes';
         const activeVideoPlayback = !noVideoTrack && status.hasVideoTrack && hasVideoDimensions && playbackAdvancing;
         if (!status.resuming && (voReady || activeVideoPlayback || noVideoTrack)) {
           firstFrameFiredRef.current = true;
@@ -1443,7 +1443,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
               </div>
             </div>
           )}
-          <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.0125rem', textShadow: '0 1px 0.5rem rgba(0,0,0,0.8)' }}>{t('player.status_buffering_percent', Math.round(bufferingProgress))}</div>
         </div>
       )}
       <style>{`
