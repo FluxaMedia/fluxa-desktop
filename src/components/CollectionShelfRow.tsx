@@ -5,24 +5,12 @@ import { cardImageUrl } from '../core/imageSizes';
 import { useInViewport } from '../hooks/useInViewport';
 import { useGifSlot } from '../hooks/useGifSlot';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { usePosterSrc } from '../hooks/usePosterSrc';
 
 const ROW_PADDING_LEFT = '2rem';
 
 const SCROLL_GAP = 12;
 const BUFFER = 3;
-const MAX_STATIC_IMAGE_RETRIES = 2;
-
-function retryImageUrl(url: string, retryKey: number): string {
-  if (retryKey <= 0 || url.startsWith('data:') || url.startsWith('blob:')) return url;
-  try {
-    const parsed = new URL(url);
-    parsed.searchParams.set('__fluxa_img_retry', String(retryKey));
-    return parsed.toString();
-  } catch {
-    const joiner = url.includes('?') ? '&' : '?';
-    return `${url}${joiner}__fluxa_img_retry=${retryKey}`;
-  }
-}
 
 function cardWidth(folder: Meta): number {
   const shape = ((folder as unknown as Record<string, unknown>).reason as string | undefined ?? 'poster').toLowerCase();
@@ -161,27 +149,9 @@ const FolderTileCard = React.memo(function FolderTileCard({
   gifAutoplayEnabled: boolean;
 }) {
   const [hovered, setHovered] = React.useState(false);
-  const [staticImgError, setStaticImgError] = React.useState(false);
-  const [staticRetryKey, setStaticRetryKey] = React.useState(0);
-  const staticRetriesRef = React.useRef(0);
-  const staticRetryTimersRef = React.useRef<number[]>([]);
   const [gifError, setGifError] = React.useState(false);
   const wrapperRef = React.useRef<HTMLDivElement>(null);
   const inViewport = useInViewport(wrapperRef, '150px');
-
-  const handleStaticError = React.useCallback(() => {
-    if (staticRetriesRef.current < MAX_STATIC_IMAGE_RETRIES) {
-      staticRetriesRef.current += 1;
-      const retry = staticRetriesRef.current;
-      const timer = window.setTimeout(() => {
-        staticRetryTimersRef.current = staticRetryTimersRef.current.filter((id) => id !== timer);
-        setStaticRetryKey(retry);
-      }, 400 * retry);
-      staticRetryTimersRef.current.push(timer);
-    } else {
-      setStaticImgError(true);
-    }
-  }, []);
 
   const shape = ((folder as unknown as Record<string, unknown>).reason as string | undefined ?? 'poster').toLowerCase();
   const isWide = shape === 'wide' || shape === 'landscape';
@@ -195,28 +165,16 @@ const FolderTileCard = React.memo(function FolderTileCard({
     : { width: w, minWidth: w, height: '14.625rem' };
 
   const staticUrl = cardImageUrl(folder.poster) ?? cardImageUrl(folder.background, 'backdrop');
-  const staticSrc = staticUrl ? retryImageUrl(staticUrl, staticRetryKey) : undefined;
-  const hasStatic = !!staticUrl && !staticImgError;
+  const { src: staticSrc } = usePosterSrc(staticUrl);
+  const hasStatic = !!staticSrc;
   const gifEligible = !!folder.focusGifUrl && inViewport && (gifAutoplayEnabled || hovered) && !gifError;
   const hasGifSlot = useGifSlot(folder.id, gifEligible);
   const wantsMotion = gifEligible && hasGifSlot;
   const showPlaceholder = !hasStatic && !wantsMotion;
 
   React.useEffect(() => {
-    setStaticImgError(false);
     setGifError(false);
-    staticRetriesRef.current = 0;
-    setStaticRetryKey(0);
-    staticRetryTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-    staticRetryTimersRef.current = [];
-  }, [folder.id, folder.poster, folder.background, folder.focusGifUrl, staticUrl]);
-
-  React.useEffect(() => {
-    return () => {
-      staticRetryTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-      staticRetryTimersRef.current = [];
-    };
-  }, []);
+  }, [folder.id, folder.focusGifUrl]);
 
   return (
     <div
@@ -237,14 +195,12 @@ const FolderTileCard = React.memo(function FolderTileCard({
       >
         {hasStatic && (
           <img
-            key={staticRetryKey}
             src={staticSrc}
             alt={folder.name}
             loading="lazy"
             decoding="async"
             draggable={false}
             style={collStyles.img}
-            onError={handleStaticError}
           />
         )}
         {wantsMotion && (

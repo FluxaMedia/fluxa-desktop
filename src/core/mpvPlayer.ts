@@ -76,6 +76,8 @@ export type TorrentStats = {
   preload_size: number;
   stat: number;
   stat_string: string;
+  resolving?: boolean;
+  error?: string | null;
 };
 
 export async function playerTorrentStats(): Promise<TorrentStats | null> {

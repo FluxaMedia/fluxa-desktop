@@ -31,12 +31,17 @@ const GL_VERSION: u32 = 0x1F02;
 const GL_EXTENSIONS: u32 = 0x1F03;
 
 type FnGetProcAddress = unsafe extern "system" fn(*const c_char) -> *mut c_void;
-type FnGetPlatformDisplayExt = unsafe extern "system" fn(i32, *mut c_void, *const i32) -> *mut c_void;
+type FnGetPlatformDisplayExt =
+    unsafe extern "system" fn(i32, *mut c_void, *const i32) -> *mut c_void;
 type FnInitialize = unsafe extern "system" fn(*mut c_void, *mut i32, *mut i32) -> i32;
-type FnChooseConfig = unsafe extern "system" fn(*mut c_void, *const i32, *mut *mut c_void, i32, *mut i32) -> i32;
-type FnCreateContext = unsafe extern "system" fn(*mut c_void, *mut c_void, *mut c_void, *const i32) -> *mut c_void;
-type FnCreateWindowSurface = unsafe extern "system" fn(*mut c_void, *mut c_void, isize, *const i32) -> *mut c_void;
-type FnMakeCurrent = unsafe extern "system" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> i32;
+type FnChooseConfig =
+    unsafe extern "system" fn(*mut c_void, *const i32, *mut *mut c_void, i32, *mut i32) -> i32;
+type FnCreateContext =
+    unsafe extern "system" fn(*mut c_void, *mut c_void, *mut c_void, *const i32) -> *mut c_void;
+type FnCreateWindowSurface =
+    unsafe extern "system" fn(*mut c_void, *mut c_void, isize, *const i32) -> *mut c_void;
+type FnMakeCurrent =
+    unsafe extern "system" fn(*mut c_void, *mut c_void, *mut c_void, *mut c_void) -> i32;
 type FnQueryString = unsafe extern "system" fn(*mut c_void, i32) -> *const c_char;
 type FnGlGetString = unsafe extern "system" fn(u32) -> *const u8;
 
@@ -98,13 +103,30 @@ fn main() {
         unsafe { std::mem::transmute(raw) }
     };
 
-    let display_attribs = [EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE, EGL_NONE];
-    let display = unsafe { get_platform_display(EGL_PLATFORM_ANGLE_ANGLE, ptr::null_mut(), display_attribs.as_ptr()) };
+    let display_attribs = [
+        EGL_PLATFORM_ANGLE_TYPE_ANGLE,
+        EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE,
+        EGL_NONE,
+    ];
+    let display = unsafe {
+        get_platform_display(
+            EGL_PLATFORM_ANGLE_ANGLE,
+            ptr::null_mut(),
+            display_attribs.as_ptr(),
+        )
+    };
     assert!(!display.is_null(), "eglGetPlatformDisplayEXT failed");
 
     let (mut major, mut minor) = (0i32, 0i32);
-    assert!(unsafe { initialize(display, &mut major, &mut minor) } != 0, "eglInitialize failed");
-    println!("\nEGL {major}.{minor}  vendor: {}  version: {}", cstr(unsafe { query_string(display, EGL_VENDOR) }), cstr(unsafe { query_string(display, EGL_VERSION) }));
+    assert!(
+        unsafe { initialize(display, &mut major, &mut minor) } != 0,
+        "eglInitialize failed"
+    );
+    println!(
+        "\nEGL {major}.{minor}  vendor: {}  version: {}",
+        cstr(unsafe { query_string(display, EGL_VENDOR) }),
+        cstr(unsafe { query_string(display, EGL_VERSION) })
+    );
 
     let display_exts = cstr(unsafe { query_string(display, EGL_EXTENSIONS) });
     println!("\n== EGL display extensions (ANGLE D3D11) ==\n{display_exts}");
@@ -112,19 +134,45 @@ fn main() {
     let hwnd = unsafe {
         let class = CString::new("STATIC").unwrap();
         let title = CString::new("egl-diag").unwrap();
-        CreateWindowExA(0, class.as_ptr() as *const u8, title.as_ptr() as *const u8, WS_POPUP, 0, 0, 32, 32, 0 as _, 0 as _, GetModuleHandleA(ptr::null()) as _, ptr::null())
+        CreateWindowExA(
+            0,
+            class.as_ptr() as *const u8,
+            title.as_ptr() as *const u8,
+            WS_POPUP,
+            0,
+            0,
+            32,
+            32,
+            0 as _,
+            0 as _,
+            GetModuleHandleA(ptr::null()) as _,
+            ptr::null(),
+        )
     };
     assert!(hwnd as isize != 0, "CreateWindowExA failed");
 
     let config_attribs = [
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT_KHR,
-        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-        EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8,
+        EGL_RENDERABLE_TYPE,
+        EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT_KHR,
+        EGL_SURFACE_TYPE,
+        EGL_WINDOW_BIT,
+        EGL_RED_SIZE,
+        8,
+        EGL_GREEN_SIZE,
+        8,
+        EGL_BLUE_SIZE,
+        8,
+        EGL_ALPHA_SIZE,
+        8,
         EGL_NONE,
     ];
     let mut config: *mut c_void = ptr::null_mut();
     let mut num = 0i32;
-    assert!(unsafe { choose_config(display, config_attribs.as_ptr(), &mut config, 1, &mut num) } != 0 && num > 0, "eglChooseConfig failed");
+    assert!(
+        unsafe { choose_config(display, config_attribs.as_ptr(), &mut config, 1, &mut num) } != 0
+            && num > 0,
+        "eglChooseConfig failed"
+    );
 
     let surface = unsafe { create_surface(display, config, hwnd as isize, ptr::null()) };
     assert!(!surface.is_null(), "eglCreateWindowSurface failed");
@@ -139,7 +187,10 @@ fn main() {
             println!("\n== GLES{client_version}: context creation FAILED ==");
             continue;
         }
-        assert!(unsafe { make_current(display, surface, surface, context) } != 0, "eglMakeCurrent failed");
+        assert!(
+            unsafe { make_current(display, surface, surface, context) } != 0,
+            "eglMakeCurrent failed"
+        );
 
         let version = cstr(unsafe { gl_get_string(GL_VERSION) } as *const c_char);
         let renderer = cstr(unsafe { gl_get_string(GL_RENDERER) } as *const c_char);
@@ -161,10 +212,24 @@ fn main() {
             "EGL_ANGLE_device_d3d",
             "EGL_ANGLE_device_d3d11",
         ] {
-            println!("display {ext}: {}", if has(&display_exts, ext) { "YES" } else { "MISSING" });
+            println!(
+                "display {ext}: {}",
+                if has(&display_exts, ext) {
+                    "YES"
+                } else {
+                    "MISSING"
+                }
+            );
         }
-        for ext in ["GL_OES_EGL_image_external", "GL_OES_EGL_image_external_essl3", "GL_EXT_texture_rg"] {
-            println!("gl      {ext}: {}", if has(&gl_exts, ext) { "YES" } else { "MISSING" });
+        for ext in [
+            "GL_OES_EGL_image_external",
+            "GL_OES_EGL_image_external_essl3",
+            "GL_EXT_texture_rg",
+        ] {
+            println!(
+                "gl      {ext}: {}",
+                if has(&gl_exts, ext) { "YES" } else { "MISSING" }
+            );
         }
 
         for name in [
@@ -180,7 +245,10 @@ fn main() {
         ] {
             let cname = CString::new(name).unwrap();
             let addr = unsafe { get_proc(cname.as_ptr()) };
-            println!("fn      {name}: {}", if addr.is_null() { "MISSING" } else { "YES" });
+            println!(
+                "fn      {name}: {}",
+                if addr.is_null() { "MISSING" } else { "YES" }
+            );
         }
 
         unsafe { make_current(display, ptr::null_mut(), ptr::null_mut(), ptr::null_mut()) };

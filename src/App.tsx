@@ -190,7 +190,7 @@ export default function App() {
     setWelcomeCompleted,
   } = useAppInit(updateState, setActiveRoute, storedPrefsRef);
 
-  const { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerLogoUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit } = usePlayer({
+  const { playerLoadingOverlay, playerUrl, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerLogoUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit } = usePlayer({
     stateRef,
     activeProfile,
     updateState,
@@ -436,13 +436,14 @@ export default function App() {
 
   const handleResumeFromContinueWatching = useCallback((meta: Meta, resumeAtOverride?: number) => {
     const item = meta as LibraryItem;
+    const matchedVideo = item.lastVideoId ? meta.videos?.find((v) => v.id === item.lastVideoId) : undefined;
     const episode: Video | null = item.lastVideoId ? {
       id: item.lastVideoId,
-      name: item.lastEpisodeName,
-      season: item.lastEpisodeSeason,
-      episode: item.lastEpisodeNumber,
-      number: item.lastEpisodeNumber,
-      thumbnail: item.lastEpisodeThumbnail,
+      name: matchedVideo?.name ?? matchedVideo?.title ?? item.lastEpisodeName,
+      season: matchedVideo?.season ?? item.lastEpisodeSeason,
+      episode: matchedVideo?.episode ?? matchedVideo?.number ?? item.lastEpisodeNumber,
+      number: matchedVideo?.episode ?? matchedVideo?.number ?? item.lastEpisodeNumber,
+      thumbnail: matchedVideo?.thumbnail ?? item.lastEpisodeThumbnail,
     } : null;
     const resumeAt = resumeAtOverride ?? item.timeOffset;
 
@@ -803,6 +804,7 @@ export default function App() {
           status={playerLoadingOverlay.status}
           error={playerLoadingOverlay.error}
           isTorrentStream={playerUsesTorrent}
+          source={playerLoadingOverlay.source}
           onBack={closePlayer}
         />
       )}
@@ -820,6 +822,7 @@ export default function App() {
             metaId={playerMetaId}
             initialSubtitleUrl={playerSubtitleUrl}
             initialStreamHeaders={playerStreamHeaders}
+            playbackUrl={playerUrl}
             prefs={prefs}
             onDispatch={dispatch}
             playbackError={playerPlaybackError}

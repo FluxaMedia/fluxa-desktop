@@ -131,7 +131,7 @@ const SETTINGS_SEARCH_TERMS: Record<Tab, string[]> = {
 
 interface Props {
   state: AppState;
-  onDispatch: (actionJson: string) => void;
+  onDispatch: (actionJson: string) => void | Promise<void>;
   activeProfile: UserProfile | null;
   onProfileUpdated: (profile: UserProfile) => void;
   onSwitchProfile: () => void;
@@ -310,7 +310,13 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
       void syncNuvioAddons(updatedProfile, updated);
       void syncStremioAddonsForProfile(updatedProfile, updated);
     }
-    onDispatch(JSON.stringify({ type: 'addonsRefreshRequested' }));
+    await onDispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false, profile: activeProfile ?? null }));
+    await onDispatch(JSON.stringify({
+      type: 'homeLoadRequested',
+      force: true,
+      language: prefs.language,
+      profile: activeProfile ?? null,
+    }));
   };
 
   const handleToggleAddon = async (addon: AddonDescriptor) => {

@@ -21,7 +21,9 @@ use windows_sys::Win32::Graphics::Dwm::{
     DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND,
 };
 use windows_sys::Win32::Graphics::Gdi::HDC;
-use windows_sys::Win32::Graphics::Gdi::{CreateRectRgn, DeleteObject, GetDC, GetDeviceCaps, VREFRESH};
+use windows_sys::Win32::Graphics::Gdi::{
+    CreateRectRgn, DeleteObject, GetDC, GetDeviceCaps, VREFRESH,
+};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::ColorSystem::GetICMProfileW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{

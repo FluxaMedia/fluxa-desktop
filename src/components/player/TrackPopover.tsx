@@ -108,7 +108,8 @@ function trackSourceLabel(track: PlayerTrackOption): string {
 }
 
 type TrackGroup = { key: string; label: string; tracks: PlayerTrackOption[] };
-type SubtitleStylePage = 'delay' | 'textColor' | 'textOpacity' | 'size' | 'font' | 'characterEdge' | 'outlineColor' | 'outlineOpacity' | 'backgroundColor' | 'backgroundOpacity' | 'forceStyle' | 'shadow';
+export type SubtitleCaptureCue = { start: number; end: number; text: string };
+type SubtitleStylePage = 'delay' | 'position' | 'textColor' | 'textOpacity' | 'size' | 'font' | 'characterEdge' | 'outlineColor' | 'outlineOpacity' | 'backgroundColor' | 'backgroundOpacity' | 'forceStyle' | 'shadow';
 const CHARACTER_EDGES = ['none', 'raised', 'depressed', 'uniform', 'drop-shadow'] as const;
 
 function groupTracks(tracks: PlayerTrackOption[]): TrackGroup[] {
@@ -160,6 +161,7 @@ interface TrackPopoverProps {
   onSelectTrack: (type: 'audio' | 'sub', id: string) => void;
   onDisableSubs: () => void;
   subtitleDelay?: number;
+  subtitlePosition?: number;
   subtitleFont?: string;
   subtitleSize?: number;
   subtitleColor?: string;
@@ -172,9 +174,12 @@ interface TrackPopoverProps {
   subtitleCharacterEdge?: string;
   subtitleShadow?: boolean;
   onAdjustSubtitleDelay?: (delta: number) => void;
+  onChooseSubtitlePosition?: (position: number) => void;
   onResetSubtitleDelay?: () => void;
   autoSyncing?: boolean;
   onAutoSyncSubtitles?: () => void;
+  subtitleCaptureCues?: SubtitleCaptureCue[];
+  onApplySubtitleCapture?: (cueStart: number) => void;
   onChooseSubtitleFont?: (font: string) => void;
   onChooseSubtitleSize?: (size: number) => void;
   onChooseSubtitleColor?: (color: string) => void;
@@ -184,8 +189,8 @@ interface TrackPopoverProps {
 export function TrackPopover({
   type, audioTracks, subTracks, playbackSpeed, anchorRef, onClose,
   onSetSpeed, onSelectTrack, onDisableSubs,
-  subtitleDelay = 0, subtitleFont = 'default', subtitleSize = 100, subtitleColor = '#FFFFFF', subtitleTextOpacity = '1.0', subtitleBackgroundColor = '#000000', subtitleBackgroundOpacity = '0.5', subtitleOutlineColor = '#000000', subtitleOutlineOpacity = '1.0', subtitleForceStyle = false, subtitleCharacterEdge = 'uniform', subtitleShadow = false,
-  onAdjustSubtitleDelay, onResetSubtitleDelay, autoSyncing = false, onAutoSyncSubtitles, onChooseSubtitleFont, onChooseSubtitleSize, onChooseSubtitleColor, onChooseSubtitleStyle,
+  subtitleDelay = 0, subtitlePosition = 100, subtitleFont = 'default', subtitleSize = 100, subtitleColor = '#FFFFFF', subtitleTextOpacity = '1.0', subtitleBackgroundColor = '#000000', subtitleBackgroundOpacity = '0.5', subtitleOutlineColor = '#000000', subtitleOutlineOpacity = '1.0', subtitleForceStyle = false, subtitleCharacterEdge = 'uniform', subtitleShadow = false,
+  onAdjustSubtitleDelay, onChooseSubtitlePosition, onResetSubtitleDelay, autoSyncing = false, onAutoSyncSubtitles, subtitleCaptureCues = [], onApplySubtitleCapture, onChooseSubtitleFont, onChooseSubtitleSize, onChooseSubtitleColor, onChooseSubtitleStyle,
 }: TrackPopoverProps) {
   const [showStyle, setShowStyle] = useState(false);
   const [stylePage, setStylePage] = useState<SubtitleStylePage | null>(null);
@@ -236,6 +241,7 @@ export function TrackPopover({
           <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.05rem', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {showStyle
               ? stylePage === 'delay' ? t('player.subtitle_delay')
+                : stylePage === 'position' ? t('settings.subtitle_position')
                 : stylePage === 'textColor' ? t('player.subtitle_color')
                   : stylePage === 'textOpacity' ? t('auto.text_transparency')
                     : stylePage === 'size' ? t('player.subtitle_size')
@@ -268,6 +274,7 @@ export function TrackPopover({
         <div style={{ padding: '0 0.875rem 0.625rem' }}>
           {!stylePage ? <>
             <SubtitleStyleNavigationRow label={t('player.subtitle_delay')} value={`${subtitleDelay > 0 ? '+' : ''}${subtitleDelay.toFixed(1)}s`} onClick={() => setStylePage('delay')} />
+            <SubtitleStyleNavigationRow label={t('settings.subtitle_position')} value={subtitlePosition === 100 ? t('settings.subtitle_position_bottom') : subtitlePosition === 90 ? t('settings.subtitle_position_low') : subtitlePosition === 80 ? t('settings.subtitle_position_middle') : t('settings.subtitle_position_high')} onClick={() => setStylePage('position')} />
             <SubtitleStyleNavigationRow label={t('player.subtitle_color')} value={<ColorOption color={subtitleColor} />} onClick={() => setStylePage('textColor')} />
             <SubtitleStyleNavigationRow label={t('auto.text_transparency')} value={`${Math.round(Number(subtitleTextOpacity) * 100)}%`} onClick={() => setStylePage('textOpacity')} />
             <SubtitleStyleNavigationRow label={t('player.subtitle_size')} value={`${subtitleSize}%`} onClick={() => setStylePage('size')} />
@@ -280,7 +287,8 @@ export function TrackPopover({
             <SubtitleStyleNavigationRow label={t('settings.subtitle_force_style')} value={subtitleForceStyle ? t('common.on') : t('common.off')} onClick={() => setStylePage('forceStyle')} />
             <SubtitleStyleNavigationRow label={t('settings.subtitle_shadow')} value={subtitleShadow ? t('common.on') : t('common.off')} onClick={() => setStylePage('shadow')} />
           </> : <div style={{ paddingBottom: '0.25rem' }}>
-            {stylePage === 'delay' && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '1rem 0' }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.625rem' }}><button className="ui-popover-chip" onClick={() => onAdjustSubtitleDelay?.(-0.5)} style={styleBtn}>−0.5s</button><span style={{ color: '#fff', fontSize: '0.8125rem', minWidth: '3.25rem', textAlign: 'center' }}>{subtitleDelay > 0 ? '+' : ''}{subtitleDelay.toFixed(1)}s</span><button className="ui-popover-chip" onClick={() => onAdjustSubtitleDelay?.(0.5)} style={styleBtn}>+0.5s</button><button className="ui-popover-chip" onClick={() => onResetSubtitleDelay?.()} style={styleBtn}>{t('player.subtitle_reset')}</button></div><button className="ui-popover-chip" disabled={autoSyncing} onClick={onAutoSyncSubtitles} style={{ ...styleBtn, opacity: autoSyncing ? 0.55 : 1 }}>{autoSyncing ? t('player.subtitle_auto_syncing') : t('player.subtitle_auto_sync')}</button></div>}
+            {stylePage === 'delay' && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '1rem 0' }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.625rem' }}><button className="ui-popover-chip" onClick={() => onAdjustSubtitleDelay?.(-0.5)} style={styleBtn}>−0.5s</button><span style={{ color: '#fff', fontSize: '0.8125rem', minWidth: '3.25rem', textAlign: 'center' }}>{subtitleDelay > 0 ? '+' : ''}{subtitleDelay.toFixed(1)}s</span><button className="ui-popover-chip" onClick={() => onAdjustSubtitleDelay?.(0.5)} style={styleBtn}>+0.5s</button><button className="ui-popover-chip" onClick={() => onResetSubtitleDelay?.()} style={styleBtn}>{t('player.subtitle_reset')}</button></div><button className="ui-popover-chip" disabled={autoSyncing} onClick={onAutoSyncSubtitles} style={{ ...styleBtn, opacity: autoSyncing ? 0.55 : 1 }}>{autoSyncing ? t('player.subtitle_capture_loading') : t('player.subtitle_capture')}</button>{subtitleCaptureCues.map((cue) => <button key={`${cue.start}-${cue.text}`} className="ui-popover-row" onClick={() => onApplySubtitleCapture?.(cue.start)} style={rowBtn}><span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cue.text}</span><span style={{ color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>{new Date(cue.start * 1000).toISOString().slice(14, 19)}</span></button>)}</div>}
+            {stylePage === 'position' && [[100, 'settings.subtitle_position_bottom'], [90, 'settings.subtitle_position_low'], [80, 'settings.subtitle_position_middle'], [70, 'settings.subtitle_position_high']].map(([position, labelKey]) => <button key={position} className="ui-popover-row" onClick={() => { onChooseSubtitlePosition?.(Number(position)); setStylePage(null); }} style={{ ...rowBtn, color: Number(position) === subtitlePosition ? '#fff' : rowBtn.color }}><span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{Number(position) === subtitlePosition && <Check size={14} />}</span>{t(String(labelKey))}</button>)}
             {stylePage === 'font' && fontOptions.map((font) => <button key={font} className="ui-popover-row" onClick={() => { onChooseSubtitleFont?.(font); setStylePage(null); }} style={{ ...rowBtn, color: font === subtitleFont ? '#fff' : rowBtn.color, fontFamily: font === 'default' ? undefined : font }}><span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{font === subtitleFont && <Check size={14} />}</span>{font === 'default' ? t('settings.subtitle_font_default') : font}</button>)}
             {stylePage === 'size' && SUBTITLE_SIZES.map((size) => <button key={size} className="ui-popover-row" onClick={() => { onChooseSubtitleSize?.(size); setStylePage(null); }} style={{ ...rowBtn, color: size === subtitleSize ? '#fff' : rowBtn.color }}><span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{size === subtitleSize && <Check size={14} />}</span>{size}%</button>)}
             {stylePage === 'characterEdge' && CHARACTER_EDGES.map((edge) => <button key={edge} className="ui-popover-row" onClick={() => { onChooseSubtitleStyle?.('subtitleCharacterEdge', edge); setStylePage(null); }} style={{ ...rowBtn, color: edge === subtitleCharacterEdge ? '#fff' : rowBtn.color }}><span style={{ width: '0.875rem', color: 'var(--primary-accent-color)' }}>{edge === subtitleCharacterEdge && <Check size={14} />}</span>{t(`player.subtitle_edge_${edge.replace('-', '_')}`)}</button>)}

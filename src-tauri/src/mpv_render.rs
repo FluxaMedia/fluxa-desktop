@@ -808,8 +808,12 @@ impl MpvRenderer {
 
         let mut skip_indices = std::collections::HashSet::new();
         for (i, (_, text)) in self.log_ring.iter().enumerate() {
-            let Some(disp_filename) = text.strip_prefix("Can not open external file ")
-                .and_then(|rest| rest.strip_suffix('.')) else { continue };
+            let Some(disp_filename) = text
+                .strip_prefix("Can not open external file ")
+                .and_then(|rest| rest.strip_suffix('.'))
+            else {
+                continue;
+            };
             skip_indices.insert(i);
             if i > 0 {
                 if let Some((_, prev_text)) = self.log_ring.get(i - 1) {

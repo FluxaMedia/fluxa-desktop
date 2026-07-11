@@ -8,21 +8,8 @@ import {
   formatAirDay,
 } from '../core/continueWatchingUtils';
 import { ContextMenu } from './ui/ContextMenu';
+import { usePosterSrc } from '../hooks/usePosterSrc';
 import { t } from '../i18n';
-
-const MAX_ARTWORK_RETRIES = 2;
-
-function retryImageUrl(url: string, retryKey: number): string {
-  if (retryKey <= 0 || url.startsWith('data:') || url.startsWith('blob:')) return url;
-  try {
-    const parsed = new URL(url);
-    parsed.searchParams.set('__fluxa_img_retry', String(retryKey));
-    return parsed.toString();
-  } catch {
-    const joiner = url.includes('?') ? '&' : '?';
-    return `${url}${joiner}__fluxa_img_retry=${retryKey}`;
-  }
-}
 
 function resolveBadge(
   badge: string | undefined,
@@ -78,12 +65,9 @@ export function ContinueCard({
   const [imgError, setImgError] = React.useState(false);
   const [imgLoaded, setImgLoaded] = React.useState(false);
   const [artworkOverride, setArtworkOverride] = React.useState<string | null>(null);
-  const [artworkRetryKey, setArtworkRetryKey] = React.useState(0);
-  const artworkRetriesRef = React.useRef(0);
-  const artworkRetryTimersRef = React.useRef<number[]>([]);
   const artworkImgRef = React.useRef<HTMLImageElement | null>(null);
   const artwork = artworkOverride ?? artworkProp;
-  const artworkSrc = artwork ? retryImageUrl(artwork, artworkRetryKey) : null;
+  const { src: artworkSrc, failed: posterFailed } = usePosterSrc(artwork);
 
   const lib = meta as unknown as LibraryItem & {
     lastEpisodeName?: string;
@@ -104,18 +88,7 @@ export function ContinueCard({
   React.useEffect(() => {
     setImgError(false);
     setImgLoaded(false);
-    artworkRetriesRef.current = 0;
-    setArtworkRetryKey(0);
-    artworkRetryTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-    artworkRetryTimersRef.current = [];
   }, [artwork]);
-
-  React.useEffect(() => {
-    return () => {
-      artworkRetryTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-      artworkRetryTimersRef.current = [];
-    };
-  }, []);
 
   const fallbackToSeriesArt = React.useCallback(() => {
     const m = meta as unknown as { poster?: string | null; background?: string | null };
@@ -124,25 +97,9 @@ export function ContinueCard({
     else setImgError(true);
   }, [artwork, meta]);
 
-  const handleArtworkError = React.useCallback(() => {
-    if (artworkRetriesRef.current < MAX_ARTWORK_RETRIES) {
-      artworkRetriesRef.current += 1;
-      const retry = artworkRetriesRef.current;
-      const timer = window.setTimeout(() => {
-        artworkRetryTimersRef.current = artworkRetryTimersRef.current.filter((id) => id !== timer);
-        setArtworkRetryKey(retry);
-      }, 400 * retry);
-      artworkRetryTimersRef.current.push(timer);
-    } else {
-      fallbackToSeriesArt();
-    }
-  }, [fallbackToSeriesArt]);
-
   React.useEffect(() => {
-    if (!artwork || imgLoaded || imgError) return;
-    const timer = setTimeout(fallbackToSeriesArt, 12000);
-    return () => clearTimeout(timer);
-  }, [artwork, imgLoaded, imgError, fallbackToSeriesArt]);
+    if (posterFailed) fallbackToSeriesArt();
+  }, [posterFailed, fallbackToSeriesArt]);
 
   React.useEffect(() => {
     const img = artworkImgRef.current;
@@ -200,8 +157,8 @@ export function ContinueCard({
       }}
     >
       <div style={cwStyles.imageArea}>
-        {artwork && !imgError ? (
-          <img ref={artworkImgRef} key={artworkRetryKey} src={artworkSrc ?? undefined} alt={meta.name} loading="lazy" decoding="async" draggable={false} style={{ ...cwStyles.artwork, opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.22s ease' }} onLoad={() => setImgLoaded(true)} onError={handleArtworkError} />
+        {artwork && artworkSrc && !imgError ? (
+          <img ref={artworkImgRef} src={artworkSrc} alt={meta.name} loading="lazy" decoding="async" draggable={false} style={{ ...cwStyles.artwork, opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.22s ease' }} onLoad={() => setImgLoaded(true)} />
         ) : (
           <div style={cwStyles.thumbPlaceholder}>
             <span style={cwStyles.placeholderText}>{meta.name.slice(0, 1).toUpperCase()}</span>

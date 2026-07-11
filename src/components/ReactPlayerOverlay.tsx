@@ -42,7 +42,7 @@ import { NextEpCard } from './player/NextEpCard';
 import { EpisodePanel, epLabel } from './player/EpisodePanel';
 import type { EpisodeInfo } from './player/EpisodePanel';
 import type { Video } from '../core/types';
-import { TrackPopover } from './player/TrackPopover';
+import { TrackPopover, type SubtitleCaptureCue } from './player/TrackPopover';
 import { CastPopover } from './player/CastPopover';
 import { TorrentStatsPopover } from './player/TorrentStatsPopover';
 import { PlayerSettingsPopover } from './player/PlayerSettingsPopover';
@@ -146,6 +146,7 @@ interface Props {
   metaId?: string;
   initialSubtitleUrl?: string;
   initialStreamHeaders?: Record<string, string>;
+  playbackUrl?: string | null;
   playbackError?: string | null;
   softwareVideoActive?: boolean;
   bannerOffset?: number;
@@ -153,7 +154,7 @@ interface Props {
   onDispatch?: (actionJson: string) => Promise<void> | void;
 }
 
-export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, initialLogoUrl, metaId, initialSubtitleUrl, initialStreamHeaders, playbackError, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
+export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, initialLogoUrl, metaId, initialSubtitleUrl, initialStreamHeaders, playbackUrl, playbackError, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(100);
@@ -568,7 +569,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           pos > 0.15;
         const voReady = !noVideoTrack && status.voConfigured === 'yes' && status.framesRendered >= 2 && status.pausedForCache !== 'yes';
         const activeVideoPlayback = !noVideoTrack && status.hasVideoTrack && hasVideoDimensions && playbackAdvancing;
-        if (!status.resuming && (voReady || activeVideoPlayback || noVideoTrack)) {
+        if (playbackUrl && status.path === playbackUrl && !status.resuming && (voReady || activeVideoPlayback || noVideoTrack)) {
           firstFrameFiredRef.current = true;
           sendCmd('set pause no');
           onFirstFrame();
@@ -645,7 +646,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     };
 
     return subscribePlayerStatus(handleStatus);
-  }, [skipSegments, nextEpSubtitle, nextEpThreshold, nextEpDismissed, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, metaId, autoSkipSegments, flashFeedback, isTorrentStream]);
+  }, [skipSegments, nextEpSubtitle, nextEpThreshold, nextEpDismissed, trackPopover, onFirstFrame, applyFills, title, episodeTitle, initialPosterUrl, metaId, autoSkipSegments, flashFeedback, isTorrentStream, playbackUrl]);
 
   useEffect(() => {
     const tick = async () => {
@@ -1119,7 +1120,10 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   }, [anime4kEnabled, anime4kMode, prefs, setSubtitlePref, flashFeedback]);
 
   const [subtitleDelay, setSubtitleDelayState] = useState(0);
+  const [subtitlePosition, setSubtitlePositionState] = useState(() => Number(prefs?.subtitlePosition ?? 100) || 100);
   const [autoSyncingSubtitles, setAutoSyncingSubtitles] = useState(false);
+  const [subtitleCaptureCues, setSubtitleCaptureCues] = useState<SubtitleCaptureCue[]>([]);
+  const [subtitleCaptureTime, setSubtitleCaptureTime] = useState<number | null>(null);
   const [subtitleFont, setSubtitleFontState] = useState(() => String(prefs?.subtitleFont ?? 'default'));
   const [subtitleSize, setSubtitleSizeState] = useState(() => Number(prefs?.subtitleSize ?? 100) || 100);
   const [subtitleColor, setSubtitleColorState] = useState(() => String(prefs?.subtitleColor ?? '#FFFFFF'));
@@ -1150,21 +1154,35 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     setSubtitleDelayState(0);
   }, []);
 
+  const chooseSubtitlePosition = useCallback((position: number) => {
+    sendCmd(`set sub-pos ${position}`);
+    setSubtitlePositionState(position);
+    setSubtitlePref('subtitlePosition', String(position));
+  }, [setSubtitlePref]);
+
   const autoSyncSubtitles = useCallback(async () => {
     if (autoSyncingSubtitles) return;
     setAutoSyncingSubtitles(true);
+    sendCmd('set pause yes');
     try {
-      const result = await invoke<{ delaySeconds: number }>('player_auto_sync_subtitles');
-      const delay = Math.round(result.delaySeconds * 10) / 10;
-      sendCmd(`set sub-delay ${delay.toFixed(3)}`);
-      setSubtitleDelayState(delay);
-      flashFeedback('subDelay', `${delay > 0 ? '+' : ''}${delay.toFixed(1)}s`);
+      const result = await invoke<{ capturedTime: number; cues: SubtitleCaptureCue[] }>('player_capture_subtitle_cues');
+      setSubtitleCaptureTime(result.capturedTime);
+      setSubtitleCaptureCues(result.cues);
     } catch {
       flashFeedback('subDelay', t('player.subtitle_auto_sync_failed'));
     } finally {
       setAutoSyncingSubtitles(false);
     }
   }, [autoSyncingSubtitles, flashFeedback]);
+
+  const applySubtitleCapture = useCallback((cueStart: number) => {
+    if (subtitleCaptureTime === null) return;
+    const delay = Math.round((subtitleCaptureTime - cueStart) * 10) / 10;
+    sendCmd(`set sub-delay ${delay.toFixed(3)}`);
+    setSubtitleDelayState(delay);
+    setSubtitleCaptureCues([]);
+    flashFeedback('subDelay', `${delay > 0 ? '+' : ''}${delay.toFixed(1)}s`);
+  }, [flashFeedback, subtitleCaptureTime]);
 
   const chooseSubtitleFont = useCallback((font: string) => {
     sendCmd(`set sub-font "${font === 'default' ? 'sans-serif' : font}"`);
@@ -1681,6 +1699,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           onSelectTrack={selectTrack}
           onDisableSubs={disableSubs}
           subtitleDelay={subtitleDelay}
+          subtitlePosition={subtitlePosition}
           subtitleFont={subtitleFont}
           subtitleSize={subtitleSize}
           subtitleColor={subtitleColor}
@@ -1693,9 +1712,12 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           subtitleCharacterEdge={subtitleCharacterEdge}
           subtitleShadow={subtitleShadow}
           onAdjustSubtitleDelay={adjustSubtitleDelay}
+          onChooseSubtitlePosition={chooseSubtitlePosition}
           onResetSubtitleDelay={resetSubtitleDelay}
           autoSyncing={autoSyncingSubtitles}
           onAutoSyncSubtitles={() => { void autoSyncSubtitles(); }}
+          subtitleCaptureCues={subtitleCaptureCues}
+          onApplySubtitleCapture={applySubtitleCapture}
           onChooseSubtitleFont={chooseSubtitleFont}
           onChooseSubtitleSize={chooseSubtitleSize}
           onChooseSubtitleColor={chooseSubtitleColor}

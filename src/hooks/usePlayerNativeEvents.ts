@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { t } from '../i18n';
 import type { Meta, Stream, Video } from '../core/types';
@@ -20,6 +20,7 @@ export function usePlayerNativeEvents({
   closePlayer,
   handlePlay,
   onPlayerError,
+  showEpisodeTransitionLoading,
 }: {
   stateRef: React.MutableRefObject<AppState>;
   closingPlayerRef: React.MutableRefObject<boolean>;
@@ -29,9 +30,12 @@ export function usePlayerNativeEvents({
   playingNextEpisodeRef: React.MutableRefObject<Video | null>;
   prefetchedNextEpRef: React.MutableRefObject<{ episodeId: string; stream: Stream } | null>;
   closePlayer: () => Promise<void>;
-  handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number) => Promise<void>;
+  handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number, sourceCandidates?: Stream[]) => Promise<void>;
   onPlayerError: (message: string) => Promise<void>;
+  showEpisodeTransitionLoading: (meta: Meta, episode: Video, stream: Stream) => void;
 }) {
+  const episodeTransitionActiveRef = useRef(false);
+
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
     let cancelled = false;
@@ -54,12 +58,14 @@ export function usePlayerNativeEvents({
     let cancelled = false;
 
     listen('native-player-next-episode', () => {
-      if (closingPlayerRef.current) return;
+      if (closingPlayerRef.current || episodeTransitionActiveRef.current) return;
+      episodeTransitionActiveRef.current = true;
       const meta = playingMetaRef.current;
       const currentStream = playingStreamRef.current;
       const currentEp = playingEpisodeRef.current;
 
       void (async () => {
+        try {
         let nextEp = playingNextEpisodeRef.current;
         if (nextEp && !isEpisodeReleasedForPlayback(nextEp)) nextEp = null;
         if (!nextEp && meta?.videos?.length && currentEp) {
@@ -73,6 +79,7 @@ export function usePlayerNativeEvents({
         }
         if (!nextEp || !meta || !currentStream) return;
 
+        showEpisodeTransitionLoading(meta, nextEp, currentStream);
         await embeddedMpvStop().catch(() => undefined);
         const nextTitle = playerDisplayTitle(meta, nextEp, currentStream);
         const nextArtwork = playerArtwork(meta, nextEp);
@@ -86,18 +93,20 @@ export function usePlayerNativeEvents({
 
         const prefs = appPrefs(stateRef.current);
         let chosenStream: Stream | null = null;
+        let sourceCandidates: Stream[] | undefined;
         const prefetched = prefetchedNextEpRef.current;
-        if (prefetched?.episodeId === nextEp.id) {
+        const prefetchedIsTorrent = !!(prefetched?.stream.isTorrent || prefetched?.stream.infoHash);
+        if (prefetched?.episodeId === nextEp.id && !prefetchedIsTorrent) {
           chosenStream = prefetched.stream;
           prefetchedNextEpRef.current = null;
         } else {
+          if (prefetched?.episodeId === nextEp.id) prefetchedNextEpRef.current = null;
           try {
-            const timeout = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('stream fetch timeout')), 8000));
-            const result = await Promise.race([fetchStreamsForEpisode(nextEp.id, meta.type), timeout]);
+            const result = await fetchStreamsForEpisode(nextEp.id, meta.type);
             const streams = result.streams as Stream[];
             if (streams.length > 0) {
-              chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs), nextEp.id)) as Stream | null ?? streams[0];
+              sourceCandidates = streams;
+              chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs), nextEp.id)) as Stream | null;
             }
           } catch {}
         }
@@ -105,22 +114,34 @@ export function usePlayerNativeEvents({
           if (!closingPlayerRef.current) await onPlayerError(t('player.no_playable_url'));
           return;
         }
-        try { await handlePlay(chosenStream, meta, nextEp); } catch {}
+        try { await handlePlay(chosenStream, meta, nextEp, undefined, undefined, sourceCandidates); } catch {}
+        } finally {
+          episodeTransitionActiveRef.current = false;
+        }
       })();
     })
       .then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); })
       .catch(() => undefined);
 
     listen<string>('native-player-play-episode', (event) => {
-      if (closingPlayerRef.current) return;
+      if (closingPlayerRef.current || episodeTransitionActiveRef.current) return;
+      episodeTransitionActiveRef.current = true;
       const episodeId = event.payload;
       const meta = playingMetaRef.current;
       const currentStream = playingStreamRef.current;
-      if (!meta || !currentStream) return;
+      if (!meta || !currentStream) {
+        episodeTransitionActiveRef.current = false;
+        return;
+      }
       const ep = meta.videos?.find((v) => v.id === episodeId) ?? null;
-      if (!ep) return;
+      if (!ep) {
+        episodeTransitionActiveRef.current = false;
+        return;
+      }
 
       void (async () => {
+        try {
+        showEpisodeTransitionLoading(meta, ep, currentStream);
         await embeddedMpvStop().catch(() => undefined);
         const nextTitle = playerDisplayTitle(meta, ep, currentStream);
         const nextArtwork = playerArtwork(meta, ep);
@@ -134,25 +155,28 @@ export function usePlayerNativeEvents({
 
         const prefs = appPrefs(stateRef.current);
         let chosenStream: Stream | null = null;
+        let sourceCandidates: Stream[] | undefined;
         try {
-          const timeout = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('stream fetch timeout')), 8000));
-          const result = await Promise.race([fetchStreamsForEpisode(ep.id, meta.type), timeout]);
+          const result = await fetchStreamsForEpisode(ep.id, meta.type);
           const streams = result.streams as Stream[];
           if (streams.length > 0) {
-            chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs), ep.id)) as Stream | null ?? streams[0];
+            sourceCandidates = streams;
+            chosenStream = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(currentStream), JSON.stringify(prefs), ep.id)) as Stream | null;
           }
         } catch {}
         if (!chosenStream) {
           if (!closingPlayerRef.current) await onPlayerError(t('player.no_playable_url'));
           return;
         }
-        try { await handlePlay(chosenStream, meta, ep); } catch {}
+        try { await handlePlay(chosenStream, meta, ep, undefined, undefined, sourceCandidates); } catch {}
+        } finally {
+          episodeTransitionActiveRef.current = false;
+        }
       })();
     })
       .then((fn) => { if (cancelled) fn(); else unlisteners.push(fn); })
       .catch(() => undefined);
 
     return () => { cancelled = true; unlisteners.forEach((fn) => fn()); };
-  }, [handlePlay, stateRef, closingPlayerRef, playingMetaRef, playingStreamRef, playingEpisodeRef, playingNextEpisodeRef, prefetchedNextEpRef]);
+  }, [handlePlay, stateRef, closingPlayerRef, playingMetaRef, playingStreamRef, playingEpisodeRef, playingNextEpisodeRef, prefetchedNextEpRef, episodeTransitionActiveRef, showEpisodeTransitionLoading]);
 }

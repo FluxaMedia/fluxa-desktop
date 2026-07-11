@@ -12,13 +12,21 @@ interface Props {
   status?: string;
   error?: string | null;
   isTorrentStream?: boolean;
+  source?: {
+    title?: string;
+    addon?: string;
+    filename?: string;
+    fileIdx?: number;
+    infoHash?: string;
+    sources?: string[];
+  };
   onBack?: () => void;
 }
 
 const BUFFER_TARGET_SECS = 5;
 const MIN_VISIBLE_PROGRESS = 0.045;
 
-export function PlayerLoadingOverlay({ background, logo, title, episodeLine, status, error, isTorrentStream, onBack }: Props) {
+export function PlayerLoadingOverlay({ background, logo, title, episodeLine, status, error, isTorrentStream, source, onBack }: Props) {
   const [hasMeasuredProgress, setHasMeasuredProgress] = useState(false);
   const [progress, setProgress] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -30,7 +38,8 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
   const errorDetails = errorLines.slice(1).join('\n');
 
   const copyErrorDetails = () => {
-    void navigator.clipboard.writeText(error ?? '').then(() => {
+    const sourceDetails = source ? JSON.stringify(source, null, 2) : '';
+    void navigator.clipboard.writeText([error, sourceDetails].filter(Boolean).join('\n\n')).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }).catch(() => undefined);
@@ -216,6 +225,36 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
           >
             {status}
           </p>
+        )}
+        {isTorrentStream && source && (
+          <div
+            style={{
+              width: 'min(34rem, 100%)',
+              margin: '1rem auto 0',
+              padding: '0.75rem 0.875rem',
+              boxSizing: 'border-box',
+              borderRadius: '0.625rem',
+              background: 'rgba(0,0,0,0.38)',
+              border: '1px solid rgba(255,255,255,0.09)',
+              textAlign: 'left',
+              fontSize: '0.6875rem',
+              lineHeight: 1.45,
+            }}
+          >
+            {[
+              [t('player.source'), source.title],
+              [t('player.source_provider'), source.addon],
+              [t('player.source_file'), source.filename],
+              [t('player.source_file_index'), source.fileIdx?.toString()],
+              [t('player.source_info_hash'), source.infoHash],
+              [t('player.source_urls'), source.sources?.join('\n')],
+            ].filter(([, value]) => !!value).map(([label, value]) => (
+              <div key={label} style={{ display: 'grid', gridTemplateColumns: '6.5rem minmax(0, 1fr)', gap: '0.5rem', marginTop: '0.25rem' }}>
+                <span style={{ color: 'rgba(255,255,255,0.42)', fontWeight: 700 }}>{label}</span>
+                <span style={{ color: 'rgba(255,255,255,0.74)', fontFamily: label === t('player.source_file_index') || label === t('player.source_info_hash') || label === t('player.source_urls') ? "'Cascadia Mono', 'Consolas', monospace" : undefined, overflowWrap: 'anywhere', whiteSpace: label === t('player.source_urls') ? 'pre-wrap' : undefined }}>{value}</span>
+              </div>
+            ))}
+          </div>
         )}
         {failed && (
           <div

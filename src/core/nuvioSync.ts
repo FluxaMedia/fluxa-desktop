@@ -11,7 +11,7 @@ import {
   type NuvioProfile,
 } from './nuvioApi';
 import { platformFetch } from './httpClient';
-import { buildContinueWatching } from './libraryOps';
+import { buildContinueWatching, loadLibrary, saveLibrary, persistProgressMerge, persistWatchedMerge, persistContinueWatchingMerge } from './libraryOps';
 import { storageRead, storageWrite } from './engine';
 import type { NuvioCollectionSource, UserProfile } from './types';
 import { saveProfile } from './profiles';
@@ -164,8 +164,7 @@ export async function importNuvioProfileData(
   if (!token) return { errors: { library: 'Missing Nuvio token' } };
 
   const suffix = profileStorageSuffix(profile);
-  const libKey = `library_${suffix}`;
-  const existingLib = (await storageRead<Record<string, unknown>>(libKey)) ?? {};
+  const existingLib = await loadLibrary();
   const libDoc: Record<string, unknown> = {
     schemaVersion: 2,
     ...existingLib,
@@ -174,6 +173,9 @@ export async function importNuvioProfileData(
     watchlist: Array.isArray(existingLib.watchlist) ? existingLib.watchlist : [],
     watched: { ...((existingLib.watched as Record<string, boolean> | undefined) ?? {}) },
   };
+  const progressBefore = { ...(libDoc.progress as Record<string, unknown>) };
+  const watchedBefore = { ...(libDoc.watched as Record<string, boolean>) };
+  const continueWatchingBefore = [...(libDoc.continueWatching as Record<string, unknown>[])];
   const errors: Partial<Record<NuvioImportStep, string>> = {};
   const activeRemoteProgressIds = new Set<string>();
 
@@ -346,7 +348,10 @@ export async function importNuvioProfileData(
     }
   }
 
-  await storageWrite(libKey, libDoc);
+  await persistProgressMerge(progressBefore, libDoc.progress as Record<string, unknown>);
+  await persistWatchedMerge(watchedBefore, libDoc.watched as Record<string, boolean>);
+  await persistContinueWatchingMerge(continueWatchingBefore, libDoc.continueWatching as Record<string, unknown>[]);
+  await saveLibrary(libDoc);
 
   if (options.includeSettings !== false) {
     try {

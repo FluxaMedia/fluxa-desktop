@@ -131,6 +131,12 @@ fn mpv_options_from_preferences(
             format!("{:.2}", (size / 100.0).clamp(0.5, 2.0)),
         ));
     }
+    if let Some(position) = get("subtitlePosition").and_then(|v| v.parse::<f64>().ok()) {
+        options.push((
+            "sub-pos".to_string(),
+            format!("{:.0}", position.clamp(0.0, 100.0)),
+        ));
+    }
     if let Some(font) = get("subtitleFont") {
         if !font.is_empty() && font != "default" {
             options.push(("sub-font".to_string(), font.to_string()));
@@ -174,6 +180,22 @@ fn mpv_options_from_preferences(
         .and_then(|v| css_hex_with_alpha_to_mpv_color(v, sub_border_opacity))
     {
         options.push(("sub-border-color".to_string(), color));
+    }
+    let subtitle_outline_size = get("subtitleOutlineSize")
+        .and_then(|v| v.parse::<f64>().ok())
+        .map(|size| size.clamp(0.0, 6.0));
+    if let Some(size) = subtitle_outline_size {
+        options.push((
+            "sub-border-size".to_string(),
+            format!("{:.1}", size.clamp(0.0, 6.0)),
+        ));
+    }
+    if preferences
+        .get("subtitleBold")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        options.push(("sub-bold".to_string(), "yes".to_string()));
     }
     if preferences
         .get("subtitleForceStyle")
@@ -231,7 +253,10 @@ fn mpv_options_from_preferences(
             options.push(("sub-shadow-offset".to_string(), "1".to_string()));
         }
         Some("uniform") => {
-            options.push(("sub-border-size".to_string(), "3".to_string()));
+            options.push((
+                "sub-border-size".to_string(),
+                format!("{:.1}", subtitle_outline_size.unwrap_or(3.0)),
+            ));
             options.push(("sub-shadow-offset".to_string(), "0".to_string()));
         }
         Some("drop-shadow") => {
@@ -369,7 +394,11 @@ fn anime4k_chain_shaders(tier: &str, mode: &str) -> Vec<String> {
             }
         }
     } else {
-        let (primary, secondary) = if tier == "anime4k_l" { ("VL", "M") } else { ("M", "S") };
+        let (primary, secondary) = if tier == "anime4k_l" {
+            ("VL", "M")
+        } else {
+            ("M", "S")
+        };
         match mode {
             "b" => {
                 chain.push(format!("Anime4K_Restore_CNN_Soft_{primary}.glsl"));
@@ -428,7 +457,11 @@ fn resolve_anime4k_chain(app: Option<&AppHandle>, tier: &str, mode: &str) -> Opt
         let path = resolve_shader_path(app, shader_name)?;
         paths.push(path.replace('\\', "/"));
     }
-    let separator = if cfg!(target_os = "windows") { ";" } else { ":" };
+    let separator = if cfg!(target_os = "windows") {
+        ";"
+    } else {
+        ":"
+    };
     Some(paths.join(separator))
 }
 
@@ -437,8 +470,12 @@ fn anime4k_should_apply(preferences: &Value) -> bool {
         .get("isAnimePlayback")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    matches!(preferences.get("animeUpscalingMode").and_then(Value::as_str), Some("auto" | "anime4k_s" | "anime4k_m" | "anime4k_l"))
-        && is_anime_playback
+    matches!(
+        preferences
+            .get("animeUpscalingMode")
+            .and_then(Value::as_str),
+        Some("auto" | "anime4k_s" | "anime4k_m" | "anime4k_l")
+    ) && is_anime_playback
 }
 
 fn resolve_shader_path(app: Option<&AppHandle>, shader_name: &str) -> Option<String> {
@@ -545,7 +582,9 @@ pub async fn player_init(app: AppHandle, state: State<'_, DesktopState>) -> Resu
         if native_ready {
             log::info!("player_init: native surface ready");
         } else {
-            log::warn!("player_init: native player surface unavailable, using software video rendering");
+            log::warn!(
+                "player_init: native player surface unavailable, using software video rendering"
+            );
         }
     }
 
@@ -679,7 +718,10 @@ pub fn player_apply_preferences(
     };
     let anime4k_enabled = anime4k_resolved && options_applied;
     *state.anime4k_enabled.lock().unwrap() = anime4k_enabled;
-    let _ = app.emit("player-anime4k-state", serde_json::json!({ "enabled": anime4k_enabled }));
+    let _ = app.emit(
+        "player-anime4k-state",
+        serde_json::json!({ "enabled": anime4k_enabled }),
+    );
     Ok(())
 }
 
@@ -862,19 +904,61 @@ pub fn player_set_anime4k_enabled(
         )
         .ok_or_else(|| "Anime4K shader chain not found".to_string())?;
         vec![
-            vec!["change-list".to_string(), "glsl-shaders".to_string(), "set".to_string(), chain_path],
-            vec!["set".to_string(), "scale".to_string(), "ewa_lanczossharp".to_string()],
-            vec!["set".to_string(), "cscale".to_string(), "ewa_lanczos".to_string()],
-            vec!["set".to_string(), "dscale".to_string(), "mitchell".to_string()],
-            vec!["set".to_string(), "correct-downscaling".to_string(), "yes".to_string()],
-            vec!["set".to_string(), "linear-downscaling".to_string(), "yes".to_string()],
+            vec![
+                "change-list".to_string(),
+                "glsl-shaders".to_string(),
+                "set".to_string(),
+                chain_path,
+            ],
+            vec![
+                "set".to_string(),
+                "scale".to_string(),
+                "ewa_lanczossharp".to_string(),
+            ],
+            vec![
+                "set".to_string(),
+                "cscale".to_string(),
+                "ewa_lanczos".to_string(),
+            ],
+            vec![
+                "set".to_string(),
+                "dscale".to_string(),
+                "mitchell".to_string(),
+            ],
+            vec![
+                "set".to_string(),
+                "correct-downscaling".to_string(),
+                "yes".to_string(),
+            ],
+            vec![
+                "set".to_string(),
+                "linear-downscaling".to_string(),
+                "yes".to_string(),
+            ],
         ]
     } else {
         vec![
-            vec!["change-list".to_string(), "glsl-shaders".to_string(), "clr".to_string(), String::new()],
-            vec!["set".to_string(), "scale".to_string(), "bilinear".to_string()],
-            vec!["set".to_string(), "cscale".to_string(), "bilinear".to_string()],
-            vec!["set".to_string(), "dscale".to_string(), "mitchell".to_string()],
+            vec![
+                "change-list".to_string(),
+                "glsl-shaders".to_string(),
+                "clr".to_string(),
+                String::new(),
+            ],
+            vec![
+                "set".to_string(),
+                "scale".to_string(),
+                "bilinear".to_string(),
+            ],
+            vec![
+                "set".to_string(),
+                "cscale".to_string(),
+                "bilinear".to_string(),
+            ],
+            vec![
+                "set".to_string(),
+                "dscale".to_string(),
+                "mitchell".to_string(),
+            ],
         ]
     };
     for command in commands {
@@ -882,7 +966,10 @@ pub fn player_set_anime4k_enabled(
         with_renderer_retry(&state, 60, |renderer| renderer.command_args(&args))?;
     }
     *state.anime4k_enabled.lock().unwrap() = enabled;
-    let _ = app.emit("player-anime4k-state", serde_json::json!({ "enabled": enabled }));
+    let _ = app.emit(
+        "player-anime4k-state",
+        serde_json::json!({ "enabled": enabled }),
+    );
     Ok(())
 }
 
@@ -903,15 +990,34 @@ pub fn player_command(state: State<DesktopState>, command: String) -> Result<(),
     }
 }
 
+#[tauri::command]
+pub fn player_set_sleep_inhibition(
+    state: State<DesktopState>,
+    enabled: bool,
+) -> Result<(), String> {
+    state.sleep_inhibitor.lock().unwrap().set_enabled(enabled)
+}
+
 fn selected_external_subtitle_source(renderer: &mpv_render::MpvRenderer) -> Option<String> {
-    let count = renderer.query_property("track-list/count")?.parse::<usize>().ok()?;
+    let count = renderer
+        .query_property("track-list/count")?
+        .parse::<usize>()
+        .ok()?;
     for index in 0..count {
-        if renderer.query_property(&format!("track-list/{index}/type")).as_deref() != Some("sub")
-            || renderer.query_property(&format!("track-list/{index}/selected")).as_deref() != Some("yes")
+        if renderer
+            .query_property(&format!("track-list/{index}/type"))
+            .as_deref()
+            != Some("sub")
+            || renderer
+                .query_property(&format!("track-list/{index}/selected"))
+                .as_deref()
+                != Some("yes")
         {
             continue;
         }
-        if let Some(source) = renderer.query_property(&format!("track-list/{index}/external-filename")) {
+        if let Some(source) =
+            renderer.query_property(&format!("track-list/{index}/external-filename"))
+        {
             if !source.trim().is_empty() {
                 return Some(source);
             }
@@ -922,7 +1028,12 @@ fn selected_external_subtitle_source(renderer: &mpv_render::MpvRenderer) -> Opti
 
 async fn load_subtitle_text(source: &str) -> Result<String, String> {
     if source.starts_with("http://") || source.starts_with("https://") {
-        return reqwest::get(source).await.map_err(|error| error.to_string())?.text().await.map_err(|error| error.to_string());
+        return reqwest::get(source)
+            .await
+            .map_err(|error| error.to_string())?
+            .text()
+            .await
+            .map_err(|error| error.to_string());
     }
     let path = source.strip_prefix("file://").unwrap_or(source);
     std::fs::read_to_string(path).map_err(|error| error.to_string())
@@ -930,19 +1041,41 @@ async fn load_subtitle_text(source: &str) -> Result<String, String> {
 
 fn speech_intervals_from_media(source: &str, analysis_seconds: f64) -> Result<Vec<Value>, String> {
     let output = Command::new("ffmpeg")
-        .args(["-hide_banner", "-nostats", "-t", &analysis_seconds.to_string(), "-i", source, "-map", "0:a:0", "-af", "silencedetect=n=-35dB:d=0.2", "-f", "null", "-"])
+        .args([
+            "-hide_banner",
+            "-nostats",
+            "-t",
+            &analysis_seconds.to_string(),
+            "-i",
+            source,
+            "-map",
+            "0:a:0",
+            "-af",
+            "silencedetect=n=-35dB:d=0.2",
+            "-f",
+            "null",
+            "-",
+        ])
         .output()
         .map_err(|error| format!("could not run ffmpeg: {error}"))?;
     let log = String::from_utf8_lossy(&output.stderr);
     let mut speech_start = 0.0;
     let mut intervals = Vec::new();
     for line in log.lines() {
-        if let Some(value) = line.split("silence_start:").nth(1).and_then(|value| value.trim().parse::<f64>().ok()) {
+        if let Some(value) = line
+            .split("silence_start:")
+            .nth(1)
+            .and_then(|value| value.trim().parse::<f64>().ok())
+        {
             if value - speech_start >= 0.2 {
                 intervals.push(json!({ "start": speech_start, "end": value }));
             }
         }
-        if let Some(value) = line.split("silence_end:").nth(1).and_then(|value| value.trim().split_whitespace().next()?.parse::<f64>().ok()) {
+        if let Some(value) = line
+            .split("silence_end:")
+            .nth(1)
+            .and_then(|value| value.trim().split_whitespace().next()?.parse::<f64>().ok())
+        {
             speech_start = value;
         }
     }
@@ -958,17 +1091,57 @@ fn speech_intervals_from_media(source: &str, analysis_seconds: f64) -> Result<Ve
 #[tauri::command]
 pub async fn player_auto_sync_subtitles(state: State<'_, DesktopState>) -> Result<Value, String> {
     let (media_source, subtitle_source, duration) = with_renderer_retry(&state, 60, |renderer| {
-        Ok((renderer.query_property("path"), selected_external_subtitle_source(renderer), renderer.query_property("duration")))
-    })?.ok_or_else(|| "player renderer is not initialized".to_string())?;
+        Ok((
+            renderer.query_property("path"),
+            selected_external_subtitle_source(renderer),
+            renderer.query_property("duration"),
+        ))
+    })?
+    .ok_or_else(|| "player renderer is not initialized".to_string())?;
     let media_source = media_source.ok_or_else(|| "media source is unavailable".to_string())?;
-    let subtitle_source = subtitle_source.ok_or_else(|| "automatic sync requires an external subtitle track".to_string())?;
+    let subtitle_source = subtitle_source
+        .ok_or_else(|| "automatic sync requires an external subtitle track".to_string())?;
     let subtitle_text = load_subtitle_text(&subtitle_source).await?;
-    let analysis_seconds = duration.and_then(|value| value.parse::<f64>().ok()).filter(|value| *value > 0.0).unwrap_or(600.0).min(600.0);
-    let speech_intervals = tauri::async_runtime::spawn_blocking(move || speech_intervals_from_media(&media_source, analysis_seconds)).await.map_err(|error| error.to_string())??;
+    let analysis_seconds = duration
+        .and_then(|value| value.parse::<f64>().ok())
+        .filter(|value| *value > 0.0)
+        .unwrap_or(600.0)
+        .min(600.0);
+    let speech_intervals = tauri::async_runtime::spawn_blocking(move || {
+        speech_intervals_from_media(&media_source, analysis_seconds)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
     let request = json!({ "subtitleText": subtitle_text, "speechIntervals": speech_intervals });
     FluxaCore::subtitle_sync_estimate_json(&request.to_string())
         .and_then(|result| serde_json::from_str(&result).ok())
         .ok_or_else(|| "could not determine a reliable subtitle delay".to_string())
+}
+
+#[tauri::command]
+pub async fn player_capture_subtitle_cues(state: State<'_, DesktopState>) -> Result<Value, String> {
+    let (subtitle_source, current_time) = with_renderer_retry(&state, 60, |renderer| {
+        Ok((
+            selected_external_subtitle_source(renderer),
+            renderer.query_property("time-pos"),
+        ))
+    })?
+    .ok_or_else(|| "player renderer is not initialized".to_string())?;
+    let subtitle_source =
+        subtitle_source.ok_or_else(|| "capture requires an external subtitle track".to_string())?;
+    let current_time = current_time
+        .and_then(|value| value.parse::<f64>().ok())
+        .filter(|value| value.is_finite() && *value >= 0.0)
+        .ok_or_else(|| "playback time is unavailable".to_string())?;
+    let subtitle_text = load_subtitle_text(&subtitle_source).await?;
+    let request = json!({ "subtitleText": subtitle_text, "currentTime": current_time });
+    FluxaCore::subtitle_cues_around_time_json(&request.to_string())
+        .and_then(|result| serde_json::from_str(&result).ok())
+        .map(|mut result: Value| {
+            result["capturedTime"] = json!(current_time);
+            result
+        })
+        .ok_or_else(|| "could not read subtitle cues".to_string())
 }
 
 #[tauri::command]
@@ -1036,6 +1209,7 @@ pub fn player_show_loading(
 #[tauri::command]
 pub fn player_hide(app: AppHandle, state: State<DesktopState>) {
     state.pending_hide.store(true, Ordering::Release);
+    let _ = state.sleep_inhibitor.lock().unwrap().set_enabled(false);
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     if let Some(surface) = state.native_player_surface.lock().unwrap().as_ref() {
         surface.hide();
@@ -1093,6 +1267,7 @@ pub fn player_track_options(
 
 #[tauri::command]
 pub fn player_destroy(state: State<DesktopState>) -> bool {
+    let _ = state.sleep_inhibitor.lock().unwrap().set_enabled(false);
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     if let Some(surface) = state.native_player_surface.lock().unwrap().as_ref() {
         surface.hide();

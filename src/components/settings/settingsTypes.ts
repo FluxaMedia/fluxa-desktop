@@ -87,6 +87,7 @@ export interface Prefs {
   preferredSubtitleLanguage: string;
   secondarySubtitleLanguage: string;
   autoEnableSubtitles: boolean;
+  subtitlePosition: string;
   subtitleSize: string;
   subtitleColor: string;
   subtitleTextOpacity: string;
@@ -94,6 +95,8 @@ export interface Prefs {
   subtitleBackgroundOpacity: string;
   subtitleOutlineColor: string;
   subtitleOutlineOpacity: string;
+  subtitleOutlineSize: string;
+  subtitleBold: boolean;
   subtitleForceStyle: boolean;
   subtitleCharacterEdge: string;
   subtitleFont: string;
@@ -220,6 +223,7 @@ export const DEFAULT_PREFS: Prefs = {
   preferredSubtitleLanguage: 'none',
   secondarySubtitleLanguage: 'none',
   autoEnableSubtitles: true,
+  subtitlePosition: '100',
   subtitleSize: '100',
   subtitleColor: '#FFFFFF',
   subtitleTextOpacity: '1.0',
@@ -227,6 +231,8 @@ export const DEFAULT_PREFS: Prefs = {
   subtitleBackgroundOpacity: '0.5',
   subtitleOutlineColor: '#000000',
   subtitleOutlineOpacity: '1.0',
+  subtitleOutlineSize: '3',
+  subtitleBold: false,
   subtitleForceStyle: false,
   subtitleCharacterEdge: 'uniform',
   subtitleFont: 'default',

@@ -15,7 +15,9 @@ mod mpv_render;
 mod net_guard;
 mod oauth;
 mod player;
+mod poster_cache;
 mod roku;
+mod sleep_inhibitor;
 mod storage;
 #[cfg(target_os = "windows")]
 mod windows_egl;
@@ -31,6 +33,7 @@ use discord_presence::*;
 use downloads::*;
 use oauth::*;
 use player::*;
+use poster_cache::*;
 use roku::*;
 use storage::*;
 
@@ -86,6 +89,7 @@ pub struct DesktopState {
     pub torrent_stream_file_id: Mutex<Option<usize>>,
     pub torrent_generation: Mutex<Option<u64>>,
     pub close_flush_done: AtomicBool,
+    pub sleep_inhibitor: Mutex<sleep_inhibitor::SleepInhibitor>,
 }
 
 impl Default for DesktopState {
@@ -126,6 +130,7 @@ impl Default for DesktopState {
             torrent_stream_file_id: Mutex::new(None),
             torrent_generation: Mutex::new(None),
             close_flush_done: AtomicBool::new(false),
+            sleep_inhibitor: Mutex::new(sleep_inhibitor::SleepInhibitor::default()),
         }
     }
 }
@@ -240,19 +245,27 @@ fn start_torrent_stream_inner(
     stream_json: String,
     title: Option<String>,
     preferences: Option<Value>,
+    existing_base_url: Option<String>,
 ) -> Result<(String, String, String, Option<u64>, Option<usize>), String> {
-    let cache_dir = data_dir.join("torrent-cache");
-    let server_json =
-        fluxa_streaming_engine::start_torrent_server(&cache_dir.to_string_lossy(), 0, "")
-            .ok_or_else(|| "failed to start torrent server".to_string())?;
-    let server: Value = serde_json::from_str(&server_json)
-        .map_err(|e| format!("invalid torrent server response: {e}"))?;
-    let base_url = server
-        .get("url")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "torrent server did not return url".to_string())?;
-    let generation = server.get("generation").and_then(Value::as_u64);
-    apply_torrent_preferences(base_url, preferences.as_ref());
+    let (base_url, generation) = if let Some(base_url) = existing_base_url {
+        apply_torrent_preferences(&base_url, preferences.as_ref());
+        (base_url, None)
+    } else {
+        let cache_dir = data_dir.join("torrent-cache");
+        let server_json =
+            fluxa_streaming_engine::start_torrent_server(&cache_dir.to_string_lossy(), 0, "")
+                .ok_or_else(|| "failed to start torrent server".to_string())?;
+        let server: Value = serde_json::from_str(&server_json)
+            .map_err(|e| format!("invalid torrent server response: {e}"))?;
+        let base_url = server
+            .get("url")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| "torrent server did not return url".to_string())?;
+        let generation = server.get("generation").and_then(Value::as_u64);
+        apply_torrent_preferences(&base_url, preferences.as_ref());
+        (base_url, generation)
+    };
 
     let stream: Value =
         serde_json::from_str(&stream_json).map_err(|e| format!("invalid stream json: {e}"))?;
@@ -312,7 +325,14 @@ fn start_torrent_stream_inner(
         .get("selectedFileIdx")
         .and_then(Value::as_i64)
         .map(|v| v as usize);
-    Ok((stream_url, base_url.to_string(), stats_link, generation, selected_file_id))
+    start_torrent_add(&base_url, &stats_link, selected_file_id);
+    Ok((
+        stream_url,
+        base_url,
+        stats_link,
+        generation,
+        selected_file_id,
+    ))
 }
 
 #[tauri::command]
@@ -328,16 +348,64 @@ async fn start_torrent_stream(
         .unwrap()
         .clone()
         .ok_or_else(|| "app data dir is not ready".to_string())?;
+    let info_hash = serde_json::from_str::<Value>(&stream_json)
+        .ok()
+        .and_then(|stream| {
+            stream
+                .get("infoHash")
+                .and_then(Value::as_str)
+                .map(str::to_ascii_lowercase)
+        });
+    let mut existing_base_url = state.torrent_server_base_url.lock().unwrap().clone();
+    let existing_link = state.torrent_stream_link.lock().unwrap().clone();
+    if let Some(base_url) = existing_base_url.clone() {
+        let healthy = tauri::async_runtime::spawn_blocking({
+            let base_url = base_url.clone();
+            move || torrent_server_healthy(&base_url)
+        })
+        .await
+        .unwrap_or(false);
+        if !healthy {
+            existing_base_url = None;
+            let previous_generation = state.torrent_generation.lock().unwrap().take();
+            *state.torrent_server_base_url.lock().unwrap() = None;
+            *state.torrent_stream_link.lock().unwrap() = None;
+            *state.torrent_stream_file_id.lock().unwrap() = None;
+            let cleanup_dir = data_dir.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                let stopped = fluxa_streaming_engine::stop_torrent_server(previous_generation);
+                let _ = fs::remove_dir_all(cleanup_dir.join("torrent-cache"));
+                stopped
+            })
+            .await
+            .unwrap_or(false);
+        }
+    }
+    let reuse_existing_server = existing_base_url.is_some();
+    let same_torrent = info_hash.as_ref().is_some_and(|hash| {
+        existing_link
+            .as_ref()
+            .is_some_and(|link| link.to_ascii_lowercase().contains(hash))
+    });
+    if reuse_existing_server && !same_torrent {
+        if let (Some(base_url), Some(old_link)) = (existing_base_url.clone(), existing_link) {
+            remove_torrent(&base_url, &old_link);
+        }
+        *state.torrent_stream_link.lock().unwrap() = None;
+        *state.torrent_stream_file_id.lock().unwrap() = None;
+    }
     let (stream_url, base_url, link, generation, file_id) =
         tauri::async_runtime::spawn_blocking(move || {
-            start_torrent_stream_inner(data_dir, stream_json, title, preferences)
+            start_torrent_stream_inner(data_dir, stream_json, title, preferences, existing_base_url)
         })
         .await
         .map_err(|e| e.to_string())??;
     *state.torrent_server_base_url.lock().unwrap() = Some(base_url);
     *state.torrent_stream_link.lock().unwrap() = Some(link);
     *state.torrent_stream_file_id.lock().unwrap() = file_id;
-    *state.torrent_generation.lock().unwrap() = generation;
+    if let Some(generation) = generation {
+        *state.torrent_generation.lock().unwrap() = Some(generation);
+    }
     Ok(stream_url)
 }
 
@@ -349,15 +417,14 @@ async fn stop_torrent_stream(state: State<'_, DesktopState>) -> Result<bool, Str
     let generation = state.torrent_generation.lock().unwrap().take();
     let data_dir = state.data_dir.lock().unwrap().clone();
     let stopped = tauri::async_runtime::spawn_blocking(move || {
-        fluxa_streaming_engine::stop_torrent_server(generation)
+        let stopped = fluxa_streaming_engine::stop_torrent_server(generation);
+        if let Some(data_dir) = data_dir {
+            let _ = fs::remove_dir_all(data_dir.join("torrent-cache"));
+        }
+        stopped
     })
     .await
     .unwrap_or(false);
-    if let Some(data_dir) = data_dir {
-        tauri::async_runtime::spawn_blocking(move || {
-            let _ = fs::remove_dir_all(data_dir.join("torrent-cache"));
-        });
-    }
     Ok(stopped)
 }
 
@@ -446,12 +513,64 @@ async fn player_torrent_stats(state: State<'_, DesktopState>) -> Result<Option<V
     let response = client
         .post(&url)
         .json(&serde_json::json!({ "action": "get", "link": link, "file_id": file_id }))
-        .timeout(std::time::Duration::from_secs(50))
+        .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
         .map_err(|e| e.to_string())?;
     let json_val = response.json::<Value>().await.map_err(|e| e.to_string())?;
     Ok(Some(json_val))
+}
+
+fn torrent_engine_request(
+    url: &str,
+    body: Option<&str>,
+    read_timeout: std::time::Duration,
+) -> Option<String> {
+    use std::net::ToSocketAddrs;
+    let rest = url.strip_prefix("http://")?;
+    let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let (host, port) = authority
+        .split_once(':')
+        .and_then(|(host, port)| port.parse::<u16>().ok().map(|port| (host, port)))
+        .unwrap_or((authority, 80));
+    let path = format!("/{path}");
+    let addr = (host, port).to_socket_addrs().ok()?.next()?;
+    let mut stream =
+        std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(2)).ok()?;
+    stream.set_read_timeout(Some(read_timeout)).ok()?;
+    let request = match body {
+        Some(body) => format!(
+            "POST {path} HTTP/1.1\r\nHost: {host}:{port}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        ),
+        None => format!("GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n"),
+    };
+    std::io::Write::write_all(&mut stream, request.as_bytes()).ok()?;
+    let mut response = Vec::new();
+    let _ = std::io::Read::read_to_end(&mut stream, &mut response);
+    Some(String::from_utf8_lossy(&response).into_owned())
+}
+
+fn torrent_server_healthy(base_url: &str) -> bool {
+    let url = format!("{}/health", base_url.trim_end_matches('/'));
+    torrent_engine_request(&url, None, std::time::Duration::from_secs(2))
+        .is_some_and(|response| response.starts_with("HTTP/1.1 200"))
+}
+
+fn start_torrent_add(base_url: &str, link: &str, file_id: Option<usize>) {
+    let url = format!("{}/torrents", base_url.trim_end_matches('/'));
+    let body = json!({ "action": "add", "link": link, "file_id": file_id }).to_string();
+    std::thread::spawn(move || {
+        torrent_engine_request(&url, Some(&body), std::time::Duration::from_secs(60));
+    });
+}
+
+fn remove_torrent(base_url: &str, link: &str) {
+    let url = format!("{}/torrents", base_url.trim_end_matches('/'));
+    let body = json!({ "action": "rem", "link": link }).to_string();
+    std::thread::spawn(move || {
+        torrent_engine_request(&url, Some(&body), std::time::Duration::from_secs(15));
+    });
 }
 
 fn apply_torrent_preferences(base_url: &str, preferences: Option<&Value>) {
@@ -467,23 +586,7 @@ fn apply_torrent_preferences(base_url: &str, preferences: Option<&Value>) {
     let url = format!("{}/settings", base_url.trim_end_matches('/'));
     let body = json!({ "PreloadSize": preload_size }).to_string();
     std::thread::spawn(move || {
-        let Some(rest) = url.strip_prefix("http://") else {
-            return;
-        };
-        let (authority, path) = rest.split_once('/').unwrap_or((rest, "settings"));
-        let (host, port) = authority
-            .split_once(':')
-            .and_then(|(host, port)| port.parse::<u16>().ok().map(|port| (host, port)))
-            .unwrap_or((authority, 80));
-        let path = format!("/{path}");
-        let Ok(mut stream) = std::net::TcpStream::connect((host, port)) else {
-            return;
-        };
-        let request = format!(
-            "POST {path} HTTP/1.1\r\nHost: {host}:{port}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-            body.len()
-        );
-        let _ = std::io::Write::write_all(&mut stream, request.as_bytes());
+        torrent_engine_request(&url, Some(&body), std::time::Duration::from_secs(5));
     });
 }
 
@@ -556,6 +659,12 @@ pub fn run() {
                 DIAGNOSTIC_MODE.store(true, std::sync::atomic::Ordering::Relaxed);
             }
 
+            let librqbit_log_level = if std::env::var_os("FLUXA_TORRENT_DEBUG").is_some() {
+                log::LevelFilter::Debug
+            } else {
+                log::LevelFilter::Off
+            };
+
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Debug)
                 .filter(|metadata| {
@@ -563,12 +672,12 @@ pub fn run() {
                         || DIAGNOSTIC_MODE.load(std::sync::atomic::Ordering::Relaxed)
                 })
                 .max_file_size(20 * 1024 * 1024)
-                .level_for("librqbit", log::LevelFilter::Off)
-                .level_for("librqbit_dht", log::LevelFilter::Off)
-                .level_for("librqbit_tracker_comms", log::LevelFilter::Off)
-                .level_for("librqbit_upnp", log::LevelFilter::Off)
-                .level_for("librqbit_core", log::LevelFilter::Off)
-                .level_for("librqbit_peer_protocol", log::LevelFilter::Off)
+                .level_for("librqbit", librqbit_log_level)
+                .level_for("librqbit_dht", librqbit_log_level)
+                .level_for("librqbit_tracker_comms", librqbit_log_level)
+                .level_for("librqbit_upnp", librqbit_log_level)
+                .level_for("librqbit_core", librqbit_log_level)
+                .level_for("librqbit_peer_protocol", librqbit_log_level)
                 .level_for("tracing::span", log::LevelFilter::Off)
                 .targets([
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
@@ -658,7 +767,10 @@ pub fn run() {
                 main_window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         let state = close_handle.state::<DesktopState>();
-                        if state.close_flush_done.load(std::sync::atomic::Ordering::SeqCst) {
+                        if state
+                            .close_flush_done
+                            .load(std::sync::atomic::Ordering::SeqCst)
+                        {
                             return;
                         }
                         api.prevent_close();
@@ -743,6 +855,7 @@ pub fn run() {
             player_render_frame,
             player_command,
             player_auto_sync_subtitles,
+            player_capture_subtitle_cues,
             player_set_anime4k_enabled,
             player_get_anime4k_enabled,
             player_show_loading,
@@ -755,6 +868,7 @@ pub fn run() {
             player_add_subtitle,
             player_title,
             player_status,
+            player_set_sleep_inhibition,
             player_destroy,
             player_get_playback_info,
             player_track_options,
@@ -764,6 +878,7 @@ pub fn run() {
             custom_fonts_list,
             custom_fonts_add,
             custom_fonts_remove,
+            cache_poster_image,
             player_set_chapters,
             player_clear_chapters,
             player_set_skip_info,

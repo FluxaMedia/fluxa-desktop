@@ -672,7 +672,10 @@ pub fn library_progress_delete(
 }
 
 #[tauri::command]
-pub fn library_last_watched_list(state: State<DesktopState>, profile_key: String) -> Option<String> {
+pub fn library_last_watched_list(
+    state: State<DesktopState>,
+    profile_key: String,
+) -> Option<String> {
     let _storage_lock = state.storage_lock.lock().unwrap();
     let dir = state.data_dir.lock().unwrap().clone()?;
     let profile_key = sanitize_key(&profile_key);
@@ -760,7 +763,10 @@ pub fn library_last_watched_delete(
 }
 
 #[tauri::command]
-pub fn library_continue_watching_list(state: State<DesktopState>, profile_key: String) -> Option<String> {
+pub fn library_continue_watching_list(
+    state: State<DesktopState>,
+    profile_key: String,
+) -> Option<String> {
     let _storage_lock = state.storage_lock.lock().unwrap();
     let dir = state.data_dir.lock().unwrap().clone()?;
     let profile_key = sanitize_key(&profile_key);
@@ -1084,8 +1090,7 @@ mod tests {
     fn migrates_last_watched_episodes_into_independent_rows() {
         let dir = tmp_dir();
         let database = open_database(&dir).unwrap();
-        let library =
-            br#"{"lastWatchedEpisodes":{"series-a":{"lastVideoId":"series-a:1:2"}}}"#;
+        let library = br#"{"lastWatchedEpisodes":{"series-a":{"lastVideoId":"series-a:1:2"}}}"#;
         database
             .execute(
                 "INSERT INTO kv_store (key, value) VALUES ('library_guest', ?1)",
@@ -1122,8 +1127,7 @@ mod tests {
     fn migrates_external_continue_watching_into_independent_rows() {
         let dir = tmp_dir();
         let database = open_database(&dir).unwrap();
-        let library =
-            br#"{"externalContinueWatching":[{"id":"series-a","name":"Show A"}]}"#;
+        let library = br#"{"externalContinueWatching":[{"id":"series-a","name":"Show A"}]}"#;
         database
             .execute(
                 "INSERT INTO kv_store (key, value) VALUES ('library_guest', ?1)",

@@ -55,6 +55,14 @@ export type PlayerLoadingOverlayState = {
   episodeLine?: string;
   status?: string;
   error?: string | null;
+  source?: {
+    title?: string;
+    addon?: string;
+    filename?: string;
+    fileIdx?: number;
+    infoHash?: string;
+    sources?: string[];
+  };
 };
 
 interface UsePlayerOptions {
@@ -66,6 +74,7 @@ interface UsePlayerOptions {
 
 interface UsePlayerResult {
   playerLoadingOverlay: PlayerLoadingOverlayState | null;
+  playerUrl: string | null;
   playerTitle: string | undefined;
   playerEpisodeTitle: string | undefined;
   playerEpisode: Video | null;
@@ -163,13 +172,16 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     if (shouldStopTorrent) await stopTorrentStream().catch(() => false);
   }, []);
 
-  const nextRetrySource = useCallback((currentStream: Stream | null): Stream | null => {
+  const nextRetrySource = useCallback((currentStream: Stream | null, force: boolean = false): Stream | null => {
     const prefs = appPrefs(stateRef.current);
-    if (!prefBool(prefs, 'autoRetryNextSource', false)) return null;
+    if (!force && !prefBool(prefs, 'autoRetryNextSource', false)) return null;
     const candidates = playingSourceCandidatesRef.current;
     if (candidates.length < 2 || !currentStream) return null;
 
     const currentKey = streamKey(currentStream);
+    const bingeGroup = prefBool(prefs, 'tryBingeGroup', false)
+      ? currentStream.behaviorHints?.bingeGroup?.trim()
+      : undefined;
     if (currentKey) attemptedSourceKeysRef.current.add(currentKey);
     const startIndex = Math.max(0, candidates.findIndex((candidate) => streamKey(candidate) === currentKey));
     const p2pEnabled = prefBool(prefs, 'p2pEnabled', true);
@@ -178,6 +190,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       const candidate = candidates[(startIndex + offset) % candidates.length];
       const key = streamKey(candidate);
       if (!key || attemptedSourceKeysRef.current.has(key)) continue;
+      if (bingeGroup && candidate.behaviorHints?.bingeGroup !== bingeGroup) continue;
       if (!p2pEnabled && streamIsP2P(candidate)) {
         attemptedSourceKeysRef.current.add(key);
         continue;
@@ -192,6 +205,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     generation: number,
     title: PlayerDisplayTitle,
     artwork: PlayerArtwork,
+    stream: Stream,
   ): Promise<unknown> => {
     const isCancelled = () => playGenerationRef.current !== generation;
     setPlayerTitle(title.contentTitle);
@@ -203,6 +217,14 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       title: title.contentTitle,
       episodeLine: title.episodeLine,
       status: t('player.status_preparing'),
+      source: {
+        title: stream.name ?? stream.title ?? stream.description,
+        addon: stream.addonName,
+        filename: stream.behaviorHints?.filename,
+        fileIdx: stream.fileIdx,
+        infoHash: stream.infoHash,
+        sources: stream.sources,
+      },
     });
 
     if (!inNativePlayerRef.current) {
@@ -290,6 +312,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     if (closingPlayerRef.current) return;
     closingPlayerRef.current = true;
     ++playGenerationRef.current;
+    const closeGeneration = playGenerationRef.current;
     const captureMeta = playingMetaRef.current;
     const captureEpisode = playingEpisodeRef.current;
     const captureStream = playingStreamRef.current;
@@ -310,7 +333,6 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     void playerClearChapters();
     void playerClearEpisodes();
     try {
-      await withCloseTimeout(embeddedMpvHide(), 400).catch(() => undefined);
       const status = await withCloseTimeout(embeddedMpvStatus(), 700).catch(() => null);
       if (!status && captureMeta) {
         debugLog('closePlayer: embeddedMpvStatus timed out, final progress save skipped');
@@ -319,6 +341,10 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
           extra: { metaId: captureMeta.id },
         });
       }
+      if (captureMeta && captureStream) {
+        await persistLastPlaybackSource(captureMeta, captureStream).catch(() => undefined);
+      }
+      await withCloseTimeout(embeddedMpvHide(), 400).catch(() => undefined);
       await withCloseTimeout(embeddedMpvStop(), 900).catch(() => undefined);
       await withCloseTimeout(destroyEmbeddedMpv(), 900).catch(() => undefined);
       closingPlayerRef.current = false;
@@ -355,7 +381,6 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
             if (saveResult) {
               updateState(saveResult.state);
               if (saveResult.effects.length > 0) await pumpEffects(saveResult.effects, updateState);
-              await persistLastPlaybackSource(captureMeta, captureStream);
               if (isWatched) {
                 const videoId = captureEpisode?.id ?? captureMeta.id;
                 const watchedResult = await dispatchAction(JSON.stringify({
@@ -410,21 +435,48 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
                 }).catch(() => undefined);
             }
           } catch {}
+        } else {
+          try {
+            const saveResult = await dispatchAction(JSON.stringify({
+              type: 'savePlaybackProgressRequested',
+              meta: captureMeta,
+              timeOffset: 1,
+              duration: duration > 0 ? Math.floor(duration) : 99999,
+              lastVideoId: captureEpisode?.id ?? null,
+              lastStreamIndex: stateRef.current.player.currentStreamIndex ?? null,
+              lastEpisodeName: captureEpisode?.name ?? captureEpisode?.title ?? null,
+              lastEpisodeSeason: captureEpisode?.season ?? null,
+              lastEpisodeNumber: captureEpisode?.episode ?? captureEpisode?.number ?? null,
+              lastEpisodeThumbnail: captureEpisode?.thumbnail ?? null,
+              lastStreamUrl: captureStream?.playableUrl ?? captureStream?.url ?? null,
+              lastStreamTitle: captureStream?.title ?? captureStream?.name ?? null,
+              lastAudioLanguage: null,
+              lastSubtitleLanguage: null,
+              scrobbleTraktPause: true,
+            }));
+            if (saveResult) {
+              updateState(saveResult.state);
+              if (saveResult.effects.length > 0) await pumpEffects(saveResult.effects, updateState);
+            }
+          } catch {}
         }
       }
     } finally {
-      if (shouldStopTorrent) {
+      const stillCurrent = playGenerationRef.current === closeGeneration;
+      if (shouldStopTorrent && stillCurrent) {
         await stopTorrentStream().catch(() => false);
       }
       closingPlayerRef.current = false;
     }
-    playingMetaRef.current = null;
-    playingEpisodeRef.current = null;
-    playingStreamRef.current = null;
-    playingSourceCandidatesRef.current = [];
-    attemptedSourceKeysRef.current = new Set();
-    lastResumeAtSecondsRef.current = undefined;
-    lastTotalDurationSecondsRef.current = undefined;
+    if (playGenerationRef.current === closeGeneration) {
+      playingMetaRef.current = null;
+      playingEpisodeRef.current = null;
+      playingStreamRef.current = null;
+      playingSourceCandidatesRef.current = [];
+      attemptedSourceKeysRef.current = new Set();
+      lastResumeAtSecondsRef.current = undefined;
+      lastTotalDurationSecondsRef.current = undefined;
+    }
   }, [stateRef, updateState]);
 
   const saveProgressTick = useCallback(async () => {
@@ -482,6 +534,8 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     try {
     const generation = ++playGenerationRef.current;
     const isCancelled = () => generation !== playGenerationRef.current;
+    setPlayerUrl(null);
+    setPlayerUsesTorrent(streamIsP2P(stream));
     const currentStreamKey = streamKey(stream);
     if (sourceCandidates?.length) {
       playingSourceCandidatesRef.current = sourceCandidates;
@@ -507,7 +561,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerMetaId(meta?.id);
     setPlayerStreamHeaders(stream.behaviorHints?.proxyHeaders);
     artworkPrefetchRef.current = prefetchPlayerArtwork(earlyArtwork.background, earlyArtwork.logo).catch(() => undefined);
-    let loadingArtworkPromise = showPlayerLoading(generation, earlyTitle, earlyArtwork);
+    let loadingArtworkPromise = showPlayerLoading(generation, earlyTitle, earlyArtwork, stream);
 
     if (!earlyArtwork.logo && meta?.id && meta?.type) {
       const logoPrefs = appPrefs(stateRef.current);
@@ -528,7 +582,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     lastTotalDurationSecondsRef.current = effectiveTotalDuration;
 
     const retryNextOrFail = async (message: string) => {
-      const nextSource = nextRetrySource(stream);
+      const nextSource = nextRetrySource(stream, message === t('player.torrent_no_peers') || message === t('player.torrent_too_slow'));
       if (nextSource && meta && !isCancelled()) {
         setLoadingStatus(t('player.status_trying_next_source'));
         await handlePlay(nextSource, meta, episode, resumeAtSeconds, effectiveTotalDuration);
@@ -620,10 +674,10 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     };
 
     if (playbackPlan?.mode === 'torrent') {
-      const MAX_PEER_RETRIES = 2;
+      const MAX_PEER_RETRIES = playingSourceCandidatesRef.current.some((candidate) => streamKey(candidate) !== currentStreamKey) ? 1 : 2;
       const TORRENT_READY_FIRST_ATTEMPT_MS = 15_000;
       const TORRENT_READY_RETRY_BUDGET_MS = 45_000;
-      const TORRENT_READY_PER_RETRY_MS = Math.floor(TORRENT_READY_RETRY_BUDGET_MS / MAX_PEER_RETRIES);
+      const TORRENT_READY_PER_RETRY_MS = MAX_PEER_RETRIES > 0 ? Math.floor(TORRENT_READY_RETRY_BUDGET_MS / MAX_PEER_RETRIES) : 0;
       let statusPollActive = true;
       const retrySuffix = (retryIndex: number) => (retryIndex > 0 ? ` ${t('player.status_retry_attempt', retryIndex, MAX_PEER_RETRIES)}` : '');
       const pollTorrentStatus = async (retryIndex: number) => {
@@ -639,19 +693,30 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
           await new Promise((r) => setTimeout(r, 700));
         }
       };
+      const TORRENT_READY_HARD_LIMIT_MS = 120_000;
       const waitForTorrentReady = async (budgetMs: number) => {
-        const deadline = Date.now() + budgetMs;
-        while (Date.now() < deadline) {
+        const startedAt = Date.now();
+        let deadline = startedAt + budgetMs;
+        let lastLoaded = 0;
+        let sawPeers = false;
+        while (Date.now() < Math.min(deadline, startedAt + TORRENT_READY_HARD_LIMIT_MS)) {
           if (isCancelled()) return;
           const ts = await playerTorrentStats().catch(() => null);
-          if (ts?.stat === -1) throw new Error(t('player.torrent_no_peers'));
+          if (ts?.stat === -1) throw new Error(ts.error?.trim() || t('player.torrent_no_peers'));
           if (ts) {
             const info = await coreTorrentStatusInfo(ts).catch(() => null);
             if (info?.isPlayableEnough) return;
+            if (ts.active_peers > 0) sawPeers = true;
+            if (ts.loaded_size > lastLoaded) {
+              lastLoaded = ts.loaded_size;
+              deadline = Date.now() + budgetMs;
+            } else if (ts.active_peers > 0 || ts.resolving) {
+              deadline = Math.max(deadline, Date.now() + 20_000);
+            }
           }
           await new Promise((r) => setTimeout(r, 700));
         }
-        throw new Error(t('player.torrent_no_peers'));
+        throw new Error(t(sawPeers ? 'player.torrent_too_slow' : 'player.torrent_no_peers'));
       };
       try {
         let localUrl: string | null = null;
@@ -672,7 +737,6 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
             if (isCancelled()) return;
             if (retryIndex >= MAX_PEER_RETRIES) throw retryErr;
             debugLog(`handlePlay:torrent retry ${retryIndex} failed, retrying`);
-            await stopTorrentStream().catch(() => false);
             localUrl = null;
           }
         }
@@ -720,7 +784,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         const useAniSkip = prefBool(prefs, 'useAniSkip', true);
         const useAnimeSkip = prefBool(prefs, 'useAnimeSkip', false);
         const animeSkipClientId = prefString(prefs, 'animeSkipClientId', '');
-        const needVideos = !episodeList.length && !!meta?.id && !!meta?.type && !!episode;
+        const needVideos = !nextEp && !!meta?.id && !!meta?.type && !!episode;
 
         const [segmentResult, fetchedVideos] = await Promise.all([
           (async () => {
@@ -767,8 +831,8 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
               const result = await fetchStreamsForEpisode(resolvedPlayableNextEp.id, meta?.type ?? 'series');
               const streams = result.streams as Stream[];
               if (streams.length > 0) {
-                const chosen = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(stream), JSON.stringify(prefs), resolvedPlayableNextEp.id)) as Stream | null ?? streams[0];
-                prefetchedNextEpRef.current = { episodeId: resolvedPlayableNextEp.id, stream: chosen };
+                const chosen = (await coreSelectNextEpisodeStream(JSON.stringify(streams), JSON.stringify(stream), JSON.stringify(prefs), resolvedPlayableNextEp.id)) as Stream | null;
+                if (chosen) prefetchedNextEpRef.current = { episodeId: resolvedPlayableNextEp.id, stream: chosen };
               }
             } catch {}
           })();
@@ -812,6 +876,32 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     }
   }, [failPlayerLoading, handlePlay, nextRetrySource]);
 
+  const showEpisodeTransitionLoading = useCallback((meta: Meta, episode: Video, stream: Stream) => {
+    const title = playerDisplayTitle(meta, episode, stream);
+    const artwork = playerArtwork(meta, episode);
+    setPlayerTitle(title.contentTitle);
+    setPlayerEpisodeTitle(title.episodeLine ?? undefined);
+    setPlayerPosterUrl(artwork.background ?? meta.poster);
+    setPlayerLogoUrl(artwork.logo ?? undefined);
+    setPlayerMetaId(meta.id);
+    setPlayerPlaybackError(null);
+    setPlayerLoadingOverlay({
+      background: artwork.background,
+      logo: artwork.logo,
+      title: title.contentTitle,
+      episodeLine: title.episodeLine,
+      status: t('player.status_preparing'),
+      source: {
+        title: stream.name ?? stream.title ?? stream.description,
+        addon: stream.addonName,
+        filename: stream.behaviorHints?.filename,
+        fileIdx: stream.fileIdx,
+        infoHash: stream.infoHash,
+        sources: stream.sources,
+      },
+    });
+  }, []);
+
   usePlayerNativeEvents({
     stateRef,
     closingPlayerRef,
@@ -823,11 +913,12 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     closePlayer,
     handlePlay,
     onPlayerError: handleNativePlayerError,
+    showEpisodeTransitionLoading,
   });
 
   const notifyFirstFrame = useCallback(() => {
     setPlayerLoadingOverlay((prev) => (prev?.error ? prev : null));
   }, []);
 
-  return { playerLoadingOverlay, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerLogoUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit: saveProgressTick };
+  return { playerLoadingOverlay, playerUrl, playerPlaybackError, playerTitle, playerEpisodeTitle, playerEpisode, playerUsesTorrent, playerPosterUrl, playerLogoUrl, playerMetaId, playerSubtitleUrl, playerStreamHeaders, handlePlay, closePlayer, notifyFirstFrame, flushProgressOnQuit: saveProgressTick };
 }
