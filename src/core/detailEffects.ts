@@ -161,6 +161,7 @@ export async function fetchMetaVideos(id: string, contentType: string): Promise<
 export async function fetchDetailStreams(
   payload: Record<string, unknown>,
   onStateUpdate?: (state: Partial<AppState>) => void,
+  generation?: number,
 ): Promise<unknown> {
   const idField = payload.id as string | undefined;
   const requestIds = (payload.requestIds as string[] | undefined) ?? (idField ? [idField] : []);
@@ -185,6 +186,7 @@ export async function fetchDetailStreams(
               type: 'detailStreamsAppended',
               streams: partialStreams,
               availableAddons: partialAddons,
+              generation,
             })).then((result) => {
               if (result?.state) onStateUpdate(result.state);
             }).catch(() => {}),

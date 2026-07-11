@@ -284,7 +284,7 @@ async function runEffect(
       value = await prefetchDetailStreams(p);
       break;
     case 'fetchDetailStreams':
-      value = await fetchDetailStreams(p, onStateUpdate);
+      value = await fetchDetailStreams(p, onStateUpdate, effect.generation);
       break;
     case 'fetchSeasonEpisodes':
       value = await fetchSeasonEpisodes(p);
