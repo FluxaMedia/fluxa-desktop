@@ -155,22 +155,34 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
 
   const failPlayerLoading = useCallback(async (message: string) => {
     ++playGenerationRef.current;
-    Sentry.captureMessage(message, {
-      level: 'error',
-      extra: {
-        metaId: playingMetaRef.current?.id,
-        episodeId: playingEpisodeRef.current?.id,
-        streamUrl: playingStreamRef.current?.url,
-        streamTitle: playingStreamRef.current?.title,
-      },
-    });
     const shouldStopTorrent = playerUsesTorrentRef.current;
     setPlayerUrl(null);
     setPlayerSubtitleUrl(undefined);
     setPlayerStreamHeaders(undefined);
     setPlayerUsesTorrent(false);
+    setPlayerPlaybackError(null);
     inNativePlayerRef.current = false;
-    setPlayerLoadingOverlay((prev) => ({ ...(prev ?? {}), error: message }));
+    setPlayerLoadingOverlay((prev) => {
+      if (prev) return { ...prev, error: message };
+      const stream = playingStreamRef.current ?? undefined;
+      const title = playerDisplayTitle(playingMetaRef.current ?? undefined, playingEpisodeRef.current, stream);
+      const artwork = pendingArtworkRef.current ?? playerArtwork(playingMetaRef.current ?? undefined, playingEpisodeRef.current);
+      return {
+        background: artwork.background,
+        logo: artwork.logo,
+        title: title.contentTitle,
+        episodeLine: title.episodeLine,
+        error: message,
+        source: stream ? {
+          title: stream.name ?? stream.title ?? stream.description,
+          addon: stream.addonName,
+          filename: stream.behaviorHints?.filename,
+          fileIdx: stream.fileIdx,
+          infoHash: stream.infoHash,
+          sources: stream.sources,
+        } : undefined,
+      };
+    });
     await embeddedMpvHide().catch(() => undefined);
     await embeddedMpvStop().catch(() => undefined);
     if (shouldStopTorrent) await stopTorrentStream().catch(() => false);
@@ -885,21 +897,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       );
       return;
     }
-    if (playerLoadingOverlayRef.current && !playerLoadingOverlayRef.current.error) {
-      await failPlayerLoading(message);
-    } else if (!playerLoadingOverlayRef.current) {
-      Sentry.captureMessage(message, {
-        level: 'error',
-        extra: {
-          metaId: playingMetaRef.current?.id,
-          episodeId: playingEpisodeRef.current?.id,
-          streamUrl: playingStreamRef.current?.url,
-          streamTitle: playingStreamRef.current?.title,
-        },
-      });
-      setPlayerPlaybackError(message);
-      void invoke('player_command', { command: 'set pause yes' }).catch(() => undefined);
-    }
+    if (!playerLoadingOverlayRef.current?.error) await failPlayerLoading(message);
   }, [failPlayerLoading, handlePlay, nextRetrySource]);
 
   const showEpisodeTransitionLoading = useCallback((meta: Meta, episode: Video, stream: Stream) => {
