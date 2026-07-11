@@ -67,7 +67,7 @@ export const VirtualizedPosterGrid = React.memo(function VirtualizedPosterGrid({
     setViewport((current) => (current.scrollTop === 0 ? current : { ...current, scrollTop: 0 }));
   }, [resetKey]);
 
-  const cardExtraHeight = posterPrefs.hideTitles ? 0 : 23;
+  const cardExtraHeight = posterPrefs.hideTitles ? 0 : 40;
   const itemHeight = posterPrefs.height + cardExtraHeight;
   const availableWidth = Math.max(0, viewport.width - GRID_PADDING_X * 2);
   const columns = Math.max(1, Math.floor((availableWidth + GRID_GAP_X) / (GRID_MIN_COLUMN_WIDTH + GRID_GAP_X)));
@@ -219,18 +219,31 @@ const PosterCard = React.memo(function PosterCard({
         )}
       </div>
       {!posterPrefs.hideTitles && (
-        <p style={{
-          color: 'rgba(255,255,255,0.72)',
-          fontSize: '0.75rem',
-          fontWeight: 600,
-          margin: '0.25rem 0 0',
-          textAlign: 'center',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}>
-          {meta.name}
-        </p>
+        <>
+          <p style={{
+            color: '#fff',
+            fontSize: '0.875rem',
+            fontWeight: 700,
+            margin: '0.375rem 0 0',
+            textAlign: 'center',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {meta.name}
+          </p>
+          {(meta.year ?? meta.releaseInfo) && (
+            <p style={{
+              color: 'rgba(255,255,255,0.45)',
+              fontSize: '0.75rem',
+              fontWeight: 400,
+              margin: '0.125rem 0 0',
+              textAlign: 'center',
+            }}>
+              {meta.year ?? meta.releaseInfo}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
