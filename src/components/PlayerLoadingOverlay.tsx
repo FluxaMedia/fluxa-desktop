@@ -226,36 +226,6 @@ export function PlayerLoadingOverlay({ background, logo, title, episodeLine, sta
             {status}
           </p>
         )}
-        {isTorrentStream && source && (
-          <div
-            style={{
-              width: 'min(34rem, 100%)',
-              margin: '1rem auto 0',
-              padding: '0.75rem 0.875rem',
-              boxSizing: 'border-box',
-              borderRadius: '0.625rem',
-              background: 'rgba(0,0,0,0.38)',
-              border: '1px solid rgba(255,255,255,0.09)',
-              textAlign: 'left',
-              fontSize: '0.6875rem',
-              lineHeight: 1.45,
-            }}
-          >
-            {[
-              [t('player.source'), source.title],
-              [t('player.source_provider'), source.addon],
-              [t('player.source_file'), source.filename],
-              [t('player.source_file_index'), source.fileIdx?.toString()],
-              [t('player.source_info_hash'), source.infoHash],
-              [t('player.source_urls'), source.sources?.join('\n')],
-            ].filter(([, value]) => !!value).map(([label, value]) => (
-              <div key={label} style={{ display: 'grid', gridTemplateColumns: '6.5rem minmax(0, 1fr)', gap: '0.5rem', marginTop: '0.25rem' }}>
-                <span style={{ color: 'rgba(255,255,255,0.42)', fontWeight: 700 }}>{label}</span>
-                <span style={{ color: 'rgba(255,255,255,0.74)', fontFamily: label === t('player.source_file_index') || label === t('player.source_info_hash') || label === t('player.source_urls') ? "'Cascadia Mono', 'Consolas', monospace" : undefined, overflowWrap: 'anywhere', whiteSpace: label === t('player.source_urls') ? 'pre-wrap' : undefined }}>{value}</span>
-              </div>
-            ))}
-          </div>
-        )}
         {failed && (
           <div
             style={{
