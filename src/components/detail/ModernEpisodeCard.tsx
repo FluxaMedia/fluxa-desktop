@@ -114,7 +114,7 @@ export function ModernEpisodeCard({ episode, number, isWatched, progressPct, min
         )}
       </div>
       <h3 style={{ ...MS.epTitle, color: hovered ? 'rgba(255,255,255,0.82)' : '#FFFFFF' }}>{number}. {displayTitle}</h3>
-      {desc && !hideInfo && <p style={{ ...MS.epDesc, WebkitLineClamp: hovered ? undefined : 2 }}>{desc}</p>}
+      {desc && !hideInfo && <p style={MS.epDesc}>{desc}</p>}
       <div style={MS.epMetaRow}>
         {contentRating && <span style={MS.epRatingBadge}>{contentRating}</span>}
         {(runtime || dateStr) && <span style={MS.epMetaText}>{[runtime, dateStr].filter(Boolean).join('  ')}</span>}
