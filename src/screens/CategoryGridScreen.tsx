@@ -11,6 +11,8 @@ interface Props {
   groups?: Array<{ type: string; items: Meta[] }>;
   isLoading?: boolean;
   loadError?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
   posterPrefs: PosterPrefs;
   onNavigateDetail: (meta: Meta) => void;
   onBack: () => void;
@@ -32,7 +34,7 @@ const GRID_MIN_COLUMN_WIDTH = 150;
 const GRID_OVERSCAN_ROWS = 3;
 const SCROLL_HOVER_IDLE_MS = 180;
 
-export function CategoryGridScreen({ title, items, groups, isLoading = false, loadError = false, posterPrefs, onNavigateDetail, onBack, onDispatch }: Props) {
+export function CategoryGridScreen({ title, items, groups, isLoading = false, loadError = false, onLoadMore, isLoadingMore = false, posterPrefs, onNavigateDetail, onBack, onDispatch }: Props) {
   const [hoveredMeta, setHoveredMeta] = useState<Meta | null>(null);
   const [selectedMeta, setSelectedMeta] = useState<Meta | null>(null);
   const [activeTab, setActiveTab] = useState('all');
@@ -121,8 +123,10 @@ export function CategoryGridScreen({ title, items, groups, isLoading = false, lo
             onHover={handlePosterHover}
             onClick={handlePosterClick}
             onScrollActivity={handleGridScroll}
+            onNearBottom={onLoadMore}
           />
         )}
+        {isLoadingMore && <div style={S.loadingMoreBar}>{t('auto.loading')}</div>}
       </div>
 
       {/* Right: detail panel */}
@@ -241,13 +245,14 @@ function PanelIconBtn({ title, icon, onClick }: { title: string; icon: React.Rea
 
 
 
-function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClick, onScrollActivity }: {
+function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClick, onScrollActivity, onNearBottom }: {
   items: Meta[];
   selectedId: string | null;
   posterPrefs: PosterPrefs;
   onHover: (m: Meta | null) => boolean;
   onClick: (m: Meta) => void;
   onScrollActivity: () => void;
+  onNearBottom?: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -281,6 +286,12 @@ function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClic
   const totalHeight = GRID_PADDING_TOP + GRID_PADDING_BOTTOM + Math.max(0, rowCount * itemHeight + Math.max(0, rowCount - 1) * GRID_GAP_Y);
   const startRow = Math.max(0, Math.floor((viewport.scrollTop - GRID_PADDING_TOP) / rowStep) - GRID_OVERSCAN_ROWS);
   const endRow = Math.min(rowCount, Math.ceil((viewport.scrollTop + viewport.height - GRID_PADDING_TOP) / rowStep) + GRID_OVERSCAN_ROWS);
+
+  useEffect(() => {
+    if (!onNearBottom || totalHeight === 0 || viewport.height === 0) return;
+    const threshold = rowStep * 2;
+    if (viewport.scrollTop + viewport.height >= totalHeight - threshold) onNearBottom();
+  }, [viewport.scrollTop, viewport.height, totalHeight, rowStep, onNearBottom]);
 
   const visible: Array<{ item: Meta; row: number; col: number }> = [];
   for (let row = startRow; row < endRow; row++) {
@@ -384,6 +395,7 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
+    position: 'relative',
   },
   header: {
     display: 'flex',
@@ -431,6 +443,20 @@ const S: Record<string, React.CSSProperties> = {
     scrollbarColor: 'rgba(255,255,255,0.1) transparent',
     contain: 'strict',
     willChange: 'scroll-position',
+  },
+  loadingMoreBar: {
+    position: 'absolute',
+    bottom: '1rem',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    background: 'rgba(20,22,30,0.9)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '1.25rem',
+    padding: '0.4375rem 1.125rem',
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    pointerEvents: 'none',
   },
   right: {
     width: '18.75rem', flexShrink: 0,

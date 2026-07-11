@@ -688,6 +688,8 @@
   "settings.switch_profiles_desc": "Bağlı servislerden çıkmadan profil seçme ekranına dön.",
   "sources.addon_still_loading": "%s hala yukleniyor...",
   "sources.searching_addons": "%s eklenti daha aranıyor...",
+  "sources.addons_failed": "%s eklenti yuklenemedi",
+  "sources.retry": "Tekrar dene",
   "player.debug_log": "Debug Log",
   "player.embedded_source": "embedded",
   "player.audio_title": "SES",

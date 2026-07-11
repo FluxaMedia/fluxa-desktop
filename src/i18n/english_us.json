@@ -688,6 +688,8 @@
   "settings.switch_profiles_desc": "Return to the profile picker without signing out of connected services.",
   "sources.addon_still_loading": "%s still loading...",
   "sources.searching_addons": "Searching %s more add-ons...",
+  "sources.addons_failed": "%s add-on(s) failed to load",
+  "sources.retry": "Retry",
   "player.debug_log": "Debug Log",
   "player.embedded_source": "embedded",
   "player.audio_title": "AUDIO",

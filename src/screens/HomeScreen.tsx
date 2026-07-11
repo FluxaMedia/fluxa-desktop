@@ -53,22 +53,28 @@ interface FolderItemsResult {
   groups: Array<{ type: string; items: Meta[] }>;
 }
 
-async function loadFolderItems(folderCategory: HomeCategory): Promise<FolderItemsResult> {
-  const sources = folderCategory.catalogSources ?? [];
-  const batches = await Promise.all(
-    sources.map(async (source) => {
-      const extraJson = source.genre ? JSON.stringify({ genre: source.genre }) : undefined;
-      const url = await buildResourceUrl(source.transportUrl, 'catalog', source.type, source.catalogId, extraJson);
-      try {
-        const res = await httpFetchText(url);
-        if (res.statusCode === 200) {
-          const data = JSON.parse(res.body) as { metas?: unknown };
-          return { type: source.type, items: Array.isArray(data?.metas) ? data.metas as Meta[] : [] };
-        }
-      } catch { /* skip failed source */ }
-      return { type: source.type, items: [] as Meta[] };
-    }),
-  );
+type FolderSourceBatch = { type: string; items: Meta[] };
+
+async function loadFolderSourcePage(
+  source: { transportUrl: string; catalogId: string; type: string; genre?: string },
+  skip: number,
+): Promise<FolderSourceBatch> {
+  const extra: Record<string, unknown> = {};
+  if (source.genre) extra.genre = source.genre;
+  if (skip > 0) extra.skip = skip;
+  const extraJson = Object.keys(extra).length ? JSON.stringify(extra) : undefined;
+  const url = await buildResourceUrl(source.transportUrl, 'catalog', source.type, source.catalogId, extraJson);
+  try {
+    const res = await httpFetchText(url);
+    if (res.statusCode === 200) {
+      const data = JSON.parse(res.body) as { metas?: unknown };
+      return { type: source.type, items: Array.isArray(data?.metas) ? data.metas as Meta[] : [] };
+    }
+  } catch { /* skip failed source */ }
+  return { type: source.type, items: [] as Meta[] };
+}
+
+function groupBatches(batches: FolderSourceBatch[]): FolderItemsResult {
   const groupsByType = new Map<string, Meta[]>();
   for (const batch of batches) {
     const existing = groupsByType.get(batch.type);
@@ -81,11 +87,22 @@ async function loadFolderItems(folderCategory: HomeCategory): Promise<FolderItem
   };
 }
 
+async function loadFolderItems(folderCategory: HomeCategory): Promise<FolderItemsResult> {
+  const sources = folderCategory.catalogSources ?? [];
+  const batches = await Promise.all(sources.map((source) => loadFolderSourcePage(source, 0)));
+  return groupBatches(batches);
+}
+
 export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, onStartOver, onPlayManually, onOpenSettings, isActive, onScrolledChange, resetKey }: Props) {
   const home = state.home;
   const [viewAllCategory, setViewAllCategory] = useState<{ title: string; items: Meta[]; groups?: Array<{ type: string; items: Meta[] }> } | null>(null);
   const [folderLoading, setFolderLoading] = useState(false);
   const [folderError, setFolderError] = useState(false);
+  const [folderLoadingMore, setFolderLoadingMore] = useState(false);
+  const [folderPaginated, setFolderPaginated] = useState(false);
+  const folderSourcesRef = useRef<HomeCategory['catalogSources']>([]);
+  const folderSkipsRef = useRef<number[]>([]);
+  const folderExhaustedRef = useRef<boolean[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const savedScrollRef = useRef(0);
 
@@ -144,6 +161,8 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   useEffect(() => {
     if (resetKey === undefined) return;
     setViewAllCategory(null);
+    setFolderPaginated(false);
+    folderSourcesRef.current = [];
   }, [resetKey]);
 
   useLayoutEffect(() => {
@@ -162,19 +181,63 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const handleFolderTileClick = useCallback(async (folderMeta: Meta) => {
     const allCats = (home.categories ?? []) as HomeCategory[];
     const folderCat = allCats.find((c) => c.id === folderMeta.id && c.type === 'collection_folder');
-    if (!folderCat?.catalogSources?.length) return;
+    const sources = folderCat?.catalogSources ?? [];
+    if (!sources.length) return;
     savedScrollRef.current = scrollRef.current?.scrollTop ?? 0;
     setViewAllCategory({ title: folderMeta.name, items: [] });
     setFolderError(false);
     setFolderLoading(true);
+    folderSourcesRef.current = sources;
+    folderSkipsRef.current = sources.map(() => 0);
+    folderExhaustedRef.current = sources.map(() => false);
+    setFolderPaginated(true);
     try {
-      const { items, groups } = await loadFolderItems(folderCat);
+      const batches = await Promise.all(sources.map((source) => loadFolderSourcePage(source, 0)));
+      folderSkipsRef.current = batches.map((b) => b.items.length);
+      folderExhaustedRef.current = batches.map((b) => b.items.length === 0);
+      const { items, groups } = groupBatches(batches);
       setViewAllCategory({ title: folderMeta.name, items, groups });
       setFolderError(items.length === 0);
     } finally {
       setFolderLoading(false);
     }
   }, [home.categories]);
+
+  const handleLoadMoreFolder = useCallback(async () => {
+    const sources = folderSourcesRef.current ?? [];
+    if (!sources.length || folderLoadingMore) return;
+    if (folderExhaustedRef.current.every(Boolean)) return;
+    setFolderLoadingMore(true);
+    try {
+      const batches = await Promise.all(sources.map((source, i) => (
+        folderExhaustedRef.current[i]
+          ? Promise.resolve<FolderSourceBatch>({ type: source.type, items: [] })
+          : loadFolderSourcePage(source, folderSkipsRef.current[i] ?? 0)
+      )));
+      batches.forEach((b, i) => {
+        if (folderExhaustedRef.current[i]) return;
+        folderSkipsRef.current[i] = (folderSkipsRef.current[i] ?? 0) + b.items.length;
+        if (b.items.length === 0) folderExhaustedRef.current[i] = true;
+      });
+      const newByType = new Map<string, Meta[]>();
+      for (const b of batches) {
+        const list = newByType.get(b.type) ?? [];
+        list.push(...b.items);
+        newByType.set(b.type, list);
+      }
+      setViewAllCategory((prev) => {
+        if (!prev) return prev;
+        const addedTypes = new Set((prev.groups ?? []).map((g) => g.type));
+        const groups = (prev.groups ?? []).map((g) => ({ type: g.type, items: [...g.items, ...(newByType.get(g.type) ?? [])] }));
+        for (const [type, items] of newByType) {
+          if (!addedTypes.has(type)) groups.push({ type, items });
+        }
+        return { ...prev, items: [...prev.items, ...batches.flatMap((b) => b.items)], groups };
+      });
+    } finally {
+      setFolderLoadingMore(false);
+    }
+  }, [folderLoadingMore]);
 
   useEffect(() => {
     const hasData = (home.categories?.length ?? 0) > 0 || !!home.billboard || (home.continueWatching?.length ?? 0) > 0;
@@ -273,6 +336,8 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const handleViewAll = useCallback((title: string, items: Meta[]) => {
     savedScrollRef.current = scrollRef.current?.scrollTop ?? 0;
     setViewAllCategory({ title, items });
+    setFolderPaginated(false);
+    folderSourcesRef.current = [];
   }, []);
 
   const handleAddToWatchlist = useCallback(
@@ -319,9 +384,11 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
         groups={viewAllCategory.groups}
         isLoading={folderLoading}
         loadError={!folderLoading && folderError}
+        onLoadMore={folderPaginated ? handleLoadMoreFolder : undefined}
+        isLoadingMore={folderLoadingMore}
         posterPrefs={posterPrefs}
         onNavigateDetail={onNavigateDetail}
-        onBack={() => setViewAllCategory(null)}
+        onBack={() => { setViewAllCategory(null); setFolderPaginated(false); folderSourcesRef.current = []; }}
         onDispatch={onDispatch}
       />
     );
