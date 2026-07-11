@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Play } from 'lucide-react';
-import { coreDetailEpisodePlan } from '../core/engine';
+import { coreDetailEpisodePlan, prewarmYoutubeTrailerConfig } from '../core/engine';
 import { coreSupportsResource } from '../core/addonManifest';
 import { loadAddons } from '../core/libraryOps';
 import { appPrefs, prefBool, prefString } from '../core/appPrefs';
@@ -98,6 +98,10 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   const displayMeta = detail.meta ?? meta;
   const prefs = useMemo(() => appPrefs(state), [state.settings?.values]);
   const trailerOnHero = prefBool(prefs, 'trailerOnHero', false);
+  const detailHeroAutoplayTrailer = prefBool(prefs, 'detailHeroAutoplayTrailer', false);
+  const detailHeroAutoplayTrailerDelaySecs = Number(prefString(prefs, 'detailHeroAutoplayTrailerDelaySecs', '2'));
+  const preferredSubtitleLanguage = prefString(prefs, 'preferredSubtitleLanguage', 'none');
+  const secondarySubtitleLanguage = prefString(prefs, 'secondarySubtitleLanguage', 'none');
   const blurUnwatchedEpisodes = prefBool(prefs, 'blurUnwatchedEpisodes', false);
   const spoilerHideEpisodeInfo = prefBool(prefs, 'spoilerHideEpisodeInfo', false);
   const detailSeasonSelectorMode = prefString(prefs, 'detailSeasonSelectorMode', 'tabs');
@@ -237,6 +241,11 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
     return () => { cancelled = true; };
   }, [displayTrailers]);
 
+  useEffect(() => {
+    if (!detailHeroAutoplayTrailer) return;
+    prewarmYoutubeTrailerConfig().catch((err) => console.error('prewarmYoutubeTrailerConfig failed', err));
+  }, [detailHeroAutoplayTrailer]);
+
   const continueWatchingEntry = (state.home.continueWatching ?? []).find((item) => item.id === meta.id);
   const libProgress = (libRaw?.progress as Record<string, { lastVideoId?: string }> | undefined) ?? {};
   const lastVideoId = continueWatchingEntry?.lastVideoId ?? libProgress[meta.id]?.lastVideoId ?? null;
@@ -282,6 +291,14 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
       onDispatch(JSON.stringify({ type: 'detailStreamsRequested', contentType: meta.type, requestIds: [meta.id], language: getLanguage() }));
     }
   }, [streams.length, detail.isLoadingStreams, meta.type, meta.id, onDispatch]);
+
+  const retryFailedStreams = useCallback(() => {
+    if (isSeries) {
+      if (selectedEpisode) openEpisodeSources(selectedEpisode);
+    } else {
+      onDispatch(JSON.stringify({ type: 'detailStreamsRequested', contentType: meta.type, requestIds: [meta.id], language: getLanguage() }));
+    }
+  }, [isSeries, selectedEpisode, openEpisodeSources, onDispatch, meta.type, meta.id]);
 
   const selectedEpisodeEnriched = useMemo(() => {
     if (!selectedEpisode || selectedEpisode.thumbnail) return selectedEpisode;
@@ -387,6 +404,10 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
           streamAddonCount={streamAddonCount}
           poster={poster}
           trailerOnHero={trailerOnHero}
+          detailHeroAutoplayTrailer={detailHeroAutoplayTrailer}
+          detailHeroAutoplayTrailerDelaySecs={detailHeroAutoplayTrailerDelaySecs}
+          preferredSubtitleLanguage={preferredSubtitleLanguage}
+          secondarySubtitleLanguage={secondarySubtitleLanguage}
           blurUnwatchedEpisodes={blurUnwatchedEpisodes}
           spoilerHideEpisodeInfo={spoilerHideEpisodeInfo}
           detailSeasonSelectorMode={detailSeasonSelectorMode}
@@ -398,6 +419,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
           onSeasonChange={changeSeason}
           onEpisodeClick={handleEpisodeClick}
           onMovieSources={openMovieSources}
+          onRetryFailed={retryFailedStreams}
           onBackToEpisodes={() => setShowSources(false)}
           onPlaySource={(stream) => onPlay(stream, displayMeta, selectedEpisodeEnriched, episodeResumeAt, streams)}
           onPlay={onPlay}
@@ -589,9 +611,11 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
             streams={streams}
             isLoading={!!detail.isLoadingStreams}
             availableAddons={detail.availableAddons ?? []}
+            failedAddons={detail.failedAddons ?? []}
             streamAddonCount={streamAddonCount}
             onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)}
             onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))}
+            onRetryFailed={retryFailedStreams}
           />
         )}
       </div>

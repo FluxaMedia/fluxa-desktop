@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Bookmark, BookmarkCheck, CheckCircle2, Circle, Film, XCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Bookmark, BookmarkCheck, CheckCircle2, Circle, Film, Maximize2, Volume2, VolumeX, XCircle } from 'lucide-react';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { MovieCard } from '../MovieCard';
 import { t } from '../../i18n';
@@ -7,12 +7,16 @@ import type { DetailState, LibraryItem, Meta, MetaLink, Stream, Trailer, Video }
 import type { posterPrefsFromState } from '../../core/posterPrefs';
 import { MS, S, spinnerStyle } from './detailStyles';
 import { CastAvatar, type NormalizedCastMember } from './castSection';
-import { TrailerCarousel, type TrailerMetadata } from './TrailerCarousel';
+import { TrailerCarousel, youtubeVideoId, type TrailerMetadata } from './TrailerCarousel';
 import { InlineSourceList, MovieSourcePanel } from './SourcePanel';
 import { SeasonDropdown, seasonLabel, formatEpDate as _formatEpDate, type ProgressEntry } from './EpisodePanel';
 import { ModernIconBtn, ModernPlayButton, ModernTabBar } from './DetailButtons';
 import { ModernEpisodeCard } from './ModernEpisodeCard';
 import { useSeasonWatched } from '../../hooks/useSeasonWatched';
+import { httpFetchText, resolveYoutubeTrailer, type YoutubeTrailerSubtitleTrack } from '../../core/engine';
+import { normalizeTrailerSubtitleUrl, parseTrailerSubtitleCues, selectTrailerSubtitle, type TrailerCue } from '../../core/trailerSubtitles';
+
+const STALL_TIMEOUT_MS = 7000;
 
 export type ModernDetailProps = {
   displayMeta: Meta;
@@ -38,6 +42,10 @@ export type ModernDetailProps = {
   progressMap: Record<string, ProgressEntry>;
   continueWatchingEntry?: LibraryItem | null;
   trailerOnHero: boolean;
+  detailHeroAutoplayTrailer: boolean;
+  detailHeroAutoplayTrailerDelaySecs: number;
+  preferredSubtitleLanguage?: string;
+  secondarySubtitleLanguage?: string;
   blurUnwatchedEpisodes: boolean;
   spoilerHideEpisodeInfo: boolean;
   detailSeasonSelectorMode: string;
@@ -57,6 +65,7 @@ export type ModernDetailProps = {
   onSeasonChange: (season: number) => void;
   onEpisodeClick: (ep: Video) => void;
   onMovieSources: () => void;
+  onRetryFailed: () => void;
   onBackToEpisodes: () => void;
   onPlaySource: (stream: Stream) => void;
   onPlay: (stream: Stream, meta: Meta, episode?: Video | null, resumeAt?: number, sourceCandidates?: Stream[]) => void;
@@ -89,9 +98,10 @@ export function ModernDetailLayout({
   displayTrailers, trailerMetadata, castMembers, directorLinks, peopleImages,
   watchedMap, progressMap, continueWatchingEntry, isInWatchlist, isDropped, isCompleted,
   omdbRatings, fanartArtwork, availableAddons, streamAddonCount, poster,
-  trailerOnHero, blurUnwatchedEpisodes, spoilerHideEpisodeInfo, detailSeasonSelectorMode: _detailSeasonSelectorMode, episodeCardsLayout,
+  trailerOnHero, detailHeroAutoplayTrailer, detailHeroAutoplayTrailerDelaySecs, preferredSubtitleLanguage, secondarySubtitleLanguage,
+  blurUnwatchedEpisodes, spoilerHideEpisodeInfo, detailSeasonSelectorMode: _detailSeasonSelectorMode, episodeCardsLayout,
   onBack, onDispatch, onNavigateDetail, onNavigateGenre, onSeasonChange, onEpisodeClick,
-  onMovieSources, onBackToEpisodes, onPlaySource, onPlay,
+  onMovieSources, onRetryFailed, onBackToEpisodes, onPlaySource, onPlay,
   onToggleWatchlist, onToggleCompleted, onToggleDropped, onBgError,
 }: ModernDetailProps) {
   const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details'>(() => isSeries ? 'episodes' : 'details');
@@ -100,6 +110,157 @@ export function ModernDetailLayout({
   const { seasonWatchedMap, dispatchMarkSeason, toggleEpisodeWatched } = useSeasonWatched({
     meta, displayMeta, episodes, seasonNumbers, watchedMap, onDispatch,
   });
+
+  const trailerVideoId = useMemo(() => {
+    for (const trailer of displayTrailers) {
+      const id = youtubeVideoId(trailer.url);
+      if (id) return id;
+    }
+    return null;
+  }, [displayTrailers]);
+  const [trailerStreamUrl, setTrailerStreamUrl] = useState<string | null>(null);
+  const [trailerAudioUrl, setTrailerAudioUrl] = useState<string | null>(null);
+  const [trailerSubtitles, setTrailerSubtitles] = useState<YoutubeTrailerSubtitleTrack[]>([]);
+  const [trailerSubtitleCues, setTrailerSubtitleCues] = useState<TrailerCue[]>([]);
+  const [activeTrailerSubtitle, setActiveTrailerSubtitle] = useState('');
+  const [trailerReady, setTrailerReady] = useState(false);
+  const [trailerProgress, setTrailerProgress] = useState(0);
+  const [trailerMuted, setTrailerMuted] = useState(true);
+  const lastTrailerProgressAtRef = useRef(0);
+  const trailerVideoRef = useRef<HTMLVideoElement | null>(null);
+  const trailerAudioRef = useRef<HTMLAudioElement | null>(null);
+  const activeTrailerSubtitleRef = useRef('');
+  const trailerActive = !!trailerStreamUrl && trailerReady;
+  const selectedTrailerSubtitle = useMemo(
+    () => selectTrailerSubtitle(trailerSubtitles, preferredSubtitleLanguage, secondarySubtitleLanguage),
+    [trailerSubtitles, preferredSubtitleLanguage, secondarySubtitleLanguage],
+  );
+
+  useEffect(() => {
+    setTrailerStreamUrl(null);
+    setTrailerAudioUrl(null);
+    setTrailerSubtitles([]);
+    setTrailerSubtitleCues([]);
+    setActiveTrailerSubtitle('');
+    activeTrailerSubtitleRef.current = '';
+    setTrailerReady(false);
+    setTrailerProgress(0);
+    setTrailerMuted(true);
+  }, [displayMeta.id]);
+
+  useEffect(() => {
+    if (!detailHeroAutoplayTrailer || !trailerVideoId) return;
+    let cancelled = false;
+    let delayElapsed = detailHeroAutoplayTrailerDelaySecs <= 0;
+    let resolvedTrailer: Awaited<ReturnType<typeof resolveYoutubeTrailer>> | null = null;
+    let resolveFinished = false;
+
+    const applyResolvedTrailer = () => {
+      if (cancelled || !delayElapsed || !resolveFinished) return;
+      if (resolvedTrailer?.streamUrl) {
+        setTrailerSubtitles(resolvedTrailer.subtitles ?? []);
+        setTrailerAudioUrl(resolvedTrailer.audioUrl ?? null);
+        setTrailerReady(false);
+        setTrailerStreamUrl(resolvedTrailer.streamUrl);
+      }
+    };
+
+    const delayId = window.setTimeout(() => {
+      delayElapsed = true;
+      applyResolvedTrailer();
+    }, detailHeroAutoplayTrailerDelaySecs * 1000);
+
+    resolveYoutubeTrailer(trailerVideoId).then((resolved) => {
+      if (cancelled) return;
+      resolvedTrailer = resolved;
+      resolveFinished = true;
+      applyResolvedTrailer();
+    }).catch((err) => {
+      console.error('resolveYoutubeTrailerUrl failed', err);
+    });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(delayId);
+    };
+  }, [trailerVideoId, detailHeroAutoplayTrailer, detailHeroAutoplayTrailerDelaySecs]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTrailerSubtitleCues([]);
+    setActiveTrailerSubtitle('');
+    activeTrailerSubtitleRef.current = '';
+    if (!selectedTrailerSubtitle?.url || !trailerStreamUrl) return;
+
+    httpFetchText(normalizeTrailerSubtitleUrl(selectedTrailerSubtitle.url)).then((response) => {
+      if (cancelled || response.statusCode < 200 || response.statusCode > 299 || !response.body.trim()) return;
+      const cues = parseTrailerSubtitleCues(response.body);
+      setTrailerSubtitleCues(cues);
+      updateActiveTrailerSubtitle(trailerVideoRef.current?.currentTime ?? 0, cues);
+    }).catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTrailerSubtitle?.url, trailerStreamUrl]);
+
+  function updateActiveTrailerSubtitle(time: number, cues = trailerSubtitleCues) {
+    const text = cues.find((cue) => time >= cue.start && time <= cue.end)?.text ?? '';
+    if (text !== activeTrailerSubtitleRef.current) {
+      activeTrailerSubtitleRef.current = text;
+      setActiveTrailerSubtitle(text);
+    }
+  }
+
+  function syncTrailerAudio(shouldPlay = false) {
+    if (!trailerAudioUrl) return;
+    const video = trailerVideoRef.current;
+    const audio = trailerAudioRef.current;
+    if (!video || !audio) return;
+    if (Number.isFinite(video.currentTime) && Math.abs(audio.currentTime - video.currentTime) > 0.35) {
+      audio.currentTime = video.currentTime;
+    }
+    audio.muted = trailerMuted;
+    audio.volume = trailerMuted ? 0 : 1;
+    if (trailerMuted || video.paused || video.ended) {
+      audio.pause();
+    } else if (shouldPlay || audio.paused) {
+      audio.play().catch(() => {});
+    }
+  }
+
+  useEffect(() => {
+    if (!trailerStreamUrl) return;
+    lastTrailerProgressAtRef.current = Date.now();
+    const id = window.setInterval(() => {
+      if (Date.now() - lastTrailerProgressAtRef.current > STALL_TIMEOUT_MS) {
+        setTrailerStreamUrl(null);
+      }
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [trailerStreamUrl]);
+
+  useEffect(() => {
+    const el = trailerVideoRef.current;
+    if (!el) return;
+    el.muted = trailerMuted;
+    el.volume = trailerMuted ? 0 : 1;
+    syncTrailerAudio(!trailerMuted);
+  }, [trailerMuted, trailerAudioUrl]);
+
+  const fullscreenTrailer = () => {
+    const video = trailerVideoRef.current;
+    if (!video) return;
+    const fullscreenTarget = video as HTMLVideoElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const request = fullscreenTarget.requestFullscreen?.bind(fullscreenTarget)
+      ?? fullscreenTarget.webkitRequestFullscreen?.bind(fullscreenTarget);
+    try {
+      const result = request?.();
+      if (result && typeof result.catch === 'function') result.catch(() => {});
+    } catch {}
+  };
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -159,23 +320,121 @@ export function ModernDetailLayout({
       <div style={MS.heroWrap}>
         {bgUrl ? (
           <>
-            <img src={bgUrl} alt="" style={MS.heroImg} onError={onBgError} />
+            <img
+              src={bgUrl}
+              alt=""
+              style={{ ...MS.heroImg, opacity: trailerActive ? 0 : 1, transition: 'opacity 0.6s ease' }}
+              onError={onBgError}
+            />
             <div style={MS.heroGradLeft} />
             <div style={MS.heroGradBottom} />
           </>
         ) : (
           <div style={MS.heroPlaceholder} />
         )}
+
+        {trailerStreamUrl && (
+          <video
+            ref={trailerVideoRef}
+            key={trailerStreamUrl}
+            style={{ ...MS.heroTrailerFrame, opacity: trailerReady ? 1 : 0, transition: 'opacity 0.6s ease' }}
+            src={trailerStreamUrl}
+            autoPlay
+            playsInline
+            onPlaying={() => {
+              setTrailerReady(true);
+              lastTrailerProgressAtRef.current = Date.now();
+              if (trailerVideoRef.current) {
+                trailerVideoRef.current.muted = trailerMuted;
+                trailerVideoRef.current.volume = trailerMuted ? 0 : 1;
+              }
+              syncTrailerAudio(true);
+              updateActiveTrailerSubtitle(trailerVideoRef.current?.currentTime ?? 0);
+            }}
+            onTimeUpdate={(e) => {
+              const el = e.currentTarget;
+              lastTrailerProgressAtRef.current = Date.now();
+              if (el.duration > 0) setTrailerProgress(el.currentTime / el.duration);
+              syncTrailerAudio(false);
+              updateActiveTrailerSubtitle(el.currentTime);
+            }}
+            onEnded={() => {
+              trailerAudioRef.current?.pause();
+              setTrailerStreamUrl(null);
+              setTrailerAudioUrl(null);
+            }}
+            onError={() => {
+              trailerAudioRef.current?.pause();
+              setTrailerStreamUrl(null);
+              setTrailerAudioUrl(null);
+            }}
+          />
+        )}
+        {trailerAudioUrl && (
+          <audio ref={trailerAudioRef} key={trailerAudioUrl} src={trailerAudioUrl} preload="auto" />
+        )}
+
+        {trailerActive && activeTrailerSubtitle && (
+          <div style={MS.heroTrailerSubtitleOverlay}>{activeTrailerSubtitle}</div>
+        )}
+
         <button style={MS.backBtn} onClick={onBack}>
           <ArrowLeft size={18} color="rgba(255,255,255,0.85)" />
         </button>
-        <div style={MS.logoWrap}>
+
+        {trailerActive && (
+          <button
+            style={MS.heroTrailerFullscreenButton}
+            onClick={fullscreenTrailer}
+            aria-label="Fullscreen trailer"
+            title="Fullscreen trailer"
+          >
+            <Maximize2 size={16} />
+          </button>
+        )}
+
+        <div style={{ ...MS.logoWrap, opacity: trailerActive ? 0 : 1, transition: 'opacity 0.4s ease' }}>
           {heroLogo ? (
             <img src={heroLogo} alt={displayMeta.name} style={MS.logo} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           ) : (
             <h1 style={MS.titleHero}>{displayMeta.name}</h1>
           )}
         </div>
+
+        {trailerActive && (
+          <>
+            <button
+              style={MS.heroTrailerMuteButton}
+              onClick={() => {
+                const newMutedState = !trailerMuted;
+                setTrailerMuted(newMutedState);
+                if (trailerVideoRef.current) {
+                  trailerVideoRef.current.muted = newMutedState;
+                  trailerVideoRef.current.volume = newMutedState ? 0 : 1;
+                  if (!newMutedState && trailerVideoRef.current.paused) {
+                    trailerVideoRef.current.play().catch(() => {});
+                  }
+                }
+                if (trailerAudioRef.current && trailerVideoRef.current) {
+                  trailerAudioRef.current.muted = newMutedState;
+                  trailerAudioRef.current.volume = newMutedState ? 0 : 1;
+                  if (newMutedState) {
+                    trailerAudioRef.current.pause();
+                  } else {
+                    trailerAudioRef.current.currentTime = trailerVideoRef.current.currentTime;
+                    trailerAudioRef.current.play().catch(() => {});
+                  }
+                }
+              }}
+              aria-label={trailerMuted ? 'Unmute' : 'Mute'}
+            >
+              {trailerMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
+            <div style={MS.heroTrailerProgressTrack}>
+              <span style={{ ...MS.heroTrailerProgressFill, width: `${trailerProgress * 100}%` }} />
+            </div>
+          </>
+        )}
       </div>
 
       <div style={MS.content}>
@@ -416,7 +675,7 @@ export function ModernDetailLayout({
       {showSources && selectedEpisode && isSeries && (
         <div style={MS.overlayBackdrop} onClick={onBackToEpisodes}>
           <div style={MS.overlaySheet} onClick={(e) => e.stopPropagation()}>
-            <InlineSourceList episode={selectedEpisode} meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} streamAddonCount={streamAddonCount} onBack={onBackToEpisodes} onPlay={onPlaySource} onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))} />
+            <InlineSourceList episode={selectedEpisode} meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} failedAddons={detail.failedAddons ?? []} streamAddonCount={streamAddonCount} onBack={onBackToEpisodes} onPlay={onPlaySource} onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))} onRetryFailed={onRetryFailed} />
           </div>
         </div>
       )}
@@ -424,7 +683,7 @@ export function ModernDetailLayout({
       {showSources && !isSeries && (
         <div style={MS.overlayBackdrop} onClick={onBackToEpisodes}>
           <div style={MS.overlaySheet} onClick={(e) => e.stopPropagation()}>
-            <MovieSourcePanel meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} streamAddonCount={streamAddonCount} onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)} onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))} onClose={onBackToEpisodes} />
+            <MovieSourcePanel meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} failedAddons={detail.failedAddons ?? []} streamAddonCount={streamAddonCount} onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)} onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))} onClose={onBackToEpisodes} onRetryFailed={onRetryFailed} />
           </div>
         </div>
       )}
