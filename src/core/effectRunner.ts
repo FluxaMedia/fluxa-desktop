@@ -290,7 +290,7 @@ async function runEffect(
       value = await fetchSeasonEpisodes(p);
       break;
     case 'loadStreams':
-      value = await fetchDetailStreams(p, onStateUpdate);
+      value = await fetchDetailStreams(p);
       break;
 
     case 'fetchSubtitles':
