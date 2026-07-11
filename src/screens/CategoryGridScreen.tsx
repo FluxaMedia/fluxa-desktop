@@ -124,9 +124,9 @@ export function CategoryGridScreen({ title, items, groups, isLoading = false, lo
             onClick={handlePosterClick}
             onScrollActivity={handleGridScroll}
             onNearBottom={onLoadMore}
+            isLoadingMore={isLoadingMore}
           />
         )}
-        {isLoadingMore && <div style={S.loadingMoreBar}>{t('auto.loading')}</div>}
       </div>
 
       {/* Right: detail panel */}
@@ -245,7 +245,7 @@ function PanelIconBtn({ title, icon, onClick }: { title: string; icon: React.Rea
 
 
 
-function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClick, onScrollActivity, onNearBottom }: {
+function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClick, onScrollActivity, onNearBottom, isLoadingMore = false }: {
   items: Meta[];
   selectedId: string | null;
   posterPrefs: PosterPrefs;
@@ -253,6 +253,7 @@ function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClic
   onClick: (m: Meta) => void;
   onScrollActivity: () => void;
   onNearBottom?: () => void;
+  isLoadingMore?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -282,7 +283,9 @@ function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClic
     ? Math.max(GRID_MIN_COLUMN_WIDTH, (availableWidth - GRID_GAP_X * (columns - 1)) / columns)
     : GRID_MIN_COLUMN_WIDTH;
   const rowStep = itemHeight + GRID_GAP_Y;
-  const rowCount = Math.ceil(items.length / columns);
+  const placeholderCount = isLoadingMore ? columns : 0;
+  const slotCount = items.length + placeholderCount;
+  const rowCount = Math.ceil(slotCount / columns);
   const totalHeight = GRID_PADDING_TOP + GRID_PADDING_BOTTOM + Math.max(0, rowCount * itemHeight + Math.max(0, rowCount - 1) * GRID_GAP_Y);
   const startRow = Math.max(0, Math.floor((viewport.scrollTop - GRID_PADDING_TOP) / rowStep) - GRID_OVERSCAN_ROWS);
   const endRow = Math.min(rowCount, Math.ceil((viewport.scrollTop + viewport.height - GRID_PADDING_TOP) / rowStep) + GRID_OVERSCAN_ROWS);
@@ -294,11 +297,13 @@ function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClic
   }, [viewport.scrollTop, viewport.height, totalHeight, rowStep, onNearBottom]);
 
   const visible: Array<{ item: Meta; row: number; col: number }> = [];
+  const placeholders: Array<{ row: number; col: number }> = [];
   for (let row = startRow; row < endRow; row++) {
     for (let col = 0; col < columns; col++) {
-      const item = items[row * columns + col];
-      if (!item) continue;
-      visible.push({ item, row, col });
+      const index = row * columns + col;
+      const item = items[index];
+      if (item) visible.push({ item, row, col });
+      else if (index < slotCount) placeholders.push({ row, col });
     }
   }
 
@@ -328,6 +333,13 @@ function VirtualizedPosterGrid({ items, selectedId, posterPrefs, onHover, onClic
                 onClick={onClick}
               />
             </div>
+          );
+        })}
+        {placeholders.map(({ row, col }) => {
+          const left = GRID_PADDING_X + col * (columnWidth + GRID_GAP_X) + Math.max(0, (columnWidth - posterPrefs.width) / 2);
+          const top = GRID_PADDING_TOP + row * rowStep;
+          return (
+            <div key={`ph-${row}-${col}`} style={{ position: 'absolute', left, top, width: posterPrefs.width, height: posterPrefs.height, borderRadius: posterPrefs.radius, background: '#1B212B', animation: 'pulse 1.6s ease-in-out infinite', animationDelay: `${(col % 8) * 0.07}s` }} />
           );
         })}
       </div>
@@ -395,7 +407,6 @@ const S: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    position: 'relative',
   },
   header: {
     display: 'flex',
@@ -443,20 +454,6 @@ const S: Record<string, React.CSSProperties> = {
     scrollbarColor: 'rgba(255,255,255,0.1) transparent',
     contain: 'strict',
     willChange: 'scroll-position',
-  },
-  loadingMoreBar: {
-    position: 'absolute',
-    bottom: '1rem',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    background: 'rgba(20,22,30,0.9)',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: '1.25rem',
-    padding: '0.4375rem 1.125rem',
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: '0.8125rem',
-    fontWeight: 600,
-    pointerEvents: 'none',
   },
   right: {
     width: '18.75rem', flexShrink: 0,
