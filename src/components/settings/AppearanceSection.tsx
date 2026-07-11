@@ -172,6 +172,21 @@ export function AppearanceSection({ prefs, setPref }: { prefs: Prefs; setPref: <
       </SettingsSection>
       <SettingsSection title={t('settings.appearance_detail_screen')} subtitle={t('settings.appearance_detail_screen_desc')}>
         <ToggleTile title={t('settings.trailer_on_hero')} subtitle={t('settings.trailer_on_hero_desc')} checked={prefs.trailerOnHero} onToggle={(v) => setPref('trailerOnHero', v)} />
+        <ToggleTile
+          title={t('settings.detail_hero_autoplay_trailer')}
+          subtitle={t('settings.detail_hero_autoplay_trailer_desc')}
+          checked={prefs.detailHeroAutoplayTrailer}
+          onToggle={(v) => setPref('detailHeroAutoplayTrailer', v)}
+        />
+        {prefs.detailHeroAutoplayTrailer && (
+          <ChoiceTile
+            title={t('settings.detail_hero_autoplay_trailer_delay')}
+            subtitle={t('settings.detail_hero_autoplay_trailer_delay_desc')}
+            options={[{ value: '2', label: '2s' }, { value: '4', label: '4s' }, { value: '6', label: '6s' }, { value: '10', label: '10s' }]}
+            selected={prefs.detailHeroAutoplayTrailerDelaySecs}
+            onSelect={(v) => setPref('detailHeroAutoplayTrailerDelaySecs', v)}
+          />
+        )}
         <ToggleTile title={t('settings.blur_unwatched_episodes')} subtitle={t('settings.blur_unwatched_episodes_desc')} checked={prefs.blurUnwatchedEpisodes} onToggle={(v) => setPref('blurUnwatchedEpisodes', v)} />
         <ToggleTile title={t('settings.spoiler_hide_episode_info')} subtitle={t('settings.spoiler_hide_episode_info_desc')} checked={prefs.spoilerHideEpisodeInfo} onToggle={(v) => setPref('spoilerHideEpisodeInfo', v)} />
         <ToggleTile
