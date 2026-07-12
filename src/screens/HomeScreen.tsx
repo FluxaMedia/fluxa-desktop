@@ -11,7 +11,8 @@ import { appPrefs, prefBool, prefString } from '../core/appPrefs';
 import { buildResourceUrl } from '../core/addonManifest';
 import { httpFetchText, prewarmYoutubeTrailerConfig } from '../core/engine';
 import { fetchTmdbTrailers } from '../core/detailEffects';
-import type { AppState, HomeCategory, Meta, NuvioCollectionSource, Trailer } from '../core/types';
+import { youtubeVideoId } from '../components/detail/TrailerCarousel';
+import type { AppState, HomeCategory, Meta, NuvioRemoteCollectionSource, Trailer } from '../core/types';
 import { getLanguage, t } from '../i18n';
 import { useInViewport } from '../hooks/useInViewport';
 import { isNuvioCollectionSource, loadNuvioCollectionSource } from '../core/collectionSources';
@@ -59,7 +60,7 @@ interface FolderItemsResult {
 type FolderSourceBatch = { type: string; items: Meta[] };
 
 type AddonFolderSource = { transportUrl: string; catalogId: string; type: string; genre?: string };
-type FolderSource = AddonFolderSource | NuvioCollectionSource;
+type FolderSource = AddonFolderSource | NuvioRemoteCollectionSource;
 
 // A source whose page overlaps entirely with what we've already seen from it isn't
 // necessarily exhausted (addons can reshuffle/resort between requests) — tolerate a
@@ -335,7 +336,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     const apiKey = prefString(prefs, 'tmdbApiKey');
     if (!autoplayTrailerEnabled || !prefBool(prefs, 'tmdbTrailersEnabled', true) || !apiKey) return;
     const targets = [billboard, ...heroSlides].filter(
-      (item): item is Meta => !!item && !item.trailers?.length && !fetchedHeroTrailerIds.current.has(item.id),
+      (item): item is Meta => !!item && !hasPlayableTrailer(item) && !fetchedHeroTrailerIds.current.has(item.id),
     );
     if (!targets.length) return;
     targets.forEach((item) => fetchedHeroTrailerIds.current.add(item.id));
@@ -532,8 +533,12 @@ function formatCatalogTitle(name: string, type: string): string {
   return `${name} - ${label}`;
 }
 
+function hasPlayableTrailer(item: Meta): boolean {
+  return (item.trailers ?? []).some((trailer) => !!youtubeVideoId(trailer.url));
+}
+
 function withHeroTrailer<T extends Meta | null>(item: T, trailers: Record<string, Trailer[]>): T {
-  if (!item || item.trailers?.length || !trailers[item.id]) return item;
+  if (!item || hasPlayableTrailer(item) || !trailers[item.id]) return item;
   return { ...item, trailers: trailers[item.id] };
 }
 

@@ -9,7 +9,7 @@ import { getViewPrefs, setViewPref, whenViewPrefsReady } from '../core/viewPrefs
 import { saveProfile } from '../core/profiles';
 import { nuvioPushCollections } from '../core/nuvioApi';
 import { freshNuvioProfile } from '../core/nuvioSync';
-import type { AppState, HomeCategory, LibraryItem, Meta, UserCollection, UserCollectionFolder, UserProfile } from '../core/types';
+import type { AppState, CatalogSource, HomeCategory, LibraryItem, Meta, UserCollection, UserCollectionFolder, UserProfile } from '../core/types';
 import { t } from '../i18n';
 import { CategoryGridScreen } from './CategoryGridScreen';
 import { CollectionEditorScreen } from './CollectionEditorScreen';
@@ -106,7 +106,17 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   const homeCategories: HomeCategory[] = state.home.categories ?? [];
 
   function getItemsForFolder(folder: UserCollectionFolder): { items: Meta[]; groups: Array<{ type: string; items: Meta[] }> } {
-    const sources = folder.catalogSources?.length
+    const modernAddonSources: CatalogSource[] = (folder.sources ?? [])
+      .filter((source) => source.provider === 'addon')
+      .map((source) => ({
+        addonId: source.addonId,
+        catalogId: source.catalogId,
+        type: source.type,
+        genre: source.genre,
+      }));
+    const sources = modernAddonSources.length
+      ? modernAddonSources
+      : folder.catalogSources?.length
       ? folder.catalogSources
       : effectiveCatalogId(folder)
         ? [{ catalogId: effectiveCatalogId(folder)!, type: effectiveCatalogType(folder) ?? '' }]
@@ -115,8 +125,9 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     for (const source of sources) {
       const cat = homeCategories.find((c) => c.id === source.catalogId || c.catalogId === source.catalogId);
       if (!cat) continue;
-      const items = folder.genre
-        ? cat.items.filter((m) => m.genres?.some((g) => g.toLowerCase() === folder.genre!.toLowerCase()))
+      const genre = source.genre ?? folder.genre;
+      const items = genre
+        ? cat.items.filter((m) => m.genres?.some((g) => g.toLowerCase() === genre.toLowerCase()))
         : cat.items;
       const existing = groupsByType.get(source.type);
       if (existing) existing.push(...items);

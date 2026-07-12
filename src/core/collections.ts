@@ -28,11 +28,16 @@ export function effectiveFolderShape(folder: UserCollectionFolder): string {
 }
 
 export function effectiveCatalogId(folder: UserCollectionFolder): string | null {
-  return folder.catalogSources?.[0]?.catalogId ?? folder.catalogId ?? null;
+  return folder.sources?.find((source) => source.provider === 'addon')?.catalogId
+    ?? folder.catalogSources?.[0]?.catalogId
+    ?? folder.catalogId
+    ?? null;
 }
 
 export function effectiveCatalogType(folder: UserCollectionFolder): string | null {
-  return folder.catalogSources?.[0]?.type ?? null;
+  return folder.sources?.find((source) => source.provider === 'addon')?.type
+    ?? folder.catalogSources?.[0]?.type
+    ?? null;
 }
 
 export async function importCollectionsJson(rawJson: string): Promise<UserCollection[]> {

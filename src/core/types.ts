@@ -198,9 +198,18 @@ export interface CatalogSource {
   addonId?: string;
   catalogId: string;
   type: string;
+  genre?: string;
 }
 
-export interface NuvioCollectionSource {
+export interface NuvioAddonCollectionSource {
+  provider: 'addon';
+  addonId: string;
+  type: string;
+  catalogId: string;
+  genre?: string;
+}
+
+export interface NuvioRemoteCollectionSource {
   provider: 'trakt' | 'tmdb';
   title?: string;
   mediaType?: string;
@@ -211,6 +220,8 @@ export interface NuvioCollectionSource {
   sortHow?: string;
   filters?: Record<string, unknown>;
 }
+
+export type NuvioCollectionSource = NuvioAddonCollectionSource | NuvioRemoteCollectionSource;
 
 export interface UserCollectionFolder {
   id: string;
@@ -229,6 +240,7 @@ export interface UserCollectionFolder {
   focusGifUrl?: string;
   titleLogoUrl?: string;
   heroBackdropUrl?: string;
+  heroVideoUrl?: string;
 }
 
 export interface UserCollection {
@@ -236,6 +248,7 @@ export interface UserCollection {
   title: string;
   itemIds?: string[];
   imageUrl?: string;
+  backdropImageUrl?: string;
   showOnHome?: boolean;
   folders?: UserCollectionFolder[];
   showAllTab?: boolean;

@@ -186,14 +186,10 @@ export async function importNuvioProfileData(
   const errors: Partial<Record<NuvioImportStep, string>> = {};
   const activeRemoteProgressIds = new Set<string>();
 
-  let addonList: NuvioAddon[] = [];
-  let manifestIdByUrl = new Map<string, string>();
   let addonDescriptors: Array<Record<string, unknown>> = [];
   try {
     const addons = await nuvioPullAddons(token, profileIdx);
     const fetched = await fetchAddonManifests(addons);
-    addonList = fetched.addonList;
-    manifestIdByUrl = fetched.manifestIdByUrl;
     addonDescriptors = fetched.descriptors;
     await storageWrite(`addons_${suffix}`, fetched.descriptors);
     onStep?.('addons', true);
@@ -380,14 +376,17 @@ export async function importNuvioProfileData(
     if (collections.length > 0) {
       const raw = collections[0]?.collections_json ?? [];
       const mapped = (raw as Array<Record<string, unknown>>).map((c) => ({
+        ...c,
         id: String(c.id ?? ''),
         title: String(c.title ?? ''),
         imageUrl: (c.backdropImageUrl as string | undefined) ?? undefined,
-        showOnHome: Boolean(c.pinToTop),
+        backdropImageUrl: (c.backdropImageUrl as string | undefined) ?? undefined,
+        showOnHome: true,
         viewMode: (c.viewMode as string | undefined) ?? 'ROWS',
         showAllTab: Boolean(c.showAllTab),
         pinToTop: Boolean(c.pinToTop),
         folders: ((c.folders as Array<Record<string, unknown>>) ?? []).map((f) => ({
+          ...f,
           id: String(f.id ?? ''),
           title: String(f.title ?? ''),
           coverImageUrl: (f.coverImageUrl as string | undefined) ?? undefined,
@@ -395,24 +394,35 @@ export async function importNuvioProfileData(
           focusGifUrl: (f.focusGifUrl as string | undefined) ?? undefined,
           focusGifEnabled: f.focusGifEnabled !== false,
           titleLogoUrl: (f.titleLogoUrl as string | undefined) ?? undefined,
+          heroBackdropUrl: (f.heroBackdropUrl as string | undefined) ?? undefined,
+          heroVideoUrl: (f.heroVideoUrl as string | undefined) ?? undefined,
           shape: normalizeTileShape(f.tileShape as string | undefined),
           hideTitle: Boolean(f.hideTitle),
-          catalogSources: ((f.catalogSources as Array<Record<string, unknown>>) ?? []).map((s) => {
+          catalogSources: ((f.sources as Array<Record<string, unknown>>) ?? []).length > 0
+            ? ((f.sources as Array<Record<string, unknown>>) ?? []).flatMap((s) => {
+              if (String(s.provider ?? 'addon').toLowerCase() !== 'addon') return [];
+              const addonId = String(s.addonId ?? '');
+              return [{
+                addonId,
+                catalogId: String(s.catalogId ?? ''),
+                type: String(s.type ?? 'movie'),
+                genre: typeof s.genre === 'string' ? s.genre : undefined,
+              }];
+            })
+            : ((f.catalogSources as Array<Record<string, unknown>>) ?? []).map((s) => {
             const addonId = String(s.addonId ?? '');
-            const matched = addonList.find((a) => {
-              const manifestId = manifestIdByUrl.get(a.url);
-              return manifestId === addonId || a.url === addonId;
-            });
             return {
-              transportUrl: matched ? matched.url : addonId,
+              addonId,
               catalogId: String(s.catalogId ?? ''),
               type: String(s.type ?? 'movie'),
+              genre: typeof s.genre === 'string' ? s.genre : undefined,
             };
           }),
           sources: ((f.sources as Array<Record<string, unknown>>) ?? []).flatMap((s): NuvioCollectionSource[] => {
-            const provider = String(s.provider ?? '').toLowerCase();
+            const provider = String(s.provider ?? 'addon').toLowerCase();
             if (provider === 'trakt' && typeof s.traktListId === 'number') {
               return [{
+                ...s,
                 provider: 'trakt',
                 title: typeof s.title === 'string' ? s.title : undefined,
                 mediaType: typeof s.mediaType === 'string' ? s.mediaType : undefined,
@@ -423,6 +433,7 @@ export async function importNuvioProfileData(
             }
             if (provider === 'tmdb' && typeof s.tmdbSourceType === 'string') {
               return [{
+                ...s,
                 provider: 'tmdb',
                 title: typeof s.title === 'string' ? s.title : undefined,
                 mediaType: typeof s.mediaType === 'string' ? s.mediaType : undefined,
@@ -431,6 +442,16 @@ export async function importNuvioProfileData(
                 sortBy: typeof s.sortBy === 'string' ? s.sortBy : undefined,
                 sortHow: typeof s.sortHow === 'string' ? s.sortHow : undefined,
                 filters: s.filters && typeof s.filters === 'object' && !Array.isArray(s.filters) ? s.filters as Record<string, unknown> : undefined,
+              }];
+            }
+            if (provider === 'addon' && typeof s.addonId === 'string' && typeof s.type === 'string' && typeof s.catalogId === 'string') {
+              return [{
+                ...s,
+                provider: 'addon',
+                addonId: s.addonId,
+                type: s.type,
+                catalogId: s.catalogId,
+                genre: typeof s.genre === 'string' ? s.genre : undefined,
               }];
             }
             return [];
