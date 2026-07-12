@@ -29,17 +29,25 @@ pub async fn resolve(video_id: &str) -> Option<Value> {
     if payload.pointer("/playabilityStatus/status").and_then(Value::as_str) != Some("OK") {
         return None;
     }
-    let stream_url = match payload.pointer("/streamingData/hlsManifestUrl").and_then(Value::as_str) {
+    let hls_url = match payload.pointer("/streamingData/hlsManifestUrl").and_then(Value::as_str) {
         Some(master_url) => Some(best_hls_variant(master_url).await.unwrap_or_else(|| master_url.to_owned())),
         None => None,
-    }
-        .or_else(|| first_direct_url(payload.pointer("/streamingData/formats")))
-        .or_else(|| first_direct_url(payload.pointer("/streamingData/adaptiveFormats")))?;
+    };
+    let uses_hls = hls_url.is_some();
+    let adaptive_pair = best_adaptive_pair(payload.pointer("/streamingData/adaptiveFormats"));
+    let stream_url = hls_url
+        .or_else(|| adaptive_pair.as_ref().map(|(video_url, _)| video_url.to_owned()))
+        .or_else(|| first_direct_url(payload.pointer("/streamingData/formats")))?;
     let subtitles = payload.pointer("/captions/playerCaptionsTracklistRenderer/captionTracks")
         .and_then(Value::as_array)
         .map(|tracks| tracks.iter().filter_map(caption_track).collect::<Vec<_>>())
         .unwrap_or_default();
-    Some(json!({ "status": "ok", "streamUrl": stream_url, "subtitles": subtitles }))
+    let audio_url = if !uses_hls {
+        adaptive_pair.map(|(_, audio_url)| audio_url)
+    } else {
+        None
+    };
+    Some(json!({ "status": "ok", "streamUrl": stream_url, "audioUrl": audio_url, "subtitles": subtitles }))
 }
 
 async fn best_hls_variant(master_url: &str) -> Option<String> {
@@ -100,6 +108,24 @@ fn numeric_attribute(attributes: &str, key: &str) -> i64 {
 fn first_direct_url(formats: Option<&Value>) -> Option<String> {
     formats?.as_array()?.iter()
         .find_map(|format| format.get("url").and_then(Value::as_str).map(str::to_owned))
+}
+
+fn best_adaptive_pair(formats: Option<&Value>) -> Option<(String, String)> {
+    let entries = formats?.as_array()?;
+    let video = entries.iter()
+        .filter(|format| format.get("url").and_then(Value::as_str).is_some())
+        .filter(|format| format.get("mimeType").and_then(Value::as_str).is_some_and(|mime_type| mime_type.starts_with("video/mp4; codecs=\"avc1")))
+        .max_by_key(|format| (
+            format.get("height").and_then(Value::as_i64).unwrap_or(0),
+            format.get("bitrate").and_then(Value::as_i64).unwrap_or(0),
+        ))?
+        .get("url")?.as_str()?.to_owned();
+    let audio = entries.iter()
+        .filter(|format| format.get("url").and_then(Value::as_str).is_some())
+        .filter(|format| format.get("mimeType").and_then(Value::as_str).is_some_and(|mime_type| mime_type.starts_with("audio/mp4")))
+        .max_by_key(|format| format.get("bitrate").and_then(Value::as_i64).unwrap_or(0))?
+        .get("url")?.as_str()?.to_owned();
+    Some((video, audio))
 }
 
 fn caption_track(track: &Value) -> Option<Value> {
