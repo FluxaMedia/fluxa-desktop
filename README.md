@@ -12,8 +12,9 @@ Browse catalogs, track what you watch, and play anything the Stremio addon ecosy
 [![Stars][stars-shield]][stars-url]
 [![Releases][releases-shield]][releases-url]
 [![License][license-shield]][license-url]
+[![Discord][discord-shield]][discord-url]
 
-[Download](#download) · [Features](#features) · [Building from source](#building-from-source)
+[Download](#download) · [Features](#features) · [Building from source](#building-from-source) · [Discord][discord-url]
 
 </div>
 
@@ -77,6 +78,10 @@ npm run check   # typecheck + cargo check
 
 **Legal** — Fluxa Desktop is a client-side interface for user-installed Stremio addons. It does not host, serve, or distribute any media content. All streams come from third-party addons chosen by the user. Fluxa is not affiliated with any addon developer, repository, or content provider. Users are responsible for ensuring they have the right to access what they stream.
 
+## Community
+
+Questions, bug reports, feature requests, or just want to hang out — join the [Fluxa Discord][discord-url].
+
 ## Related projects
 
 - [Fluxa for Android](https://github.com/KhooLy/Fluxa) — the Android counterpart to this app
@@ -93,3 +98,5 @@ npm run check   # typecheck + cargo check
 [releases-url]: https://github.com/FluxaMedia/fluxa-desktop/releases/latest
 [license-shield]: https://img.shields.io/github/license/FluxaMedia/fluxa-desktop.svg?style=for-the-badge
 [license-url]: https://github.com/FluxaMedia/fluxa-desktop/blob/master/LICENSE
+[discord-shield]: https://img.shields.io/badge/Discord-Join-5865F2.svg?style=for-the-badge&logo=discord&logoColor=white
+[discord-url]: https://discord.gg/wan9FeDEfe
