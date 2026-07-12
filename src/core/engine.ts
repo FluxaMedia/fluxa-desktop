@@ -58,8 +58,18 @@ export async function httpFetchText(url: string): Promise<{ statusCode: number; 
   return { statusCode: response.status_code, body: response.body };
 }
 
-export async function resolveYoutubeTrailerUrl(videoId: string): Promise<string | null> {
-  return invoke<string | null>('resolve_youtube_trailer_url', { videoId });
+export async function httpExecuteText(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body?: unknown,
+): Promise<{ statusCode: number; body: string }> {
+  const response = await invoke<{ status_code: number; body: string }>('http_execute_text', { url, method, headers, body });
+  return { statusCode: response.status_code, body: response.body };
+}
+
+export async function registerTrailerProxyUrl(url: string): Promise<string> {
+  return invoke<string>('register_trailer_proxy_url', { url });
 }
 
 export interface YoutubeTrailerSubtitleTrack {
@@ -68,21 +78,6 @@ export interface YoutubeTrailerSubtitleTrack {
   url: string;
   mimeType: string;
   isAuto: boolean;
-}
-
-export interface YoutubeTrailerResolution {
-  status: 'ok';
-  streamUrl: string;
-  audioUrl?: string | null;
-  subtitles?: YoutubeTrailerSubtitleTrack[];
-}
-
-export async function resolveYoutubeTrailer(videoId: string): Promise<YoutubeTrailerResolution | null> {
-  return invoke<YoutubeTrailerResolution | null>('resolve_youtube_trailer', { videoId });
-}
-
-export async function prewarmYoutubeTrailerConfig(): Promise<void> {
-  return invoke<void>('prewarm_youtube_trailer_config');
 }
 
 export async function storageRead<T>(key: string): Promise<T | null> {

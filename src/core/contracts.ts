@@ -20,7 +20,9 @@ export type AppActionType =
   | 'settingsChanged'
   | 'syncExternalIntegration'
   | 'toggleLibraryStatusRequested'
-  | 'toggleWatchlistRequested';
+  | 'toggleWatchlistRequested'
+  | 'trailerPrewarmRequested'
+  | 'trailerResolveRequested';
 
 export interface AppAction<TPayload extends Record<string, unknown> = Record<string, unknown>> {
   type: AppActionType;
@@ -44,6 +46,8 @@ export type EffectType =
   | 'fetchMetaDetailLookup'
   | 'fetchSeasonEpisodes'
   | 'fetchSubtitles'
+  | 'fetchYoutubeTrailerPlayer'
+  | 'fetchYoutubeTrailerWatchConfig'
   | 'loadStreams'
   | 'notifyReleasedEpisodes'
   | 'prefetchDetailStreams'

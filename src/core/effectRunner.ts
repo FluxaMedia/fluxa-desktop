@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react';
-import { completeEffect, coreMergeContinueWatchingLists, dispatchAction, enqueueOfflineDownload, libraryContinueWatchingDelete, libraryProgressDelete } from './engine';
+import { completeEffect, coreMergeContinueWatchingLists, dispatchAction, enqueueOfflineDownload, httpExecuteText, libraryContinueWatchingDelete, libraryProgressDelete, registerTrailerProxyUrl } from './engine';
 import { startTorrentStream, stopTorrentStream } from './mpvPlayer';
 import { effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, loadPrefs, saveLibrary, buildContinueWatching, persistLastWatchedEpisode } from './libraryOps';
 import { readHomeBootstrap, refreshReleasedContinueWatching } from './homeEffects';
@@ -38,6 +38,21 @@ import { fetchVideosForSeries } from './fetchPlanning';
 import { fetchIntroSegments, fetchSubtitles, resolveIntroImdbId, type IntroSegmentResult } from './introEffects';
 import type { AppState, Effect, EffectResult } from './types';
 
+export interface YoutubeTrailerSubtitleTrack {
+  languageTag: string;
+  label: string;
+  url: string;
+  mimeType: string;
+  isAuto: boolean;
+}
+
+export interface YoutubeTrailerResolution {
+  status: 'ok';
+  streamUrl: string;
+  audioUrl?: string | null;
+  subtitles?: YoutubeTrailerSubtitleTrack[];
+}
+
 export { fetchMetaVideos } from './detailEffects';
 export { syncExternalIntegrationNow } from './externalSync';
 export type { IntroSegmentResult } from './introEffects';
@@ -59,6 +74,17 @@ async function startTorrentFromEffect(payload: Record<string, unknown>): Promise
   const prefs = await loadPrefs();
   const url = await startTorrentStream(JSON.stringify(stream), title, prefs);
   return { url };
+}
+
+async function executeYoutubeTrailerRequest(payload: Record<string, unknown>): Promise<unknown> {
+  const url = typeof payload.url === 'string' ? payload.url : '';
+  const method = typeof payload.method === 'string' ? payload.method : 'GET';
+  if (!url) throw new Error('missing trailer request URL');
+  const headers = payload.headers && typeof payload.headers === 'object' && !Array.isArray(payload.headers)
+    ? Object.fromEntries(Object.entries(payload.headers as Record<string, unknown>).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+    : {};
+  const response = await httpExecuteText(url, method, headers, payload.body);
+  return { statusCode: response.statusCode, body: response.body };
 }
 
 function episodeOrderKey(ep: { season?: number; episode?: number; number?: number }): number {
@@ -263,6 +289,11 @@ async function runEffect(
       value = await fetchAddonResource(p);
       break;
 
+    case 'fetchYoutubeTrailerWatchConfig':
+    case 'fetchYoutubeTrailerPlayer':
+      value = await executeYoutubeTrailerRequest(p);
+      break;
+
     case 'fetchCatalogPage':
       value = await fetchCatalogPage(p);
       break;
@@ -410,6 +441,48 @@ export async function pumpEffects(
   );
 
   return lastState;
+}
+
+async function runTrailerEffects(effects: Effect[], requestId?: string): Promise<YoutubeTrailerResolution | null> {
+  let pending = effects;
+  while (pending.length > 0) {
+    const next: Effect[] = [];
+    for (const effect of pending) {
+      const result = await executeEffect(effect);
+      const completion = await completeEffect(result);
+      if (!completion) continue;
+      const resolution = requestId ? completion.state.trailer?.resolutions?.[requestId] : undefined;
+      if (resolution && typeof resolution === 'object' && (resolution as { status?: unknown }).status === 'ok') {
+        return resolution as YoutubeTrailerResolution;
+      }
+      next.push(...completion.effects);
+    }
+    pending = next;
+  }
+  return null;
+}
+
+async function proxyTrailerUrls(resolution: YoutubeTrailerResolution): Promise<YoutubeTrailerResolution> {
+  const streamUrl = await registerTrailerProxyUrl(resolution.streamUrl);
+  const audioUrl = resolution.audioUrl ? await registerTrailerProxyUrl(resolution.audioUrl) : resolution.audioUrl;
+  return { ...resolution, streamUrl, audioUrl };
+}
+
+export async function resolveYoutubeTrailer(videoId: string): Promise<YoutubeTrailerResolution | null> {
+  const requestId = crypto.randomUUID();
+  const dispatch = await dispatchAction(JSON.stringify({ type: 'trailerResolveRequested', requestId, videoId }));
+  if (!dispatch) return null;
+  const immediate = dispatch.state.trailer?.resolutions?.[requestId];
+  if (immediate && typeof immediate === 'object' && (immediate as { status?: unknown }).status === 'ok') {
+    return proxyTrailerUrls(immediate as YoutubeTrailerResolution);
+  }
+  const resolved = await runTrailerEffects(dispatch.effects, requestId);
+  return resolved ? proxyTrailerUrls(resolved) : null;
+}
+
+export async function prewarmYoutubeTrailerConfig(): Promise<void> {
+  const dispatch = await dispatchAction(JSON.stringify({ type: 'trailerPrewarmRequested' }));
+  if (dispatch) await runTrailerEffects(dispatch.effects);
 }
 
 export async function fetchStreamsForEpisode(

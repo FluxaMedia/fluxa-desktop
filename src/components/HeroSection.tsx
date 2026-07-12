@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Info, Maximize2, Play, Plus, Volume2, VolumeX } from 'lucide-react';
 import { seasonPosterUrl } from '../core/seasonPosters';
 import { youtubeVideoId } from './detail/TrailerCarousel';
-import { httpFetchText, resolveYoutubeTrailer, type YoutubeTrailerSubtitleTrack } from '../core/engine';
+import { httpFetchText } from '../core/engine';
+import { resolveYoutubeTrailer, type YoutubeTrailerSubtitleTrack } from '../core/effectRunner';
 import { normalizeTrailerSubtitleUrl, parseTrailerSubtitleCues, selectTrailerSubtitle, type TrailerCue } from '../core/trailerSubtitles';
 import type { Meta } from '../core/types';
 import { t } from '../i18n';
@@ -95,6 +96,7 @@ export const HeroSection = React.memo(function HeroSection({
   const lastTrailerProgressAtRef = useRef(0);
   const trailerVideoRef = useRef<HTMLVideoElement | null>(null);
   const trailerAudioRef = useRef<HTMLAudioElement | null>(null);
+  const trailerContainerRef = useRef<HTMLDivElement | null>(null);
   const activeTrailerSubtitleRef = useRef('');
   const trailerActive = !!trailerStreamUrl && trailerReady;
   const trailerPending = trailerResolving || trailerLoading || !!trailerStreamUrl;
@@ -315,9 +317,9 @@ export const HeroSection = React.memo(function HeroSection({
   };
 
   const fullscreenTrailer = () => {
-    const video = trailerVideoRef.current;
-    if (!video) return;
-    const fullscreenTarget = video as HTMLVideoElement & {
+    const container = trailerContainerRef.current;
+    if (!container) return;
+    const fullscreenTarget = container as HTMLDivElement & {
       webkitRequestFullscreen?: () => Promise<void> | void;
     };
     const request = fullscreenTarget.requestFullscreen?.bind(fullscreenTarget)
@@ -353,6 +355,7 @@ export const HeroSection = React.memo(function HeroSection({
         />
       )}
 
+      <div ref={trailerContainerRef} style={styles.trailerContainer}>
       {trailerStreamUrl && (
         <video
           ref={trailerVideoRef}
@@ -360,6 +363,7 @@ export const HeroSection = React.memo(function HeroSection({
           style={{ ...styles.trailerFrame, opacity: trailerReady ? 1 : 0, transition: 'opacity 0.6s ease' }}
           src={trailerStreamUrl}
           autoPlay
+          muted={trailerMuted}
           playsInline
           onPlaying={() => {
             setTrailerReady(true);
@@ -460,6 +464,13 @@ export const HeroSection = React.memo(function HeroSection({
         </button>
       )}
 
+      {trailerActive && (
+        <div style={styles.trailerProgressTrack}>
+          <span style={{ ...styles.trailerProgressFill, width: `${trailerProgress * 100}%` }} />
+        </div>
+      )}
+      </div>
+
       <div style={styles.gradientTop} />
       <div style={{ ...styles.gradientLeft, opacity: trailerActive ? 0.45 : 1, transition: 'opacity 0.6s ease' }} />
       <div style={styles.gradientBottom} />
@@ -536,11 +547,7 @@ export const HeroSection = React.memo(function HeroSection({
         <>
           <NavArrow direction="left" onClick={() => goTo(activeIndex - 1)} />
           <NavArrow direction="right" onClick={() => goTo(activeIndex + 1)} />
-          {trailerActive ? (
-            <div style={styles.trailerProgressTrack}>
-              <span style={{ ...styles.trailerProgressFill, width: `${trailerProgress * 100}%` }} />
-            </div>
-          ) : (
+          {!trailerActive && (
             <div style={styles.indicators}>
               {items.map((item, i) => (
                 <button
@@ -678,6 +685,10 @@ const styles: Record<string, React.CSSProperties> = {
     userSelect: 'none',
     pointerEvents: 'none',
     transformOrigin: 'center 30%',
+  },
+  trailerContainer: {
+    position: 'absolute',
+    inset: 0,
   },
   trailerFrame: {
     position: 'absolute',

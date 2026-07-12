@@ -19,7 +19,7 @@ mod poster_cache;
 mod roku;
 mod sleep_inhibitor;
 mod storage;
-mod youtube_trailer;
+mod trailer_proxy;
 #[cfg(target_os = "windows")]
 mod windows_egl;
 #[cfg(target_os = "windows")]
@@ -39,6 +39,7 @@ use roku::*;
 use storage::*;
 
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -229,6 +230,32 @@ async fn http_fetch_text(url: String) -> Result<HttpTextResponse, String> {
         .send()
         .await
         .map_err(|e| e.to_string())?;
+    let status_code = response.status().as_u16();
+    let body = response.text().await.map_err(|e| e.to_string())?;
+    Ok(HttpTextResponse { status_code, body })
+}
+
+#[tauri::command]
+async fn http_execute_text(
+    url: String,
+    method: String,
+    headers: HashMap<String, String>,
+    body: Option<Value>,
+) -> Result<HttpTextResponse, String> {
+    net_guard::ensure_public_host(&url).await?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let method = reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| e.to_string())?;
+    let mut request = client.request(method, &url).header("User-Agent", "Fluxa/1.0");
+    for (name, value) in headers {
+        request = request.header(name, value);
+    }
+    if let Some(body) = body {
+        request = request.json(&body);
+    }
+    let response = request.send().await.map_err(|e| e.to_string())?;
     let status_code = response.status().as_u16();
     let body = response.text().await.map_err(|e| e.to_string())?;
     Ok(HttpTextResponse { status_code, body })
@@ -430,29 +457,11 @@ async fn stop_torrent_stream(state: State<'_, DesktopState>) -> Result<bool, Str
 }
 
 #[tauri::command]
-async fn resolve_youtube_trailer_url(
-    state: State<'_, DesktopState>,
-    video_id: String,
-) -> Result<Option<String>, String> {
-    let _ = state;
-    Ok(youtube_trailer::resolve(&video_id)
-        .await
-        .and_then(|value| value.get("streamUrl").and_then(Value::as_str).map(str::to_owned)))
-}
-
-#[tauri::command]
-async fn resolve_youtube_trailer(
-    state: State<'_, DesktopState>,
-    video_id: String,
-) -> Result<Option<Value>, String> {
-    let _ = state;
-    Ok(youtube_trailer::resolve(&video_id).await)
-}
-
-#[tauri::command]
-async fn prewarm_youtube_trailer_config(state: State<'_, DesktopState>) -> Result<(), String> {
-    let _ = state;
-    Ok(())
+async fn register_trailer_proxy_url(
+    proxy_state: State<'_, trailer_proxy::TrailerProxyState>,
+    url: String,
+) -> Result<String, String> {
+    trailer_proxy::register(&proxy_state, url).await
 }
 
 #[tauri::command]
@@ -653,6 +662,7 @@ pub fn run() {
         .manage(airplay::AirplayState::default())
         .manage(roku::RokuState::default())
         .manage(cast_proxy::CastProxyState::default())
+        .manage(trailer_proxy::TrailerProxyState::default())
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -780,6 +790,7 @@ pub fn run() {
             engine_complete_effect,
             engine_snapshot,
             http_fetch_text,
+            http_execute_text,
             storage_read,
             storage_write,
             storage_delete,
@@ -800,9 +811,7 @@ pub fn run() {
             core_invoke,
             start_torrent_stream,
             stop_torrent_stream,
-            resolve_youtube_trailer_url,
-            resolve_youtube_trailer,
-            prewarm_youtube_trailer_config,
+            register_trailer_proxy_url,
             player_init,
             player_apply_preferences,
             player_set_http_headers,

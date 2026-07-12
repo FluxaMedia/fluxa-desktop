@@ -451,4 +451,5 @@ export interface AppState {
   sync?: unknown;
   calendar?: unknown;
   offline?: unknown;
+  trailer?: { resolutions?: Record<string, unknown> };
 }

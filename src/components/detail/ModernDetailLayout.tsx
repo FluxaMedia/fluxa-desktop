@@ -13,7 +13,8 @@ import { SeasonDropdown, seasonLabel, formatEpDate as _formatEpDate, type Progre
 import { ModernIconBtn, ModernPlayButton, ModernTabBar } from './DetailButtons';
 import { ModernEpisodeCard } from './ModernEpisodeCard';
 import { useSeasonWatched } from '../../hooks/useSeasonWatched';
-import { httpFetchText, resolveYoutubeTrailer, type YoutubeTrailerSubtitleTrack } from '../../core/engine';
+import { httpFetchText } from '../../core/engine';
+import { resolveYoutubeTrailer, type YoutubeTrailerSubtitleTrack } from '../../core/effectRunner';
 import { normalizeTrailerSubtitleUrl, parseTrailerSubtitleCues, selectTrailerSubtitle, type TrailerCue } from '../../core/trailerSubtitles';
 
 const STALL_TIMEOUT_MS = 7000;
@@ -129,6 +130,7 @@ export function ModernDetailLayout({
   const lastTrailerProgressAtRef = useRef(0);
   const trailerVideoRef = useRef<HTMLVideoElement | null>(null);
   const trailerAudioRef = useRef<HTMLAudioElement | null>(null);
+  const trailerContainerRef = useRef<HTMLDivElement | null>(null);
   const activeTrailerSubtitleRef = useRef('');
   const trailerActive = !!trailerStreamUrl && trailerReady;
   const selectedTrailerSubtitle = useMemo(
@@ -249,9 +251,9 @@ export function ModernDetailLayout({
   }, [trailerMuted, trailerAudioUrl]);
 
   const fullscreenTrailer = () => {
-    const video = trailerVideoRef.current;
-    if (!video) return;
-    const fullscreenTarget = video as HTMLVideoElement & {
+    const container = trailerContainerRef.current;
+    if (!container) return;
+    const fullscreenTarget = container as HTMLDivElement & {
       webkitRequestFullscreen?: () => Promise<void> | void;
     };
     const request = fullscreenTarget.requestFullscreen?.bind(fullscreenTarget)
@@ -333,6 +335,11 @@ export function ModernDetailLayout({
           <div style={MS.heroPlaceholder} />
         )}
 
+        <button style={MS.backBtn} onClick={onBack}>
+          <ArrowLeft size={18} color="rgba(255,255,255,0.85)" />
+        </button>
+
+        <div ref={trailerContainerRef} style={MS.heroTrailerContainer}>
         {trailerStreamUrl && (
           <video
             ref={trailerVideoRef}
@@ -377,10 +384,6 @@ export function ModernDetailLayout({
         {trailerActive && activeTrailerSubtitle && (
           <div style={MS.heroTrailerSubtitleOverlay}>{activeTrailerSubtitle}</div>
         )}
-
-        <button style={MS.backBtn} onClick={onBack}>
-          <ArrowLeft size={18} color="rgba(255,255,255,0.85)" />
-        </button>
 
         {trailerActive && (
           <button
@@ -435,6 +438,7 @@ export function ModernDetailLayout({
             </div>
           </>
         )}
+        </div>
       </div>
 
       <div style={MS.content}>
