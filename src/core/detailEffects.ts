@@ -9,6 +9,7 @@ import {
 import { loadAddons, loadActiveProfile, loadPrefs } from './libraryOps';
 import { fetchPlannedResources } from './fetchPlanning';
 import { tryFetchJson } from './httpClient';
+import { resolveTmdbId, tmdbContentType, tmdbUrl } from './tmdbShared';
 import { fetchTraktSimilarItems, fetchSimklSimilarItems } from './similarTitles';
 import { isTraktConnected, isSimklConnected } from './profiles';
 import type { AppState, Video } from './types';
@@ -79,19 +80,6 @@ export async function fetchTmdbTrailers({ contentType, id, language, apiKey }: T
   return (await coreTmdbBulkVideosToTrailers(JSON.stringify(rawVideos))) ?? [];
 }
 
-async function resolveTmdbId({ contentType, id, language, apiKey }: TmdbRequest): Promise<string | null> {
-  const baseId = id.replace(/^tmdb:/i, '').split(':')[0] ?? '';
-  if (/^\d+$/.test(baseId)) return baseId;
-  const imdbId = id.split(':')[0];
-  if (!/^tt\d+$/i.test(imdbId)) return null;
-  const response = await tryFetchJson(tmdbUrl(`3/find/${encodeURIComponent(imdbId)}`, apiKey, language, {
-    external_source: 'imdb_id',
-  }));
-  const key = contentType === 'series' ? 'tv_results' : 'movie_results';
-  const result = ((response as Record<string, TmdbMetaResult[]> | null)?.[key] ?? [])[0];
-  return result?.id != null ? String(result.id) : null;
-}
-
 export async function fetchTmdbPosterFallback({
   contentType,
   id,
@@ -121,25 +109,6 @@ async function resolveImdbId({ contentType, id, language, apiKey }: TmdbRequest)
     tmdbUrl(`3/${tmdbContentType(contentType)}/${tmdbId}/external_ids`, apiKey, language),
   ) as { imdb_id?: string | null } | null;
   return response?.imdb_id ?? undefined;
-}
-
-function tmdbUrl(path: string, apiKey: string, language: string, extra: Record<string, string> = {}): string {
-  const params = new URLSearchParams({
-    api_key: apiKey,
-    language: tmdbLanguage(language),
-    ...extra,
-  });
-  return `https://api.themoviedb.org/${path}?${params.toString()}`;
-}
-
-function tmdbContentType(contentType: string): string {
-  return contentType === 'series' ? 'tv' : 'movie';
-}
-
-function tmdbLanguage(language: string): string {
-  if (!language || language === 'en') return 'en-US';
-  if (language === 'tr') return 'tr-TR';
-  return language.includes('-') ? language : `${language}-${language.toUpperCase()}`;
 }
 
 export async function fetchMetaDetail(payload: Record<string, unknown>): Promise<unknown> {

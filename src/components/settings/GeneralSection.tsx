@@ -111,7 +111,20 @@ export function GeneralSection({ prefs, setPref }: { prefs: Prefs; setPref: <K e
         value={prefs.tmdbApiKey}
         placeholder={t('settings.api_key_placeholder')}
         onChange={(v) => setPref('tmdbApiKey', v)}
+        status={(
+          <p style={{ fontSize: '0.75rem', marginTop: '0.375rem', color: prefs.tmdbApiKey ? '#4ADE80' : 'rgba(255,255,255,0.45)' }}>
+            {prefs.tmdbApiKey ? t('settings.tmdb_metadata_source_active') : t('settings.tmdb_metadata_source_inactive')}
+          </p>
+        )}
       />
+      {prefs.tmdbApiKey && (
+        <ToggleTile
+          title={t('settings.tmdb_prefer_over_addons')}
+          subtitle={t('settings.tmdb_prefer_over_addons_desc')}
+          checked={prefs.tmdbPreferOverAddons}
+          onToggle={(v) => setPref('tmdbPreferOverAddons', v)}
+        />
+      )}
       <InputTile
         title={t('settings.rpdb_api_key')}
         subtitle={t('settings.rpdb_api_key_desc')}

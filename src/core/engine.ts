@@ -553,6 +553,29 @@ export async function coreTmdbResolveIdHint(contentId: string): Promise<[string,
   return (await coreInvoke<[string, boolean]>('tmdbResolveIdHint', JSON.stringify({ contentId }))) ?? ['', false];
 }
 
+export async function coreTmdbBuiltinManifest(): Promise<string> {
+  return (await coreInvoke<string>('tmdbBuiltinManifest', '{}')) ?? '{}';
+}
+
+export async function coreTmdbBuiltinCatalogUrl(
+  contentType: string, extra: Record<string, unknown>, apiKey: string, language: string,
+): Promise<string> {
+  return (await coreInvoke<string>('tmdbBuiltinCatalogUrl', JSON.stringify({ contentType, extra, apiKey, language }))) ?? '';
+}
+
+export async function coreTmdbFullMetaToMeta(
+  detailsJson: string, creditsJson: string, imagesJson: string, externalIdsJson: string,
+  requestedType: string, language: string,
+): Promise<unknown | null> {
+  return coreInvoke('tmdbFullMetaToMeta', JSON.stringify({
+    detailsJson, creditsJson, imagesJson, externalIdsJson, requestedType, language,
+  }));
+}
+
+export async function coreTmdbEpisodesToVideos(seasonJson: string, seriesId: string): Promise<unknown[] | null> {
+  return coreInvoke('tmdbEpisodesToVideos', JSON.stringify({ seasonJson, seriesId }));
+}
+
 export async function coreParseIntroDbSegments(dataJson: string): Promise<unknown[] | null> {
   return coreInvoke('parseIntroDbSegments', dataJson);
 }

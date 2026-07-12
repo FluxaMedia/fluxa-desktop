@@ -1,8 +1,9 @@
 import { coreSearchResultGrouping } from './engine';
 import { coreResourceFetchPlan } from './addonManifest';
-import { loadAddons } from './libraryOps';
+import { loadAddons, loadPrefs } from './libraryOps';
 import { fetchPlannedResources, fetchParsedAddonResource, resourceForPlannedRequest } from './fetchPlanning';
 import { discoverCatalogOptions } from './homeEffects';
+import { fetchBuiltinCatalog, isBuiltinTmdbAddon } from './tmdbAddon';
 
 export async function fetchCatalogPage(payload: Record<string, unknown>): Promise<unknown> {
   const values = await fetchPlannedResources({ ...payload, kind: 'catalogPage' });
@@ -69,6 +70,25 @@ export async function runSearch(payload: Record<string, unknown>): Promise<unkno
     });
   }));
 
+  const prefs = await loadPrefs();
+  const tmdbApiKey = String(prefs.tmdbApiKey ?? '').trim();
+  if (tmdbApiKey) {
+    await Promise.all((['movie', 'series'] as const).map(async (type) => {
+      const { metas } = await fetchBuiltinCatalog(type, { search: query }, tmdbApiKey, String(prefs.language ?? 'en'));
+      if (searchAbortController !== abortController || !metas.length) return;
+      results.push(...metas);
+      _searchPartialHandler?.(query, metas);
+      categories.push({
+        id: `tmdb:${type}`,
+        name: 'TMDB',
+        semanticName: 'TMDB',
+        type,
+        items: metas,
+        addonName: 'TMDB',
+      });
+    }));
+  }
+
   const grouping = await coreSearchResultGrouping({ query, results });
   const value = { results, categories, grouping };
   if (searchAbortController === abortController) searchResultsCache.set(cacheKey, value);
@@ -83,9 +103,17 @@ export async function runDiscover(payload: Record<string, unknown>): Promise<unk
   discoverAbortController = abortController;
 
   const contentType = payload.contentType as string;
-  const filters = payload.filters as { catalogKey?: string; extra?: Record<string, unknown> } | undefined;
-  const catalogKey = filters?.catalogKey;
+  const filters = payload.filters as { catalogKey?: string; transportUrl?: string; extra?: Record<string, unknown> } | undefined;
   const extra = filters?.extra ?? {};
+
+  if (isBuiltinTmdbAddon(filters?.transportUrl)) {
+    const prefs = await loadPrefs();
+    const { metas } = await fetchBuiltinCatalog(contentType, extra, String(prefs.tmdbApiKey ?? ''), String(prefs.language ?? 'en'));
+    if (discoverAbortController !== abortController) throw new DOMException('superseded', 'AbortError');
+    return { results: metas };
+  }
+
+  const catalogKey = filters?.catalogKey;
   const addons = await loadAddons();
   const values = await fetchPlannedResources(
     { kind: 'discover', contentType, catalogKey, extra, addons },

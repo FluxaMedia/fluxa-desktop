@@ -4,6 +4,8 @@ import {
 } from './addonManifest';
 import { coreResourceKindToResource } from './engine';
 import { _appVersion, platformFetch } from './httpClient';
+import { loadPrefs } from './libraryOps';
+import { fetchBuiltinCatalog, fetchBuiltinMeta, fetchBuiltinSeasonEpisodes, isBuiltinTmdbAddon } from './tmdbAddon';
 import type { AddonDescriptor, Video } from './types';
 
 const FETCH_PLAN_CONCURRENCY = 12;
@@ -25,6 +27,60 @@ export async function resourceForPlannedRequest(kind: unknown, requestResource?:
     typeof requestResource === 'string' ? requestResource : null,
     typeof itemResource === 'string' ? itemResource : null,
   );
+}
+
+type BuiltinFetchPlanRequest = FetchPlanRequest & { __builtinResolve: () => Promise<Record<string, unknown> | null> };
+
+const BUILTIN_RESOURCE_KINDS = new Set(['metaDetail', 'seasonEpisodes', 'catalogPage']);
+
+function isBuiltinRequest(item: FetchPlanRequest): item is BuiltinFetchPlanRequest {
+  return typeof (item as Partial<BuiltinFetchPlanRequest>).__builtinResolve === 'function';
+}
+
+async function buildBuiltinRequest(request: Record<string, unknown>): Promise<BuiltinFetchPlanRequest | null> {
+  const kind = request.kind;
+  if (typeof kind !== 'string' || !BUILTIN_RESOURCE_KINDS.has(kind)) return null;
+  if (kind === 'catalogPage' && !isBuiltinTmdbAddon(request.transportUrl as string | undefined)) return null;
+
+  const prefs = await loadPrefs();
+  const apiKey = String(prefs.tmdbApiKey ?? '').trim();
+  if (!apiKey) return null;
+  const language = String(prefs.language ?? 'en');
+
+  if (kind === 'catalogPage') {
+    const extra: Record<string, unknown> = {};
+    if (request.genre) extra.genre = request.genre;
+    if (request.search) extra.search = request.search;
+    if (request.skip) extra.skip = request.skip;
+    return {
+      stopOnFirstResult: false,
+      addonName: 'TMDB',
+      __builtinResolve: async () => {
+        const { metas } = await fetchBuiltinCatalog(String(request.contentType ?? ''), extra, apiKey, language);
+        return metas.length ? { items: metas } : null;
+      },
+    };
+  }
+
+  if (kind === 'seasonEpisodes') {
+    return {
+      stopOnFirstResult: true,
+      addonName: 'TMDB',
+      __builtinResolve: async () => {
+        const result = await fetchBuiltinSeasonEpisodes(String(request.id ?? ''), Number(request.season ?? 0), apiKey, language);
+        return result.episodes.length ? result : null;
+      },
+    };
+  }
+
+  return {
+    stopOnFirstResult: true,
+    addonName: 'TMDB',
+    __builtinResolve: async () => {
+      const result = await fetchBuiltinMeta(String(request.contentType ?? ''), String(request.id ?? ''), apiKey, language);
+      return result ? { meta: result.meta } : null;
+    },
+  };
 }
 
 type AddonFetchOutcome = { value: Record<string, unknown> | null; failed: boolean };
@@ -90,7 +146,13 @@ export async function fetchPlannedResources(
   onAddonFailed?: (addonName: string) => void,
 ): Promise<unknown[]> {
   const plan = await coreResourceFetchPlan(request);
-  const requests = (plan?.requests ?? []) as FetchPlanRequest[];
+  let requests = (plan?.requests ?? []) as FetchPlanRequest[];
+
+  const builtinRequest = await buildBuiltinRequest(request);
+  if (builtinRequest) {
+    const prefs = await loadPrefs();
+    requests = prefs.tmdbPreferOverAddons ? [builtinRequest, ...requests] : [...requests, builtinRequest];
+  }
 
   // When every request has stopOnFirstResult (e.g. metaDetail, seasonEpisodes),
   // fire all addon requests in parallel and take the first non-empty result.
@@ -103,6 +165,11 @@ export async function fetchPlannedResources(
     try {
       const result = await Promise.any(
         requests.map(async (item) => {
+          if (isBuiltinRequest(item)) {
+            const parsed = await item.__builtinResolve();
+            if (!isNonEmpty(parsed)) throw new Error('empty');
+            return parsed;
+          }
           const url = typeof item.url === 'string' ? item.url : '';
           if (!url) throw new Error('no url');
           const parsed = await fetchParsedAddonResource(
@@ -129,6 +196,18 @@ export async function fetchPlannedResources(
   // Each result is reported via onPartialResult as it arrives for progressive display.
   const values: unknown[] = [];
   await runWithConcurrency(requests, FETCH_PLAN_CONCURRENCY, async (item) => {
+    if (isBuiltinRequest(item)) {
+      try {
+        const value = await item.__builtinResolve();
+        if (value) {
+          values.push(value);
+          onPartialResult?.(value);
+        }
+      } catch {
+        // tolerate builtin failures the same as a real addon failure
+      }
+      return;
+    }
     const url = typeof item.url === 'string' ? item.url : '';
     if (!url) return;
     try {

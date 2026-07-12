@@ -6,6 +6,7 @@ export interface Prefs {
   backgroundPlayback: boolean;
   alertNewEpisodes: boolean;
   tmdbApiKey: string;
+  tmdbPreferOverAddons: boolean;
   tmdbCastImagesEnabled: boolean;
   tmdbSimilarResultsEnabled: boolean;
   tmdbTrailersEnabled: boolean;
@@ -145,6 +146,7 @@ export const DEFAULT_PREFS: Prefs = {
   backgroundPlayback: false,
   alertNewEpisodes: true,
   tmdbApiKey: '',
+  tmdbPreferOverAddons: false,
   tmdbCastImagesEnabled: true,
   tmdbSimilarResultsEnabled: true,
   tmdbTrailersEnabled: true,

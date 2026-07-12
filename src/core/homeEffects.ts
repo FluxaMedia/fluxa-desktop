@@ -12,6 +12,7 @@ import {
 import { addonKey } from './addons';
 import { buildResourceUrl } from './addonManifest';
 import { effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, loadPrefs } from './libraryOps';
+import { fetchBuiltinCatalog, isBuiltinTmdbAddon, withBuiltinTmdbAddon } from './tmdbAddon';
 import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
 import { tryFetchJson } from './httpClient';
 import type { AddonDescriptor } from './types';
@@ -59,7 +60,8 @@ async function metadataFeedOptions(addons: AddonDescriptor[]): Promise<MetadataF
 }
 
 export async function discoverCatalogOptions(addons: AddonDescriptor[], selectedType: string): Promise<DiscoverCatalogOption[]> {
-  return ((await coreDiscoverCatalogOptions(addons, selectedType)) ?? []) as DiscoverCatalogOption[];
+  const withBuiltin = await withBuiltinTmdbAddon(addons, await loadPrefs());
+  return ((await coreDiscoverCatalogOptions(withBuiltin, selectedType)) ?? []) as DiscoverCatalogOption[];
 }
 
 export async function refreshReleasedContinueWatching(
@@ -106,9 +108,12 @@ export async function readHomeBootstrap(
   const profile = await loadActiveProfile();
   const disabledAddonKeys = profile?.addonSettings?.disabledLocalAddons ?? profile?.disabledLocalAddons ?? [];
   const allAddons = await loadAddons();
-  const addons = allAddons.filter((addon) => !disabledAddonKeys.includes(addonKey(addon)));
   const library = await loadLibrary();
   const prefs = await loadPrefs();
+  const addons = await withBuiltinTmdbAddon(
+    allAddons.filter((addon) => !disabledAddonKeys.includes(addonKey(addon))),
+    prefs,
+  );
 
   const localContinueWatching = (library.continueWatching as Record<string, unknown>[] | undefined) ?? [];
   const externalContinueWatching = (library.externalContinueWatching as Record<string, unknown>[] | undefined) ?? [];
@@ -134,9 +139,10 @@ export async function readHomeBootstrap(
   const visibleFeeds = metadataFeeds.filter((feed) => effectiveKeys.includes(feed.key));
 
   const categoryResults = await runWithConcurrency(visibleFeeds, HOME_FEED_FETCH_CONCURRENCY, async (feed) => {
-    const extraJson = feed.genre ? JSON.stringify({ genre: feed.genre }) : undefined;
-    const url = await buildResourceUrl(feed.transportUrl, 'catalog', feed.type, feed.id, extraJson);
-    const data = (await tryFetchJson(url)) as { metas?: unknown[] } | null;
+    const extra = feed.genre ? { genre: feed.genre } : {};
+    const data = isBuiltinTmdbAddon(feed.transportUrl)
+      ? await fetchBuiltinCatalog(feed.type, extra, String(prefs.tmdbApiKey ?? ''), language)
+      : (await tryFetchJson(await buildResourceUrl(feed.transportUrl, 'catalog', feed.type, feed.id, JSON.stringify(extra))) as { metas?: unknown[] } | null);
     const metas = Array.isArray(data?.metas) ? data.metas : [];
     if (metas.length === 0) return null;
     return {

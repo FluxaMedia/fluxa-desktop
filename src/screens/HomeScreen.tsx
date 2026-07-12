@@ -15,6 +15,8 @@ import type { AppState, HomeCategory, Meta, NuvioCollectionSource, Trailer } fro
 import { getLanguage, t } from '../i18n';
 import { useInViewport } from '../hooks/useInViewport';
 import { isNuvioCollectionSource, loadNuvioCollectionSource } from '../core/collectionSources';
+import { fetchBuiltinCatalog, isBuiltinTmdbAddon } from '../core/tmdbAddon';
+import { loadPrefs } from '../core/libraryOps';
 
 const ROW_PLACEHOLDER_HEIGHT = 340;
 
@@ -133,6 +135,13 @@ async function loadFolderSourcePage(
   const extra: Record<string, unknown> = {};
   if (source.genre) extra.genre = source.genre;
   if (skip > 0) extra.skip = skip;
+
+  if (isBuiltinTmdbAddon(source.transportUrl)) {
+    const prefs = await loadPrefs();
+    const { metas } = await fetchBuiltinCatalog(source.type, extra, String(prefs.tmdbApiKey ?? ''), getLanguage());
+    return { type: source.type, items: metas as Meta[] };
+  }
+
   const extraJson = Object.keys(extra).length ? JSON.stringify(extra) : undefined;
   const url = await buildResourceUrl(source.transportUrl, 'catalog', source.type, source.catalogId, extraJson);
   try {

@@ -87,6 +87,7 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
         contentType,
         filters: {
           catalogKey: selectedCatalog.key,
+          transportUrl: selectedCatalog.transportUrl,
           extra: selectedExtra && extraValue ? { [selectedExtra.name]: extraValue } : {},
         },
         language: getLanguage(),
