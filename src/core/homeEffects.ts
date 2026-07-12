@@ -9,6 +9,7 @@ import {
   storageRead,
   storageWrite,
 } from './engine';
+import { addonKey } from './addons';
 import { buildResourceUrl } from './addonManifest';
 import { effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, loadPrefs } from './libraryOps';
 import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
@@ -102,7 +103,10 @@ export async function readHomeBootstrap(
     return { stale: true };
   }
 
-  const addons = await loadAddons();
+  const profile = await loadActiveProfile();
+  const disabledAddonKeys = profile?.addonSettings?.disabledLocalAddons ?? profile?.disabledLocalAddons ?? [];
+  const allAddons = await loadAddons();
+  const addons = allAddons.filter((addon) => !disabledAddonKeys.includes(addonKey(addon)));
   const library = await loadLibrary();
   const prefs = await loadPrefs();
 
@@ -148,7 +152,6 @@ export async function readHomeBootstrap(
   });
   const categories = categoryResults.filter((c): c is NonNullable<typeof c> => c !== null);
 
-  const profile = await loadActiveProfile();
   const collectionShelves = await coreBuildHomeCollectionShelves(
     JSON.stringify(profile ?? {}),
     JSON.stringify(addons),

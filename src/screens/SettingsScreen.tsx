@@ -338,6 +338,12 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     void syncNuvioAddons(updatedProfile, installedAddons);
     void syncStremioAddonsForProfile(updatedProfile, installedAddons);
     onDispatch(JSON.stringify({ type: 'addonsRefreshRequested' }));
+    onDispatch(JSON.stringify({
+      type: 'homeLoadRequested',
+      force: true,
+      language: prefs.language,
+      profile: updatedProfile,
+    }));
   };
 
   const handleReorderAddon = async (addon: AddonDescriptor, direction: 'up' | 'down') => {
