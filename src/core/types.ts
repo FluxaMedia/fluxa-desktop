@@ -82,7 +82,10 @@ export interface Stream {
 export interface BehaviorHints {
   notWebReady?: boolean;
   bingeGroup?: string;
-  proxyHeaders?: Record<string, string>;
+  requestHeaders?: Record<string, string>;
+  proxyHeaders?: {
+    request?: Record<string, string>;
+  };
   videoHash?: string;
   videoSize?: number;
   filename?: string;

@@ -110,6 +110,12 @@ function streamIsP2P(stream: Stream): boolean {
   return !!(stream.isTorrent || stream.infoHash);
 }
 
+function streamRequestHeaders(stream: Stream): Record<string, string> | undefined {
+  const headers = stream.behaviorHints?.requestHeaders ?? stream.behaviorHints?.proxyHeaders?.request;
+  if (!headers || Object.keys(headers).length === 0) return undefined;
+  return headers;
+}
+
 export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdated }: UsePlayerOptions): UsePlayerResult {
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
   const [playerTitle, setPlayerTitle] = useState<string | undefined>();
@@ -583,7 +589,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerPosterUrl(earlyArtwork.background ?? meta?.poster);
     setPlayerLogoUrl(earlyArtwork.logo ?? undefined);
     setPlayerMetaId(meta?.id);
-    setPlayerStreamHeaders(stream.behaviorHints?.proxyHeaders);
+    setPlayerStreamHeaders(streamRequestHeaders(stream));
     artworkPrefetchRef.current = prefetchPlayerArtwork(earlyArtwork.background, earlyArtwork.logo).catch(() => undefined);
     let loadingArtworkPromise = showPlayerLoading(generation, earlyTitle, earlyArtwork, stream);
 
@@ -815,7 +821,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         debugLog('handlePlay:calling playInEmbeddedMpv');
         setLoadingStatus(t('player.status_loading_stream'));
         void pollMpvLoadingStatus();
-        await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, stream.behaviorHints?.proxyHeaders, animeDetection.isAnime);
+        await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, streamRequestHeaders(stream), animeDetection.isAnime);
         debugLog('handlePlay:playInEmbeddedMpv resolved');
       } catch (err) {
         loadingStatusPollActive = false;

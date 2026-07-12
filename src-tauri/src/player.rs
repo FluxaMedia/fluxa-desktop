@@ -676,9 +676,6 @@ pub fn player_set_http_headers(
     state: State<DesktopState>,
     headers: std::collections::HashMap<String, String>,
 ) -> Result<(), String> {
-    if headers.is_empty() {
-        return Ok(());
-    }
     let header_list = headers.into_iter().collect::<Vec<_>>();
     match with_renderer_retry(&state, 80, |renderer| {
         renderer.set_http_headers(&header_list)
