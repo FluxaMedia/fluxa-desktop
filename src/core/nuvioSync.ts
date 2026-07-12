@@ -130,7 +130,8 @@ async function fetchAddonManifests(addons: NuvioAddon[]): Promise<{
   manifestIdByUrl: Map<string, string>;
   descriptors: Array<Record<string, unknown>>;
 }> {
-  const enabled = addons.filter((a) => a.enabled).sort((a, b) => a.sort_order - b.sort_order);
+  const sorted = [...addons].sort((a, b) => a.sort_order - b.sort_order);
+  const enabled = sorted.filter((a) => a.enabled);
   const manifestIdByUrl = new Map<string, string>();
   const manifests = await Promise.allSettled(
     enabled.map(async (a) => {
@@ -140,10 +141,16 @@ async function fetchAddonManifests(addons: NuvioAddon[]): Promise<{
     })
   );
 
-  const descriptors = enabled.map((a, i) => {
+  const manifestByUrl = new Map<string, Record<string, unknown> | null>();
+  enabled.forEach((a, i) => {
     const mResult = manifests[i];
     const m = mResult.status === 'fulfilled' && mResult.value ? mResult.value : null;
     if (m?.id) manifestIdByUrl.set(a.url, String(m.id));
+    manifestByUrl.set(a.url, m);
+  });
+
+  const descriptors = sorted.map((a) => {
+    const m = manifestByUrl.get(a.url) ?? null;
     return {
       transportUrl: a.url,
       manifest: m ?? { id: a.url, name: a.name ?? a.url, version: '0.0.1', resources: [], types: [], catalogs: [] },
