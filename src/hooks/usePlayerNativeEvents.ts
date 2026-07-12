@@ -20,6 +20,7 @@ export function usePlayerNativeEvents({
   closePlayer,
   handlePlay,
   onPlayerError,
+  onEpisodePlaybackFailed,
   showEpisodeTransitionLoading,
 }: {
   stateRef: React.MutableRefObject<AppState>;
@@ -30,8 +31,9 @@ export function usePlayerNativeEvents({
   playingNextEpisodeRef: React.MutableRefObject<Video | null>;
   prefetchedNextEpRef: React.MutableRefObject<{ episodeId: string; stream: Stream } | null>;
   closePlayer: () => Promise<void>;
-  handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number, sourceCandidates?: Stream[]) => Promise<void>;
+  handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number, sourceCandidates?: Stream[], openSourcePickerOnFailure?: boolean) => Promise<void>;
   onPlayerError: (message: string) => Promise<void>;
+  onEpisodePlaybackFailed?: (meta: Meta, episode: Video, message: string) => Promise<void> | void;
   showEpisodeTransitionLoading: (meta: Meta, episode: Video, stream: Stream) => void;
 }) {
   const episodeTransitionActiveRef = useRef(false);
@@ -111,10 +113,11 @@ export function usePlayerNativeEvents({
           } catch {}
         }
         if (!chosenStream) {
-          if (!closingPlayerRef.current) await onPlayerError(t('player.no_playable_url'));
+          if (!closingPlayerRef.current && onEpisodePlaybackFailed) await onEpisodePlaybackFailed(meta, nextEp, t('player.no_playable_url'));
+          else if (!closingPlayerRef.current) await onPlayerError(t('player.no_playable_url'));
           return;
         }
-        try { await handlePlay(chosenStream, meta, nextEp, undefined, undefined, sourceCandidates); } catch {}
+        try { await handlePlay(chosenStream, meta, nextEp, undefined, undefined, sourceCandidates, true); } catch {}
         } finally {
           episodeTransitionActiveRef.current = false;
         }
@@ -165,10 +168,11 @@ export function usePlayerNativeEvents({
           }
         } catch {}
         if (!chosenStream) {
-          if (!closingPlayerRef.current) await onPlayerError(t('player.no_playable_url'));
+          if (!closingPlayerRef.current && onEpisodePlaybackFailed) await onEpisodePlaybackFailed(meta, ep, t('player.no_playable_url'));
+          else if (!closingPlayerRef.current) await onPlayerError(t('player.no_playable_url'));
           return;
         }
-        try { await handlePlay(chosenStream, meta, ep, undefined, undefined, sourceCandidates); } catch {}
+        try { await handlePlay(chosenStream, meta, ep, undefined, undefined, sourceCandidates, true); } catch {}
         } finally {
           episodeTransitionActiveRef.current = false;
         }
@@ -178,5 +182,5 @@ export function usePlayerNativeEvents({
       .catch(() => undefined);
 
     return () => { cancelled = true; unlisteners.forEach((fn) => fn()); };
-  }, [handlePlay, stateRef, closingPlayerRef, playingMetaRef, playingStreamRef, playingEpisodeRef, playingNextEpisodeRef, prefetchedNextEpRef, episodeTransitionActiveRef, showEpisodeTransitionLoading]);
+  }, [handlePlay, stateRef, closingPlayerRef, playingMetaRef, playingStreamRef, playingEpisodeRef, playingNextEpisodeRef, prefetchedNextEpRef, episodeTransitionActiveRef, showEpisodeTransitionLoading, onEpisodePlaybackFailed]);
 }

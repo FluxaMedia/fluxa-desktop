@@ -7,6 +7,7 @@ function debugLog(msg: string) {
   void invoke('debug_log', { msg }).catch(() => {});
 }
 import {
+  type EmbeddedMpvStatus,
   embeddedMpvAddSubtitle,
   embeddedMpvApplyPreferences,
   embeddedMpvSetHttpHeaders,
@@ -71,6 +72,7 @@ interface UsePlayerOptions {
   activeProfile: UserProfile | null;
   updateState: (s: Partial<AppState>) => void;
   onProfileUpdated?: (profile: UserProfile) => void;
+  onEpisodePlaybackFailed?: (meta: Meta, episode: Video, message: string) => Promise<void> | void;
 }
 
 interface UsePlayerResult {
@@ -88,7 +90,7 @@ interface UsePlayerResult {
   playerPlaybackError: string | null;
   playerSubtitleWarning: string[] | null;
   dismissSubtitleWarning: () => void;
-  handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number, sourceCandidates?: Stream[]) => Promise<void>;
+  handlePlay: (stream: Stream, meta?: Meta, episode?: Video | null, resumeAtSeconds?: number, totalDurationSeconds?: number, sourceCandidates?: Stream[], openSourcePickerOnFailure?: boolean) => Promise<void>;
   closePlayer: () => Promise<void>;
   notifyFirstFrame: () => void;
   flushProgressOnQuit: () => Promise<void>;
@@ -116,7 +118,7 @@ function streamRequestHeaders(stream: Stream): Record<string, string> | undefine
   return headers;
 }
 
-export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdated }: UsePlayerOptions): UsePlayerResult {
+export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdated, onEpisodePlaybackFailed }: UsePlayerOptions): UsePlayerResult {
   const [playerUrl, setPlayerUrl] = useState<string | null>(null);
   const [playerTitle, setPlayerTitle] = useState<string | undefined>();
   const [playerEpisodeTitle, setPlayerEpisodeTitle] = useState<string | undefined>();
@@ -148,6 +150,9 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   const playingNextEpisodeRef = useRef<Video | null>(null);
   const prefetchedNextEpRef = useRef<{ episodeId: string; stream: Stream } | null>(null);
   const playerUsesTorrentRef = useRef(false);
+  const lastPlaybackStatusRef = useRef<EmbeddedMpvStatus | null>(null);
+  const openSourcePickerOnFailureRef = useRef(false);
+  const firstFrameHandoffPendingRef = useRef(false);
 
   const playerLoadingOverlayRef = useRef<PlayerLoadingOverlayState | null>(null);
 
@@ -362,13 +367,9 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     void playerClearChapters();
     void playerClearEpisodes();
     try {
-      const status = await withCloseTimeout(embeddedMpvStatus(), 700).catch(() => null);
+      const status = await withCloseTimeout(embeddedMpvStatus(), 700).catch(() => null) ?? lastPlaybackStatusRef.current;
       if (!status && captureMeta) {
-        debugLog('closePlayer: embeddedMpvStatus timed out, final progress save skipped');
-        Sentry.captureMessage('closePlayer: final progress save skipped (status timeout)', {
-          level: 'warning',
-          extra: { metaId: captureMeta.id },
-        });
+        debugLog('closePlayer: embeddedMpvStatus timed out and no cached playback status is available');
       }
       if (captureMeta && captureStream) {
         await persistLastPlaybackSource(captureMeta, captureStream).catch(() => undefined);
@@ -505,6 +506,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       attemptedSourceKeysRef.current = new Set();
       lastResumeAtSecondsRef.current = undefined;
       lastTotalDurationSecondsRef.current = undefined;
+      lastPlaybackStatusRef.current = null;
     }
   }, [stateRef, updateState]);
 
@@ -516,6 +518,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     const captureStream = playingStreamRef.current;
     const status = await embeddedMpvStatus().catch(() => null);
     if (!status) return;
+    lastPlaybackStatusRef.current = status;
     const timePos = parseFloat(status.timePos ?? '0');
     const duration = parseFloat(status.duration ?? '0');
     if (!(timePos > 30 && duration > 0)) return;
@@ -557,6 +560,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     resumeAtSeconds?: number,
     totalDurationSeconds?: number,
     sourceCandidates?: Stream[],
+    openSourcePickerOnFailure = false,
   ) => {
     debugLog('handlePlay:start');
     setPlayerPlaybackError(null);
@@ -564,6 +568,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     try {
     const generation = ++playGenerationRef.current;
     const isCancelled = () => generation !== playGenerationRef.current;
+    openSourcePickerOnFailureRef.current = openSourcePickerOnFailure;
     setPlayerUrl(null);
     setPlayerUsesTorrent(streamIsP2P(stream));
     const currentStreamKey = streamKey(stream);
@@ -615,7 +620,11 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       const nextSource = nextRetrySource(stream, message === t('player.torrent_no_peers') || message === t('player.torrent_too_slow'));
       if (nextSource && meta && !isCancelled()) {
         setLoadingStatus(t('player.status_trying_next_source'));
-        await handlePlay(nextSource, meta, episode, resumeAtSeconds, effectiveTotalDuration);
+        await handlePlay(nextSource, meta, episode, resumeAtSeconds, effectiveTotalDuration, undefined, openSourcePickerOnFailure);
+        return;
+      }
+      if (openSourcePickerOnFailure && meta && episode && onEpisodePlaybackFailed) {
+        await onEpisodePlaybackFailed(meta, episode, message);
         return;
       }
       if (!isCancelled()) await failPlayerLoading(message);
@@ -730,6 +739,14 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         } else if (status.pausedForCache === 'yes') {
           const pct = Math.round(parseFloat(status.cacheBufferingState ?? '') || 0);
           setLoadingStatus(pct > 0 ? t('player.status_buffering_percent', pct) : t('player.status_buffering'));
+        } else if (
+          !status.hasVideoTrack ||
+          status.voConfigured !== 'yes' ||
+          status.framesRendered < 2 ||
+          (parseFloat(status.width ?? '0') || 0) <= 0 ||
+          (parseFloat(status.height ?? '0') || 0) <= 0
+        ) {
+          setLoadingStatus(t('player.status_connecting_source'));
         } else {
           setLoadingStatus(t('player.status_starting_playback'));
         }
@@ -885,9 +902,13 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     })();
     } catch (err) {
       debugLog(`handlePlay:FATAL ${err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}`);
+      if (openSourcePickerOnFailure && meta && episode && onEpisodePlaybackFailed) {
+        await onEpisodePlaybackFailed(meta, episode, err instanceof Error && err.message ? err.message : t('player.playback_error'));
+        return;
+      }
       await failPlayerLoading(err instanceof Error && err.message ? err.message : (t('player.playback_error') || 'Playback failed'));
     }
-  }, [stateRef, showPlayerLoading, failPlayerLoading, playInEmbeddedMpv, nextRetrySource, setLoadingStatus]);
+  }, [stateRef, showPlayerLoading, failPlayerLoading, playInEmbeddedMpv, nextRetrySource, setLoadingStatus, onEpisodePlaybackFailed]);
 
   const handleNativePlayerError = useCallback(async (message: string) => {
     const nextSource = nextRetrySource(playingStreamRef.current);
@@ -903,8 +924,12 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       );
       return;
     }
+    if (openSourcePickerOnFailureRef.current && playingMetaRef.current && playingEpisodeRef.current && onEpisodePlaybackFailed) {
+      await onEpisodePlaybackFailed(playingMetaRef.current, playingEpisodeRef.current, message);
+      return;
+    }
     if (!playerLoadingOverlayRef.current?.error) await failPlayerLoading(message);
-  }, [failPlayerLoading, handlePlay, nextRetrySource]);
+  }, [failPlayerLoading, handlePlay, nextRetrySource, onEpisodePlaybackFailed]);
 
   const showEpisodeTransitionLoading = useCallback((meta: Meta, episode: Video, stream: Stream) => {
     const title = playerDisplayTitle(meta, episode, stream);
@@ -944,11 +969,19 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     closePlayer,
     handlePlay,
     onPlayerError: handleNativePlayerError,
+    onEpisodePlaybackFailed,
     showEpisodeTransitionLoading,
   });
 
   const notifyFirstFrame = useCallback(() => {
-    setPlayerLoadingOverlay((prev) => (prev?.error ? prev : null));
+    if (firstFrameHandoffPendingRef.current) return;
+    firstFrameHandoffPendingRef.current = true;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        firstFrameHandoffPendingRef.current = false;
+        setPlayerLoadingOverlay((prev) => (prev?.error ? prev : null));
+      });
+    });
   }, []);
 
   const dismissSubtitleWarning = useCallback(() => {

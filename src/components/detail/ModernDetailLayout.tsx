@@ -31,6 +31,7 @@ export type ModernDetailProps = {
   selectedSeason: number;
   selectedEpisode: Video | null;
   showSources: boolean;
+  playbackFailure?: string | null;
   streams: Stream[];
   episodePlan: { seasonNumbers?: number[]; selectedSeason?: number; episodes?: Video[]; selectedEpisode?: Video | null } | null;
   similarItems: Meta[];
@@ -95,7 +96,7 @@ function GenreTag({ label, onClick }: { label: string; onClick?: () => void }) {
 
 export function ModernDetailLayout({
   displayMeta, bgUrl, isSeries, detail, meta, episodes, filteredEps, seasonNumbers,
-  selectedSeason, selectedEpisode, showSources, streams, episodePlan, similarItems,
+  selectedSeason, selectedEpisode, showSources, playbackFailure, streams, episodePlan, similarItems,
   displayTrailers, trailerMetadata, castMembers, directorLinks, peopleImages,
   watchedMap, progressMap, continueWatchingEntry, isInWatchlist, isDropped, isCompleted,
   omdbRatings, fanartArtwork, availableAddons, streamAddonCount, poster,
@@ -679,7 +680,7 @@ export function ModernDetailLayout({
       {showSources && selectedEpisode && isSeries && (
         <div style={MS.overlayBackdrop} onClick={onBackToEpisodes}>
           <div style={MS.overlaySheet} onClick={(e) => e.stopPropagation()}>
-            <InlineSourceList episode={selectedEpisode} meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} failedAddons={detail.failedAddons ?? []} streamAddonCount={streamAddonCount} onBack={onBackToEpisodes} onPlay={onPlaySource} onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))} onRetryFailed={onRetryFailed} />
+            <InlineSourceList episode={selectedEpisode} meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} failedAddons={detail.failedAddons ?? []} playbackFailure={playbackFailure} streamAddonCount={streamAddonCount} onBack={onBackToEpisodes} onPlay={onPlaySource} onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))} onRetryFailed={onRetryFailed} />
           </div>
         </div>
       )}
@@ -687,7 +688,7 @@ export function ModernDetailLayout({
       {showSources && !isSeries && (
         <div style={MS.overlayBackdrop} onClick={onBackToEpisodes}>
           <div style={MS.overlaySheet} onClick={(e) => e.stopPropagation()}>
-            <MovieSourcePanel meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} failedAddons={detail.failedAddons ?? []} streamAddonCount={streamAddonCount} onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)} onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))} onClose={onBackToEpisodes} onRetryFailed={onRetryFailed} />
+            <MovieSourcePanel meta={displayMeta} streams={streams} isLoading={!!detail.isLoadingStreams} availableAddons={availableAddons} failedAddons={detail.failedAddons ?? []} playbackFailure={playbackFailure} streamAddonCount={streamAddonCount} onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)} onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))} onClose={onBackToEpisodes} onRetryFailed={onRetryFailed} />
           </div>
         </div>
       )}

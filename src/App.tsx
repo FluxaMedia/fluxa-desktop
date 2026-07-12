@@ -102,6 +102,7 @@ export default function App() {
   const [detailInitialEpisode, setDetailInitialEpisode] = useState<Video | null>(null);
   const [detailAutoShowStreams, setDetailAutoShowStreams] = useState(false);
   const [detailResumeAt, setDetailResumeAt] = useState<number | undefined>(undefined);
+  const [detailPlaybackError, setDetailPlaybackError] = useState<string | null>(null);
   const [discoverInitialGenre, setDiscoverInitialGenre] = useState<string | null>(null);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [searchFocusSignal, setSearchFocusSignal] = useState(0);
@@ -113,8 +114,10 @@ export default function App() {
   const stateRef = useRef<AppState>(DEFAULT_STATE);
   const lastNonSettingsRouteRef = useRef<NavRoute>('home');
   const lastNonSearchRouteRef = useRef<NavRoute>('home');
+  const episodePlaybackFailureRef = useRef<(meta: Meta, episode: Video, message: string) => Promise<void>>(async () => {});
   const artworkPrefetchRef = useRef<Promise<unknown> | null>(null);
   const windowFullscreenRef = useRef(false);
+  const handleEpisodePlaybackFailed = useCallback((meta: Meta, episode: Video, message: string) => episodePlaybackFailureRef.current(meta, episode, message), []);
 
   const overlayPrefs = useCallback((merged: AppState): AppState => {
     const prefs = storedPrefsRef.current;
@@ -195,7 +198,21 @@ export default function App() {
     activeProfile,
     updateState,
     onProfileUpdated: setActiveProfile,
+    onEpisodePlaybackFailed: handleEpisodePlaybackFailed,
   });
+
+  const openEpisodeSourcePicker = useCallback(async (meta: Meta, episode: Video, message: string) => {
+    await closePlayer();
+    setDetailInitialEpisode(episode);
+    setDetailAutoShowStreams(true);
+    setDetailResumeAt(undefined);
+    setDetailPlaybackError(message);
+    setDetailMeta(meta);
+  }, [closePlayer]);
+
+  useEffect(() => {
+    episodePlaybackFailureRef.current = openEpisodeSourcePicker;
+  }, [openEpisodeSourcePicker]);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,6 +253,7 @@ export default function App() {
     totalDuration?: number,
     sourceCandidates?: Stream[],
   ) => {
+    setDetailPlaybackError(null);
     const isP2P = !!(stream.isTorrent || stream.infoHash);
     if (!isP2P) {
       await handlePlay(stream, meta, episode, resumeAt, totalDuration, sourceCandidates);
@@ -699,6 +717,7 @@ export default function App() {
             onBack={() => { void closePlayer(); setDetailMeta(null); setDetailInitialEpisode(null); setDetailAutoShowStreams(false); setDetailResumeAt(undefined); }}
             initialEpisode={detailInitialEpisode}
             autoShowStreams={detailAutoShowStreams}
+            playbackFailure={detailPlaybackError}
           />
         )}
         <div style={{ display: !showDetail && activeRoute === 'home' ? 'contents' : 'none' }}>

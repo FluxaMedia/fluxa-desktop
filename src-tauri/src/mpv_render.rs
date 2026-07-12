@@ -30,6 +30,7 @@ const MPV_RENDER_PARAM_SW_SIZE: c_int = 17;
 const MPV_RENDER_PARAM_SW_FORMAT: c_int = 18;
 const MPV_RENDER_PARAM_SW_STRIDE: c_int = 19;
 const MPV_RENDER_PARAM_SW_POINTER: c_int = 20;
+const MPV_RENDER_UPDATE_FRAME: u64 = 1 << 0;
 
 const MPV_EVENT_NONE: c_int = 0;
 const MPV_EVENT_LOG_MESSAGE: c_int = 2;
@@ -405,6 +406,8 @@ impl MpvRenderer {
         renderer.set_option("terminal", "no")?;
         renderer.set_option("config", "no")?;
         renderer.set_option("vo", "libmpv")?;
+        #[cfg(target_os = "windows")]
+        renderer.set_option("gpu-api", "opengl")?;
         renderer.set_option("idle", "yes")?;
         renderer.set_option("keep-open", "yes")?;
         if let Err(error) = renderer.set_option("osc", "no") {
@@ -433,7 +436,6 @@ impl MpvRenderer {
         renderer.set_option("cache-secs", "30")?;
         renderer.set_option("demuxer-max-bytes", "150MiB")?;
         renderer.set_option("demuxer-readahead-secs", "10")?;
-        renderer.set_option("ytdl", "no")?;
 
         // Lower audio latency and proper app name for PulseAudio/PipeWire
         renderer.set_option("audio-buffer", "0.2")?;
@@ -652,7 +654,7 @@ impl MpvRenderer {
         let height = height.clamp(2, 1080);
         self.ensure_buffer(width, height);
 
-        unsafe { (self.api.mpv_render_context_update)(self.render_context) };
+        let update_flags = unsafe { (self.api.mpv_render_context_update)(self.render_context) };
 
         let mut size = [width, height];
         let format = CString::new("rgb0").unwrap();
@@ -694,7 +696,9 @@ impl MpvRenderer {
             *alpha = 255;
         }
 
-        self.frames_rendered = self.frames_rendered.saturating_add(1);
+        if update_flags & MPV_RENDER_UPDATE_FRAME != 0 {
+            self.frames_rendered = self.frames_rendered.saturating_add(1);
+        }
 
         Ok(PlayerFrame {
             width,
@@ -719,7 +723,7 @@ impl MpvRenderer {
             self.create_opengl_context()?;
         }
 
-        unsafe { (self.api.mpv_render_context_update)(self.render_context) };
+        let update_flags = unsafe { (self.api.mpv_render_context_update)(self.render_context) };
 
         // Linux/GTK: query the offscreen FBO that GTK's GLArea binds.
         // Windows/macOS: render into the default framebuffer (FBO 0).
@@ -759,7 +763,9 @@ impl MpvRenderer {
                 self.api.error_string(result)
             ));
         }
-        self.frames_rendered = self.frames_rendered.saturating_add(1);
+        if update_flags & MPV_RENDER_UPDATE_FRAME != 0 {
+            self.frames_rendered = self.frames_rendered.saturating_add(1);
+        }
         Ok(())
     }
 
@@ -909,7 +915,7 @@ impl MpvRenderer {
                     }
                 }
                 MPV_EVENT_COMMAND_REPLY if event.error < 0 => {
-                    log::warn!(
+                    log::debug!(
                         "mpv async command failed: {}",
                         self.api.error_string(event.error)
                     );

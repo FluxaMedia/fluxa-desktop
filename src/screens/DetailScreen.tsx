@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Play } from 'lucide-react';
-import { coreDetailEpisodePlan, prewarmYoutubeTrailerConfig } from '../core/engine';
+import { coreDetailEpisodePlan } from '../core/engine';
+import { prewarmYoutubeTrailerConfig } from '../core/effectRunner';
 import { coreSupportsResource } from '../core/addonManifest';
 import { loadAddons } from '../core/libraryOps';
 import { appPrefs, prefBool, prefString } from '../core/appPrefs';
@@ -49,6 +50,7 @@ interface Props {
   onBack: () => void;
   initialEpisode?: Video | null;
   autoShowStreams?: boolean;
+  playbackFailure?: string | null;
 }
 
 function orderStreamsByPrefs(streams: Stream[], prefs: Record<string, unknown>): Stream[] {
@@ -71,7 +73,7 @@ function streamText(stream: Stream): string {
 }
 
 
-export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail, onNavigateGenre, onBack, initialEpisode, autoShowStreams }: Props) {
+export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail, onNavigateGenre, onBack, initialEpisode, autoShowStreams, playbackFailure }: Props) {
   const detail = state.detail;
   const [bgError, setBgError] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState(initialEpisode?.season ?? 1);
@@ -326,7 +328,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   const castMembers = useMemo(() => buildCastMembers(displayMeta).slice(0, 12), [displayMeta]);
 
   const directorLinks = useMemo(
-    () => (displayMeta.links ?? []).filter((l) => l.category.toLowerCase().includes('director')).slice(0, 2),
+    () => (displayMeta.links ?? []).filter((l) => String(l.category ?? '').toLowerCase().includes('director')).slice(0, 2),
     [displayMeta.links],
   );
 
@@ -384,6 +386,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
           selectedSeason={selectedSeason}
           selectedEpisode={selectedEpisode}
           showSources={showSources}
+          playbackFailure={playbackFailure}
           streams={streams}
           episodePlan={episodePlan}
           similarItems={similarItems}
@@ -591,6 +594,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
             isLoadingStreams={!!detail.isLoadingStreams}
             isLoadingEpisodes={detail.isLoading && filteredEps.length === 0}
             availableAddons={detail.availableAddons ?? []}
+            playbackFailure={playbackFailure}
             streamAddonCount={streamAddonCount}
             onBackToEpisodes={() => setShowSources(false)}
             onEpisodeClick={handleEpisodeClick}
@@ -612,6 +616,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
             isLoading={!!detail.isLoadingStreams}
             availableAddons={detail.availableAddons ?? []}
             failedAddons={detail.failedAddons ?? []}
+            playbackFailure={playbackFailure}
             streamAddonCount={streamAddonCount}
             onPlay={(stream) => onPlay(stream, displayMeta, null, undefined, streams)}
             onAddonChange={(addon) => onDispatch(JSON.stringify({ type: 'detailSelectedAddonChanged', addon }))}

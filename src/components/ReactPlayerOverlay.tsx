@@ -359,7 +359,16 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           const pixels = new Uint8ClampedArray(binary.length);
           for (let i = 0; i < binary.length; i++) pixels[i] = binary.charCodeAt(i);
           ctx.putImageData(new ImageData(pixels, frame.width, frame.height), 0, 0);
-          if (!firstFrameFiredRef.current && onFirstFrame) {
+          const status = liveStatusRef.current;
+          const position = parseFloat(status?.timePos ?? '0');
+          const hasRenderedVideo =
+            status?.loaded &&
+            status.hasVideoTrack &&
+            status.voConfigured === 'yes' &&
+            status.framesRendered >= 2 &&
+            status.pausedForCache !== 'yes' &&
+            position > 0.15;
+          if (!firstFrameFiredRef.current && onFirstFrame && hasRenderedVideo) {
             firstFrameFiredRef.current = true;
             sendCmd('set pause no');
             onFirstFrame();
@@ -560,7 +569,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       }
 
       if (!firstFrameFiredRef.current && onFirstFrame) {
-        const noVideoTrack = status.trackListReady && !status.hasVideoTrack;
         const hasVideoDimensions =
           (parseFloat(status.width ?? '0') || 0) > 0 &&
           (parseFloat(status.height ?? '0') || 0) > 0;
@@ -569,9 +577,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           status.pause !== 'yes' &&
           status.pausedForCache !== 'yes' &&
           pos > 0.15;
-        const voReady = !noVideoTrack && status.voConfigured === 'yes' && status.framesRendered >= 2 && status.pausedForCache !== 'yes';
-        const activeVideoPlayback = !noVideoTrack && status.hasVideoTrack && hasVideoDimensions && playbackAdvancing;
-        if (playbackUrl && status.path === playbackUrl && !status.resuming && (voReady || activeVideoPlayback || noVideoTrack)) {
+        const renderedVideo = status.hasVideoTrack && hasVideoDimensions && status.voConfigured === 'yes' && status.framesRendered >= 2 && playbackAdvancing;
+        const activeAudioOnlyPlayback = status.trackListReady && !status.hasVideoTrack && playbackAdvancing;
+        if (playbackUrl && status.path === playbackUrl && !status.resuming && (renderedVideo || activeAudioOnlyPlayback)) {
           firstFrameFiredRef.current = true;
           sendCmd('set pause no');
           onFirstFrame();

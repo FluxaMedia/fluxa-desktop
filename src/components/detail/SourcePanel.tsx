@@ -127,6 +127,7 @@ export function MovieSourcePanel({
   isLoading,
   availableAddons,
   failedAddons,
+  playbackFailure,
   streamAddonCount,
   onPlay,
   onAddonChange,
@@ -138,6 +139,7 @@ export function MovieSourcePanel({
   isLoading: boolean;
   availableAddons: string[];
   failedAddons?: string[];
+  playbackFailure?: string | null;
   streamAddonCount: number;
   onPlay: (stream: Stream) => void;
   onAddonChange?: (addon: string | null) => void;
@@ -199,6 +201,7 @@ export function MovieSourcePanel({
       {!isLoading && !!failedAddons?.length && (
         <FailedAddonsNotice count={failedAddons.length} onRetry={onRetryFailed} />
       )}
+      {playbackFailure && <PlaybackFailureNotice message={playbackFailure} />}
 
       <div key={selectedAddon ?? 'all'} style={EP.inlineSources}>
         {isLoading && visibleStreams.length === 0 && <div style={SS.center}><div style={spinnerStyle} /></div>}
@@ -236,6 +239,15 @@ function FailedAddonsNotice({ count, onRetry }: { count: number; onRetry?: () =>
   );
 }
 
+function PlaybackFailureNotice({ message }: { message: string }) {
+  return (
+    <div style={{ padding: '0.625rem 1rem', margin: '0.375rem 1rem 0', background: 'rgba(255,94,94,0.12)', border: '1px solid rgba(255,94,94,0.32)', borderRadius: '0.375rem' }}>
+      <div style={{ color: '#FF9A9A', fontSize: '0.75rem', fontWeight: 700 }}>{t('player.playback_error_title')}</div>
+      <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.75rem', lineHeight: 1.4, marginTop: '0.1875rem', whiteSpace: 'pre-wrap' }}>{message}</div>
+    </div>
+  );
+}
+
 export function InlineSourceList({
   episode,
   meta,
@@ -243,6 +255,7 @@ export function InlineSourceList({
   isLoading,
   availableAddons,
   failedAddons,
+  playbackFailure,
   streamAddonCount,
   onBack,
   onPlay,
@@ -255,6 +268,7 @@ export function InlineSourceList({
   isLoading: boolean;
   availableAddons: string[];
   failedAddons?: string[];
+  playbackFailure?: string | null;
   streamAddonCount: number;
   onBack: () => void;
   onPlay: (stream: Stream) => void;
@@ -324,6 +338,7 @@ export function InlineSourceList({
       {!isLoading && !!failedAddons?.length && (
         <FailedAddonsNotice count={failedAddons.length} onRetry={onRetryFailed} />
       )}
+      {playbackFailure && <PlaybackFailureNotice message={playbackFailure} />}
 
       <div key={selectedAddon ?? 'all'} style={EP.inlineSources}>
         {isLoading && visibleStreams.length === 0 && <div style={SS.center}><div style={spinnerStyle} /></div>}
