@@ -381,6 +381,31 @@ fn register_host_functions(ctx: &Ctx<'_>, dom: &Rc<DomBridge>) -> rquickjs::Resu
         })?,
     )?;
 
+    ctx.globals().set(
+        "__crypto_sign_hex",
+        Function::new(ctx.clone(), |algorithm: String, key_hex: String, data_hex: String| {
+            crypto_bridge::sign(&algorithm, &from_hex(&key_hex), &from_hex(&data_hex))
+                .map(|bytes| to_hex(&bytes))
+                .unwrap_or_default()
+        })?,
+    )?;
+
+    ctx.globals().set(
+        "__crypto_verify_hex",
+        Function::new(
+            ctx.clone(),
+            |algorithm: String, key_hex: String, signature_hex: String, data_hex: String| {
+                crypto_bridge::verify(
+                    &algorithm,
+                    &from_hex(&key_hex),
+                    &from_hex(&signature_hex),
+                    &from_hex(&data_hex),
+                )
+                .unwrap_or(false)
+            },
+        )?,
+    )?;
+
     Ok(())
 }
 
@@ -597,6 +622,8 @@ function __normalizeAlgorithmName(algo) {
     if (name.indexOf('AES-ECB') >= 0 || name === 'ECB') return 'AES-ECB';
     if (name.indexOf('PBKDF2') >= 0) return 'PBKDF2';
     if (name.indexOf('HMAC') >= 0) return 'HMAC';
+    if (name.indexOf('RSASSA-PKCS1') >= 0) return 'RSASSA-PKCS1-V1_5';
+    if (name.indexOf('ECDSA') >= 0) return 'ECDSA';
     return name;
 }
 
@@ -860,6 +887,14 @@ function __webCryptoAlgorithm(algo) {
     return out;
 }
 
+function __signatureAlgorithmName(algo, key) {
+    var name = __normalizeAlgorithmName(algo || (key && key.algorithm));
+    var hash = algo && algo.hash ? __normalizeHashName(algo.hash) : (key && key.algorithm && key.algorithm.hash ? key.algorithm.hash.name : 'SHA256');
+    if (name === 'RSASSA-PKCS1-V1_5') return 'RSASSA-PKCS1-V1_5-' + hash;
+    if (name === 'ECDSA') return 'ECDSA-' + hash;
+    return name;
+}
+
 globalThis.crypto = {
     subtle: {
         digest: async function(algo, data) {
@@ -867,13 +902,14 @@ globalThis.crypto = {
         },
         importKey: async function(fmt, data, algo, extractable, usages) {
             fmt = String(fmt || 'raw').toLowerCase();
-            if (fmt !== 'raw') throw new Error('Unsupported key format: ' + fmt + ' (pkcs8/spki need sign/verify, which are unavailable)');
+            if (fmt !== 'raw' && fmt !== 'pkcs8' && fmt !== 'spki') throw new Error('Unsupported key format: ' + fmt);
             var algorithm = __webCryptoAlgorithm(algo || {});
-            return __makeCryptoKey('secret', algorithm, extractable, usages || [], __toUint8Array(data));
+            var type = fmt === 'spki' ? 'public' : (fmt === 'pkcs8' ? 'private' : 'secret');
+            return __makeCryptoKey(type, algorithm, extractable, usages || [], __toUint8Array(data));
         },
         exportKey: async function(fmt, key) {
             fmt = String(fmt || 'raw').toLowerCase();
-            if (fmt !== 'raw') throw new Error('Unsupported key format: ' + fmt);
+            if (fmt !== 'raw' && fmt !== 'pkcs8' && fmt !== 'spki') throw new Error('Unsupported key format: ' + fmt);
             return __bytesToArrayBuffer(key._raw);
         },
         generateKey: async function(algo, extractable, usages) {
@@ -916,7 +952,9 @@ globalThis.crypto = {
                 var hash = (algo && algo.hash) || (key.algorithm && key.algorithm.hash) || 'SHA-256';
                 return __bytesToArrayBuffer(__nativeHmacBytes(hash, __toUint8Array(key._raw), __toUint8Array(data)));
             }
-            throw new Error('Native signature bridge is unavailable (RSA/ECDSA sign not supported)');
+            if (typeof __crypto_sign_hex === 'undefined') throw new Error('Native signature bridge is unavailable');
+            var sigHex = __crypto_sign_hex(__signatureAlgorithmName(algo, key), __bytesToHex(key._raw), __bytesToHex(__toUint8Array(data)));
+            return __bytesToArrayBuffer(__hexToBytes(sigHex));
         },
         verify: async function(algo, key, sig, data) {
             if (__normalizeAlgorithmName(algo || key.algorithm) === 'HMAC' || key.algorithm.name === 'HMAC') {
@@ -927,7 +965,8 @@ globalThis.crypto = {
                 for (var i = 0; i < expected.length; i++) diff |= expected[i] ^ actual[i];
                 return diff === 0;
             }
-            throw new Error('Native signature bridge is unavailable (RSA/ECDSA verify not supported)');
+            if (typeof __crypto_verify_hex === 'undefined') throw new Error('Native signature bridge is unavailable');
+            return __crypto_verify_hex(__signatureAlgorithmName(algo, key), __bytesToHex(key._raw), __bytesToHex(__toUint8Array(sig)), __bytesToHex(__toUint8Array(data)));
         }
     },
     getRandomValues: function(arr) {
@@ -1217,5 +1256,33 @@ mod tests {
             parsed[0]["title"],
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+
+    #[test]
+    fn webcrypto_ecdsa_verify_accepts_a_python_produced_signature() {
+        let key_hex = "3059301306072a8648ce3d020106082a8648ce3d030107034200049e6a723242258b9d87c8362fd321140b80e16d1671b5cb9b2dba3da7ccc42b82380102e3fd415ed40dfc8c4b4b218218995327daedc7eb35493f4f5b419aeaf8";
+        let sig_hex = "f982b6fd52964b591329f5b503627dc1dc5b7f74ff0cf9acc840ab160636a99a526a7f11ee179e77d176827ab0035ee92653e3e7408c6c8fea3f566ec79e8c8f";
+        let code = format!(
+            r#"
+            module.exports.getStreams = async function() {{
+                function hexToBytes(hex) {{
+                    var bytes = new Uint8Array(hex.length / 2);
+                    for (var i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+                    return bytes;
+                }}
+                var keyBytes = hexToBytes('{key_hex}');
+                var sigBytes = hexToBytes('{sig_hex}');
+                var key = await crypto.subtle.importKey('spki', keyBytes, {{ name: 'ECDSA', namedCurve: 'P-256' }}, false, ['verify']);
+                var ok = await crypto.subtle.verify({{ name: 'ECDSA', hash: 'SHA-256' }}, key, sigBytes, new TextEncoder().encode('hello plugin signature test'));
+                return [{{ title: String(ok), url: 'https://example.com/x' }}];
+            }};
+            "#,
+            key_hex = key_hex,
+            sig_hex = sig_hex,
+        );
+        let result =
+            execute_scraper(code, "1".to_string(), "movie".to_string(), None, None).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed[0]["title"], "true");
     }
 }

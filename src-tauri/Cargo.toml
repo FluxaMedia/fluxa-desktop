@@ -59,6 +59,9 @@ aes = "0.9.1"
 cbc = "0.2.1"
 ecb = "0.2.0"
 rand = "0.10.2"
+rsa = { version = "0.9.10", features = ["sha2"] }
+p256 = "0.14.0"
+signature = "3.0.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
