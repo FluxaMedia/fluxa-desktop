@@ -78,6 +78,8 @@ export const CORE_METHODS = [
   'playerBufferTargets',
   'playerRetryPolicy',
   'playerSourceSidebarPlan',
+  'pluginManifestParse',
+  'pluginStreamResultsParse',
   'preferencesSchema',
   'rememberLastWatchedEpisodes',
   'replaceExternalContinueWatching',
