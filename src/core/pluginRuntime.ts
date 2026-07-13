@@ -70,3 +70,14 @@ export async function fetchPluginStreams(
 
   return results.flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
 }
+
+export async function fetchPluginManifestEffect(payload: Record<string, unknown>): Promise<unknown> {
+  const manifestUrl = payload.manifestUrl as string;
+  const response = await httpFetchText(manifestUrl);
+  if (response.statusCode < 200 || response.statusCode >= 300 || !response.body) {
+    throw new Error(`failed to fetch plugin manifest: HTTP ${response.statusCode}`);
+  }
+  const manifest = await coreInvoke<Record<string, unknown>>('pluginManifestParse', response.body);
+  if (!manifest) throw new Error('invalid plugin manifest');
+  return { manifestUrl, manifest };
+}

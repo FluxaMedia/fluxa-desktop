@@ -17,6 +17,7 @@ import {
 import { notify } from './notifications';
 import { t } from '../i18n';
 import { fetchAddonManifest, fetchAddonResource, refreshInstalledAddons } from './addonEffects';
+import { fetchPluginManifestEffect } from './pluginRuntime';
 import { fetchCatalogPage, readDiscoverCatalogFilters, runDiscover, runSearch } from './catalogEffects';
 import {
   fetchDetailSecondary,
@@ -287,6 +288,9 @@ async function runEffect(
       break;
     case 'fetchAddonResource':
       value = await fetchAddonResource(p);
+      break;
+    case 'fetchPluginManifest':
+      value = await fetchPluginManifestEffect(p);
       break;
 
     case 'fetchYoutubeTrailerWatchConfig':
