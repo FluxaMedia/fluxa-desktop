@@ -80,6 +80,7 @@ export const CORE_METHODS = [
   'playerSourceSidebarPlan',
   'pluginManifestParse',
   'pluginStreamResultsParse',
+  'pluginStreamResultsToStreams',
   'preferencesSchema',
   'rememberLastWatchedEpisodes',
   'replaceExternalContinueWatching',

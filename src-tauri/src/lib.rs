@@ -15,6 +15,7 @@ mod mpv_render;
 mod net_guard;
 mod oauth;
 mod player;
+mod plugin_runtime;
 mod poster_cache;
 mod roku;
 mod sleep_inhibitor;
@@ -259,6 +260,21 @@ async fn http_execute_text(
     let status_code = response.status().as_u16();
     let body = response.text().await.map_err(|e| e.to_string())?;
     Ok(HttpTextResponse { status_code, body })
+}
+
+#[tauri::command]
+async fn run_plugin_scraper(
+    code: String,
+    tmdb_id: String,
+    media_type: String,
+    season: Option<i32>,
+    episode: Option<i32>,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        plugin_runtime::execute_scraper(code, tmdb_id, media_type, season, episode)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -809,6 +825,7 @@ pub fn run() {
             library_continue_watching_upsert,
             library_continue_watching_delete,
             core_invoke,
+            run_plugin_scraper,
             start_torrent_stream,
             stop_torrent_stream,
             register_trailer_proxy_url,
