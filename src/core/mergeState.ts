@@ -122,7 +122,8 @@ function mergeContinueWatching(
 function backfillLibraryItem(prev: LibraryItem, next: LibraryItem): LibraryItem {
   if (prev.id !== next.id) return next;
   const name = next.name || prev.name;
-  const lastEpisodeName = next.lastEpisodeName || prev.lastEpisodeName;
+  const canReuseEpisodeDetails = !next.lastVideoId || next.lastVideoId === prev.lastVideoId;
+  const lastEpisodeName = next.lastEpisodeName || (canReuseEpisodeDetails ? prev.lastEpisodeName : undefined);
   if (name === next.name && lastEpisodeName === next.lastEpisodeName) return next;
   return { ...next, name, lastEpisodeName };
 }
