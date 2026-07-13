@@ -72,6 +72,16 @@ export async function registerTrailerProxyUrl(url: string): Promise<string> {
   return invoke<string>('register_trailer_proxy_url', { url });
 }
 
+export async function runPluginScraper(
+  code: string,
+  tmdbId: string,
+  mediaType: string,
+  season: number | null,
+  episode: number | null,
+): Promise<string> {
+  return invoke<string>('run_plugin_scraper', { code, tmdbId, mediaType, season, episode });
+}
+
 export interface YoutubeTrailerSubtitleTrack {
   languageTag: string;
   label: string;

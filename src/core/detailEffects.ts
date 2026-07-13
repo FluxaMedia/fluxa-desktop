@@ -9,6 +9,7 @@ import {
 import { loadAddons, loadActiveProfile, loadPrefs } from './libraryOps';
 import { fetchPlannedResources } from './fetchPlanning';
 import { tryFetchJson } from './httpClient';
+import { fetchPluginStreams } from './pluginRuntime';
 import { resolveTmdbId, tmdbContentType, tmdbUrl } from './tmdbShared';
 import { fetchTraktSimilarItems, fetchSimklSimilarItems } from './similarTitles';
 import { isTraktConnected, isSimklConnected } from './profiles';
@@ -128,6 +129,26 @@ export async function fetchMetaVideos(id: string, contentType: string): Promise<
   }
 }
 
+async function fetchPluginStreamsForDetail(
+  contentType: string,
+  id: string | undefined,
+): Promise<Array<Record<string, unknown>>> {
+  if (!id) return [];
+  try {
+    const prefs = { ...DEFAULT_APP_PREFS, ...(await loadPrefs()) };
+    const apiKey = prefString(prefs, 'tmdbApiKey');
+    const language = prefString(prefs, 'language', 'en');
+    const [parsed, tmdbId] = await Promise.all([
+      coreParseVideoId(id),
+      resolveTmdbId({ contentType, id, language, apiKey }),
+    ]);
+    if (!tmdbId) return [];
+    return await fetchPluginStreams(contentType, tmdbId, parsed.season, parsed.episode);
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchDetailStreams(
   payload: Record<string, unknown>,
   onStateUpdate?: (state: Partial<AppState>) => void,
@@ -172,6 +193,9 @@ export async function fetchDetailStreams(
   await Promise.allSettled(partialDispatches);
 
   const streams = values.flatMap((value) => ((value as { streams?: unknown[] })?.streams ?? []));
+
+  const pluginStreams = await fetchPluginStreamsForDetail(contentType, idField);
+  if (pluginStreams.length > 0) streams.push(...pluginStreams);
 
   const availableAddons = [...new Set(
     (streams as Array<{ addonName?: string }>).map((s) => s.addonName).filter(Boolean),
