@@ -1,5 +1,5 @@
 import type { LibraryItem, Meta } from './types';
-import { coreContinueWatchingCardFields } from './engine';
+import { coreContinueWatchingCardFields, coreInvoke } from './engine';
 import { t, getLanguage } from '../i18n';
 
 // Batched for a whole Continue Watching row — one IPC round trip for the whole list
@@ -30,31 +30,16 @@ export function formatRemaining(offset: number, duration: number): string {
   return m === 0 ? t('format.remaining_hours', h) : t('format.remaining_hours_minutes', h, m);
 }
 
-function endOfCurrentWeek(now: number): number {
-  const d = new Date(now);
-  const daysUntilSunday = (7 - d.getDay()) % 7;
-  d.setDate(d.getDate() + daysUntilSunday);
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
-}
-
-export function partitionThisWeek(
+export async function partitionThisWeek(
   items: Meta[],
   keepScheduled: boolean,
-): { thisWeek: Meta[]; continueWatching: Meta[] } {
-  const weekEnd = endOfCurrentWeek(Date.now());
-  const thisWeek: Meta[] = [];
-  const thisWeekIds = new Set<string>();
-  for (const item of items) {
-    const lib = item as unknown as { continueWatchingBadge?: string; newEpisodeReleasedAt?: string };
-    if (lib.continueWatchingBadge !== 'scheduledEpisode' || !lib.newEpisodeReleasedAt) continue;
-    if (new Date(lib.newEpisodeReleasedAt).getTime() <= weekEnd) {
-      thisWeek.push(item);
-      thisWeekIds.add(item.id);
-    }
-  }
-  const continueWatching = keepScheduled ? items : items.filter((m) => !thisWeekIds.has(m.id));
-  return { thisWeek, continueWatching };
+): Promise<{ thisWeek: Meta[]; continueWatching: Meta[] }> {
+  const result = await coreInvoke<{ thisWeek: Meta[]; continueWatching: Meta[] }>('partitionThisWeek', JSON.stringify({
+    itemsJson: JSON.stringify(items),
+    nowMs: Date.now(),
+    keepScheduled,
+  }));
+  return result ?? { thisWeek: [], continueWatching: items };
 }
 
 export function formatAirDay(date?: string): string {

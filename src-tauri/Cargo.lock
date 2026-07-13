@@ -1688,7 +1688,7 @@ dependencies = [
 
 [[package]]
 name = "fluxa-desktop"
-version = "0.0.0"
+version = "0.1.27"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Play } from 'lucide-react';
-import { coreDetailEpisodePlan } from '../core/engine';
+import { coreDetailEpisodePlan, coreInvoke } from '../core/engine';
 import { prewarmYoutubeTrailerConfig } from '../core/effectRunner';
 import { coreSupportsResource } from '../core/addonManifest';
 import { loadAddons } from '../core/libraryOps';
@@ -8,11 +8,11 @@ import { appPrefs, prefBool, prefString } from '../core/appPrefs';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { seasonPosterUrl } from '../core/seasonPosters';
 import { MovieCard } from '../components/MovieCard';
-import type { AppState, LibraryItem, Meta, Stream, Video } from '../core/types';
+import type { AppState, LibraryItem, Meta, MetaLink, Stream, Video } from '../core/types';
 import { getLanguage, t } from '../i18n';
 import { fetchTmdbPeopleImages } from '../core/tmdb';
 import { NAV_RAIL_WIDTH, TOP_BAR_H, S } from '../components/detail/detailStyles';
-import { buildCastMembers, CastAvatar } from '../components/detail/castSection';
+import { buildCastMembers, CastAvatar, type NormalizedCastMember } from '../components/detail/castSection';
 import { TrailerCarousel, fetchYoutubeTrailerMetadata, youtubeVideoId, type TrailerMetadata } from '../components/detail/TrailerCarousel';
 import { MovieSourcePanel } from '../components/detail/SourcePanel';
 import { EpisodePanel, type ProgressEntry } from '../components/detail/EpisodePanel';
@@ -325,12 +325,18 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isSeries, selectedEpisode, filteredEps, episodes, openEpisodeSources, openMovieSources]);
 
-  const castMembers = useMemo(() => buildCastMembers(displayMeta).slice(0, 12), [displayMeta]);
-
-  const directorLinks = useMemo(
-    () => (displayMeta.links ?? []).filter((l) => String(l.category ?? '').toLowerCase().includes('director')).slice(0, 2),
-    [displayMeta.links],
-  );
+  const [castMembers, setCastMembers] = useState<NormalizedCastMember[]>([]);
+  const [directorLinks, setDirectorLinks] = useState<MetaLink[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    buildCastMembers(displayMeta).then((members) => {
+      if (!cancelled) setCastMembers(members.slice(0, 12));
+    });
+    coreInvoke<{ directors: MetaLink[] }>('classifyMetaLinks', JSON.stringify(displayMeta.links ?? [])).then((result) => {
+      if (!cancelled) setDirectorLinks((result?.directors ?? []).slice(0, 2));
+    });
+    return () => { cancelled = true; };
+  }, [displayMeta]);
 
   useEffect(() => {
     const prefs = appPrefs(state);

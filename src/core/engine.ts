@@ -575,6 +575,10 @@ export async function coreParseIntroDbSegments(dataJson: string): Promise<unknow
   return coreInvoke('parseIntroDbSegments', dataJson);
 }
 
+export async function coreAniListMalId(dataJson: string): Promise<number | null> {
+  return coreInvoke('anilistMalId', dataJson);
+}
+
 export async function coreParseAniskipResults(resultsJson: string): Promise<unknown[] | null> {
   return coreInvoke('parseAniskipResults', resultsJson);
 }

@@ -9,7 +9,8 @@ import { CollectionShelfRow } from '../components/CollectionShelfRow';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefBool, prefString } from '../core/appPrefs';
 import { buildResourceUrl } from '../core/addonManifest';
-import { httpFetchText, prewarmYoutubeTrailerConfig } from '../core/engine';
+import { httpFetchText } from '../core/engine';
+import { prewarmYoutubeTrailerConfig } from '../core/effectRunner';
 import { fetchTmdbTrailers } from '../core/detailEffects';
 import { youtubeVideoId } from '../components/detail/TrailerCarousel';
 import type { AppState, HomeCategory, Meta, NuvioRemoteCollectionSource, Trailer } from '../core/types';
@@ -397,10 +398,16 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   const cwProgressDirection = String(cwSettingsValues?.continueWatchingProgressDirection ?? 'remaining');
   const keepScheduled = prefBool(prefs, 'continueWatchingKeepScheduled', false);
   const showThisWeek = prefBool(prefs, 'continueWatchingShowThisWeek', true);
-  const { thisWeek, continueWatching: cwItems } = useMemo(
-    () => partitionThisWeek(continueWatching, keepScheduled || !showThisWeek),
-    [continueWatching, keepScheduled, showThisWeek],
+  const [{ thisWeek, continueWatching: cwItems }, setCwPartition] = useState<{ thisWeek: Meta[]; continueWatching: Meta[] }>(
+    { thisWeek: [], continueWatching },
   );
+  useEffect(() => {
+    let cancelled = false;
+    partitionThisWeek(continueWatching, keepScheduled || !showThisWeek).then((result) => {
+      if (!cancelled) setCwPartition(result);
+    });
+    return () => { cancelled = true; };
+  }, [continueWatching, keepScheduled, showThisWeek]);
 
   if (home.isLoading && !billboard && categories.length === 0) {
     return <LoadingSkeleton />;

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { coreInvoke } from '../../core/engine';
 import type { CastMember, Meta, MetaLink } from '../../core/types';
 
 export type NormalizedCastMember = {
@@ -7,7 +8,7 @@ export type NormalizedCastMember = {
   imageUrl?: string;
 };
 
-export function buildCastMembers(meta: Meta): NormalizedCastMember[] {
+export async function buildCastMembers(meta: Meta): Promise<NormalizedCastMember[]> {
   const record = meta as Meta & { app_extras?: { cast?: unknown[] }; appExtras?: { cast?: unknown[] } };
   const rawCast = [
     ...castArray(record.cast),
@@ -17,9 +18,9 @@ export function buildCastMembers(meta: Meta): NormalizedCastMember[] {
   const fromCast = rawCast.map(normalizeCastMember).filter(Boolean) as NormalizedCastMember[];
   if (fromCast.length > 0) return uniqueCastMembers(fromCast);
 
+  const classified = await coreInvoke<{ cast: MetaLink[] }>('classifyMetaLinks', JSON.stringify(meta.links ?? []));
   return uniqueCastMembers(
-    (meta.links ?? [])
-      .filter(isCastLink)
+    (classified?.cast ?? [])
       .map((link) => ({ name: link.name.trim() }))
       .filter((member) => member.name),
   );
@@ -28,11 +29,6 @@ export function buildCastMembers(meta: Meta): NormalizedCastMember[] {
 function castArray(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   return value ? [value] : [];
-}
-
-function isCastLink(link: MetaLink): boolean {
-  const category = link.category.toLowerCase();
-  return ['cast', 'actor', 'actors', 'starring'].some((key) => category.includes(key));
 }
 
 function normalizeCastMember(value: unknown): NormalizedCastMember | null {

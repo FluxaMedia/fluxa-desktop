@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { t } from '../i18n';
-import type { Meta } from '../core/types';
+import { coreInvoke } from '../core/engine';
+import type { Meta, MetaLink } from '../core/types';
 
 export function DiscoverDetailPanel({
   meta,
@@ -14,23 +15,17 @@ export function DiscoverDetailPanel({
   const [imgErr, setImgErr] = useState(false);
   const bgUrl = !imgErr ? (meta.background ?? meta.poster) : null;
 
-  const cast = useMemo(
-    () =>
-      (meta.links ?? [])
-        .filter((l) => l.category.toLowerCase().includes('cast') || l.category.toLowerCase() === 'actor')
-        .map((l) => l.name)
-        .slice(0, 4),
-    [meta.links],
-  );
-
-  const directors = useMemo(
-    () =>
-      (meta.links ?? [])
-        .filter((l) => l.category.toLowerCase().includes('director'))
-        .map((l) => l.name)
-        .slice(0, 2),
-    [meta.links],
-  );
+  const [cast, setCast] = useState<string[]>([]);
+  const [directors, setDirectors] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    coreInvoke<{ cast: MetaLink[]; directors: MetaLink[] }>('classifyMetaLinks', JSON.stringify(meta.links ?? [])).then((result) => {
+      if (cancelled) return;
+      setCast((result?.cast ?? []).map((l) => l.name).slice(0, 4));
+      setDirectors((result?.directors ?? []).map((l) => l.name).slice(0, 2));
+    });
+    return () => { cancelled = true; };
+  }, [meta.links]);
 
   const handleToggleWatchlist = useCallback(
     () => onDispatch(JSON.stringify({ type: 'toggleWatchlistRequested', item: meta })),

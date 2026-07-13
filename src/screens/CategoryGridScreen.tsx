@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, LayoutGrid, Play, Plus, TriangleAlert } from 'lucide-react';
-import type { Meta } from '../core/types';
+import type { Meta, MetaLink } from '../core/types';
 import type { PosterPrefs } from '../core/posterPrefs';
 import { ModernTabBar } from '../components/detail/DetailButtons';
+import { coreInvoke } from '../core/engine';
 import { t } from '../i18n';
 
 interface Props {
@@ -148,15 +149,17 @@ function DetailPanel({ meta, onPlay, onDispatch }: { meta: Meta; onPlay: () => v
   const [imgErr, setImgErr] = useState(false);
   const bgUrl = !imgErr ? (meta.background ?? meta.poster) : null;
 
-  const cast = (meta.links ?? [])
-    .filter((l) => l.category.toLowerCase().includes('cast') || l.category.toLowerCase() === 'actor')
-    .map((l) => l.name)
-    .slice(0, 4);
-
-  const directors = (meta.links ?? [])
-    .filter((l) => l.category.toLowerCase().includes('director'))
-    .map((l) => l.name)
-    .slice(0, 2);
+  const [cast, setCast] = useState<string[]>([]);
+  const [directors, setDirectors] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    coreInvoke<{ cast: MetaLink[]; directors: MetaLink[] }>('classifyMetaLinks', JSON.stringify(meta.links ?? [])).then((result) => {
+      if (cancelled) return;
+      setCast((result?.cast ?? []).map((l) => l.name).slice(0, 4));
+      setDirectors((result?.directors ?? []).map((l) => l.name).slice(0, 2));
+    });
+    return () => { cancelled = true; };
+  }, [meta.links]);
 
   return (
     <div style={DP.wrap}>

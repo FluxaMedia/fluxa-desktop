@@ -1,7 +1,9 @@
 export type IntroSegmentResult = { startTime: number; endTime: number; type: string };
 
 import {
+  coreInvoke,
   coreMergeIntroSegments,
+  coreAniListMalId,
   coreParseAnimeSkipResults,
   coreParseAniskipResults,
   coreParseIntroDbSegments,
@@ -102,10 +104,12 @@ async function fetchAnimeSkipSegments(
     { showId },
   );
   const episodes = episodesData?.findEpisodesByShowId ?? [];
-  const matched = episodes.find((ep) =>
-    (season <= 0 || ep.season == null || Number(ep.season) === season) && Number(ep.number) === episode,
-  ) ?? episodes.find((ep) => Number(ep.absoluteNumber) === episode);
-  if (!matched?.id) return null;
+  const matchedId = await coreInvoke<string | null>('matchAnimeSkipEpisodeId', JSON.stringify({
+    episodesJson: JSON.stringify(episodes),
+    season,
+    episode,
+  }));
+  if (!matchedId) return null;
 
   const timestampsData = await animeSkipGraphql<{
     findTimestampsByEpisodeId?: Array<{ at?: number; type?: { name?: string } }>;
@@ -114,7 +118,7 @@ async function fetchAnimeSkipSegments(
     `query ($episodeId: ID!) {
       findTimestampsByEpisodeId(episodeId: $episodeId) { at type { name } }
     }`,
-    { episodeId: matched.id },
+    { episodeId: matchedId },
   );
   const timestamps = timestampsData?.findTimestampsByEpisodeId ?? [];
   if (timestamps.length === 0) return null;
@@ -180,7 +184,13 @@ export async function submitIntroDbSegments(payload: {
 async function resolveMalId(title: string): Promise<number | null> {
   const query = title.replace(/\s+\(\d{4}\)$/, '').trim();
   if (query.length < 2) return null;
-  const data = await tryFetchJson(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&limit=5`);
-  const items = (data as { data?: Array<{ mal_id?: number }> } | null)?.data ?? [];
-  return items.find((item) => typeof item.mal_id === 'number' && item.mal_id > 0)?.mal_id ?? null;
+  const data = await tryFetchJson('https://graphql.anilist.co', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query: `query ($search: String) { Media(search: $search, type: ANIME) { idMal } }`,
+      variables: { search: query },
+    }),
+  });
+  return data ? coreAniListMalId(JSON.stringify(data)) : null;
 }

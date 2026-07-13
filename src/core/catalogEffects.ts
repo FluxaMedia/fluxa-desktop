@@ -1,4 +1,4 @@
-import { coreSearchResultGrouping } from './engine';
+import { coreInvoke, coreSearchResultGrouping } from './engine';
 import { coreResourceFetchPlan } from './addonManifest';
 import { loadAddons, loadPrefs } from './libraryOps';
 import { fetchPlannedResources, fetchParsedAddonResource, resourceForPlannedRequest } from './fetchPlanning';
@@ -33,16 +33,15 @@ export async function runSearch(payload: Record<string, unknown>): Promise<unkno
 
   const addons = await loadAddons();
   const plan = await coreResourceFetchPlan({ kind: 'search', query, addons });
-  const categories: Array<{
+  const sources: Array<{
     id: string;
-    name: string;
-    semanticName: string;
-    type: string;
+    name?: string;
+    semanticName?: string;
+    type?: string;
     items: unknown[];
     addonName?: string;
     catalogId?: string;
   }> = [];
-  const results: unknown[] = [];
 
   await Promise.all((plan?.requests ?? []).map(async (request) => {
     const url = typeof request.url === 'string' ? request.url : '';
@@ -57,13 +56,11 @@ export async function runSearch(payload: Record<string, unknown>): Promise<unkno
     );
     const items = ((parsed?.items as unknown[] | undefined) ?? []);
     if (!items.length) return;
-    results.push(...items);
     if (searchAbortController === abortController) _searchPartialHandler?.(query, items);
-    categories.push({
+    sources.push({
       id: String(request.categoryId ?? url),
-      name: String(request.categoryName ?? request.addonName ?? 'Search results'),
-      semanticName: String(request.categoryName ?? request.addonName ?? 'Search results'),
-      type: String(request.catalogType ?? 'mixed'),
+      name: request.categoryName ? String(request.categoryName) : (typeof request.addonName === 'string' ? request.addonName : undefined),
+      type: request.catalogType ? String(request.catalogType) : undefined,
       items,
       addonName: typeof request.addonName === 'string' ? request.addonName : undefined,
       catalogId: typeof request.catalogId === 'string' ? request.catalogId : undefined,
@@ -76,21 +73,18 @@ export async function runSearch(payload: Record<string, unknown>): Promise<unkno
     await Promise.all((['movie', 'series'] as const).map(async (type) => {
       const { metas } = await fetchBuiltinCatalog(type, { search: query }, tmdbApiKey, String(prefs.language ?? 'en'));
       if (searchAbortController !== abortController || !metas.length) return;
-      results.push(...metas);
       _searchPartialHandler?.(query, metas);
-      categories.push({
-        id: `tmdb:${type}`,
-        name: 'TMDB',
-        semanticName: 'TMDB',
-        type,
-        items: metas,
-        addonName: 'TMDB',
-      });
+      sources.push({ id: `tmdb:${type}`, name: 'TMDB', type, items: metas, addonName: 'TMDB' });
     }));
   }
 
-  const grouping = await coreSearchResultGrouping({ query, results });
-  const value = { results, categories, grouping };
+  const merged = (await coreInvoke<{ results: unknown[]; categories: unknown[] }>(
+    'mergeSearchSources',
+    JSON.stringify(sources),
+  )) ?? { results: [], categories: [] };
+
+  const grouping = await coreSearchResultGrouping({ query, results: merged.results });
+  const value = { results: merged.results, categories: merged.categories, grouping };
   if (searchAbortController === abortController) searchResultsCache.set(cacheKey, value);
   return value;
 }

@@ -1,5 +1,6 @@
 import {
   coreBuildContinueWatchingFromProgress,
+  coreInvoke,
   coreNormalizeLibraryDocument,
   libraryContinueWatchingDelete,
   libraryContinueWatchingList,
@@ -107,16 +108,23 @@ export async function buildContinueWatching(progressMap: Record<string, unknown>
   return (await coreBuildContinueWatchingFromProgress(JSON.stringify(progressMap))) ?? [];
 }
 
+async function diffPlan<T>(method: 'watchedMapDiff' | 'valueMapDiff' | 'itemListDiff' | 'itemListNewEntries', before: unknown, after: unknown): Promise<T | null> {
+  return coreInvoke<T>(method, JSON.stringify({
+    beforeJson: JSON.stringify(before),
+    afterJson: JSON.stringify(after),
+  }));
+}
+
 export async function persistStatusListMerge(
   before: Record<string, unknown>[],
   after: Record<string, unknown>[],
   list: 'watchlist' | 'completed' | 'dropped',
 ): Promise<void> {
-  const beforeIds = new Set(before.map((item) => item.id as string | undefined).filter(Boolean));
   const key = await effectRunnerLibraryKey();
-  for (const item of after) {
+  const newEntries = (await diffPlan<Record<string, unknown>[]>('itemListNewEntries', before, after)) ?? [];
+  for (const item of newEntries) {
     const id = item.id as string | undefined;
-    if (id && !beforeIds.has(id)) await libraryStatusSet(key, id, list, item);
+    if (id) await libraryStatusSet(key, id, list, item);
   }
 }
 
@@ -125,8 +133,9 @@ export async function persistWatchedMerge(
   after: Record<string, boolean>,
 ): Promise<void> {
   const key = await effectRunnerLibraryKey();
-  for (const [id, value] of Object.entries(after)) {
-    if (before[id] !== value) await libraryWatchedSet(key, id, value);
+  const changed = (await diffPlan<Array<{ id: string; value: boolean }>>('watchedMapDiff', before, after)) ?? [];
+  for (const { id, value } of changed) {
+    await libraryWatchedSet(key, id, value);
   }
 }
 
@@ -141,20 +150,12 @@ export async function persistContinueWatchingMerge(
   after: Record<string, unknown>[],
 ): Promise<void> {
   const key = await effectRunnerLibraryKey();
-  const beforeById = new Map<string, Record<string, unknown>>();
-  for (const item of before) {
-    const id = item.id as string | undefined;
-    if (id) beforeById.set(id, item);
+  const plan = await diffPlan<{ upserts: Record<string, unknown>[]; deletes: string[] }>('itemListDiff', before, after);
+  for (const item of plan?.upserts ?? []) {
+    await libraryContinueWatchingUpsert(key, item.id as string, item);
   }
-  const afterIds = new Set<string>();
-  for (const item of after) {
-    const id = item.id as string | undefined;
-    if (!id) continue;
-    afterIds.add(id);
-    if (JSON.stringify(beforeById.get(id)) !== JSON.stringify(item)) await libraryContinueWatchingUpsert(key, id, item);
-  }
-  for (const id of beforeById.keys()) {
-    if (!afterIds.has(id)) await libraryContinueWatchingDelete(key, id);
+  for (const id of plan?.deletes ?? []) {
+    await libraryContinueWatchingDelete(key, id);
   }
 }
 
@@ -163,10 +164,11 @@ export async function persistProgressMerge(
   after: Record<string, unknown>,
 ): Promise<void> {
   const key = await effectRunnerLibraryKey();
-  for (const [id, value] of Object.entries(after)) {
-    if (JSON.stringify(before[id]) !== JSON.stringify(value)) await libraryProgressUpsert(key, id, value);
+  const plan = await diffPlan<{ upserts: Array<{ id: string; value: unknown }>; deletes: string[] }>('valueMapDiff', before, after);
+  for (const { id, value } of plan?.upserts ?? []) {
+    await libraryProgressUpsert(key, id, value);
   }
-  for (const id of Object.keys(before)) {
-    if (!(id in after)) await libraryProgressDelete(key, id);
+  for (const id of plan?.deletes ?? []) {
+    await libraryProgressDelete(key, id);
   }
 }

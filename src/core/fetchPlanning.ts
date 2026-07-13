@@ -1,17 +1,12 @@
 import {
   coreParseAndPlanAddonResource,
-  coreResourceFetchPlan,
+  coreResourceFetchExecutionPolicy,
 } from './addonManifest';
 import { coreResourceKindToResource } from './engine';
 import { _appVersion, platformFetch } from './httpClient';
 import { loadPrefs } from './libraryOps';
 import { fetchBuiltinCatalog, fetchBuiltinMeta, fetchBuiltinSeasonEpisodes, isBuiltinTmdbAddon } from './tmdbAddon';
 import type { AddonDescriptor, Video } from './types';
-
-const FETCH_PLAN_CONCURRENCY = 12;
-const STREAM_FETCH_TIMEOUT_MS = 60_000;
-const STREAM_RETRY_TIMEOUT_MS = 20_000;
-const STREAM_MAX_ATTEMPTS = 3;
 
 export type FetchPlanRequest = {
   url?: unknown;
@@ -89,12 +84,13 @@ async function fetchAddonResourceOutcome(
   url: string,
   resource: string,
   kind: unknown,
+  streamRetry: { maxAttempts: number; fetchTimeoutMs: number; retryTimeoutMs: number },
   addonName?: unknown,
   season?: unknown,
   signal?: AbortSignal,
 ): Promise<AddonFetchOutcome> {
   const canRetry = resource === 'stream' && !signal;
-  const maxAttempts = canRetry ? STREAM_MAX_ATTEMPTS : 1;
+  const maxAttempts = canRetry ? streamRetry.maxAttempts : 1;
   let result: Awaited<ReturnType<typeof coreParseAndPlanAddonResource>> | undefined;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     let statusCode = 0;
@@ -102,7 +98,7 @@ async function fetchAddonResourceOutcome(
     try {
       const response = await platformFetch(url, {
         headers: { 'User-Agent': `Fluxa/${_appVersion}` },
-        signal: signal ?? (resource === 'stream' ? AbortSignal.timeout(attempt === 0 ? STREAM_FETCH_TIMEOUT_MS : STREAM_RETRY_TIMEOUT_MS) : undefined),
+        signal: signal ?? (resource === 'stream' ? AbortSignal.timeout(attempt === 0 ? streamRetry.fetchTimeoutMs : streamRetry.retryTimeoutMs) : undefined),
       });
       statusCode = response.status;
       body = await response.text();
@@ -128,6 +124,8 @@ async function fetchAddonResourceOutcome(
   return { value: null, failed: result.kind === 'network_error' || result.kind === 'parse_error' };
 }
 
+const DEFAULT_STREAM_RETRY = { maxAttempts: 3, fetchTimeoutMs: 60_000, retryTimeoutMs: 20_000 };
+
 export async function fetchParsedAddonResource(
   url: string,
   resource: string,
@@ -135,8 +133,9 @@ export async function fetchParsedAddonResource(
   addonName?: unknown,
   season?: unknown,
   signal?: AbortSignal,
+  streamRetry: { maxAttempts: number; fetchTimeoutMs: number; retryTimeoutMs: number } = DEFAULT_STREAM_RETRY,
 ): Promise<Record<string, unknown> | null> {
-  return (await fetchAddonResourceOutcome(url, resource, kind, addonName, season, signal)).value;
+  return (await fetchAddonResourceOutcome(url, resource, kind, streamRetry, addonName, season, signal)).value;
 }
 
 export async function fetchPlannedResources(
@@ -145,8 +144,9 @@ export async function fetchPlannedResources(
   signal?: AbortSignal,
   onAddonFailed?: (addonName: string) => void,
 ): Promise<unknown[]> {
-  const plan = await coreResourceFetchPlan(request);
-  let requests = (plan?.requests ?? []) as FetchPlanRequest[];
+  const policy = await coreResourceFetchExecutionPolicy(request);
+  let requests = (policy?.requests ?? []) as FetchPlanRequest[];
+  const streamRetry = policy?.streamRetry ?? DEFAULT_STREAM_RETRY;
 
   const builtinRequest = await buildBuiltinRequest(request);
   if (builtinRequest) {
@@ -154,11 +154,14 @@ export async function fetchPlannedResources(
     requests = prefs.tmdbPreferOverAddons ? [builtinRequest, ...requests] : [...requests, builtinRequest];
   }
 
-  // When every request has stopOnFirstResult (e.g. metaDetail, seasonEpisodes),
-  // fire all addon requests in parallel and take the first non-empty result.
-  // This eliminates sequential per-addon latency: instead of waiting for each
-  // addon to fail before trying the next, all race simultaneously.
-  if (requests.length > 1 && requests.every((r) => r.stopOnFirstResult)) {
+  // A builtin request can join the list after the core-computed policy was derived
+  // (it's a local closure core can't see), so whether the merged list still qualifies
+  // to race is re-checked here rather than trusting policy.mode as-is.
+  const mode = requests.length > 1 && requests.every((r) => r.stopOnFirstResult) ? 'race' : 'fanout';
+
+  // Race mode (e.g. metaDetail, seasonEpisodes): fire all addon requests in parallel
+  // and take the first non-empty result, eliminating sequential per-addon latency.
+  if (mode === 'race') {
     const isNonEmpty = (parsed: Record<string, unknown> | null): parsed is Record<string, unknown> =>
       !!parsed && Object.values(parsed).some((v) => (Array.isArray(v) ? v.length > 0 : v != null));
 
@@ -179,6 +182,7 @@ export async function fetchPlannedResources(
             item.addonName,
             request.season,
             signal,
+            streamRetry,
           );
           if (!isNonEmpty(parsed)) throw new Error('empty');
           return parsed;
@@ -190,12 +194,12 @@ export async function fetchPlannedResources(
     }
   }
 
-  // Parallel path: fetch addon requests with bounded concurrency (firing all of them
+  // Fan-out path: fetch addon requests with bounded concurrency (firing all of them
   // at once for something like discover, which can fan out to dozens of addons,
   // causes a burst of concurrent network/JSON-parse/render work right as results land).
   // Each result is reported via onPartialResult as it arrives for progressive display.
   const values: unknown[] = [];
-  await runWithConcurrency(requests, FETCH_PLAN_CONCURRENCY, async (item) => {
+  await runWithConcurrency(requests, policy?.concurrency ?? 12, async (item) => {
     if (isBuiltinRequest(item)) {
       try {
         const value = await item.__builtinResolve();
@@ -215,6 +219,7 @@ export async function fetchPlannedResources(
         url,
         await resourceForPlannedRequest(item.kind, request.resource, item.resource),
         item.kind,
+        streamRetry,
         item.addonName,
         request.season,
         signal,

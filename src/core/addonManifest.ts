@@ -145,6 +145,17 @@ export async function coreResourceFetchPlan(request: unknown): Promise<{ request
   return coreInvoke('resourceFetchPlan', JSON.stringify(request));
 }
 
+export type ResourceFetchExecutionPolicy = {
+  requests: Array<Record<string, unknown>>;
+  mode: 'race' | 'fanout';
+  concurrency: number;
+  streamRetry: { maxAttempts: number; fetchTimeoutMs: number; retryTimeoutMs: number };
+};
+
+export async function coreResourceFetchExecutionPolicy(request: unknown): Promise<ResourceFetchExecutionPolicy | null> {
+  return coreInvoke('resourceFetchExecutionPolicy', JSON.stringify(request));
+}
+
 export async function coreResourceParsePlan(request: unknown): Promise<Record<string, unknown> | null> {
   return coreInvoke('resourceParsePlan', JSON.stringify(request));
 }
