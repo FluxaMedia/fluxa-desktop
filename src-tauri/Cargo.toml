@@ -50,6 +50,15 @@ ttf-parser = "0.25"
 rquickjs = { version = "0.12.1", features = ["full-async"] }
 scraper = "0.27.0"
 ego-tree = "0.11"
+sha1 = "0.11.0"
+sha2 = "0.11.0"
+md-5 = "0.11.0"
+hmac = "0.13.0"
+pbkdf2 = "0.13.0"
+aes = "0.9.1"
+cbc = "0.2.1"
+ecb = "0.2.0"
+rand = "0.10.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
