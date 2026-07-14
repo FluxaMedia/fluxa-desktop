@@ -1091,6 +1091,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
 
   const selectTrack = useCallback((type: 'audio' | 'sub', id: string) => {
     sendCmd(type === 'audio' ? `set aid ${id}` : `set sid ${id}`);
+    if (type === 'audio') sendCmd('seek 0.1 relative exact');
     setTrackPopover(null);
     if (type === 'audio') setAudioTracks((prev) => prev.map((tr) => ({ ...tr, selected: tr.id === id })));
     else setSubTracks((prev) => prev.map((tr) => ({ ...tr, selected: tr.id === id })));
