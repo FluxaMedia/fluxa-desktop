@@ -520,6 +520,12 @@ pub fn storage_read(state: State<DesktopState>, key: String) -> Option<String> {
     read_legacy_file(&dir, &key)
 }
 
+pub fn read_pref_field(state: State<DesktopState>, field: &str) -> Option<String> {
+    let raw = storage_read(state, "prefs".to_string())?;
+    let value: Value = serde_json::from_str(&raw).ok()?;
+    value.get(field)?.as_str().map(str::to_string)
+}
+
 #[tauri::command]
 pub fn storage_write(state: State<DesktopState>, key: String, value: String) -> bool {
     let _storage_lock = state.storage_lock.lock().unwrap();

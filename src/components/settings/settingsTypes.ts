@@ -126,6 +126,7 @@ export interface Prefs {
   similarTitlesSource: string;
   searchSuggestionsOpenDetail: boolean;
   renderBackend: string;
+  playerEngine: string;
 }
 
 export interface TraktTokenResponse {
@@ -267,4 +268,5 @@ export const DEFAULT_PREFS: Prefs = {
   similarTitlesSource: 'auto',
   searchSuggestionsOpenDetail: false,
   renderBackend: 'opengl',
+  playerEngine: 'mpv',
 };

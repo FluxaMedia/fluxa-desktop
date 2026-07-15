@@ -289,6 +289,16 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
           selected={prefs.renderBackend}
           onSelect={(v) => setPref('renderBackend', v)}
         />
+        <ChoiceTile
+          title={t('settings.player_engine') || 'Player Engine'}
+          subtitle={t('settings.player_engine_desc') || 'Which playback engine handles video. libVLC is experimental and currently plays in its own separate window rather than embedded in the app.'}
+          options={[
+            { value: 'mpv', label: 'mpv' },
+            { value: 'libvlc', label: 'libVLC' },
+          ]}
+          selected={prefs.playerEngine}
+          onSelect={(v) => setPref('playerEngine', v)}
+        />
       </div>
     </div>
     </>

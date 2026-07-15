@@ -3,7 +3,9 @@ use crate::artwork::{
     scale_artwork_cover, scale_artwork_fit,
 };
 use crate::custom_fonts;
+use crate::libvlc_render;
 use crate::mpv_render;
+use crate::playback_engine::{self, PlaybackEngine, PlayerEngine};
 use crate::DesktopState;
 use fluxa_core::FluxaCore;
 use serde_json::{json, Value};
@@ -551,14 +553,27 @@ fn with_renderer_retry<T, F>(
     f: F,
 ) -> Result<Option<T>, String>
 where
-    F: Fn(&mpv_render::MpvRenderer) -> Result<T, String>,
+    F: Fn(&dyn PlaybackEngine) -> Result<T, String>,
 {
+    let engine = *state.active_player_engine.lock().unwrap();
     for _ in 0..attempts {
-        if let Ok(guard) = state.player_renderer.try_lock() {
-            if let Some(renderer) = guard.as_ref() {
-                return f(renderer).map(Some);
+        match engine {
+            PlayerEngine::Mpv => {
+                if let Ok(guard) = state.player_renderer.try_lock() {
+                    if let Some(renderer) = guard.as_ref() {
+                        return f(renderer).map(Some);
+                    }
+                    return Ok(None);
+                }
             }
-            return Ok(None);
+            PlayerEngine::Vlc => {
+                if let Ok(guard) = state.player_renderer_vlc.try_lock() {
+                    if let Some(renderer) = guard.as_ref() {
+                        return f(renderer).map(Some);
+                    }
+                    return Ok(None);
+                }
+            }
         }
         std::thread::sleep(Duration::from_millis(5));
     }
@@ -624,6 +639,19 @@ pub fn player_load(
 ) -> Result<(), String> {
     log::info!("player_load: url={url} start_at={start_at:?} total_duration={total_duration:?}");
     *state.thumb_url.lock().unwrap() = Some(url.clone());
+
+    let engine = playback_engine::read_player_engine(&app);
+    *state.active_player_engine.lock().unwrap() = engine;
+    if engine == PlayerEngine::Vlc {
+        let mut renderer = state.player_renderer_vlc.lock().unwrap();
+        if renderer.is_none() {
+            *renderer = Some(libvlc_render::LibvlcPlayer::new()?);
+        }
+        return renderer
+            .as_mut()
+            .ok_or_else(|| "libvlc player is not initialized".to_string())?
+            .load(&url, start_at);
+    }
 
     #[cfg(target_os = "windows")]
     {
@@ -878,6 +906,9 @@ pub fn player_render_frame(
     width: i32,
     height: i32,
 ) -> Result<mpv_render::PlayerFrame, String> {
+    if *state.active_player_engine.lock().unwrap() == PlayerEngine::Vlc {
+        return Err("headless frame rendering is not supported by the libvlc engine".to_string());
+    }
     let mut renderer = state.player_renderer.lock().unwrap();
     renderer
         .as_mut()
@@ -995,7 +1026,7 @@ pub fn player_set_sleep_inhibition(
     state.sleep_inhibitor.lock().unwrap().set_enabled(enabled)
 }
 
-fn selected_external_subtitle_source(renderer: &mpv_render::MpvRenderer) -> Option<String> {
+fn selected_external_subtitle_source(renderer: &dyn PlaybackEngine) -> Option<String> {
     let count = renderer
         .query_property("track-list/count")?
         .parse::<usize>()
@@ -1176,13 +1207,13 @@ pub fn player_screenshot(
         .replace('\\', "\\\\")
         .replace('"', "\\\"");
 
-    let renderer = state.player_renderer.lock().unwrap();
-    renderer
-        .as_ref()
-        .ok_or_else(|| "player renderer is not initialized".to_string())?
-        .command_string(&format!("screenshot-to-file \"{path_str}\" video"))?;
-
-    Ok(path.to_string_lossy().to_string())
+    match with_renderer_retry(&state, 60, |renderer| {
+        renderer.command_string(&format!("screenshot-to-file \"{path_str}\" video"))
+    }) {
+        Ok(Some(())) => Ok(path.to_string_lossy().to_string()),
+        Ok(None) => Err("player renderer is not initialized".to_string()),
+        Err(e) => Err(e),
+    }
 }
 
 #[tauri::command]
@@ -1218,16 +1249,35 @@ pub fn player_hide(app: AppHandle, state: State<DesktopState>) {
 
 #[tauri::command]
 pub fn player_title(state: State<DesktopState>) -> Option<String> {
-    state
-        .player_renderer
-        .lock()
-        .unwrap()
-        .as_ref()
-        .and_then(mpv_render::MpvRenderer::title)
+    with_renderer_retry(&state, 20, |renderer| Ok(renderer.title()))
+        .ok()
+        .flatten()
+        .flatten()
 }
 
 #[tauri::command]
-pub fn player_status(state: State<DesktopState>) -> Result<mpv_render::PlayerStatus, String> {
+pub fn player_status(
+    app: AppHandle,
+    state: State<DesktopState>,
+) -> Result<mpv_render::PlayerStatus, String> {
+    if let Ok(mut guard) = state.player_renderer_vlc.try_lock() {
+        if let Some(renderer) = guard.as_mut() {
+            for event in renderer.poll_events() {
+                let mpv_render::PlayerEvent::EndFile { eof, error } = event;
+                if let Some(message) = error {
+                    let _ = app.emit("native-player-error", message);
+                } else if eof {
+                    let next_sub = state.next_ep_subtitle.lock().unwrap().clone();
+                    let auto_play = *state.auto_play_next_episode.lock().unwrap();
+                    if !next_sub.is_empty() && auto_play {
+                        let _ = app.emit("native-player-next-episode", ());
+                    } else {
+                        let _ = app.emit("native-player-close-requested", ());
+                    }
+                }
+            }
+        }
+    }
     match with_renderer_retry(&state, 80, |renderer| Ok(renderer.status())) {
         Ok(Some(status)) => Ok(status),
         Ok(None) => Err("player renderer is not initialized".to_string()),
@@ -1265,6 +1315,9 @@ pub fn player_track_options(
 #[tauri::command]
 pub fn player_destroy(state: State<DesktopState>) -> bool {
     let _ = state.sleep_inhibitor.lock().unwrap().set_enabled(false);
+    if *state.active_player_engine.lock().unwrap() == PlayerEngine::Vlc {
+        return state.player_renderer_vlc.lock().unwrap().take().is_some();
+    }
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     if let Some(surface) = state.native_player_surface.lock().unwrap().as_ref() {
         surface.hide();

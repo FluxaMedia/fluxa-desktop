@@ -7,6 +7,7 @@ mod chromecast;
 mod custom_fonts;
 mod discord_presence;
 mod downloads;
+mod libvlc_render;
 #[cfg(target_os = "linux")]
 mod linux_player_surface;
 #[cfg(target_os = "linux")]
@@ -21,6 +22,7 @@ mod mpv_render;
 mod net_guard;
 mod oauth;
 mod player;
+mod playback_engine;
 mod plugin_runtime;
 mod poster_cache;
 mod roku;
@@ -72,6 +74,8 @@ pub struct DesktopState {
     pub storage_lock: Mutex<()>,
     pub download_dir: Mutex<Option<PathBuf>>,
     pub player_renderer: Mutex<Option<mpv_render::MpvRenderer>>,
+    pub player_renderer_vlc: Mutex<Option<libvlc_render::LibvlcPlayer>>,
+    pub active_player_engine: Mutex<playback_engine::PlayerEngine>,
     #[cfg(target_os = "linux")]
     pub native_player_surface: Mutex<Option<linux_player_surface::NativePlayerSurface>>,
     #[cfg(target_os = "windows")]
@@ -113,6 +117,8 @@ impl Default for DesktopState {
             storage_lock: Mutex::new(()),
             download_dir: Mutex::new(None),
             player_renderer: Mutex::new(None),
+            player_renderer_vlc: Mutex::new(None),
+            active_player_engine: Mutex::new(playback_engine::PlayerEngine::Mpv),
             #[cfg(target_os = "linux")]
             native_player_surface: Mutex::new(None),
             #[cfg(target_os = "windows")]
