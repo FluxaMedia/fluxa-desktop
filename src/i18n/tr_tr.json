@@ -1457,5 +1457,9 @@
   "sources.copy_stream_link": "Yayın Bağlantısını Kopyala",
   "sources.copy_magnet_link": "Magnet Bağlantısını Kopyala",
   "sources.download_this_video": "Bu Videoyu İndir",
-  "sources.copy_video_download_link": "Video İndirme Bağlantısını Kopyala"
+  "sources.copy_video_download_link": "Video İndirme Bağlantısını Kopyala",
+  "settings.render_backend": "Görüntü İşleme Motoru",
+  "settings.render_backend_desc": "mpv'nin görüntüleri işlerken kullandığı GPU API'si. OpenGL kararlı varsayılan seçenektir; Vulkan/D3D11 deneyseldir ve etkili olması için uygulamanın yeniden başlatılması gerekir. D3D11 yalnızca Windows'ta geçerlidir.",
+  "settings.player_engine": "Oynatıcı Motoru",
+  "settings.player_engine_desc": "Videoyu hangi oynatma motorunun işleyeceği. libVLC deneyseldir ve şu anda uygulama içine gömülü olarak değil, kendi ayrı penceresinde oynatma yapar."
 }

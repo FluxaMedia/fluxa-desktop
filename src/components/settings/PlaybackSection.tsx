@@ -279,8 +279,8 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
           }}
         />
         <ChoiceTile
-          title={t('settings.render_backend') || 'Render Backend'}
-          subtitle={t('settings.render_backend_desc') || "GPU API mpv renders through. OpenGL is the stable default; Vulkan/D3D11 are experimental and need an app restart to take effect. D3D11 only applies on Windows."}
+          title={t('settings.render_backend')}
+          subtitle={t('settings.render_backend_desc')}
           options={[
             { value: 'opengl', label: 'OpenGL' },
             { value: 'vulkan', label: 'Vulkan' },
@@ -290,8 +290,8 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
           onSelect={(v) => setPref('renderBackend', v)}
         />
         <ChoiceTile
-          title={t('settings.player_engine') || 'Player Engine'}
-          subtitle={t('settings.player_engine_desc') || 'Which playback engine handles video. libVLC is experimental and currently plays in its own separate window rather than embedded in the app.'}
+          title={t('settings.player_engine')}
+          subtitle={t('settings.player_engine_desc')}
           options={[
             { value: 'mpv', label: 'mpv' },
             { value: 'libvlc', label: 'libVLC' },
