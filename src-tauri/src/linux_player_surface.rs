@@ -8,12 +8,172 @@
 //   • On Load/Hide we emit native-player-show / native-player-hide so the React
 //     overlay activates / deactivates, mirroring the Windows and macOS surfaces.
 
+use crate::linux_vulkan::{NativeSurface, VulkanContext};
+use crate::mpv_render::VulkanTargetImage;
 use crate::DesktopState;
 use glib::ControlFlow;
 use gtk::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RenderBackend {
+    OpenGl,
+    Vulkan,
+}
+
+fn read_render_backend(app: &AppHandle) -> RenderBackend {
+    let state = app.state::<DesktopState>();
+    match crate::storage::read_pref_field(state, "renderBackend").as_deref() {
+        Some("vulkan") => RenderBackend::Vulkan,
+        _ => RenderBackend::OpenGl,
+    }
+}
+
+enum VulkanSurfaceHandle {
+    Wayland(crate::linux_wayland_subsurface::VideoSubsurface),
+    X11(gdk::Window),
+}
+
+impl VulkanSurfaceHandle {
+    fn hide(&self) {
+        match self {
+            Self::Wayland(sub) => sub.hide(),
+            Self::X11(window) => window.hide(),
+        }
+    }
+
+    fn show(&self) {
+        match self {
+            Self::Wayland(_) => {}
+            Self::X11(window) => {
+                window.show_unraised();
+                window.lower();
+            }
+        }
+    }
+
+    fn resize(&self, width: i32, height: i32) {
+        if let Self::X11(window) = self {
+            window.move_resize(0, 0, width, height);
+        }
+    }
+}
+
+struct VulkanState {
+    ctx: VulkanContext,
+    surface_handle: VulkanSurfaceHandle,
+}
+
+fn create_vulkan_surface(
+    anchor_widget: &impl IsA<gtk::Widget>,
+    width: i32,
+    height: i32,
+) -> Result<(VulkanSurfaceHandle, NativeSurface), String> {
+    use glib::translate::ToGlibPtr;
+
+    let toplevel = anchor_widget
+        .toplevel()
+        .ok_or("Vulkan surface setup: widget has no toplevel ancestor")?;
+    let toplevel_window: gtk::Window = toplevel
+        .downcast()
+        .map_err(|_| "Vulkan surface setup: toplevel ancestor is not a gtk::Window".to_string())?;
+    let parent_gdk_window = toplevel_window
+        .window()
+        .ok_or("Vulkan surface setup: toplevel window is not realized yet")?;
+
+    if let Ok(wl_parent) = parent_gdk_window.clone().downcast::<gdkwayland::WaylandWindow>() {
+        let parent_wl_surface = unsafe {
+            gdkwayland::ffi::gdk_wayland_window_get_wl_surface(wl_parent.to_glib_none().0)
+        };
+        let display = gdk::Display::default().ok_or("Vulkan surface setup: no default display")?;
+        let wayland_display: gdkwayland::WaylandDisplay = display
+            .downcast()
+            .map_err(|_| "Vulkan surface setup: default display is not Wayland".to_string())?;
+        let wl_display = unsafe {
+            gdkwayland::ffi::gdk_wayland_display_get_wl_display(wayland_display.to_glib_none().0)
+        };
+        let wl_compositor = unsafe {
+            gdkwayland::ffi::gdk_wayland_display_get_wl_compositor(wayland_display.to_glib_none().0)
+        };
+        if parent_wl_surface.is_null() || wl_display.is_null() || wl_compositor.is_null() {
+            return Err("Vulkan surface setup: could not resolve Wayland handles".into());
+        }
+        let subsurface = crate::linux_wayland_subsurface::VideoSubsurface::new(
+            wl_display as *mut _,
+            wl_compositor as *mut _,
+            parent_wl_surface as *mut _,
+        )?;
+        let native_surface = NativeSurface::Wayland {
+            display: wl_display as *mut _,
+            surface: subsurface.wl_surface(),
+        };
+        return Ok((VulkanSurfaceHandle::Wayland(subsurface), native_surface));
+    }
+
+    let attrs = gdk::WindowAttr {
+        window_type: gdk::WindowType::Child,
+        wclass: gdk::WindowWindowClass::InputOutput,
+        x: Some(0),
+        y: Some(0),
+        width: width.max(2),
+        height: height.max(2),
+        ..Default::default()
+    };
+    let window = gdk::Window::new(Some(&parent_gdk_window), &attrs);
+    window.show_unraised();
+    window.lower();
+    let native_surface = native_surface_for_gdk_window(&window)
+        .ok_or("Vulkan surface setup: could not resolve a native surface for the X11 window")?;
+    Ok((VulkanSurfaceHandle::X11(window), native_surface))
+}
+
+fn vulkan_surface_size(gl_area: &gtk::GLArea, webview_widget: &gtk::Widget) -> (i32, i32) {
+    let scale = webview_widget.scale_factor().max(1);
+    let (w, h) = gl_area
+        .toplevel()
+        .map(|t| (t.allocated_width(), t.allocated_height()))
+        .unwrap_or_else(|| (webview_widget.allocated_width(), webview_widget.allocated_height()));
+    (w.max(2) * scale, h.max(2) * scale)
+}
+
+fn native_surface_for_gdk_window(window: &gdk::Window) -> Option<NativeSurface> {
+    use glib::translate::ToGlibPtr;
+
+    if let Ok(wl_window) = window.clone().downcast::<gdkwayland::WaylandWindow>() {
+        let wl_surface =
+            unsafe { gdkwayland::ffi::gdk_wayland_window_get_wl_surface(wl_window.to_glib_none().0) };
+        let display = gdk::Display::default()?;
+        let wayland_display: gdkwayland::WaylandDisplay = display.downcast().ok()?;
+        let wl_display = unsafe {
+            gdkwayland::ffi::gdk_wayland_display_get_wl_display(wayland_display.to_glib_none().0)
+        };
+        if wl_surface.is_null() || wl_display.is_null() {
+            return None;
+        }
+        return Some(NativeSurface::Wayland {
+            display: wl_display as *mut _,
+            surface: wl_surface as *mut _,
+        });
+    }
+    if let Ok(x11_window) = window.clone().downcast::<gdkx11::X11Window>() {
+        let xid = unsafe { gdkx11::ffi::gdk_x11_window_get_xid(x11_window.to_glib_none().0) };
+        let display = gdk::Display::default()?;
+        let x11_display: gdkx11::X11Display = display.downcast().ok()?;
+        let xdisplay = unsafe { gdkx11::ffi::gdk_x11_display_get_xdisplay(x11_display.to_glib_none().0) };
+        if xdisplay.is_null() {
+            return None;
+        }
+        return Some(NativeSurface::Xlib {
+            display: xdisplay as *mut _,
+            window: xid as u64,
+        });
+    }
+    None
+}
 
 // Chapter / skip-segment utilities (polled by player_get_playback_info)
 
@@ -183,6 +343,15 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
     let (sender, receiver) = mpsc::channel();
     let (setup_tx, setup_rx) = mpsc::channel::<Result<(), String>>();
 
+    let backend = read_render_backend(&app_handle);
+    log::info!(
+        "linux_player_surface: experimental render backend = {}",
+        match backend {
+            RenderBackend::OpenGl => "opengl",
+            RenderBackend::Vulkan => "vulkan",
+        }
+    );
+
     let window = app_handle
         .get_webview_window("main")
         .ok_or_else(|| "main webview window was not found".to_string())?;
@@ -237,49 +406,53 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             // gl_area stays hidden (no_show_all) until the first Load command.
 
             // Render callback: called by GTK when gl_area.queue_render() is invoked.
-            let render_app = app_handle.clone();
-            gl_area.connect_render(move |area, _ctx| {
-                let state = render_app.state::<DesktopState>();
-                if state.pending_hide.load(std::sync::atomic::Ordering::Acquire) {
-                    // Returning Proceed (unhandled) with auto_render=false skips GTK's
-                    // gdk_cairo_draw_from_gl readback path — prevents a multi-second freeze
-                    // that occurs on some composited systems when the last video frame is read.
-                    area.set_auto_render(false);
-                    return glib::Propagation::Proceed;
-                }
-                area.make_current();
-                if area.error().is_some() {
-                    return glib::Propagation::Stop;
-                }
-                let scale = area.scale_factor().max(1);
-                let w = area.allocated_width().max(2) * scale;
-                let h = area.allocated_height().max(2) * scale;
-                let Ok(mut renderer) = state.player_renderer.try_lock() else {
-                    return glib::Propagation::Stop;
-                };
-                if let Some(r) = renderer.as_mut() {
-                    if let Err(e) = r.render_opengl_frame(w, h) {
-                        log::warn!("mpv OpenGL render failed: {e}");
+            if backend == RenderBackend::OpenGl {
+                let render_app = app_handle.clone();
+                gl_area.connect_render(move |area, _ctx| {
+                    let state = render_app.state::<DesktopState>();
+                    if state.pending_hide.load(std::sync::atomic::Ordering::Acquire) {
+                        // Returning Proceed (unhandled) with auto_render=false skips GTK's
+                        // gdk_cairo_draw_from_gl readback path — prevents a multi-second freeze
+                        // that occurs on some composited systems when the last video frame is read.
+                        area.set_auto_render(false);
+                        return glib::Propagation::Proceed;
                     }
-                    r.report_swap();
-                }
-                glib::Propagation::Stop
-            });
+                    area.make_current();
+                    if area.error().is_some() {
+                        return glib::Propagation::Stop;
+                    }
+                    let scale = area.scale_factor().max(1);
+                    let w = area.allocated_width().max(2) * scale;
+                    let h = area.allocated_height().max(2) * scale;
+                    let Ok(mut renderer) = state.player_renderer.try_lock() else {
+                        return glib::Propagation::Stop;
+                    };
+                    if let Some(r) = renderer.as_mut() {
+                        if let Err(e) = r.render_opengl_frame(w, h) {
+                            log::warn!("mpv OpenGL render failed: {e}");
+                        }
+                        r.report_swap();
+                    }
+                    glib::Propagation::Stop
+                });
+            }
 
             let _ = setup_tx.send(Ok(()));
 
             let command_app = app_handle.clone();
             let command_gl_area = gl_area.clone();
+            let command_webview_widget = webview_widget.clone();
             // Shared with the GdkFrameClock tick callback below, both on the GTK main thread.
             let visible = std::rc::Rc::new(std::cell::Cell::new(false));
             let tick_visible = visible.clone();
             let tick_gl_area = gl_area.clone();
             gl_area.add_tick_callback(move |_area, _frame_clock| {
-                if tick_visible.get() {
+                if tick_visible.get() && backend == RenderBackend::OpenGl {
                     tick_gl_area.queue_render();
                 }
                 glib::ControlFlow::Continue
             });
+            let vulkan_state: Rc<RefCell<Option<VulkanState>>> = Rc::new(RefCell::new(None));
             let mut pending_load: Option<(String, Option<u64>)> = None;
             let mut pending_load_retries: u32 = 0;
             let mut latch_grace_ticks: u32 = 0;
@@ -290,12 +463,16 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                 while let Ok(command) = receiver.try_recv() {
                     match command {
                         SurfaceCommand::Load { url, start_at } => {
-                            command_gl_area.set_auto_render(true);
                             command_app.state::<DesktopState>().pending_hide
                                 .store(false, std::sync::atomic::Ordering::Release);
                             *command_app.state::<DesktopState>().eof_next_fired.lock().unwrap() = false;
                             *command_app.state::<DesktopState>().chapters_json.lock().unwrap() = None;
-                            command_gl_area.show();
+                            if backend == RenderBackend::OpenGl {
+                                command_gl_area.set_auto_render(true);
+                                command_gl_area.show();
+                            } else if let Some(state) = vulkan_state.borrow().as_ref() {
+                                state.surface_handle.show();
+                            }
                             visible.set(true);
                             latch_grace_ticks = 10;
                             chapters_native_loaded = false;
@@ -310,8 +487,12 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                             pending_load_retries = 0;
                             command_app.state::<DesktopState>().pending_hide
                                 .store(true, std::sync::atomic::Ordering::Release);
-                            command_gl_area.set_auto_render(false);
-                            command_gl_area.hide();
+                            if backend == RenderBackend::OpenGl {
+                                command_gl_area.set_auto_render(false);
+                                command_gl_area.hide();
+                            } else if let Some(state) = vulkan_state.borrow().as_ref() {
+                                state.surface_handle.hide();
+                            }
                             let _ = command_app.emit("native-player-hide", ());
                             if let Ok(guard) = command_app.state::<DesktopState>().player_renderer.try_lock() {
                                 if let Some(r) = guard.as_ref() {
@@ -344,17 +525,66 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                     }
                 }
 
-                // Warm up OpenGL context before first play
-                // prepare_opengl_context() can block the GTK main thread for several
-                // seconds on first run. Doing it here (idle, no user waiting) is better
-                // than doing it inside prepare_and_load when the loading screen is shown.
-                if pending_load.is_none() {
-                    if let Ok(mut guard) = command_app.state::<DesktopState>().player_renderer.try_lock() {
-                        if let Some(renderer) = guard.as_mut() {
-                            if renderer.needs_opengl_context() && command_gl_area.is_realized() {
-                                command_gl_area.make_current();
-                                if command_gl_area.error().is_none() {
-                                    let _ = renderer.prepare_opengl_context();
+                // Warm up the render context before first play. Blocking work here (idle,
+                // no user waiting) is better than doing it inside prepare_and_load when the
+                // loading screen is shown.
+                let warmup_ready = match backend {
+                    RenderBackend::OpenGl => command_gl_area.is_realized(),
+                    RenderBackend::Vulkan => command_gl_area
+                        .toplevel()
+                        .map(|t| t.is_realized())
+                        .unwrap_or(false),
+                };
+                if pending_load.is_none() && warmup_ready {
+                    match backend {
+                        RenderBackend::OpenGl => {
+                            if let Ok(mut guard) = command_app.state::<DesktopState>().player_renderer.try_lock() {
+                                if let Some(renderer) = guard.as_mut() {
+                                    if renderer.needs_opengl_context() {
+                                        command_gl_area.make_current();
+                                        if command_gl_area.error().is_none() {
+                                            let _ = renderer.prepare_opengl_context();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        RenderBackend::Vulkan => {
+                            if vulkan_state.borrow().is_none() {
+                                let (w, h) = vulkan_surface_size(&command_gl_area, &command_webview_widget);
+                                match create_vulkan_surface(&command_gl_area, w, h) {
+                                    Ok((surface_handle, native_surface)) => {
+                                        match VulkanContext::new(native_surface, w, h) {
+                                            Ok(ctx) => {
+                                                *vulkan_state.borrow_mut() =
+                                                    Some(VulkanState { ctx, surface_handle })
+                                            }
+                                            Err(e) => log::error!(
+                                                "linux_player_surface: Vulkan context creation failed: {e}"
+                                            ),
+                                        }
+                                    }
+                                    Err(e) => log::error!("linux_player_surface: {e}"),
+                                }
+                            }
+                            if let Some(state) = vulkan_state.borrow().as_ref() {
+                                if let Ok(mut guard) = command_app.state::<DesktopState>().player_renderer.try_lock() {
+                                    if let Some(renderer) = guard.as_mut() {
+                                        if renderer.needs_vulkan_context() {
+                                            let (instance, phys_device, device, queue_index, queue_count, get_proc_addr) =
+                                                state.ctx.device_handles();
+                                            let ext_ptrs = state.ctx.enabled_device_extension_ptrs();
+                                            let _ = renderer.create_vulkan_context(
+                                                instance,
+                                                phys_device,
+                                                device,
+                                                queue_index,
+                                                queue_count,
+                                                get_proc_addr,
+                                                &ext_ptrs,
+                                            );
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -365,7 +595,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                 if let Some((ref url, start_at)) = pending_load.clone() {
                     let state = command_app.state::<DesktopState>();
                     if state.player_renderer.try_lock().is_ok() {
-                        match prepare_and_load(&command_app, &command_gl_area, url, start_at) {
+                        match prepare_and_load(&command_app, &command_gl_area, backend, &vulkan_state, url, start_at) {
                             Ok(()) => {
                                 pending_load = None;
                                 latch_grace_ticks = 10;
@@ -443,6 +673,41 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                         }
                     }
 
+                    if backend == RenderBackend::Vulkan {
+                        let (w, h) = vulkan_surface_size(&command_gl_area, &command_webview_widget);
+                        if let Some(state) = vulkan_state.borrow_mut().as_mut() {
+                            state.surface_handle.resize(w, h);
+                            if let Err(e) = state.ctx.resize(w, h) {
+                                log::warn!("linux_player_surface: Vulkan resize failed: {e}");
+                            }
+                            if let Ok(mut guard) = command_app.state::<DesktopState>().player_renderer.try_lock() {
+                                if let Some(renderer) = guard.as_mut() {
+                                    if renderer.vulkan_frame_ready() {
+                                        let image_usage = state.ctx.image_usage();
+                                        let result = state.ctx.render_and_present(|image, format, iw, ih, wait_semaphore, signal_semaphore| {
+                                            let mut target = VulkanTargetImage {
+                                                image,
+                                                format,
+                                                w: iw as i32,
+                                                h: ih as i32,
+                                                usage: image_usage,
+                                                layout: 0,
+                                                wait_semaphore,
+                                                signal_semaphore,
+                                            };
+                                            renderer.render_vulkan_frame(&mut target).map(|_| target.layout)
+                                        });
+                                        if let Err(e) = result {
+                                            log::warn!("linux_player_surface: Vulkan render failed: {e}");
+                                        } else {
+                                            renderer.report_swap();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     check_player_events(&command_app);
                 }
 
@@ -463,15 +728,13 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
 fn prepare_and_load(
     app_handle: &AppHandle,
     gl_area: &gtk::GLArea,
+    backend: RenderBackend,
+    vulkan_state: &Rc<RefCell<Option<VulkanState>>>,
     url: &str,
     start_at: Option<u64>,
 ) -> Result<(), String> {
-    if !gl_area.is_realized() {
+    if backend == RenderBackend::OpenGl && !gl_area.is_realized() {
         gl_area.realize();
-    }
-    gl_area.make_current();
-    if let Some(error) = gl_area.error() {
-        return Err(format!("OpenGL player surface context error: {error}"));
     }
 
     let state = app_handle.state::<DesktopState>();
@@ -485,7 +748,45 @@ fn prepare_and_load(
     let renderer = renderer
         .as_mut()
         .ok_or_else(|| "player renderer is not initialized".to_string())?;
-    renderer.prepare_opengl_context()?;
+
+    match backend {
+        RenderBackend::OpenGl => {
+            gl_area.make_current();
+            if let Some(error) = gl_area.error() {
+                return Err(format!("OpenGL player surface context error: {error}"));
+            }
+            renderer.prepare_opengl_context()?;
+        }
+        RenderBackend::Vulkan => {
+            if renderer.needs_vulkan_context() {
+                let handles = vulkan_state
+                    .borrow()
+                    .as_ref()
+                    .map(|vs| vs.ctx.device_handles());
+                let (instance, phys_device, device, queue_index, queue_count, get_proc_addr) = handles
+                    .ok_or_else(|| "Vulkan context not ready yet".to_string())?;
+                let ext_ptrs = vulkan_state
+                    .borrow()
+                    .as_ref()
+                    .map(|vs| vs.ctx.enabled_device_extension_ptrs())
+                    .unwrap_or_default();
+                renderer.create_vulkan_context(
+                    instance,
+                    phys_device,
+                    device,
+                    queue_index,
+                    queue_count,
+                    get_proc_addr,
+                    &ext_ptrs,
+                )?;
+            }
+            if vulkan_state.borrow().as_ref().map(|vs| vs.ctx.is_hdr()).unwrap_or(false) {
+                let _ = renderer.set_option("target-trc", "linear");
+                let _ = renderer.set_option("target-prim", "bt.709");
+            }
+        }
+    }
+
     if let Some(fps) = monitor_refresh_fps(gl_area) {
         if let Err(e) = renderer.set_option("display-fps-override", &format!("{fps:.3}")) {
             log::warn!("failed to set display-fps-override: {e}");

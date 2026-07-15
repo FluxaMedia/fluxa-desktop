@@ -9,8 +9,14 @@ mod discord_presence;
 mod downloads;
 #[cfg(target_os = "linux")]
 mod linux_player_surface;
+#[cfg(target_os = "linux")]
+mod linux_vulkan;
+#[cfg(target_os = "linux")]
+mod linux_wayland_subsurface;
 #[cfg(target_os = "macos")]
 mod macos_player_surface;
+#[cfg(target_os = "macos")]
+mod macos_vulkan;
 mod mpv_render;
 mod net_guard;
 mod oauth;
@@ -22,9 +28,13 @@ mod sleep_inhibitor;
 mod storage;
 mod trailer_proxy;
 #[cfg(target_os = "windows")]
+mod windows_d3d11;
+#[cfg(target_os = "windows")]
 mod windows_egl;
 #[cfg(target_os = "windows")]
 mod windows_player_surface;
+#[cfg(target_os = "windows")]
+mod windows_vulkan;
 
 use airplay::*;
 use cast::*;

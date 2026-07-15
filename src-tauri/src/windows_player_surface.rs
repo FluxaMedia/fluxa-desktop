@@ -9,13 +9,17 @@
 //     the frontend can act identically to the Linux code path.
 //   • Player controls live in the WebView overlay (transparent background CSS).
 
+use crate::mpv_render::VulkanTargetImage;
+use crate::windows_d3d11::D3d11Context;
 use crate::windows_egl::{self, EglContext};
+use crate::windows_vulkan::VulkanContext;
 use crate::DesktopState;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
+use windows::core::Interface;
 use windows_sys::Win32::Foundation::{FALSE, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Dwm::{
     DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND,
@@ -34,6 +38,114 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 static CURSOR_HIDDEN: AtomicBool = AtomicBool::new(false);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RenderBackend {
+    OpenGl,
+    Vulkan,
+    D3d11,
+}
+
+fn read_render_backend(app: &AppHandle) -> RenderBackend {
+    let state = app.state::<DesktopState>();
+    match crate::storage::read_pref_field(state, "renderBackend").as_deref() {
+        Some("vulkan") => RenderBackend::Vulkan,
+        Some("d3d11") => RenderBackend::D3d11,
+        _ => RenderBackend::OpenGl,
+    }
+}
+
+enum RenderContext {
+    Egl(EglContext),
+    D3d11(D3d11Context),
+    Vulkan(VulkanContext),
+}
+
+impl RenderContext {
+    fn poll_resize(&self) {
+        if let RenderContext::Egl(egl) = self {
+            egl.poll_resize();
+        }
+    }
+
+    fn is_hdr(&self) -> bool {
+        match self {
+            RenderContext::Egl(_) => false,
+            RenderContext::D3d11(ctx) => ctx.is_hdr(),
+            RenderContext::Vulkan(ctx) => ctx.is_hdr(),
+        }
+    }
+
+    fn render_and_present(
+        &mut self,
+        renderer: &mut crate::mpv_render::MpvRenderer,
+        width: i32,
+        height: i32,
+        vsync_enabled: bool,
+    ) -> Result<(), String> {
+        match self {
+            RenderContext::Egl(egl) => {
+                let render_result = renderer.render_opengl_frame(width, height);
+                egl.swap_buffers();
+                renderer.report_swap();
+                render_result
+            }
+            RenderContext::D3d11(ctx) => {
+                ctx.resize(width, height)?;
+                if renderer.needs_d3d11_context() {
+                    renderer.create_d3d11_context(ctx.device_ptr())?;
+                }
+                let back_buffer = ctx.back_buffer()?;
+                renderer.render_d3d11_frame(
+                    back_buffer.as_raw(),
+                    ctx.dxgi_format(),
+                    ctx.width(),
+                    ctx.height(),
+                )?;
+                ctx.present(vsync_enabled)?;
+                renderer.report_swap();
+                Ok(())
+            }
+            RenderContext::Vulkan(ctx) => {
+                if renderer.needs_vulkan_context() {
+                    let (instance, phys_device, device, queue_index, queue_count) =
+                        ctx.device_handles();
+                    renderer.create_vulkan_context(
+                        instance,
+                        phys_device,
+                        device,
+                        queue_index,
+                        queue_count,
+                        std::ptr::null_mut(),
+                        &[],
+                    )?;
+                }
+                ctx.resize(width, height)?;
+                let image_usage = ctx.image_usage();
+                let result =
+                    ctx.render_and_present(|image, format, w, h, wait_semaphore, signal_semaphore| {
+                        let mut target = VulkanTargetImage {
+                            image,
+                            format,
+                            w: w as i32,
+                            h: h as i32,
+                            usage: image_usage,
+                            layout: 0,
+                            wait_semaphore,
+                            signal_semaphore,
+                        };
+                        renderer
+                            .render_vulkan_frame(&mut target)
+                            .map(|_| target.layout)
+                    });
+                if result.is_ok() {
+                    renderer.report_swap();
+                }
+                result
+            }
+        }
+    }
+}
 
 unsafe extern "system" fn player_wnd_proc(
     hwnd: HWND,
@@ -106,16 +218,34 @@ fn query_icm_profile(hdc: HDC) -> Option<Vec<u8>> {
     std::fs::read(path).ok()
 }
 
-fn ensure_renderer_for_surface(app: &AppHandle, hdc: HDC) -> Result<(), String> {
+fn ensure_renderer_for_surface(
+    app: &AppHandle,
+    hdc: HDC,
+    backend: RenderBackend,
+) -> Result<(), String> {
     let state = app.state::<DesktopState>();
     let mut renderer = state.player_renderer.lock().unwrap();
     if renderer.is_none() {
         log::warn!("player surface: renderer missing, recreating before load");
         let mut fresh =
             crate::mpv_render::MpvRenderer::new().map_err(|e| format!("mpv init failed: {e}"))?;
-        fresh
-            .prepare_opengl_context()
-            .map_err(|e| format!("mpv GL context failed: {e}"))?;
+        match backend {
+            RenderBackend::OpenGl => {
+                fresh
+                    .prepare_opengl_context()
+                    .map_err(|e| format!("mpv GL context failed: {e}"))?;
+            }
+            RenderBackend::Vulkan => {
+                fresh
+                    .set_option("gpu-api", "vulkan")
+                    .map_err(|e| format!("mpv gpu-api=vulkan failed: {e}"))?;
+            }
+            RenderBackend::D3d11 => {
+                fresh
+                    .set_option("gpu-api", "d3d11")
+                    .map_err(|e| format!("mpv gpu-api=d3d11 failed: {e}"))?;
+            }
+        }
         if hdc != 0 {
             if let Some(icc) = query_icm_profile(hdc) {
                 if let Err(e) = fresh.set_icc_profile(&icc) {
@@ -351,27 +481,57 @@ fn spawn_install_thread(
             );
         }
 
-        // ANGLE/EGL context setup (GLES-over-D3D11) — gives mpv's D3D11VA hwdec a
-        // device to attach to, which plain WGL never can.
-        let egl: EglContext = match windows_egl::create_window_context(child_hwnd) {
-            Ok(ctx) => ctx,
-            Err(e) => {
-                log::error!("player surface: ANGLE/EGL context creation failed: {e}");
-                let _ = setup_tx.send(Err(format!("ANGLE/EGL context creation failed: {e}")));
-                return;
-            }
+        let backend = read_render_backend(&app);
+        log::info!("player surface: experimental render backend = {}", match backend {
+            RenderBackend::OpenGl => "opengl",
+            RenderBackend::Vulkan => "vulkan",
+            RenderBackend::D3d11 => "d3d11",
+        });
+
+        let mut render_ctx = match backend {
+            RenderBackend::OpenGl => match windows_egl::create_window_context(child_hwnd) {
+                Ok(ctx) => RenderContext::Egl(ctx),
+                Err(e) => {
+                    log::error!("player surface: ANGLE/EGL context creation failed: {e}");
+                    let _ = setup_tx.send(Err(format!("ANGLE/EGL context creation failed: {e}")));
+                    return;
+                }
+            },
+            RenderBackend::D3d11 => match D3d11Context::new(child_hwnd as isize, init_w, init_h) {
+                Ok(ctx) => RenderContext::D3d11(ctx),
+                Err(e) => {
+                    log::error!("player surface: D3D11 context creation failed: {e}");
+                    let _ = setup_tx.send(Err(format!("D3D11 context creation failed: {e}")));
+                    return;
+                }
+            },
+            RenderBackend::Vulkan => match VulkanContext::new(child_hwnd as isize, init_w, init_h) {
+                Ok(ctx) => RenderContext::Vulkan(ctx),
+                Err(e) => {
+                    log::error!("player surface: Vulkan context creation failed: {e}");
+                    let _ = setup_tx.send(Err(format!("Vulkan context creation failed: {e}")));
+                    return;
+                }
+            },
         };
-
-        // Kept around only for GetICMProfileW; not used for GL anymore.
-        let hdc = unsafe { GetDC(child_hwnd) };
-
-        let vsync_enabled = egl.set_swap_interval(1);
-        if !vsync_enabled {
-            log::warn!("eglSwapInterval unavailable; falling back to timer-paced rendering");
+        if render_ctx.is_hdr() {
+            log::info!("player surface: HDR-capable swap chain in use");
         }
 
-        // mpv renderer init
-        if let Err(e) = ensure_renderer_for_surface(&app, hdc) {
+        let vsync_enabled = match &render_ctx {
+            RenderContext::Egl(egl) => {
+                let enabled = egl.set_swap_interval(1);
+                if !enabled {
+                    log::warn!("eglSwapInterval unavailable; falling back to timer-paced rendering");
+                }
+                enabled
+            }
+            RenderContext::D3d11(_) | RenderContext::Vulkan(_) => true,
+        };
+
+        let hdc = unsafe { GetDC(child_hwnd) };
+
+        if let Err(e) = ensure_renderer_for_surface(&app, hdc, backend) {
             log::error!("player surface: renderer setup failed: {e}");
             let _ = setup_tx.send(Err(e));
             return;
@@ -423,7 +583,7 @@ fn spawn_install_thread(
                         let state = app.state::<DesktopState>();
                         state.pending_hide.store(false, Ordering::Release);
                         *state.eof_next_fired.lock().unwrap() = false;
-                        if let Err(e) = ensure_renderer_for_surface(&app, hdc) {
+                        if let Err(e) = ensure_renderer_for_surface(&app, hdc, backend) {
                             log::error!(
                                 "player surface: renderer recreate failed before load: {e}"
                             );
@@ -434,6 +594,10 @@ fn spawn_install_thread(
                         }
                         let mut renderer = state.player_renderer.lock().unwrap();
                         if let Some(r) = renderer.as_mut() {
+                            if render_ctx.is_hdr() {
+                                let _ = r.set_option("target-trc", "linear");
+                                let _ = r.set_option("target-prim", "bt.709");
+                            }
                             if let Err(e) = r.load(&url, start_at) {
                                 log::error!("player surface: load() failed: {e}");
                                 drop(renderer);
@@ -522,17 +686,18 @@ fn spawn_install_thread(
                     }
                 }
 
-                egl.poll_resize();
+                render_ctx.poll_resize();
+                let swap_start = std::time::Instant::now();
                 {
                     let Ok(mut renderer) = state.player_renderer.try_lock() else {
                         std::thread::sleep(Duration::from_millis(16));
                         continue;
                     };
                     if let Some(r) = renderer.as_mut() {
-                        if let Err(e) = r.render_opengl_frame(nw, nh) {
+                        if let Err(e) = render_ctx.render_and_present(r, nw, nh, vsync_enabled) {
                             consecutive_render_errors = consecutive_render_errors.saturating_add(1);
                             if last_render_error.as_deref() != Some(e.as_str()) {
-                                log::error!("player surface: render_opengl_frame failed: {e}");
+                                log::error!("player surface: render failed: {e}");
                                 last_render_error = Some(e.clone());
                             }
                             if consecutive_render_errors >= 30 {
@@ -555,15 +720,8 @@ fn spawn_install_thread(
                         }
                     }
                 }
-                let swap_start = std::time::Instant::now();
-                egl.swap_buffers();
                 if !vsync_enabled || swap_start.elapsed() < Duration::from_millis(4) {
                     std::thread::sleep(Duration::from_millis(16));
-                }
-                if let Ok(renderer) = state.player_renderer.try_lock() {
-                    if let Some(r) = renderer.as_ref() {
-                        r.report_swap();
-                    }
                 }
 
                 check_player_events(&app);
@@ -572,9 +730,9 @@ fn spawn_install_thread(
             }
         }
 
-        drop(egl);
+        drop(render_ctx);
         unsafe { DestroyWindow(child_hwnd) };
-        log::info!("player surface: render thread exiting, ANGLE/EGL context released");
+        log::info!("player surface: render thread exiting, native render context released");
     });
 }
 

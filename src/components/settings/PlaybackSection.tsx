@@ -278,6 +278,17 @@ export function PlaybackSection({ prefs, setPref }: { prefs: Prefs; setPref: <K 
             void invoke('player_set_seek_thumbnail_enabled', { enabled: v });
           }}
         />
+        <ChoiceTile
+          title={t('settings.render_backend') || 'Render Backend'}
+          subtitle={t('settings.render_backend_desc') || "GPU API mpv renders through. OpenGL is the stable default; Vulkan/D3D11 are experimental and need an app restart to take effect. D3D11 only applies on Windows."}
+          options={[
+            { value: 'opengl', label: 'OpenGL' },
+            { value: 'vulkan', label: 'Vulkan' },
+            { value: 'd3d11', label: 'D3D11 (Windows only)' },
+          ]}
+          selected={prefs.renderBackend}
+          onSelect={(v) => setPref('renderBackend', v)}
+        />
       </div>
     </div>
     </>

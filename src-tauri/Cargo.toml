@@ -84,6 +84,13 @@ windows-sys = { version = "0.52", features = [
     "Win32_UI_ColorSystem",
     "Win32_UI_WindowsAndMessaging",
 ] }
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+] }
 raw-window-handle = "0.6"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
 

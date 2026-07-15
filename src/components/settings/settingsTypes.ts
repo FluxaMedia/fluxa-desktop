@@ -125,6 +125,7 @@ export interface Prefs {
   syncCwRanking: string;
   similarTitlesSource: string;
   searchSuggestionsOpenDetail: boolean;
+  renderBackend: string;
 }
 
 export interface TraktTokenResponse {
@@ -265,4 +266,5 @@ export const DEFAULT_PREFS: Prefs = {
   syncCwRanking: 'last_watched',
   similarTitlesSource: 'auto',
   searchSuggestionsOpenDetail: false,
+  renderBackend: 'opengl',
 };

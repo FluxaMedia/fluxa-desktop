@@ -30,6 +30,14 @@ const MPV_RENDER_PARAM_SW_SIZE: c_int = 17;
 const MPV_RENDER_PARAM_SW_FORMAT: c_int = 18;
 const MPV_RENDER_PARAM_SW_STRIDE: c_int = 19;
 const MPV_RENDER_PARAM_SW_POINTER: c_int = 20;
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+const MPV_RENDER_PARAM_VULKAN_INIT_PARAMS: c_int = 21;
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+const MPV_RENDER_PARAM_VULKAN_IMAGE: c_int = 22;
+#[cfg(target_os = "windows")]
+const MPV_RENDER_PARAM_D3D11_INIT_PARAMS: c_int = 23;
+#[cfg(target_os = "windows")]
+const MPV_RENDER_PARAM_D3D11_TARGET: c_int = 24;
 const MPV_RENDER_UPDATE_FRAME: u64 = 1 << 0;
 
 const MPV_EVENT_NONE: c_int = 0;
@@ -96,6 +104,60 @@ struct MpvOpenGlFbo {
 struct MpvByteArray {
     data: *const u8,
     size: usize,
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[repr(C)]
+struct MpvVulkanInitParams {
+    instance: *mut c_void,
+    phys_device: *mut c_void,
+    device: *mut c_void,
+    get_proc_address: *mut c_void,
+    queue_graphics_index: u32,
+    queue_graphics_count: u32,
+    enabled_extensions: *const *const c_char,
+    num_enabled_extensions: i32,
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[repr(C)]
+pub struct VulkanTargetImage {
+    pub image: u64,
+    pub format: i32,
+    pub w: c_int,
+    pub h: c_int,
+    pub usage: u32,
+    pub layout: i32,
+    pub wait_semaphore: u64,
+    pub signal_semaphore: u64,
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[repr(C)]
+struct MpvVulkanImageFfi {
+    image: u64,
+    format: i32,
+    w: c_int,
+    h: c_int,
+    usage: u32,
+    layout: i32,
+    wait_semaphore: u64,
+    signal_semaphore: u64,
+}
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+struct MpvD3d11InitParams {
+    device: *mut c_void,
+}
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+struct MpvD3d11Target {
+    tex: *mut c_void,
+    format: i32,
+    w: c_int,
+    h: c_int,
 }
 
 type MpvCreate = unsafe extern "C" fn() -> *mut MpvHandle;
@@ -261,52 +323,52 @@ pub struct PlayerFrame {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerStatus {
-    loaded: bool,
-    path: Option<String>,
-    media_title: Option<String>,
-    time_pos: Option<String>,
-    duration: Option<String>,
-    percent_pos: Option<String>,
-    pause: Option<String>,
-    mute: Option<String>,
-    volume: Option<String>,
-    core_idle: Option<String>,
-    eof_reached: Option<String>,
-    vo_configured: Option<String>,
-    video_codec: Option<String>,
-    video_format: Option<String>,
-    width: Option<String>,
-    height: Option<String>,
-    cache_speed: Option<String>,
-    demuxer_cache_duration: Option<String>,
-    hwdec_current: Option<String>,
-    fps: Option<String>,
-    frame_drop_count: Option<String>,
-    decoder_frame_drop_count: Option<String>,
-    avsync: Option<String>,
-    video_bitrate: Option<String>,
-    audio_bitrate: Option<String>,
-    audio_codec: Option<String>,
-    audio_samplerate: Option<String>,
-    audio_channels: Option<String>,
-    color_primaries: Option<String>,
-    color_matrix: Option<String>,
-    color_gamma: Option<String>,
-    video_out_primaries: Option<String>,
-    video_out_matrix: Option<String>,
-    video_out_gamma: Option<String>,
-    sig_peak: Option<String>,
-    container_fps: Option<String>,
-    display_fps: Option<String>,
-    mistimed_frame_count: Option<String>,
-    vo_delayed_frame_count: Option<String>,
-    paused_for_cache: Option<String>,
-    cache_buffering_state: Option<String>,
-    file_format: Option<String>,
-    frames_rendered: u64,
-    has_video_track: bool,
-    track_list_ready: bool,
-    resuming: bool,
+    pub loaded: bool,
+    pub path: Option<String>,
+    pub media_title: Option<String>,
+    pub time_pos: Option<String>,
+    pub duration: Option<String>,
+    pub percent_pos: Option<String>,
+    pub pause: Option<String>,
+    pub mute: Option<String>,
+    pub volume: Option<String>,
+    pub core_idle: Option<String>,
+    pub eof_reached: Option<String>,
+    pub vo_configured: Option<String>,
+    pub video_codec: Option<String>,
+    pub video_format: Option<String>,
+    pub width: Option<String>,
+    pub height: Option<String>,
+    pub cache_speed: Option<String>,
+    pub demuxer_cache_duration: Option<String>,
+    pub hwdec_current: Option<String>,
+    pub fps: Option<String>,
+    pub frame_drop_count: Option<String>,
+    pub decoder_frame_drop_count: Option<String>,
+    pub avsync: Option<String>,
+    pub video_bitrate: Option<String>,
+    pub audio_bitrate: Option<String>,
+    pub audio_codec: Option<String>,
+    pub audio_samplerate: Option<String>,
+    pub audio_channels: Option<String>,
+    pub color_primaries: Option<String>,
+    pub color_matrix: Option<String>,
+    pub color_gamma: Option<String>,
+    pub video_out_primaries: Option<String>,
+    pub video_out_matrix: Option<String>,
+    pub video_out_gamma: Option<String>,
+    pub sig_peak: Option<String>,
+    pub container_fps: Option<String>,
+    pub display_fps: Option<String>,
+    pub mistimed_frame_count: Option<String>,
+    pub vo_delayed_frame_count: Option<String>,
+    pub paused_for_cache: Option<String>,
+    pub cache_buffering_state: Option<String>,
+    pub file_format: Option<String>,
+    pub frames_rendered: u64,
+    pub has_video_track: bool,
+    pub track_list_ready: bool,
+    pub resuming: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -609,6 +671,25 @@ impl MpvRenderer {
             self.create_opengl_context()?;
         }
         Ok(())
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    pub fn needs_vulkan_context(&self) -> bool {
+        self.render_context.is_null()
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    pub fn vulkan_frame_ready(&self) -> bool {
+        if self.render_context.is_null() {
+            return false;
+        }
+        let update_flags = unsafe { (self.api.mpv_render_context_update)(self.render_context) };
+        update_flags & MPV_RENDER_UPDATE_FRAME != 0
+    }
+
+    #[cfg(target_os = "windows")]
+    pub fn needs_d3d11_context(&self) -> bool {
+        self.render_context.is_null()
     }
 
     pub fn command_string(&self, command: &str) -> Result<(), String> {
@@ -1214,6 +1295,176 @@ impl MpvRenderer {
             self.render_context = context;
             Ok(())
         }
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    pub fn create_vulkan_context(
+        &mut self,
+        instance: *mut c_void,
+        phys_device: *mut c_void,
+        device: *mut c_void,
+        queue_graphics_index: u32,
+        queue_graphics_count: u32,
+        get_proc_address: *mut c_void,
+        enabled_extension_ptrs: &[*const c_char],
+    ) -> Result<(), String> {
+        let api_type = CString::new("vulkan").unwrap();
+        let mut init_params = MpvVulkanInitParams {
+            instance,
+            phys_device,
+            device,
+            get_proc_address,
+            queue_graphics_index,
+            queue_graphics_count,
+            enabled_extensions: enabled_extension_ptrs.as_ptr(),
+            num_enabled_extensions: enabled_extension_ptrs.len() as i32,
+        };
+        let mut params = [
+            MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_API_TYPE,
+                data: api_type.as_ptr() as *mut c_void,
+            },
+            MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_VULKAN_INIT_PARAMS,
+                data: (&mut init_params as *mut MpvVulkanInitParams).cast(),
+            },
+            MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_INVALID,
+                data: ptr::null_mut(),
+            },
+        ];
+        let mut context: *mut MpvRenderContext = ptr::null_mut();
+        let result = unsafe {
+            (self.api.mpv_render_context_create)(&mut context, self.handle, params.as_mut_ptr())
+        };
+        if result < 0 {
+            Err(format!(
+                "mpv Vulkan render context failed: {}",
+                self.api.error_string(result)
+            ))
+        } else if context.is_null() {
+            Err("mpv Vulkan render context returned null".to_string())
+        } else {
+            self.render_context = context;
+            Ok(())
+        }
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    pub fn render_vulkan_frame(&mut self, image: &mut VulkanTargetImage) -> Result<(), String> {
+        if self.render_context.is_null() {
+            return Err("vulkan render context not created".to_string());
+        }
+        let update_flags = unsafe { (self.api.mpv_render_context_update)(self.render_context) };
+
+        let mut ffi_image = MpvVulkanImageFfi {
+            image: image.image,
+            format: image.format,
+            w: image.w,
+            h: image.h,
+            usage: image.usage,
+            layout: image.layout,
+            wait_semaphore: image.wait_semaphore,
+            signal_semaphore: image.signal_semaphore,
+        };
+        let mut params = [
+            MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_VULKAN_IMAGE,
+                data: (&mut ffi_image as *mut MpvVulkanImageFfi).cast(),
+            },
+            MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_INVALID,
+                data: ptr::null_mut(),
+            },
+        ];
+        let result = unsafe {
+            (self.api.mpv_render_context_render)(self.render_context, params.as_mut_ptr())
+        };
+        image.layout = ffi_image.layout;
+        if result < 0 {
+            return Err(format!(
+                "mpv_render_context_render (vulkan) failed: {}",
+                self.api.error_string(result)
+            ));
+        }
+        if update_flags & MPV_RENDER_UPDATE_FRAME != 0 {
+            self.frames_rendered = self.frames_rendered.saturating_add(1);
+        }
+        Ok(())
+    }
+
+    #[cfg(target_os = "windows")]
+    pub fn create_d3d11_context(&mut self, device: *mut c_void) -> Result<(), String> {
+        let api_type = CString::new("d3d11").unwrap();
+        let mut init_params = MpvD3d11InitParams { device };
+        let mut params = [
+            MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_API_TYPE,
+                data: api_type.as_ptr() as *mut c_void,
+            },
+            MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_D3D11_INIT_PARAMS,
+                data: (&mut init_params as *mut MpvD3d11InitParams).cast(),
+            },
+            MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_INVALID,
+                data: ptr::null_mut(),
+            },
+        ];
+        let mut context: *mut MpvRenderContext = ptr::null_mut();
+        let result = unsafe {
+            (self.api.mpv_render_context_create)(&mut context, self.handle, params.as_mut_ptr())
+        };
+        if result < 0 {
+            Err(format!(
+                "mpv D3D11 render context failed: {}",
+                self.api.error_string(result)
+            ))
+        } else if context.is_null() {
+            Err("mpv D3D11 render context returned null".to_string())
+        } else {
+            self.render_context = context;
+            Ok(())
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    pub fn render_d3d11_frame(
+        &mut self,
+        tex: *mut c_void,
+        format: i32,
+        w: i32,
+        h: i32,
+    ) -> Result<(), String> {
+        if self.render_context.is_null() {
+            return Err("d3d11 render context not created".to_string());
+        }
+        let update_flags = unsafe { (self.api.mpv_render_context_update)(self.render_context) };
+
+        let mut target = MpvD3d11Target { tex, format, w, h };
+        let mut params = [
+            MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_D3D11_TARGET,
+                data: (&mut target as *mut MpvD3d11Target).cast(),
+            },
+            MpvRenderParam {
+                param_type: MPV_RENDER_PARAM_INVALID,
+                data: ptr::null_mut(),
+            },
+        ];
+        let result = unsafe {
+            (self.api.mpv_render_context_render)(self.render_context, params.as_mut_ptr())
+        };
+        if result < 0 {
+            return Err(format!(
+                "mpv_render_context_render (d3d11) failed: {}",
+                self.api.error_string(result)
+            ));
+        }
+        if update_flags & MPV_RENDER_UPDATE_FRAME != 0 {
+            self.frames_rendered = self.frames_rendered.saturating_add(1);
+        }
+        Ok(())
     }
 
     fn ensure_buffer(&mut self, width: i32, height: i32) {

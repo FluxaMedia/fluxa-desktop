@@ -4,11 +4,30 @@
 // NSOpenGLContext renders mpv frames into it every 16 ms.
 // Window size is queried via Tauri (no NSRect stret needed).
 
+use crate::macos_vulkan::VulkanContext;
+use crate::mpv_render::VulkanTargetImage;
 use crate::DesktopState;
 use std::ffi::{c_void, CString};
 use std::sync::{mpsc, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
+
+#[link(name = "QuartzCore", kind = "framework")]
+extern "C" {}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RenderBackend {
+    OpenGl,
+    Vulkan,
+}
+
+fn read_render_backend(app: &AppHandle) -> RenderBackend {
+    let state = app.state::<DesktopState>();
+    match crate::storage::read_pref_field(state, "renderBackend").as_deref() {
+        Some("vulkan") => RenderBackend::Vulkan,
+        _ => RenderBackend::OpenGl,
+    }
+}
 
 // ObjC runtime types
 
@@ -44,6 +63,11 @@ unsafe fn msg1_bool(obj: Id, sel_name: &str, b: i8) -> Id {
     type Fn = unsafe extern "C" fn(Id, Id, i8) -> Id;
     let f: Fn = std::mem::transmute(objc_msgSend as unsafe extern "C" fn(_, _, ...) -> _);
     f(obj, sel(sel_name), b)
+}
+unsafe fn msg1_f64(obj: Id, sel_name: &str, v: f64) {
+    type Fn = unsafe extern "C" fn(Id, Id, f64);
+    let f: Fn = std::mem::transmute(objc_msgSend as unsafe extern "C" fn(_, _, ...) -> _);
+    f(obj, sel(sel_name), v)
 }
 // msg2_id_id: send with two id args
 unsafe fn msg2_id_id(obj: Id, sel_name: &str, a: Id, b: Id) -> Id {
@@ -93,6 +117,11 @@ unsafe fn msg_set_frame(obj: Id, frame: NSRect) {
     type Fn = unsafe extern "C" fn(Id, Id, NSRect);
     let f: Fn = std::mem::transmute(objc_msgSend as unsafe extern "C" fn(_, _, ...) -> _);
     f(obj, sel("setFrame:"), frame)
+}
+unsafe fn msg_set_drawable_size(obj: Id, size: NSSize) {
+    type Fn = unsafe extern "C" fn(Id, Id, NSSize);
+    let f: Fn = std::mem::transmute(objc_msgSend as unsafe extern "C" fn(_, _, ...) -> _);
+    f(obj, sel("setDrawableSize:"), size)
 }
 
 // NSOpenGLPixelFormatAttribute constants.
@@ -331,63 +360,131 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
         .map_err(|_| "macOS render view creation timed out".to_string())
         .and_then(|r| r)?;
 
-    let gl_ctx = unsafe { create_gl_context()? };
+    let backend = read_render_backend(&app_handle);
+    log::info!(
+        "macos_player_surface: experimental render backend = {}",
+        match backend {
+            RenderBackend::OpenGl => "opengl",
+            RenderBackend::Vulkan => "vulkan",
+        }
+    );
 
-    let (attach_tx, attach_rx) = mpsc::channel::<()>();
-    let attach_ctx = gl_ctx.0 as usize;
-    let attach_view = render_view.0 as usize;
-    run_on_main(move || {
-        unsafe { msg1_id(attach_ctx as Id, "setView:", attach_view as Id) };
-        let _ = attach_tx.send(());
-    });
-    attach_rx
-        .recv_timeout(Duration::from_secs(5))
-        .map_err(|_| "attaching GL context to render view timed out".to_string())?;
-
-    // Make it current on this thread and init mpv render context.
-    unsafe {
-        msg0(gl_ctx.0, "makeCurrentContext");
-        enable_vsync(gl_ctx.0);
+    enum MacRenderTarget {
+        Gl { gl_ctx: usize },
+        Vulkan { ctx: VulkanContext, metal_layer: usize },
     }
 
-    {
-        let state = app_handle.state::<DesktopState>();
-        let mut renderer = state.player_renderer.lock().unwrap();
-        if renderer.is_none() {
-            match crate::mpv_render::MpvRenderer::new() {
-                Ok(r) => *renderer = Some(r),
-                Err(e) => {
-                    return Err(format!("mpv init failed: {e}"));
-                }
-            }
-        }
-        if let Some(r) = renderer.as_mut() {
-            r.prepare_opengl_context()
-                .map_err(|e| format!("mpv GL context failed: {e}"))?;
-            if let Some(icc) = query_colorsync_icc_profile() {
-                if let Err(e) = r.set_icc_profile(&icc) {
-                    log::warn!("failed to set ICC profile: {e}");
-                }
-            }
-        }
-    }
+    let render_target = match backend {
+        RenderBackend::OpenGl => {
+            let gl_ctx = unsafe { create_gl_context()? };
 
-    unsafe { msg0(cls("NSOpenGLContext"), "clearCurrentContext") };
+            let (attach_tx, attach_rx) = mpsc::channel::<()>();
+            let attach_ctx = gl_ctx.0 as usize;
+            let attach_view = render_view.0 as usize;
+            run_on_main(move || {
+                unsafe { msg1_id(attach_ctx as Id, "setView:", attach_view as Id) };
+                let _ = attach_tx.send(());
+            });
+            attach_rx
+                .recv_timeout(Duration::from_secs(5))
+                .map_err(|_| "attaching GL context to render view timed out".to_string())?;
+
+            unsafe {
+                msg0(gl_ctx.0, "makeCurrentContext");
+                enable_vsync(gl_ctx.0);
+            }
+
+            {
+                let state = app_handle.state::<DesktopState>();
+                let mut renderer = state.player_renderer.lock().unwrap();
+                if renderer.is_none() {
+                    match crate::mpv_render::MpvRenderer::new() {
+                        Ok(r) => *renderer = Some(r),
+                        Err(e) => {
+                            return Err(format!("mpv init failed: {e}"));
+                        }
+                    }
+                }
+                if let Some(r) = renderer.as_mut() {
+                    r.prepare_opengl_context()
+                        .map_err(|e| format!("mpv GL context failed: {e}"))?;
+                    if let Some(icc) = query_colorsync_icc_profile() {
+                        if let Err(e) = r.set_icc_profile(&icc) {
+                            log::warn!("failed to set ICC profile: {e}");
+                        }
+                    }
+                }
+            }
+
+            unsafe { msg0(cls("NSOpenGLContext"), "clearCurrentContext") };
+
+            MacRenderTarget::Gl {
+                gl_ctx: gl_ctx.0 as usize,
+            }
+        }
+        RenderBackend::Vulkan => {
+            let (layer_tx, layer_rx) = mpsc::channel::<Result<SendId, String>>();
+            let layer_view = render_view.0 as usize;
+            run_on_main(move || {
+                let _ = layer_tx.send(unsafe {
+                    create_metal_layer(layer_view as Id, scale, init_w, init_h).map(SendId)
+                });
+            });
+            let metal_layer = layer_rx
+                .recv_timeout(Duration::from_secs(5))
+                .map_err(|_| "macOS Metal layer creation timed out".to_string())
+                .and_then(|r| r)?;
+
+            let vk_ctx = VulkanContext::new(metal_layer.0 as *const c_void, init_w, init_h)
+                .map_err(|e| format!("Vulkan context creation failed: {e}"))?;
+
+            let state = app_handle.state::<DesktopState>();
+            let mut renderer = state.player_renderer.lock().unwrap();
+            if renderer.is_none() {
+                match crate::mpv_render::MpvRenderer::new() {
+                    Ok(r) => *renderer = Some(r),
+                    Err(e) => {
+                        return Err(format!("mpv init failed: {e}"));
+                    }
+                }
+            }
+            if let Some(r) = renderer.as_mut() {
+                let (instance, phys_device, device, queue_index, queue_count) =
+                    vk_ctx.device_handles();
+                r.create_vulkan_context(instance, phys_device, device, queue_index, queue_count, std::ptr::null_mut(), &[])
+                    .map_err(|e| format!("mpv Vulkan context failed: {e}"))?;
+                if vk_ctx.is_hdr() {
+                    let _ = r.set_option("target-trc", "linear");
+                    let _ = r.set_option("target-prim", "bt.709");
+                }
+                if let Some(icc) = query_colorsync_icc_profile() {
+                    if let Err(e) = r.set_icc_profile(&icc) {
+                        log::warn!("failed to set ICC profile: {e}");
+                    }
+                }
+            }
+
+            MacRenderTarget::Vulkan {
+                ctx: vk_ctx,
+                metal_layer: metal_layer.0 as usize,
+            }
+        }
+    };
 
     let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
     let app = app_handle.clone();
 
     // usize is Send; this is the standard pattern for passing ObjC raw pointers
     // across a thread boundary when the caller guarantees exclusive access.
-    let gl_ctx_usize: usize = gl_ctx.0 as usize;
     let render_view_usize: usize = render_view.0 as usize;
 
     std::thread::spawn(move || {
-        let gl: *mut c_void = gl_ctx_usize as _;
         let rv: *mut c_void = render_view_usize as _;
+        let mut render_target = render_target;
 
-        // Make context current on this render thread.
-        unsafe { msg0(gl, "makeCurrentContext") };
+        if let MacRenderTarget::Gl { gl_ctx } = &render_target {
+            unsafe { msg0(*gl_ctx as Id, "makeCurrentContext") };
+        }
         let _ = ready_tx.send(Ok(()));
 
         let mut visible = false;
@@ -469,7 +566,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                     continue;
                 }
 
-                // Track window size changes via Tauri.
+                let mut resized = false;
                 if let Some(win) = app.get_webview_window("main") {
                     if let Ok(sz) = win.inner_size() {
                         let scale = win.scale_factor().unwrap_or(1.0).max(1.0);
@@ -477,44 +574,106 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                         let nh = (sz.height as i32).max(2);
                         if (nw, nh) != last_size {
                             last_size = (nw, nh);
+                            resized = true;
                             let view = rv as usize;
-                            let ctx = gl as usize;
                             let frame_w = nw as f64 / scale;
                             let frame_h = nh as f64 / scale;
-                            run_on_main(move || unsafe {
-                                msg_set_frame(
-                                    view as Id,
-                                    NSRect {
-                                        origin: NSPoint { x: 0.0, y: 0.0 },
-                                        size: NSSize {
-                                            width: frame_w,
-                                            height: frame_h,
-                                        },
-                                    },
-                                );
-                                msg0(ctx as Id, "update");
-                            });
+                            match &render_target {
+                                MacRenderTarget::Gl { gl_ctx } => {
+                                    let ctx = *gl_ctx;
+                                    run_on_main(move || unsafe {
+                                        msg_set_frame(
+                                            view as Id,
+                                            NSRect {
+                                                origin: NSPoint { x: 0.0, y: 0.0 },
+                                                size: NSSize {
+                                                    width: frame_w,
+                                                    height: frame_h,
+                                                },
+                                            },
+                                        );
+                                        msg0(ctx as Id, "update");
+                                    });
+                                }
+                                MacRenderTarget::Vulkan { metal_layer, .. } => {
+                                    let layer = *metal_layer;
+                                    run_on_main(move || unsafe {
+                                        msg_set_frame(
+                                            view as Id,
+                                            NSRect {
+                                                origin: NSPoint { x: 0.0, y: 0.0 },
+                                                size: NSSize {
+                                                    width: frame_w,
+                                                    height: frame_h,
+                                                },
+                                            },
+                                        );
+                                        msg_set_drawable_size(
+                                            layer as Id,
+                                            NSSize {
+                                                width: nw as f64,
+                                                height: nh as f64,
+                                            },
+                                        );
+                                    });
+                                }
+                            }
                         }
                     }
                 }
 
-                {
-                    let state = app.state::<DesktopState>();
-                    let mut renderer = state.player_renderer.lock().unwrap();
-                    if let Some(r) = renderer.as_mut() {
-                        let _ = r.render_opengl_frame(last_size.0, last_size.1);
+                match &mut render_target {
+                    MacRenderTarget::Gl { gl_ctx } => {
+                        {
+                            let state = app.state::<DesktopState>();
+                            let mut renderer = state.player_renderer.lock().unwrap();
+                            if let Some(r) = renderer.as_mut() {
+                                let _ = r.render_opengl_frame(last_size.0, last_size.1);
+                            }
+                        }
+                        let flush_start = std::time::Instant::now();
+                        unsafe { msg0(*gl_ctx as Id, "flushBuffer") };
+                        if flush_start.elapsed() < Duration::from_millis(4) {
+                            std::thread::sleep(Duration::from_millis(16));
+                        }
+                        {
+                            let state = app.state::<DesktopState>();
+                            if let Some(r) = state.player_renderer.lock().unwrap().as_ref() {
+                                r.report_swap();
+                            };
+                        }
                     }
-                }
-                let flush_start = std::time::Instant::now();
-                unsafe { msg0(gl, "flushBuffer") };
-                if flush_start.elapsed() < Duration::from_millis(4) {
-                    std::thread::sleep(Duration::from_millis(16));
-                }
-                {
-                    let state = app.state::<DesktopState>();
-                    if let Some(r) = state.player_renderer.lock().unwrap().as_ref() {
-                        r.report_swap();
-                    };
+                    MacRenderTarget::Vulkan { ctx, .. } => {
+                        if resized {
+                            if let Err(e) = ctx.resize(last_size.0, last_size.1) {
+                                log::warn!("macos_player_surface: Vulkan resize failed: {e}");
+                            }
+                        }
+                        let state = app.state::<DesktopState>();
+                        let mut renderer = state.player_renderer.lock().unwrap();
+                        if let Some(r) = renderer.as_mut() {
+                            let image_usage = ctx.image_usage();
+                            let result =
+                                ctx.render_and_present(|image, format, iw, ih, wait_semaphore, signal_semaphore| {
+                                    let mut target = VulkanTargetImage {
+                                        image,
+                                        format,
+                                        w: iw as i32,
+                                        h: ih as i32,
+                                        usage: image_usage,
+                                        layout: 0,
+                                        wait_semaphore,
+                                        signal_semaphore,
+                                    };
+                                    r.render_vulkan_frame(&mut target).map(|_| target.layout)
+                                });
+                            match result {
+                                Ok(()) => r.report_swap(),
+                                Err(e) => log::warn!("macos_player_surface: Vulkan render failed: {e}"),
+                            }
+                        }
+                        std::thread::sleep(Duration::from_millis(16));
+                    }
                 }
 
                 check_player_events(&app);
@@ -563,6 +722,29 @@ unsafe fn create_render_subview(parent: SendId, w: f64, h: f64) -> Result<SendId
     msg1_bool(view, "setHidden:", 1);
 
     Ok(SendId(view))
+}
+
+unsafe fn create_metal_layer(view: Id, contents_scale: f64, w: i32, h: i32) -> Result<Id, String> {
+    let layer_cls = cls("CAMetalLayer");
+    if layer_cls.is_null() {
+        return Err("CAMetalLayer class not found".to_string());
+    }
+    let alloc: Id = msg0(layer_cls, "alloc");
+    let layer: Id = msg0(alloc, "init");
+    if layer.is_null() {
+        return Err("CAMetalLayer init failed".to_string());
+    }
+    msg1_f64(layer, "setContentsScale:", contents_scale);
+    msg1_bool(layer, "setWantsExtendedDynamicRangeContent:", 1);
+    msg_set_drawable_size(
+        layer,
+        NSSize {
+            width: w as f64,
+            height: h as f64,
+        },
+    );
+    msg1_id(view, "setLayer:", layer);
+    Ok(layer)
 }
 
 unsafe fn create_gl_context() -> Result<SendId, String> {
