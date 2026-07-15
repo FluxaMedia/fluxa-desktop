@@ -952,6 +952,7 @@
   "settings.sync_now": "Şimdi Eşitle",
   "settings.out_of_sync": "Eşitlenmedi",
   "settings.synced": "Eşitlendi",
+  "settings.sync_error": "Eşitleme hatası",
   "settings.watchlist": "İzleme Listesi",
   "settings.apis": "APIS",
   "settings.apis_desc": "Metadata API erişimini yapılandır.",

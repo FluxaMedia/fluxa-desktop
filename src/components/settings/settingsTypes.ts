@@ -140,6 +140,7 @@ export interface SyncMeta {
   lastSyncAt: number;
   continueWatchingCount: number;
   watchlistCount: number;
+  error?: string;
 }
 
 export const DEFAULT_PREFS: Prefs = {

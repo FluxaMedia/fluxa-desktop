@@ -27,6 +27,20 @@ export interface NuvioImportOptions {
   includeSettings?: boolean;
 }
 
+export interface NuvioSyncMeta {
+  lastSyncAt: number;
+  continueWatchingCount: number;
+  watchlistCount: number;
+  error?: string;
+}
+
+export async function recordNuvioSyncMeta(report: NuvioImportReport | { errors: Partial<Record<NuvioImportStep, string>> }): Promise<void> {
+  const failures = Object.entries(report.errors);
+  const error = failures.length > 0 ? failures.map(([step, msg]) => `${step}: ${msg}`).join('; ') : undefined;
+  const meta: NuvioSyncMeta = { lastSyncAt: Date.now(), continueWatchingCount: 0, watchlistCount: 0, error };
+  await storageWrite('nuvio_sync_meta', meta);
+}
+
 export async function freshNuvioProfile(profile: UserProfile): Promise<UserProfile> {
   if (!profile.nuvioRefreshToken) return profile;
   const expiresAt = profile.nuvioTokenExpiresAt ?? 0;

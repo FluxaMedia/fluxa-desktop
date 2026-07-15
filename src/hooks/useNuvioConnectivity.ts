@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { nuvioHealthCheck, nuvioPushWatchProgress, nuvioPushLibrary, nuvioPushWatchHistory } from '../core/nuvioApi';
 import { loadLibrary } from '../core/libraryOps';
-import { freshNuvioProfile, importNuvioProfileData } from '../core/nuvioSync';
+import { freshNuvioProfile, importNuvioProfileData, recordNuvioSyncMeta } from '../core/nuvioSync';
 import type { UserProfile } from '../core/types';
 
 async function pushLocalToNuvio(profile: UserProfile): Promise<void> {
@@ -104,14 +104,18 @@ export function useNuvioConnectivity(activeProfile: UserProfile | null, onSynced
         setDismissed(false);
         setTimeout(() => { if (!cancelled) setJustRecovered(false); }, 2000);
         void (async () => {
-          await importNuvioProfileData(profile).catch(() => undefined);
+          await importNuvioProfileData(profile)
+            .then((report) => recordNuvioSyncMeta(report))
+            .catch((err) => recordNuvioSyncMeta({ errors: { library: err instanceof Error ? err.message : String(err) } }));
           await pushLocalToNuvio(profile).catch(() => undefined);
           await onSynced?.();
         })();
       } else if (!down && !pulledRemote) {
         pulledRemote = true;
         void (async () => {
-          await importNuvioProfileData(profile).catch(() => undefined);
+          await importNuvioProfileData(profile)
+            .then((report) => recordNuvioSyncMeta(report))
+            .catch((err) => recordNuvioSyncMeta({ errors: { library: err instanceof Error ? err.message : String(err) } }));
           await onSynced?.();
         })();
       }

@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { dispatchAction, getSnapshot, initEngine, storageRead } from '../core/engine';
 import { getActiveProfileId, loadProfiles } from '../core/profiles';
 import { pumpEffects, syncExternalIntegrationNow } from '../core/effectRunner';
-import { importNuvioProfileData } from '../core/nuvioSync';
+import { importNuvioProfileData, recordNuvioSyncMeta } from '../core/nuvioSync';
 import { setLanguage } from '../i18n';
 import { prefBool, prefString } from '../core/appPrefs';
 import { setRpdbApiKey } from '../core/rpdb';
@@ -41,7 +41,11 @@ export function useAppInit(
     try {
       const syncTasks: Promise<unknown>[] = [];
       if (profile.nuvioAccessToken) {
-        syncTasks.push(importNuvioProfileData(profile).catch(() => undefined));
+        syncTasks.push(
+          importNuvioProfileData(profile)
+            .then((report) => recordNuvioSyncMeta(report))
+            .catch((err) => recordNuvioSyncMeta({ errors: { library: err instanceof Error ? err.message : String(err) } }))
+        );
       }
       if (profile.stremioAuthKey) {
         syncTasks.push(syncExternalIntegrationNow({

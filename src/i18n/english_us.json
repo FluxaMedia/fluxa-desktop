@@ -952,6 +952,7 @@
   "settings.sync_now": "Sync Now",
   "settings.out_of_sync": "Out of sync",
   "settings.synced": "Synced",
+  "settings.sync_error": "Sync error",
   "settings.watchlist": "Watchlist",
   "settings.apis": "APIS",
   "settings.apis_desc": "Configure metadata API access.",

@@ -705,8 +705,12 @@ export function SyncServicePopover({
   onClose: () => void;
 }) {
   const isOutOfSync = !meta || Date.now() - meta.lastSyncAt > 6 * 60 * 60 * 1000;
-  const effectiveStatus = statusLabel ?? `${isOutOfSync ? t('settings.out_of_sync') : t('settings.synced')}${meta ? ` · ${timeAgo(meta.lastSyncAt)}` : ''}`;
-  const effectiveStatusColor = statusColor ?? (isOutOfSync ? '#FF9500' : '#54D17A');
+  const effectiveStatus = statusLabel ?? (
+    meta?.error
+      ? `${t('settings.sync_error')} · ${meta.error}`
+      : `${isOutOfSync ? t('settings.out_of_sync') : t('settings.synced')}${meta ? ` · ${timeAgo(meta.lastSyncAt)}` : ''}`
+  );
+  const effectiveStatusColor = statusColor ?? (meta?.error ? '#FF5A5A' : (isOutOfSync ? '#FF9500' : '#54D17A'));
   const counts = [
     meta && meta.continueWatchingCount > 0 ? `${meta.continueWatchingCount} ${t('auto.continue_watching')}` : null,
     meta && meta.watchlistCount > 0 ? `${meta.watchlistCount} ${t('settings.watchlist')}` : null,

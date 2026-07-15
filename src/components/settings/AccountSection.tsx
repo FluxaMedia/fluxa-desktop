@@ -594,17 +594,21 @@ export function AccountSection({
         provider: 'nuvio',
         profile: activeProfile,
       }) as { synced?: boolean; error?: string };
+      const meta: SyncMeta = { lastSyncAt: Date.now(), continueWatchingCount: 0, watchlistCount: 0, error: result.synced ? undefined : (result.error ?? 'Nuvio sync failed') };
+      setNuvioSyncMeta(meta);
+      await storageWrite('nuvio_sync_meta', meta);
       if (!result.synced) {
-        setNuvioError(result.error ?? 'Nuvio sync failed');
+        setNuvioError(meta.error!);
       } else {
-        const meta: SyncMeta = { lastSyncAt: Date.now(), continueWatchingCount: 0, watchlistCount: 0 };
-        setNuvioSyncMeta(meta);
-        await storageWrite('nuvio_sync_meta', meta);
         await onNuvioSyncComplete?.();
         await onDispatch(JSON.stringify({ type: 'addonsRefreshRequested', forceRefresh: false, profile: activeProfile }));
       }
     } catch (error) {
-      setNuvioError(error instanceof Error ? error.message : String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      setNuvioError(message);
+      const meta: SyncMeta = { lastSyncAt: Date.now(), continueWatchingCount: 0, watchlistCount: 0, error: message };
+      setNuvioSyncMeta(meta);
+      await storageWrite('nuvio_sync_meta', meta);
     } finally {
       setNuvioBusy(false);
     }
