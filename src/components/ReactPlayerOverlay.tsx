@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { t } from '../i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
@@ -11,10 +11,13 @@ import {
   Cast,
   ChevronLeft,
   Clock,
+  Download,
   Fullscreen,
   GalleryVerticalEnd,
   Gauge,
   Info,
+  Link2,
+  Magnet,
   Minimize2,
   Pause,
   PictureInPicture2,
@@ -41,7 +44,10 @@ import { Toast } from './Toast';
 import { NextEpCard } from './player/NextEpCard';
 import { EpisodePanel, epLabel } from './player/EpisodePanel';
 import type { EpisodeInfo } from './player/EpisodePanel';
-import type { Video } from '../core/types';
+import type { Meta, Stream, Video } from '../core/types';
+import { streamMagnetLink, enqueueOfflineDownload } from '../core/engine';
+import { buildOfflineDownloadRequest, streamDownloadLink, streamIsTorrent, streamSourceLink } from '../core/streamLinks';
+import { ContextMenu } from './ui/ContextMenu';
 import { TrackPopover, type SubtitleCaptureCue } from './player/TrackPopover';
 import { CastPopover } from './player/CastPopover';
 import { TorrentStatsPopover } from './player/TorrentStatsPopover';
@@ -146,6 +152,8 @@ interface Props {
   metaId?: string;
   initialSubtitleUrl?: string;
   initialStreamHeaders?: Record<string, string>;
+  streamRef?: RefObject<Stream | null>;
+  metaRef?: RefObject<Meta | null>;
   playbackUrl?: string | null;
   playbackError?: string | null;
   subtitleWarning?: string[] | null;
@@ -156,7 +164,7 @@ interface Props {
   onDispatch?: (actionJson: string) => Promise<void> | void;
 }
 
-export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, initialLogoUrl, metaId, initialSubtitleUrl, initialStreamHeaders, playbackUrl, playbackError, subtitleWarning, onDismissSubtitleWarning, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
+export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, initialEpisodeTitle, currentEpisode, isTorrentStream = false, initialPosterUrl, initialLogoUrl, metaId, initialSubtitleUrl, initialStreamHeaders, streamRef, metaRef, playbackUrl, playbackError, subtitleWarning, onDismissSubtitleWarning, softwareVideoActive = false, bannerOffset = 0, prefs, onDispatch }: Props) {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volumeLevel, setVolumeLevel] = useState(100);
@@ -190,6 +198,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const autoSkippedKeysRef = useRef<Set<string>>(new Set());
   const [showNextEpCard, setShowNextEpCard] = useState(false);
   const [trackPopover, setTrackPopover] = useState<'audio' | 'sub' | 'speed' | null>(null);
+  const [streamLinksMenuPoint, setStreamLinksMenuPoint] = useState<{ x: number; y: number } | null>(null);
+  const streamLinksBtnRef = useRef<HTMLButtonElement | null>(null);
   const [miniPlayerActive, setMiniPlayerActive] = useState(false);
   const miniPlayerActiveRef = useRef(false);
   const preMiniPlayerSizeRef = useRef<PhysicalSize | null>(null);
@@ -387,18 +397,33 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
     };
   }, [softwareVideoActive, onFirstFrame]);
 
-  const toggleFullscreen = useCallback(async () => {
-    const next = !isFullscreenRef.current;
+  const setPlayerFullscreen = useCallback(async (next: boolean) => {
     isFullscreenRef.current = next;
-    await getCurrentWindow().setFullscreen(next);
+    const win = getCurrentWindow();
+    if (await invoke<boolean>('is_linux')) {
+      // Native xdg_toplevel fullscreen doesn't reliably composite our
+      // Wayland subsurface video layer on some compositors (e.g. Hyprland),
+      // so use a borderless maximize instead of true fullscreen on Linux.
+      await win.setDecorations(!next);
+      if (next) {
+        await win.maximize();
+      } else {
+        await win.unmaximize();
+      }
+    } else {
+      await win.setFullscreen(next);
+    }
   }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    await setPlayerFullscreen(!isFullscreenRef.current);
+  }, [setPlayerFullscreen]);
 
   const toggleMiniPlayer = useCallback(async () => {
     const win = getCurrentWindow();
     if (!miniPlayerActive) {
       if (isFullscreenRef.current) {
-        isFullscreenRef.current = false;
-        await win.setFullscreen(false);
+        await setPlayerFullscreen(false);
       }
       try {
         preMiniPlayerSizeRef.current = await win.outerSize();
@@ -429,7 +454,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       setSuppressWindowGeometrySave(false);
       setMiniPlayerActive(false);
     }
-  }, [miniPlayerActive]);
+  }, [miniPlayerActive, setPlayerFullscreen]);
 
   const flashFeedback = useCallback((icon: FeedbackFlash['icon'], label: string) => {
     setFeedback({ icon, label });
@@ -826,7 +851,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         if (contextMenu) { setContextMenu(null); return; }
         if (showEpisodePanel) { setShowEpisodePanel(false); episodePanelOpenRef.current = false; return; }
         if (trackPopover) { setTrackPopover(null); return; }
-        if (isFullscreenRef.current) { isFullscreenRef.current = false; void getCurrentWindow().setFullscreen(false); }
+        if (isFullscreenRef.current) { void setPlayerFullscreen(false); }
         return;
       }
       if (e.code === 'Backspace') {
@@ -1012,7 +1037,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [closePlayer, contextMenu, flashFeedback, nextEpSubtitle, playbackSpeed, shortcutOverrides, showEpisodePanel, showShortcutsHelp, startSeekOverlay, toggleFullscreen, toggleMiniPlayer, trackPopover, triggerActiveSkip]);
+  }, [closePlayer, contextMenu, flashFeedback, nextEpSubtitle, playbackSpeed, setPlayerFullscreen, shortcutOverrides, showEpisodePanel, showShortcutsHelp, startSeekOverlay, toggleFullscreen, toggleMiniPlayer, trackPopover, triggerActiveSkip]);
 
   useEffect(() => {
     return () => {
@@ -1614,6 +1639,20 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           <PictureInPicture2 size={20} />
         </button>
         <button
+          ref={streamLinksBtnRef}
+          onClick={(e) => {
+            e.stopPropagation();
+            resetActivity();
+            const rect = streamLinksBtnRef.current?.getBoundingClientRect();
+            setStreamLinksMenuPoint(rect ? { x: Math.max(0, rect.right - 216), y: rect.bottom + 8 } : null);
+          }}
+          className="fluxa-ibtn"
+          style={{ ...styles.iconBtn, color: '#fff' }}
+          title={t('player.stream_links')}
+        >
+          <Link2 size={20} />
+        </button>
+        <button
           ref={playerSettingsBtnRef}
           onClick={(e) => { e.stopPropagation(); resetActivity(); setShowPlayerSettings((v) => !v); }}
           className="fluxa-ibtn"
@@ -1736,6 +1775,23 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           onChooseSubtitleStyle={chooseSubtitleStyle}
         />
       )}
+
+      <ContextMenu
+        point={streamLinksMenuPoint}
+        onClose={() => setStreamLinksMenuPoint(null)}
+        items={(() => {
+          const stream = streamRef?.current;
+          const meta = metaRef?.current;
+          if (!stream) return [];
+          const sourceLink = streamSourceLink(stream);
+          const downloadLink = streamDownloadLink(stream);
+          return [
+            ...(sourceLink ? [{ icon: <Link2 size={15} />, label: t('player.copy_stream_link'), onSelect: () => { void navigator.clipboard.writeText(sourceLink); } }] : []),
+            ...(streamIsTorrent(stream) ? [{ icon: <Magnet size={15} />, label: t('player.copy_magnet_link'), onSelect: () => { void streamMagnetLink(stream).then((link) => { if (link) void navigator.clipboard.writeText(link); }); } }] : []),
+            ...(meta && downloadLink ? [{ icon: <Download size={15} />, label: t('player.download_this_video'), onSelect: () => { void enqueueOfflineDownload(buildOfflineDownloadRequest(meta, stream, currentEpisode)); } }] : []),
+          ];
+        })()}
+      />
 
       {castPopoverOpen && (
         <CastPopover

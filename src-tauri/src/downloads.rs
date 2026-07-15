@@ -135,6 +135,7 @@ async fn run_download(
     request_json: String,
     playback_url: String,
     video_file_name: String,
+    is_local_source: bool,
     cancel: Arc<AtomicBool>,
 ) {
     let temp_path = offline_dir.join(format!("{video_file_name}.part"));
@@ -165,9 +166,11 @@ async fn run_download(
         emit(downloaded, total, "failed", Some(&message));
     };
 
-    if let Err(e) = crate::net_guard::ensure_public_host(&playback_url).await {
-        fail(&offline_dir, resume_from, None, e);
-        return;
+    if !is_local_source {
+        if let Err(e) = crate::net_guard::ensure_public_host(&playback_url).await {
+            fail(&offline_dir, resume_from, None, e);
+            return;
+        }
     }
 
     let client = match reqwest::Client::builder()
@@ -282,6 +285,7 @@ fn spawn_download(
     request_json: String,
     playback_url: String,
     video_file_name: String,
+    is_local_source: bool,
 ) {
     let cancel = Arc::new(AtomicBool::new(false));
     state
@@ -297,8 +301,27 @@ fn spawn_download(
         request_json,
         playback_url,
         video_file_name,
+        is_local_source,
         cancel,
     ));
+}
+
+async fn resolve_download_source(
+    state: &State<'_, DesktopState>,
+    plan: &Value,
+    request_json: &str,
+    fallback_url: String,
+) -> Result<(String, bool), String> {
+    if plan.get("isTorrent").and_then(Value::as_bool) != Some(true) {
+        return Ok((fallback_url, false));
+    }
+    let stream_json = serde_json::from_str::<Value>(request_json)
+        .ok()
+        .and_then(|request| request.get("stream").cloned())
+        .ok_or_else(|| "offline download request has no stream".to_string())?
+        .to_string();
+    let url = crate::resolve_torrent_download_url(state, stream_json).await?;
+    Ok((url, true))
 }
 
 #[tauri::command]
@@ -311,6 +334,8 @@ pub async fn enqueue_offline_download(
         Ok(v) => v,
         Err(plan_json) => return Ok(Some(plan_json)),
     };
+    let (download_url, is_local_source) =
+        resolve_download_source(&state, &plan, &request_json, playback_url).await?;
     let offline_dir =
         resolve_offline_dir(&state).ok_or_else(|| "app data dir is not ready".to_string())?;
     fs::create_dir_all(&offline_dir).map_err(|e| e.to_string())?;
@@ -335,8 +360,9 @@ pub async fn enqueue_offline_download(
         offline_dir,
         id,
         request_json,
-        playback_url,
+        download_url,
         video_file_name.clone(),
+        is_local_source,
     );
 
     let mut queued = plan;
@@ -371,9 +397,9 @@ pub fn cancel_offline_download(state: State<DesktopState>, id: String) -> Result
 }
 
 #[tauri::command]
-pub fn resume_offline_download(
+pub async fn resume_offline_download(
     app: AppHandle,
-    state: State<DesktopState>,
+    state: State<'_, DesktopState>,
     id: String,
 ) -> Result<(), String> {
     let offline_dir =
@@ -383,8 +409,10 @@ pub fn resume_offline_download(
         .into_iter()
         .find(|e| e.id == id)
         .ok_or_else(|| "no download to resume".to_string())?;
-    let (_, playback_url, video_file_name) = build_plan(&entry.request_json)?;
+    let (plan, playback_url, video_file_name) = build_plan(&entry.request_json)?;
     let request_json = entry.request_json.clone();
+    let (download_url, is_local_source) =
+        resolve_download_source(&state, &plan, &request_json, playback_url).await?;
     upsert_manifest(
         &offline_dir,
         ManifestEntry {
@@ -399,8 +427,9 @@ pub fn resume_offline_download(
         offline_dir,
         id,
         request_json,
-        playback_url,
+        download_url,
         video_file_name,
+        is_local_source,
     );
     Ok(())
 }

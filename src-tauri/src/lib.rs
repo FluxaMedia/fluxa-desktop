@@ -157,6 +157,11 @@ impl Default for DesktopState {
 static DIAGNOSTIC_MODE: AtomicBool = AtomicBool::new(false);
 
 #[tauri::command]
+fn is_linux() -> bool {
+    cfg!(target_os = "linux")
+}
+
+#[tauri::command]
 fn debug_log(msg: String) {
     if std::env::var_os("FLUXA_DEBUG_LOGS").is_some() {
         println!("[perf] {msg}");
@@ -396,6 +401,39 @@ fn start_torrent_stream_inner(
 }
 
 #[tauri::command]
+fn stream_magnet_link(stream_json: String) -> Option<String> {
+    FluxaCore::stream_magnet_link_json(&stream_json)
+}
+
+async fn ensure_healthy_torrent_base_url(
+    state: &State<'_, DesktopState>,
+    data_dir: &std::path::Path,
+) -> Option<String> {
+    let base_url = state.torrent_server_base_url.lock().unwrap().clone()?;
+    let healthy = tauri::async_runtime::spawn_blocking({
+        let base_url = base_url.clone();
+        move || torrent_server_healthy(&base_url)
+    })
+    .await
+    .unwrap_or(false);
+    if healthy {
+        return Some(base_url);
+    }
+    let previous_generation = state.torrent_generation.lock().unwrap().take();
+    *state.torrent_server_base_url.lock().unwrap() = None;
+    *state.torrent_stream_link.lock().unwrap() = None;
+    *state.torrent_stream_file_id.lock().unwrap() = None;
+    let cleanup_dir = data_dir.to_path_buf();
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        let stopped = fluxa_streaming_engine::stop_torrent_server(previous_generation);
+        let _ = fs::remove_dir_all(cleanup_dir.join("torrent-cache"));
+        stopped
+    })
+    .await;
+    None
+}
+
+#[tauri::command]
 async fn start_torrent_stream(
     state: State<'_, DesktopState>,
     stream_json: String,
@@ -416,31 +454,8 @@ async fn start_torrent_stream(
                 .and_then(Value::as_str)
                 .map(str::to_ascii_lowercase)
         });
-    let mut existing_base_url = state.torrent_server_base_url.lock().unwrap().clone();
     let existing_link = state.torrent_stream_link.lock().unwrap().clone();
-    if let Some(base_url) = existing_base_url.clone() {
-        let healthy = tauri::async_runtime::spawn_blocking({
-            let base_url = base_url.clone();
-            move || torrent_server_healthy(&base_url)
-        })
-        .await
-        .unwrap_or(false);
-        if !healthy {
-            existing_base_url = None;
-            let previous_generation = state.torrent_generation.lock().unwrap().take();
-            *state.torrent_server_base_url.lock().unwrap() = None;
-            *state.torrent_stream_link.lock().unwrap() = None;
-            *state.torrent_stream_file_id.lock().unwrap() = None;
-            let cleanup_dir = data_dir.clone();
-            tauri::async_runtime::spawn_blocking(move || {
-                let stopped = fluxa_streaming_engine::stop_torrent_server(previous_generation);
-                let _ = fs::remove_dir_all(cleanup_dir.join("torrent-cache"));
-                stopped
-            })
-            .await
-            .unwrap_or(false);
-        }
-    }
+    let existing_base_url = ensure_healthy_torrent_base_url(&state, &data_dir).await;
     let reuse_existing_server = existing_base_url.is_some();
     let same_torrent = info_hash.as_ref().is_some_and(|hash| {
         existing_link
@@ -469,23 +484,35 @@ async fn start_torrent_stream(
     Ok(stream_url)
 }
 
+pub(crate) async fn resolve_torrent_download_url(
+    state: &State<'_, DesktopState>,
+    stream_json: String,
+) -> Result<String, String> {
+    let data_dir = state
+        .data_dir
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "app data dir is not ready".to_string())?;
+    let existing_base_url = ensure_healthy_torrent_base_url(state, &data_dir).await;
+    let (stream_url, base_url, _link, generation, _file_id) =
+        tauri::async_runtime::spawn_blocking(move || {
+            start_torrent_stream_inner(data_dir, stream_json, None, None, existing_base_url)
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+    *state.torrent_server_base_url.lock().unwrap() = Some(base_url);
+    if let Some(generation) = generation {
+        *state.torrent_generation.lock().unwrap() = Some(generation);
+    }
+    Ok(stream_url)
+}
+
 #[tauri::command]
 async fn stop_torrent_stream(state: State<'_, DesktopState>) -> Result<bool, String> {
-    *state.torrent_server_base_url.lock().unwrap() = None;
-    *state.torrent_stream_link.lock().unwrap() = None;
+    let was_playing = state.torrent_stream_link.lock().unwrap().take().is_some();
     *state.torrent_stream_file_id.lock().unwrap() = None;
-    let generation = state.torrent_generation.lock().unwrap().take();
-    let data_dir = state.data_dir.lock().unwrap().clone();
-    let stopped = tauri::async_runtime::spawn_blocking(move || {
-        let stopped = fluxa_streaming_engine::stop_torrent_server(generation);
-        if let Some(data_dir) = data_dir {
-            let _ = fs::remove_dir_all(data_dir.join("torrent-cache"));
-        }
-        stopped
-    })
-    .await
-    .unwrap_or(false);
-    Ok(stopped)
+    Ok(was_playing)
 }
 
 #[tauri::command]
@@ -813,6 +840,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            is_linux,
             debug_log,
             app_close_flush_done,
             set_diagnostic_mode,
@@ -842,6 +870,7 @@ pub fn run() {
             library_continue_watching_delete,
             core_invoke,
             run_plugin_scraper,
+            stream_magnet_link,
             start_torrent_stream,
             stop_torrent_stream,
             register_trailer_proxy_url,
@@ -931,6 +960,11 @@ pub fn run() {
             cast_proxy_serve,
             player_torrent_stats,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Fluxa Desktop");
+        .build(tauri::generate_context!())
+        .expect("error while building Fluxa Desktop")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                fluxa_streaming_engine::stop_torrent_server(None);
+            }
+        });
 }

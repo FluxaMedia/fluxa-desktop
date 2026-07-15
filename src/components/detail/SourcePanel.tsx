@@ -1,17 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Link2, Magnet, Play } from 'lucide-react';
 import { t } from '../../i18n';
 import { EP, MS, SS, spinnerStyle } from './detailStyles';
 import type { Meta, Stream, Video } from '../../core/types';
 import { useDragScroll } from '../../hooks/useDragScroll';
+import { streamMagnetLink, enqueueOfflineDownload } from '../../core/engine';
+import { buildOfflineDownloadRequest, streamDownloadLink, streamIsTorrent, streamSourceLink } from '../../core/streamLinks';
+import { ContextMenu } from '../ui/ContextMenu';
 
 export function streamDisplayText(value: string | undefined): string | undefined {
   const text = value?.replace(/\\r\\n|\\n|\\r/g, '\n').replace(/\r\n|\r/g, '\n').trim();
   return text || undefined;
 }
 
-export function SourceRow({ stream, onClick }: { stream: Stream; onClick: () => void }) {
+export function SourceRow({ stream, onClick, meta, episode }: { stream: Stream; onClick: () => void; meta?: Meta; episode?: Video | null }) {
   const [hovered, setHovered] = useState(false);
+  const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
   const heading = streamDisplayText(stream.name) || streamDisplayText(stream.title) || streamDisplayText(stream.description) || t('player.source');
   const seenLines = new Set<string>();
   const lines = [stream.title, stream.description]
@@ -21,21 +25,40 @@ export function SourceRow({ stream, onClick }: { stream: Stream; onClick: () => 
       seenLines.add(value);
       return true;
     });
+
+  const isTorrent = streamIsTorrent(stream);
+  const sourceLink = streamSourceLink(stream);
+  const downloadLink = streamDownloadLink(stream);
+
   return (
-    <button
-      style={{ ...SS.streamRow, background: hovered ? '#181818' : '#101010', color: '#FFF', boxShadow: hovered ? '0 0 0 0.125rem rgba(255,255,255,0.22)' : 'none' }}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
-        <span style={SS.streamName}>{heading}</span>
-        {stream.addonName && <span style={{ ...SS.streamAddon, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>{stream.addonName}</span>}
-      </div>
-      {lines.map((line, index) => (
-        <span key={`${line}:${index}`} style={SS.streamDesc}>{line}</span>
-      ))}
-    </button>
+    <>
+      <button
+        style={{ ...SS.streamRow, background: hovered ? '#181818' : '#101010', color: '#FFF', boxShadow: hovered ? '0 0 0 0.125rem rgba(255,255,255,0.22)' : 'none' }}
+        onClick={onClick}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onContextMenu={(e) => { e.preventDefault(); setMenuPoint({ x: e.clientX, y: e.clientY }); }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', width: '100%' }}>
+          <span style={SS.streamName}>{heading}</span>
+          {stream.addonName && <span style={{ ...SS.streamAddon, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>{stream.addonName}</span>}
+        </div>
+        {lines.map((line, index) => (
+          <span key={`${line}:${index}`} style={SS.streamDesc}>{line}</span>
+        ))}
+      </button>
+      <ContextMenu
+        point={menuPoint}
+        onClose={() => setMenuPoint(null)}
+        items={[
+          { icon: <Play size={15} />, label: t('player.play'), onSelect: onClick },
+          ...(sourceLink ? [{ icon: <Link2 size={15} />, label: t('sources.copy_stream_link'), onSelect: () => { void navigator.clipboard.writeText(sourceLink); } }] : []),
+          ...(isTorrent ? [{ icon: <Magnet size={15} />, label: t('sources.copy_magnet_link'), onSelect: () => { void streamMagnetLink(stream).then((link) => { if (link) void navigator.clipboard.writeText(link); }); } }] : []),
+          ...(meta ? [{ icon: <Download size={15} />, label: t('sources.download_this_video'), onSelect: () => { void enqueueOfflineDownload(buildOfflineDownloadRequest(meta, stream, episode)); } }] : []),
+          ...(downloadLink ? [{ icon: <Link2 size={15} />, label: t('sources.copy_video_download_link'), onSelect: () => { void navigator.clipboard.writeText(downloadLink); } }] : []),
+        ]}
+      />
+    </>
   );
 }
 
@@ -213,7 +236,7 @@ export function MovieSourcePanel({
         {visibleStreams.length > 0 && (
           <div style={EP.inlineStreamList}>
             {visibleStreams.map((stream, i) => (
-              <SourceRow key={`${stream.addonName ?? ''}:${stream.url ?? stream.infoHash ?? i}`} stream={stream} onClick={() => onPlay(stream)} />
+              <SourceRow key={`${stream.addonName ?? ''}:${stream.url ?? stream.infoHash ?? i}`} stream={stream} onClick={() => onPlay(stream)} meta={meta} />
             ))}
             {isLoading && <div style={{ ...SS.center, padding: '1rem 0' }}><div style={{ ...spinnerStyle, width: '1.25rem', height: '1.25rem' }} /></div>}
           </div>
@@ -350,7 +373,7 @@ export function InlineSourceList({
         {visibleStreams.length > 0 && (
           <div style={EP.inlineStreamList}>
             {visibleStreams.map((stream, i) => (
-              <SourceRow key={`${stream.addonName ?? ''}:${stream.url ?? stream.infoHash ?? i}`} stream={stream} onClick={() => onPlay(stream)} />
+              <SourceRow key={`${stream.addonName ?? ''}:${stream.url ?? stream.infoHash ?? i}`} stream={stream} onClick={() => onPlay(stream)} meta={meta} episode={episode} />
             ))}
             {isLoading && <div style={{ ...SS.center, padding: '1rem 0' }}><div style={{ ...spinnerStyle, width: '1.25rem', height: '1.25rem' }} /></div>}
           </div>

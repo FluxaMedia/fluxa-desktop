@@ -212,6 +212,10 @@ export async function enqueueOfflineDownload(request: unknown): Promise<unknown 
   return raw ? JSON.parse(raw) : null;
 }
 
+export async function streamMagnetLink(stream: unknown): Promise<string | null> {
+  return invoke<string | null>('stream_magnet_link', { streamJson: JSON.stringify(stream) });
+}
+
 export async function coreInvoke<T>(method: CoreMethod, argsJson: string): Promise<T | null> {
   return Sentry.startSpan({ name: `coreInvoke:${method}`, op: 'fluxa.core' }, async () => {
     const t0 = performance.now();

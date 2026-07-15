@@ -1448,5 +1448,13 @@
   "format.countdown_compact_d": "%s g",
   "format.countdown_compact_hm": "%s sa %s dk",
   "format.countdown_compact_h": "%s sa",
-  "format.countdown_compact_m": "%s dk"
+  "format.countdown_compact_m": "%s dk",
+  "player.stream_links": "Yayın bağlantıları",
+  "player.copy_stream_link": "Yayın bağlantısını kopyala",
+  "player.copy_magnet_link": "Magnet bağlantısını kopyala",
+  "player.download_this_video": "Bu videoyu indir",
+  "sources.copy_stream_link": "Yayın Bağlantısını Kopyala",
+  "sources.copy_magnet_link": "Magnet Bağlantısını Kopyala",
+  "sources.download_this_video": "Bu Videoyu İndir",
+  "sources.copy_video_download_link": "Video İndirme Bağlantısını Kopyala"
 }

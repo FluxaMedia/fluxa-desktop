@@ -1448,5 +1448,13 @@
   "format.countdown_compact_d": "%sd",
   "format.countdown_compact_hm": "%sh %sm",
   "format.countdown_compact_h": "%sh",
-  "format.countdown_compact_m": "%sm"
+  "format.countdown_compact_m": "%sm",
+  "player.stream_links": "Stream links",
+  "player.copy_stream_link": "Copy stream link",
+  "player.copy_magnet_link": "Copy magnet link",
+  "player.download_this_video": "Download this video",
+  "sources.copy_stream_link": "Copy Stream Link",
+  "sources.copy_magnet_link": "Copy Magnet Link",
+  "sources.download_this_video": "Download This Video",
+  "sources.copy_video_download_link": "Copy Video Download Link"
 }
