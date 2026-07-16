@@ -39,12 +39,16 @@ fn load_or_create_key(dir: &Path) -> Result<Key<Aes256Gcm>, String> {
     }
     fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let key = Aes256Gcm::generate_key(&mut OsRng);
-    fs::write(&path, key.as_slice()).map_err(|e| e.to_string())?;
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
     }
+    use std::io::Write;
+    let mut file = options.open(&path).map_err(|e| e.to_string())?;
+    file.write_all(key.as_slice()).map_err(|e| e.to_string())?;
     Ok(key)
 }
 
