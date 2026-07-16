@@ -966,7 +966,39 @@ impl VulkanContext {
         self.create_swapchain(width, height)
     }
 
-    pub fn render_and_present<F>(&mut self, mut render: F) -> Result<(), String>
+    pub fn render_and_present<F>(&mut self, render: F) -> Result<(), String>
+    where
+        F: FnMut(u64, i32, u32, u32, u64, u64) -> Result<i32, String>,
+    {
+        let result = self.render_and_present_inner(render);
+        if result.is_err() {
+            self.recover_after_render_error();
+        }
+        result
+    }
+
+    fn recover_after_render_error(&mut self) {
+        unsafe {
+            (self.fns.device_wait_idle)(self.device);
+            for sem in [
+                self.acquire_semaphore,
+                self.render_done_semaphore,
+                self.transition_semaphore,
+            ] {
+                if sem != 0 {
+                    (self.fns.destroy_semaphore)(self.device, sem, ptr::null());
+                }
+            }
+        }
+        self.acquire_semaphore = 0;
+        self.render_done_semaphore = 0;
+        self.transition_semaphore = 0;
+        let extent = self.extent;
+        let _ = self.create_semaphores();
+        let _ = self.create_swapchain(extent.width, extent.height);
+    }
+
+    fn render_and_present_inner<F>(&mut self, mut render: F) -> Result<(), String>
     where
         F: FnMut(u64, i32, u32, u32, u64, u64) -> Result<i32, String>,
     {
