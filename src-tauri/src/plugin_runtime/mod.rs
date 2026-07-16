@@ -10,6 +10,7 @@ use std::time::Duration;
 
 const PLUGIN_TIMEOUT_SECS: u64 = 60;
 const FETCH_TIMEOUT_SECS: u64 = 15;
+const PLUGIN_MEMORY_LIMIT: usize = 256 * 1024 * 1024;
 
 /// Runs a Nuvio-compatible scraper plugin's `getStreams()` inside a
 /// sandboxed QuickJS VM and returns its raw (unvalidated) JSON output.
@@ -46,6 +47,11 @@ async fn run(
     episode: Option<i32>,
 ) -> Result<String, String> {
     let qjs_rt = AsyncRuntime::new().map_err(|e| e.to_string())?;
+    qjs_rt.set_memory_limit(PLUGIN_MEMORY_LIMIT).await;
+    let deadline = std::time::Instant::now() + Duration::from_secs(PLUGIN_TIMEOUT_SECS);
+    qjs_rt
+        .set_interrupt_handler(Some(Box::new(move || std::time::Instant::now() > deadline)))
+        .await;
     tokio::task::spawn_local(qjs_rt.drive());
     let ctx = AsyncContext::full(&qjs_rt).await.map_err(|e| e.to_string())?;
 
@@ -149,16 +155,10 @@ async fn run(
 }
 
 async fn native_fetch(url: String) -> rquickjs::Result<String> {
-    if let Err(message) = net_guard::ensure_public_host(&url).await {
-        return Ok(fetch_error_json(&url, &message));
-    }
-
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(FETCH_TIMEOUT_SECS))
-        .build()
+    let client = match net_guard::vetted_client(&url, Duration::from_secs(FETCH_TIMEOUT_SECS)).await
     {
         Ok(client) => client,
-        Err(e) => return Ok(fetch_error_json(&url, &e.to_string())),
+        Err(message) => return Ok(fetch_error_json(&url, &message)),
     };
 
     match client
