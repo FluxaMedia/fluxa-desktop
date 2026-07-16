@@ -1,8 +1,7 @@
 use crate::cast::lan_ip;
 use fluxa_core::FluxaCore;
-use std::collections::hash_map::RandomState;
+use rand::Rng;
 use std::collections::HashMap;
-use std::hash::{BuildHasher, Hasher};
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -23,9 +22,9 @@ pub struct CastProxyState {
 }
 
 fn random_token() -> String {
-    let a = RandomState::new().build_hasher().finish();
-    let b = RandomState::new().build_hasher().finish();
-    format!("{a:016x}{b:016x}")
+    let mut bytes = [0u8; 16];
+    rand::rng().fill_bytes(&mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 async fn ensure_server(state: &CastProxyState) -> Result<u16, String> {
