@@ -166,20 +166,19 @@ async fn run_download(
         emit(downloaded, total, "failed", Some(&message));
     };
 
-    if !is_local_source {
-        if let Err(e) = crate::net_guard::ensure_public_host(&playback_url).await {
-            fail(&offline_dir, resume_from, None, e);
-            return;
-        }
-    }
-
-    let client = match reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60 * 60))
-        .build()
-    {
+    let timeout = std::time::Duration::from_secs(60 * 60);
+    let client = if is_local_source {
+        reqwest::Client::builder()
+            .timeout(timeout)
+            .build()
+            .map_err(|e| e.to_string())
+    } else {
+        crate::net_guard::vetted_client(&playback_url, timeout).await
+    };
+    let client = match client {
         Ok(c) => c,
         Err(e) => {
-            fail(&offline_dir, resume_from, None, e.to_string());
+            fail(&offline_dir, resume_from, None, e);
             return;
         }
     };

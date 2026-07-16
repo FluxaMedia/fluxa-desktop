@@ -25,7 +25,7 @@ fn is_blocked_ip(ip: &IpAddr) -> bool {
 
 /// Resolves `url`'s host and rejects it if any resolved address is loopback/private/
 /// link-local -- addon-supplied URLs are otherwise free to point at internal services.
-pub async fn ensure_public_host(url_str: &str) -> Result<(), String> {
+async fn resolve_public_host(url_str: &str) -> Result<(String, Vec<std::net::SocketAddr>), String> {
     let url = reqwest::Url::parse(url_str).map_err(|_| "invalid url".to_string())?;
     match url.scheme() {
         "http" | "https" => {}
@@ -35,19 +35,52 @@ pub async fn ensure_public_host(url_str: &str) -> Result<(), String> {
         .host_str()
         .ok_or_else(|| "url has no host".to_string())?;
     let port = url.port_or_known_default().unwrap_or(80);
-    let mut addrs = tokio::net::lookup_host((host, port))
+    let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
         .await
         .map_err(|e| format!("dns lookup failed: {e}"))?
-        .peekable();
-    if addrs.peek().is_none() {
+        .collect();
+    if addrs.is_empty() {
         return Err("dns lookup returned no addresses".to_string());
     }
-    for addr in addrs {
+    for addr in &addrs {
         if is_blocked_ip(&addr.ip()) {
             return Err("refusing to fetch a local/private address".to_string());
         }
     }
-    Ok(())
+    Ok((host.to_string(), addrs))
+}
+
+fn block_private_redirects() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        let blocked = attempt
+            .url()
+            .host_str()
+            .and_then(|h| h.trim_start_matches('[').trim_end_matches(']').parse::<IpAddr>().ok())
+            .is_some_and(|ip| is_blocked_ip(&ip));
+        if blocked {
+            attempt.error("refusing to redirect to a local/private address")
+        } else if attempt.previous().len() > 10 {
+            attempt.error("too many redirects")
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
+/// Builds a client whose connection to `url`'s host is pinned to the addresses
+/// vetted here, so a rebinding DNS entry can't swap in a private IP between the
+/// check and the request.
+pub async fn vetted_client(
+    url_str: &str,
+    timeout: std::time::Duration,
+) -> Result<reqwest::Client, String> {
+    let (host, addrs) = resolve_public_host(url_str).await?;
+    reqwest::Client::builder()
+        .timeout(timeout)
+        .redirect(block_private_redirects())
+        .resolve_to_addrs(&host, &addrs)
+        .build()
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

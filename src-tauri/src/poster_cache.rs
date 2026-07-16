@@ -81,8 +81,9 @@ pub async fn cache_poster_image(
             .ok_or_else(|| "invalid cache path".to_string());
     }
 
-    crate::net_guard::ensure_public_host(&normalized).await?;
-    let response = crate::artwork::artwork_http_client()
+    let client =
+        crate::net_guard::vetted_client(&normalized, std::time::Duration::from_secs(10)).await?;
+    let response = client
         .get(&normalized)
         .send()
         .await

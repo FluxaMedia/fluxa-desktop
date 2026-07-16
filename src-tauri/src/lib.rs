@@ -242,11 +242,8 @@ fn engine_snapshot(state: State<DesktopState>) -> Option<String> {
 
 #[tauri::command]
 async fn http_fetch_text(url: String) -> Result<HttpTextResponse, String> {
-    net_guard::ensure_public_host(&url).await?;
-    let response = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| e.to_string())?
+    let response = net_guard::vetted_client(&url, std::time::Duration::from_secs(10))
+        .await?
         .get(&url)
         .header("User-Agent", "Fluxa/1.0")
         .send()
@@ -264,11 +261,7 @@ async fn http_execute_text(
     headers: HashMap<String, String>,
     body: Option<Value>,
 ) -> Result<HttpTextResponse, String> {
-    net_guard::ensure_public_host(&url).await?;
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = net_guard::vetted_client(&url, std::time::Duration::from_secs(10)).await?;
     let method = reqwest::Method::from_bytes(method.as_bytes()).map_err(|e| e.to_string())?;
     let mut request = client.request(method, &url).header("User-Agent", "Fluxa/1.0");
     for (name, value) in headers {

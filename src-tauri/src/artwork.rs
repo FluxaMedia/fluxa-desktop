@@ -6,16 +6,6 @@ pub fn artwork_cache() -> &'static Mutex<HashMap<String, Vec<u8>>> {
     ARTWORK_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-static ARTWORK_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-pub fn artwork_http_client() -> &'static reqwest::Client {
-    ARTWORK_HTTP_CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .build()
-            .expect("artwork HTTP client")
-    })
-}
-
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 static ARTWORK_BG_DECODED: OnceLock<Mutex<HashMap<String, (Vec<u8>, i32, i32)>>> = OnceLock::new();
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
@@ -56,10 +46,10 @@ pub async fn fetch_player_artwork_bytes(url: Option<&str>) -> Option<Vec<u8>> {
         }
     }
 
-    crate::net_guard::ensure_public_host(&normalized)
+    let client = crate::net_guard::vetted_client(&normalized, std::time::Duration::from_secs(10))
         .await
         .ok()?;
-    let response = artwork_http_client().get(&normalized).send().await.ok()?;
+    let response = client.get(&normalized).send().await.ok()?;
     if !response.status().is_success() {
         return None;
     }
