@@ -30,7 +30,7 @@ export async function startUpdateCheck(
       setState({ phase: 'up-to-date' });
     }
   } catch {
-    setState({ phase: 'error', message: 'Could not reach update server.' });
+    setState({ phase: 'error', message: t('update.check_failed') });
   }
 }
 
@@ -55,7 +55,7 @@ export async function installUpdate(
     });
     await relaunch();
   } catch {
-    setState({ phase: 'error', message: 'Update installation failed.' });
+    setState({ phase: 'error', message: t('update.install_failed') });
   }
 }
 
@@ -81,7 +81,7 @@ export function UpdateModal({ state, onClose }: Props) {
 function CheckingView() {
   return (
     <>
-      <Title>Checking for updates…</Title>
+      <Title>{t('update.checking')}</Title>
       <Spinner />
     </>
   );
@@ -90,10 +90,10 @@ function CheckingView() {
 function UpToDateView({ onClose }: { onClose: () => void }) {
   return (
     <>
-      <Title>You're up to date</Title>
-      <Subtitle>Fluxa Desktop is running the latest version.</Subtitle>
+      <Title>{t('update.up_to_date')}</Title>
+      <Subtitle>{t('update.up_to_date_subtitle')}</Subtitle>
       <ButtonRow>
-        <Btn onClick={onClose} primary>Close</Btn>
+        <Btn onClick={onClose} primary>{t('common.close')}</Btn>
       </ButtonRow>
     </>
   );
@@ -121,17 +121,17 @@ function AvailableView({ update, onClose }: { update: Update; onClose: () => voi
 
   return (
     <>
-      <Tag>Update available</Tag>
-      <Title>Version {update.version}</Title>
+      <Tag>{t('update.available')}</Tag>
+      <Title>{t('update.version', update.version)}</Title>
       {update.body && (
         <div style={changelogBox}>
           <pre style={changelogText}>{update.body.trim()}</pre>
         </div>
       )}
       <ButtonRow>
-        <Btn onClick={onClose}>Later</Btn>
+        <Btn onClick={onClose}>{t('update.later')}</Btn>
         <Btn onClick={() => void handleInstall()} primary disabled={installing}>
-          {installing ? 'Installing…' : 'Update now'}
+          {installing ? t('update.installing') : t('update.now')}
         </Btn>
       </ButtonRow>
     </>
@@ -141,7 +141,7 @@ function AvailableView({ update, onClose }: { update: Update; onClose: () => voi
 function DownloadingView({ progress }: { progress: number }) {
   return (
     <>
-      <Title>Downloading update…</Title>
+      <Title>{t('update.downloading')}</Title>
       <div style={progressTrack}>
         <div style={{ ...progressBar, width: `${progress}%` }} />
       </div>
@@ -163,10 +163,10 @@ function InstallingView() {
 function ErrorView({ message, onClose }: { message: string; onClose: () => void }) {
   return (
     <>
-      <Title>Update failed</Title>
+      <Title>{t('update.failed')}</Title>
       <Subtitle>{message}</Subtitle>
       <ButtonRow>
-        <Btn onClick={onClose} primary>Close</Btn>
+        <Btn onClick={onClose} primary>{t('common.close')}</Btn>
       </ButtonRow>
     </>
   );
