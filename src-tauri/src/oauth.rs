@@ -24,6 +24,9 @@ pub async fn nuvio_request(
     body: Option<String>,
     token: Option<String>,
 ) -> Result<(u16, String), String> {
+    if !path.starts_with('/') || path.starts_with("//") || path.starts_with("/\\") {
+        return Err("invalid path".to_string());
+    }
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .build()
