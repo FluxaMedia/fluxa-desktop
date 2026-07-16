@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
-import { coreParseVideoId, coreSimklMatchEpisode, coreSimklScrobbleBody, coreTraktScrobblePlan } from './engine';
+import { coreParseVideoId, coreSimklMatchEpisode, coreSimklScrobbleAction, coreSimklScrobbleBody, coreTraktScrobblePlan } from './engine';
 import { _appVersion } from './httpClient';
 import type { UserProfile, Meta, Video } from './types';
 
@@ -41,8 +41,6 @@ export function traktScrobbleOnClose(
   })().catch(() => undefined);
 }
 
-const SIMKL_SCROBBLE_STOP_PROGRESS_PERCENT = 80;
-
 export function simklScrobbleOnClose(
   profile: UserProfile | null,
   meta: Meta | null,
@@ -55,10 +53,9 @@ export function simklScrobbleOnClose(
 
   const isEpisode = meta.type === 'series' && !!episode;
   const token = profile.simklAccessToken;
-  const progressPercent = durationSec > 0 ? (timePosSec / durationSec) * 100 : 0;
-  const action = progressPercent >= SIMKL_SCROBBLE_STOP_PROGRESS_PERCENT ? 'stop' : 'pause';
 
   void (async () => {
+    const action = await coreSimklScrobbleAction(timePosSec, durationSec);
     const parsed = await coreParseVideoId(meta.id);
     const baseId = parsed.imdb;
     if (!baseId) return;

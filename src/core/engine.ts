@@ -736,3 +736,64 @@ export async function coreLibraryApplyMarkWatched(libJson: string, videoIdsJson:
 export async function coreMergeProgressMeta(incomingMetaJson: string, existingMetaJson: string): Promise<Record<string, unknown>> {
   return (await coreInvoke<Record<string, unknown>>('mergeProgressMeta', JSON.stringify({ incomingMetaJson, existingMetaJson }))) ?? JSON.parse(incomingMetaJson);
 }
+
+export async function coreNuvioBuildLocalProfiles(
+  sessionProfile: unknown,
+  nuvioProfiles: unknown[],
+  avatarCatalog: unknown[],
+  existingProfiles: unknown[],
+): Promise<unknown[] | null> {
+  return coreInvoke('nuvioBuildLocalProfiles', JSON.stringify({ sessionProfile, nuvioProfiles, avatarCatalog, existingProfiles }));
+}
+
+export async function coreNuvioLibraryToWatchlist(library: unknown[]): Promise<unknown[] | null> {
+  return coreInvoke('nuvioLibraryToWatchlist', JSON.stringify({ library }));
+}
+
+export async function coreNuvioProgressMetaNeeds(
+  watchProgress: unknown[],
+  library: unknown[],
+): Promise<Array<{ contentId: string; contentType: string }> | null> {
+  return coreInvoke('nuvioProgressMetaNeeds', JSON.stringify({ watchProgress, library }));
+}
+
+export async function coreNuvioImportMergePlan(args: {
+  progress: Record<string, unknown>;
+  watched: Record<string, boolean>;
+  library: unknown[];
+  addonMetas: Record<string, unknown>;
+  watchProgress: unknown[] | null;
+  watchHistory: unknown[] | null;
+}): Promise<{ progress: Record<string, unknown>; watched: Record<string, boolean> } | null> {
+  return coreInvoke('nuvioImportMergePlan', JSON.stringify(args));
+}
+
+export async function coreNuvioMapCollections(collections: unknown[]): Promise<unknown[] | null> {
+  return coreInvoke('nuvioMapCollections', JSON.stringify({ collections }));
+}
+
+export async function coreAirDateRefreshCandidates(items: unknown[], nowMs: number): Promise<string[]> {
+  return (await coreInvoke<string[]>('airDateRefreshCandidates', JSON.stringify({ items, nowMs }))) ?? [];
+}
+
+export async function coreSimklScrobbleAction(timePosSec: number, durationSec: number): Promise<string> {
+  return (await coreInvoke<string>('simklScrobbleAction', JSON.stringify({ timePosSec, durationSec }))) ?? 'pause';
+}
+
+export async function coreTorrentReadyBudget(): Promise<{
+  firstAttemptMs: number;
+  retryBudgetMs: number;
+  hardLimitMs: number;
+  stallExtensionMs: number;
+  maxPeerRetriesWithAlternatives: number;
+  maxPeerRetriesSingleSource: number;
+}> {
+  return (await coreInvoke('torrentReadyBudget', '{}')) ?? {
+    firstAttemptMs: 15_000,
+    retryBudgetMs: 45_000,
+    hardLimitMs: 120_000,
+    stallExtensionMs: 20_000,
+    maxPeerRetriesWithAlternatives: 1,
+    maxPeerRetriesSingleSource: 2,
+  };
+}

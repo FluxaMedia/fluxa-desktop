@@ -55,7 +55,7 @@ export function NuvioImportView({ profile, onDone }: NuvioImportViewProps) {
         nuvioListAvatars(),
         loadProfiles(),
       ]);
-      const localProfiles = buildLocalNuvioProfiles(profile, nuvioProfiles, avatarCatalog, existingProfiles);
+      const localProfiles = await buildLocalNuvioProfiles(profile, nuvioProfiles, avatarCatalog, existingProfiles);
       await saveProfiles(localProfiles);
       const selectedProfile = localProfiles.find((p) => p.nuvioUserId === profile.nuvioUserId && p.nuvioProfileIndex === profileIdx)
         ?? localProfiles.find((p) => p.nuvioUserId === profile.nuvioUserId)

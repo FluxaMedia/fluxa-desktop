@@ -9,11 +9,21 @@ import {
   type NuvioAddon,
   type NuvioAvatar,
   type NuvioProfile,
+  type NuvioWatchedItem,
+  type NuvioWatchProgress,
 } from './nuvioApi';
 import { platformFetch } from './httpClient';
 import { buildContinueWatching, loadLibrary, saveLibrary, persistProgressMerge, persistWatchedMerge, persistContinueWatchingMerge } from './libraryOps';
-import { storageRead, storageWrite } from './engine';
-import type { NuvioCollectionSource, UserProfile } from './types';
+import {
+  coreNuvioBuildLocalProfiles,
+  coreNuvioImportMergePlan,
+  coreNuvioLibraryToWatchlist,
+  coreNuvioMapCollections,
+  coreNuvioProgressMetaNeeds,
+  storageRead,
+  storageWrite,
+} from './engine';
+import type { UserProfile } from './types';
 import { saveProfile } from './profiles';
 import { fetchPlannedResources } from './fetchPlanning';
 
@@ -57,86 +67,18 @@ export async function freshNuvioProfile(profile: UserProfile): Promise<UserProfi
   return updated;
 }
 
-function normalizeTileShape(value: string | undefined): string {
-  const raw = (value ?? 'poster').toLowerCase();
-  return raw === 'landscape' ? 'wide' : raw;
-}
-
-function safeIdPart(value: string): string {
-  return value.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'user';
-}
-
 function profileStorageSuffix(profile: UserProfile): string {
   return profile.id.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-function localNuvioProfileId(profile: UserProfile, index: number): string {
-  return `nuvio_${safeIdPart(profile.nuvioUserId ?? profile.nuvioEmail ?? profile.email ?? 'user')}_${index}`;
-}
-
-function avatarUrlFor(profile: NuvioProfile | undefined, avatarCatalog: NuvioAvatar[]): string | undefined {
-  if (profile?.avatar_url) return profile.avatar_url;
-  if (!profile?.avatar_id) return undefined;
-  const entry = avatarCatalog.find((a) => a.id === profile.avatar_id);
-  return entry?.storage_path
-    ? `https://dpyhjjcoabcglfmgecug.supabase.co/storage/v1/object/public/avatars/${entry.storage_path}`
-    : undefined;
-}
-
-export function buildLocalNuvioProfiles(
+export async function buildLocalNuvioProfiles(
   sessionProfile: UserProfile,
   nuvioProfiles: NuvioProfile[],
   avatarCatalog: NuvioAvatar[],
   existingProfiles: UserProfile[],
-): UserProfile[] {
-  const remoteProfiles = nuvioProfiles.length > 0
-    ? nuvioProfiles
-    : [{
-        id: '',
-        user_id: sessionProfile.nuvioUserId ?? '',
-        profile_index: 1,
-        name: sessionProfile.name || 'Primary',
-        avatar_color_hex: null,
-        uses_primary_addons: true,
-        uses_primary_plugins: true,
-        avatar_id: null,
-        avatar_url: null,
-        pin_enabled: false,
-        pin_locked_until: null,
-        created_at: '',
-        updated_at: '',
-      }];
-
-  const byNuvioProfile = new Map(
-    existingProfiles
-      .filter((p) => p.nuvioUserId === sessionProfile.nuvioUserId && p.nuvioProfileIndex != null)
-      .map((p) => [p.nuvioProfileIndex!, p])
-  );
-  const importedIds = new Set<string>();
-  const imported = remoteProfiles.map((remote) => {
-    const existing = byNuvioProfile.get(remote.profile_index);
-    const id = existing?.id ?? localNuvioProfileId(sessionProfile, remote.profile_index);
-    importedIds.add(id);
-    return {
-      ...existing,
-      id,
-      name: remote.name || existing?.name || `Profile ${remote.profile_index}`,
-      avatarUrl: avatarUrlFor(remote, avatarCatalog) ?? existing?.avatarUrl,
-      color: remote.avatar_color_hex ?? existing?.color,
-      email: sessionProfile.email,
-      nuvioAccessToken: sessionProfile.nuvioAccessToken,
-      nuvioRefreshToken: sessionProfile.nuvioRefreshToken,
-      nuvioTokenExpiresAt: sessionProfile.nuvioTokenExpiresAt,
-      nuvioUserId: sessionProfile.nuvioUserId,
-      nuvioEmail: sessionProfile.nuvioEmail,
-      nuvioProfileIndex: remote.profile_index,
-    } satisfies UserProfile;
-  });
-
-  return [
-    ...existingProfiles.filter((p) => !importedIds.has(p.id)),
-    ...imported,
-  ];
+): Promise<UserProfile[]> {
+  const result = await coreNuvioBuildLocalProfiles(sessionProfile, nuvioProfiles, avatarCatalog, existingProfiles);
+  return (result as UserProfile[] | null) ?? existingProfiles;
 }
 
 async function fetchAddonManifests(addons: NuvioAddon[]): Promise<{
@@ -174,6 +116,29 @@ async function fetchAddonManifests(addons: NuvioAddon[]): Promise<{
   return { addonList: addons, manifestIdByUrl, descriptors };
 }
 
+async function fetchAddonMetas(
+  needs: Array<{ contentId: string; contentType: string }>,
+  addonDescriptors: Array<Record<string, unknown>>,
+): Promise<Record<string, unknown>> {
+  const metas: Record<string, unknown> = {};
+  if (needs.length === 0 || addonDescriptors.length === 0) return metas;
+  await Promise.allSettled(
+    needs.map(async (need) => {
+      try {
+        const values = await fetchPlannedResources({
+          kind: 'metaDetail',
+          addons: addonDescriptors,
+          contentType: need.contentType,
+          id: need.contentId,
+        });
+        const meta = (values.find((value) => (value as { meta?: unknown }).meta) as { meta?: { name?: string } } | undefined)?.meta;
+        if (meta?.name) metas[need.contentId] = meta;
+      } catch {}
+    })
+  );
+  return metas;
+}
+
 export async function importNuvioProfileData(
   profile: UserProfile,
   onStep?: (step: NuvioImportStep, ok: boolean, error?: string) => void,
@@ -198,7 +163,6 @@ export async function importNuvioProfileData(
   const watchedBefore = { ...(libDoc.watched as Record<string, boolean>) };
   const continueWatchingBefore = [...(libDoc.continueWatching as Record<string, unknown>[])];
   const errors: Partial<Record<NuvioImportStep, string>> = {};
-  const activeRemoteProgressIds = new Set<string>();
 
   let addonDescriptors: Array<Record<string, unknown>> = [];
   try {
@@ -212,158 +176,53 @@ export async function importNuvioProfileData(
     onStep?.('addons', false, errors.addons);
   }
 
-  const libraryByContentId = new Map<string, {
-    content_id: string;
-    content_type: string;
-    name: string;
-    poster: string | null;
-    background: string | null;
-    description: string | null;
-    release_info: string | null;
-    imdb_rating: number | null;
-    genres: string[];
-  }>();
-
+  let library: unknown[] = [];
   try {
-    const library = await nuvioPullLibrary(token, profileIdx);
-    for (const item of library) libraryByContentId.set(item.content_id, item);
-    libDoc.watchlist = library.map((item) => ({
-      id: item.content_id,
-      name: item.name,
-      type: item.content_type,
-      poster: item.poster ?? undefined,
-      background: item.background ?? undefined,
-      description: item.description ?? undefined,
-      releaseInfo: item.release_info ?? undefined,
-      imdbRating: item.imdb_rating ?? undefined,
-      genres: item.genres?.length ? item.genres : undefined,
-      inWatchlist: true,
-    }));
+    library = await nuvioPullLibrary(token, profileIdx);
+    libDoc.watchlist = (await coreNuvioLibraryToWatchlist(library)) ?? libDoc.watchlist;
     onStep?.('library', true);
   } catch (err) {
     errors.library = err instanceof Error ? err.message : String(err);
     onStep?.('library', false, errors.library);
   }
 
+  let watchProgress: NuvioWatchProgress[] | null = null;
   try {
-    const watchProgress = await nuvioPullWatchProgress(token, profileIdx);
-    const progressMap: Record<string, unknown> = { ...((libDoc.progress as Record<string, unknown> | undefined) ?? {}) };
-    const sorted = [...watchProgress].sort((a, b) => a.last_watched - b.last_watched);
-
-    type AddonMeta = {
-      name?: string;
-      poster?: string;
-      background?: string;
-      videos?: Array<{ id?: string; title?: string; name?: string; season?: number; episode?: number; thumbnail?: string }>;
-    };
-    const needsAddonMeta = sorted.filter(
-      (e) => e.content_type === 'series' || !libraryByContentId.has(e.content_id)
-    );
-    const addonMetaMap = new Map<string, AddonMeta>();
-    if (needsAddonMeta.length > 0 && addonDescriptors.length > 0) {
-      await Promise.allSettled(
-        needsAddonMeta.map(async (e) => {
-          try {
-            const values = await fetchPlannedResources({
-              kind: 'metaDetail',
-              addons: addonDescriptors,
-              contentType: e.content_type,
-              id: e.content_id,
-            });
-            const meta = (values.find((value) => (value as { meta?: unknown }).meta) as { meta?: AddonMeta } | undefined)?.meta;
-            if (meta?.name) addonMetaMap.set(e.content_id, meta);
-          } catch {}
-        })
-      );
-    }
-
-    for (const entry of sorted) {
-      const progressRatio = entry.duration > 0 ? entry.position / entry.duration : 0;
-      const isResolvedUpNext = entry.duration <= 0
-        ? entry.position <= 1000
-        : progressRatio < 0.005 || progressRatio >= 0.995;
-      const libItem = libraryByContentId.get(entry.content_id);
-      const addonMeta = addonMetaMap.get(entry.content_id);
-      const ep = entry.season != null && entry.episode != null
-        ? (addonMeta?.videos ?? []).find((v) => v.season === entry.season && v.episode === entry.episode)
-        : undefined;
-      progressMap[entry.content_id] = {
-        meta: {
-          id: entry.content_id,
-          type: entry.content_type,
-          name: libItem?.name ?? addonMeta?.name,
-          poster: libItem?.poster ?? addonMeta?.poster ?? undefined,
-          background: libItem?.background ?? addonMeta?.background ?? undefined,
-        },
-        timeOffset: Math.round(entry.position / 1000),
-        duration: Math.round(entry.duration / 1000),
-        lastVideoId: entry.video_id,
-        lastEpisodeSeason: entry.season ?? undefined,
-        lastEpisodeNumber: entry.episode ?? undefined,
-        lastEpisodeName: ep?.title ?? ep?.name ?? undefined,
-        lastEpisodeThumbnail: ep?.thumbnail ?? undefined,
-        ...(isResolvedUpNext ? {
-          continueWatchingBadge: 'upNext',
-          continueWatchingEpisodeResolved: true,
-        } : {}),
-        savedAt: new Date(entry.last_watched).toISOString(),
-        source: 'nuvio',
-      };
-      activeRemoteProgressIds.add(entry.video_id);
-      if (entry.season != null && entry.episode != null) {
-        activeRemoteProgressIds.add(`${entry.content_id}:${entry.season}:${entry.episode}`);
-      }
-    }
-    libDoc.progress = progressMap;
-    libDoc.continueWatching = await buildContinueWatching(progressMap);
-    onStep?.('progress', true);
+    watchProgress = await nuvioPullWatchProgress(token, profileIdx);
   } catch (err) {
     errors.progress = err instanceof Error ? err.message : String(err);
     onStep?.('progress', false, errors.progress);
   }
 
+  let addonMetas: Record<string, unknown> = {};
+  if (watchProgress) {
+    const needs = (await coreNuvioProgressMetaNeeds(watchProgress, library)) ?? [];
+    addonMetas = await fetchAddonMetas(needs, addonDescriptors);
+  }
+
+  let watchHistory: NuvioWatchedItem[] | null = null;
   try {
-    const watchHistory = await nuvioPullWatchHistory(token, profileIdx);
-    const watched: Record<string, boolean> = { ...((libDoc.watched as Record<string, boolean> | undefined) ?? {}) };
-    for (const item of watchHistory) {
-      if (item.content_type === 'movie') {
-        watched[item.content_id] = true;
-      } else if (item.season != null && item.episode != null) {
-        watched[`${item.content_id}:${item.season}:${item.episode}`] = true;
-      }
-    }
-    for (const id of activeRemoteProgressIds) {
-      delete watched[id];
-    }
-    libDoc.watched = watched;
-    onStep?.('history', true);
+    watchHistory = await nuvioPullWatchHistory(token, profileIdx);
   } catch (err) {
     errors.history = err instanceof Error ? err.message : String(err);
     onStep?.('history', false, errors.history);
   }
 
-  {
-    const finalWatched = (libDoc.watched as Record<string, boolean> | undefined) ?? {};
-    const finalProgress = (libDoc.progress as Record<string, unknown> | undefined) ?? {};
-    let dirty = false;
-    for (const [contentId, entry] of Object.entries(finalProgress)) {
-      const e = entry as Record<string, unknown>;
-      const lastVideoId = e.lastVideoId as string | undefined;
-      const season = e.lastEpisodeSeason as number | undefined;
-      const episode = e.lastEpisodeNumber as number | undefined;
-      const isWatched =
-        (lastVideoId != null && finalWatched[lastVideoId]) ||
-        (season != null && episode != null && finalWatched[`${contentId}:${season}:${episode}`]);
-      if (isWatched) {
-        delete finalProgress[contentId];
-        dirty = true;
-      }
-    }
-    if (dirty) {
-      libDoc.progress = finalProgress;
-      libDoc.continueWatching = await buildContinueWatching(finalProgress);
-    }
+  const plan = await coreNuvioImportMergePlan({
+    progress: progressBefore,
+    watched: watchedBefore,
+    library,
+    addonMetas,
+    watchProgress,
+    watchHistory,
+  });
+  if (plan) {
+    libDoc.progress = plan.progress;
+    libDoc.watched = plan.watched;
+    libDoc.continueWatching = await buildContinueWatching(plan.progress);
   }
+  if (watchProgress) onStep?.('progress', true);
+  if (watchHistory) onStep?.('history', true);
 
   await persistProgressMerge(progressBefore, libDoc.progress as Record<string, unknown>);
   await persistWatchedMerge(watchedBefore, libDoc.watched as Record<string, boolean>);
@@ -388,92 +247,10 @@ export async function importNuvioProfileData(
   try {
     const collections = await nuvioPullCollections(token, profileIdx);
     if (collections.length > 0) {
-      const raw = collections[0]?.collections_json ?? [];
-      const mapped = (raw as Array<Record<string, unknown>>).map((c) => ({
-        ...c,
-        id: String(c.id ?? ''),
-        title: String(c.title ?? ''),
-        imageUrl: (c.backdropImageUrl as string | undefined) ?? undefined,
-        backdropImageUrl: (c.backdropImageUrl as string | undefined) ?? undefined,
-        showOnHome: true,
-        viewMode: (c.viewMode as string | undefined) ?? 'ROWS',
-        showAllTab: Boolean(c.showAllTab),
-        pinToTop: Boolean(c.pinToTop),
-        folders: ((c.folders as Array<Record<string, unknown>>) ?? []).map((f) => ({
-          ...f,
-          id: String(f.id ?? ''),
-          title: String(f.title ?? ''),
-          coverImageUrl: (f.coverImageUrl as string | undefined) ?? undefined,
-          coverEmoji: (f.coverEmoji as string | undefined) ?? undefined,
-          focusGifUrl: (f.focusGifUrl as string | undefined) ?? undefined,
-          focusGifEnabled: f.focusGifEnabled !== false,
-          titleLogoUrl: (f.titleLogoUrl as string | undefined) ?? undefined,
-          heroBackdropUrl: (f.heroBackdropUrl as string | undefined) ?? undefined,
-          heroVideoUrl: (f.heroVideoUrl as string | undefined) ?? undefined,
-          shape: normalizeTileShape(f.tileShape as string | undefined),
-          hideTitle: Boolean(f.hideTitle),
-          catalogSources: ((f.sources as Array<Record<string, unknown>>) ?? []).length > 0
-            ? ((f.sources as Array<Record<string, unknown>>) ?? []).flatMap((s) => {
-              if (String(s.provider ?? 'addon').toLowerCase() !== 'addon') return [];
-              const addonId = String(s.addonId ?? '');
-              return [{
-                addonId,
-                catalogId: String(s.catalogId ?? ''),
-                type: String(s.type ?? 'movie'),
-                genre: typeof s.genre === 'string' ? s.genre : undefined,
-              }];
-            })
-            : ((f.catalogSources as Array<Record<string, unknown>>) ?? []).map((s) => {
-            const addonId = String(s.addonId ?? '');
-            return {
-              addonId,
-              catalogId: String(s.catalogId ?? ''),
-              type: String(s.type ?? 'movie'),
-              genre: typeof s.genre === 'string' ? s.genre : undefined,
-            };
-          }),
-          sources: ((f.sources as Array<Record<string, unknown>>) ?? []).flatMap((s): NuvioCollectionSource[] => {
-            const provider = String(s.provider ?? 'addon').toLowerCase();
-            if (provider === 'trakt' && typeof s.traktListId === 'number') {
-              return [{
-                ...s,
-                provider: 'trakt',
-                title: typeof s.title === 'string' ? s.title : undefined,
-                mediaType: typeof s.mediaType === 'string' ? s.mediaType : undefined,
-                traktListId: s.traktListId,
-                sortBy: typeof s.sortBy === 'string' ? s.sortBy : undefined,
-                sortHow: typeof s.sortHow === 'string' ? s.sortHow : undefined,
-              }];
-            }
-            if (provider === 'tmdb' && typeof s.tmdbSourceType === 'string') {
-              return [{
-                ...s,
-                provider: 'tmdb',
-                title: typeof s.title === 'string' ? s.title : undefined,
-                mediaType: typeof s.mediaType === 'string' ? s.mediaType : undefined,
-                tmdbSourceType: s.tmdbSourceType,
-                tmdbId: typeof s.tmdbId === 'number' ? s.tmdbId : undefined,
-                sortBy: typeof s.sortBy === 'string' ? s.sortBy : undefined,
-                sortHow: typeof s.sortHow === 'string' ? s.sortHow : undefined,
-                filters: s.filters && typeof s.filters === 'object' && !Array.isArray(s.filters) ? s.filters as Record<string, unknown> : undefined,
-              }];
-            }
-            if (provider === 'addon' && typeof s.addonId === 'string' && typeof s.type === 'string' && typeof s.catalogId === 'string') {
-              return [{
-                ...s,
-                provider: 'addon',
-                addonId: s.addonId,
-                type: s.type,
-                catalogId: s.catalogId,
-                genre: typeof s.genre === 'string' ? s.genre : undefined,
-              }];
-            }
-            return [];
-          }),
-        })),
-      }));
+      const raw = (collections[0]?.collections_json ?? []) as unknown[];
+      const mapped = (await coreNuvioMapCollections(raw)) ?? [];
       const profiles = (await storageRead<UserProfile[]>('profiles')) ?? [];
-      await storageWrite('profiles', profiles.map((p) => p.id === profile.id ? { ...p, libraryCollections: mapped } : p));
+      await storageWrite('profiles', profiles.map((p) => p.id === profile.id ? { ...p, libraryCollections: mapped as UserProfile['libraryCollections'] } : p));
     }
     onStep?.('collections', true);
   } catch (err) {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import * as Sentry from '@sentry/react';
-import { dispatchAction, coreDetectAnimePlayback, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream, coreTorrentStatusInfo } from '../core/engine';
+import { dispatchAction, coreDetectAnimePlayback, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream, coreTorrentStatusInfo, coreTorrentReadyBudget } from '../core/engine';
 
 function debugLog(msg: string) {
   void invoke('debug_log', { msg }).catch(() => {});
@@ -757,9 +757,12 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     };
 
     if (playbackPlan?.mode === 'torrent') {
-      const MAX_PEER_RETRIES = playingSourceCandidatesRef.current.some((candidate) => streamKey(candidate) !== currentStreamKey) ? 1 : 2;
-      const TORRENT_READY_FIRST_ATTEMPT_MS = 15_000;
-      const TORRENT_READY_RETRY_BUDGET_MS = 45_000;
+      const budget = await coreTorrentReadyBudget();
+      const MAX_PEER_RETRIES = playingSourceCandidatesRef.current.some((candidate) => streamKey(candidate) !== currentStreamKey)
+        ? budget.maxPeerRetriesWithAlternatives
+        : budget.maxPeerRetriesSingleSource;
+      const TORRENT_READY_FIRST_ATTEMPT_MS = budget.firstAttemptMs;
+      const TORRENT_READY_RETRY_BUDGET_MS = budget.retryBudgetMs;
       const TORRENT_READY_PER_RETRY_MS = MAX_PEER_RETRIES > 0 ? Math.floor(TORRENT_READY_RETRY_BUDGET_MS / MAX_PEER_RETRIES) : 0;
       let statusPollActive = true;
       const retrySuffix = (retryIndex: number) => (retryIndex > 0 ? ` ${t('player.status_retry_attempt', retryIndex, MAX_PEER_RETRIES)}` : '');
@@ -776,7 +779,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
           await new Promise((r) => setTimeout(r, 700));
         }
       };
-      const TORRENT_READY_HARD_LIMIT_MS = 120_000;
+      const TORRENT_READY_HARD_LIMIT_MS = budget.hardLimitMs;
       const waitForTorrentReady = async (budgetMs: number) => {
         const startedAt = Date.now();
         let deadline = startedAt + budgetMs;
@@ -794,7 +797,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
               lastLoaded = ts.loaded_size;
               deadline = Date.now() + budgetMs;
             } else if (ts.active_peers > 0 || ts.resolving) {
-              deadline = Math.max(deadline, Date.now() + 20_000);
+              deadline = Math.max(deadline, Date.now() + budget.stallExtensionMs);
             }
           }
           await new Promise((r) => setTimeout(r, 700));

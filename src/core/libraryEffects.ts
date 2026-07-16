@@ -1,4 +1,5 @@
 import {
+  coreAirDateRefreshCandidates,
   coreLibraryApplyMarkWatched,
   coreLibraryLocalStatePlan,
   coreMergeProgressMeta,
@@ -30,17 +31,7 @@ export function invalidateCalendarCache() {
   calendarCache.clear();
 }
 
-const AIR_DATE_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const AIR_DATE_REFRESH_CONCURRENCY = 3;
-
-function isDueForAirDateCheck(item: LibraryItem, nowMs: number): boolean {
-  if (item.type !== 'series') return false;
-  const nextAirMs = item.nextEpisodeAirDate ? new Date(item.nextEpisodeAirDate).getTime() : NaN;
-  const isMissingOrPast = !item.nextEpisodeAirDate || Number.isNaN(nextAirMs) || nextAirMs <= nowMs;
-  if (!isMissingOrPast) return false;
-  const lastCheckedMs = item.lastAirDateCheckedAt ? new Date(item.lastAirDateCheckedAt).getTime() : 0;
-  return Number.isNaN(lastCheckedMs) || nowMs - lastCheckedMs >= AIR_DATE_COOLDOWN_MS;
-}
 
 export async function refreshWatchlistAirDates(): Promise<void> {
   const lib = await loadLibrary();
@@ -48,11 +39,12 @@ export async function refreshWatchlistAirDates(): Promise<void> {
   const watchlist = (lib.watchlist as LibraryItem[] | undefined) ?? [];
   const continueWatching = (lib.continueWatching as LibraryItem[] | undefined) ?? [];
 
+  const dueIds = new Set(await coreAirDateRefreshCandidates([...watchlist, ...continueWatching], nowMs));
   const byId = new Map<string, LibraryItem>();
   for (const item of [...watchlist, ...continueWatching]) {
     if (!byId.has(item.id)) byId.set(item.id, item);
   }
-  const candidates = [...byId.values()].filter((item) => isDueForAirDateCheck(item, nowMs));
+  const candidates = [...byId.values()].filter((item) => dueIds.has(item.id));
   if (candidates.length === 0) return;
 
   const addons = await loadAddons();
