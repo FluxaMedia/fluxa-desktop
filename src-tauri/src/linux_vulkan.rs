@@ -45,6 +45,7 @@ const VK_COLOR_SPACE_SRGB_NONLINEAR_KHR: i32 = 0;
 const VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT: i32 = 1000104002;
 const VK_SHARING_MODE_EXCLUSIVE: i32 = 0;
 const VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR: u32 = 0x1;
+const VK_PRESENT_MODE_MAILBOX_KHR: i32 = 1;
 const VK_PRESENT_MODE_FIFO_KHR: i32 = 2;
 const VK_API_VERSION_1_3: u32 = (1 << 22) | (3 << 12);
 const VK_IMAGE_LAYOUT_PRESENT_SRC_KHR: i32 = 1000001002;
@@ -312,6 +313,8 @@ type PfnGetPhysicalDeviceSurfaceCapabilitiesKHR = unsafe extern "system" fn(
     VkSurfaceKHR,
     *mut VkSurfaceCapabilitiesKHR,
 ) -> VkResult;
+type PfnGetPhysicalDeviceSurfacePresentModesKHR =
+    unsafe extern "system" fn(VkPhysicalDevice, VkSurfaceKHR, *mut u32, *mut i32) -> VkResult;
 type PfnGetPhysicalDeviceSurfaceFormatsKHR = unsafe extern "system" fn(
     VkPhysicalDevice,
     VkSurfaceKHR,
@@ -401,6 +404,7 @@ struct VkFns {
     destroy_instance: PfnDestroyInstance,
     get_physical_device_surface_capabilities_khr: PfnGetPhysicalDeviceSurfaceCapabilitiesKHR,
     get_physical_device_surface_formats_khr: PfnGetPhysicalDeviceSurfaceFormatsKHR,
+    get_physical_device_surface_present_modes_khr: PfnGetPhysicalDeviceSurfacePresentModesKHR,
     destroy_surface_khr: PfnDestroySurfaceKHR,
     destroy_device: PfnDestroyDevice,
     get_device_queue: PfnGetDeviceQueue,
@@ -477,6 +481,7 @@ pub struct VulkanContext {
     command_buffer: VkCommandBuffer,
     hdr: AtomicBool,
     enabled_device_extensions: Vec<CString>,
+    owned_xlib_display: *mut c_void,
 }
 
 unsafe impl Send for VulkanContext {}
@@ -553,20 +558,28 @@ impl VulkanContext {
             iproc!("vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
         let get_surface_formats_khr: PfnGetPhysicalDeviceSurfaceFormatsKHR =
             iproc!("vkGetPhysicalDeviceSurfaceFormatsKHR");
+        let get_surface_present_modes_khr: PfnGetPhysicalDeviceSurfacePresentModesKHR =
+            iproc!("vkGetPhysicalDeviceSurfacePresentModesKHR");
         let destroy_surface_khr: PfnDestroySurfaceKHR = iproc!("vkDestroySurfaceKHR");
         let create_device: PfnCreateDevice = iproc!("vkCreateDevice");
         let enumerate_device_extension_properties: PfnEnumerateDeviceExtensionProperties =
             iproc!("vkEnumerateDeviceExtensionProperties");
 
         let mut surface: VkSurfaceKHR = 0;
+        let mut owned_xlib_display: *mut c_void = ptr::null_mut();
         let result = match native_surface {
             NativeSurface::Xlib { display, window } => {
                 let create_xlib_surface_khr: PfnCreateXlibSurfaceKHR = iproc!("vkCreateXlibSurfaceKHR");
+                // The render loop runs on its own thread, but GTK's Display
+                // connection is not thread-safe (XInitThreads is never called).
+                // A private connection keeps Mesa's WSI traffic off GTK's.
+                owned_xlib_display = unsafe { x11::xlib::XOpenDisplay(ptr::null()) as *mut c_void };
+                let dpy = if owned_xlib_display.is_null() { display } else { owned_xlib_display };
                 let create_info = VkXlibSurfaceCreateInfoKHR {
                     s_type: VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
                     p_next: ptr::null(),
                     flags: 0,
-                    dpy: display,
+                    dpy,
                     window,
                 };
                 unsafe { create_xlib_surface_khr(instance, &create_info, ptr::null(), &mut surface) }
@@ -778,6 +791,7 @@ impl VulkanContext {
             destroy_instance,
             get_physical_device_surface_capabilities_khr: get_surface_capabilities_khr,
             get_physical_device_surface_formats_khr: get_surface_formats_khr,
+            get_physical_device_surface_present_modes_khr: get_surface_present_modes_khr,
             destroy_surface_khr,
             destroy_device,
             get_device_queue,
@@ -822,6 +836,7 @@ impl VulkanContext {
             command_buffer: ptr::null_mut(),
             hdr: AtomicBool::new(false),
             enabled_device_extensions: device_extensions,
+            owned_xlib_display,
         };
         ctx.create_swapchain(width.max(2) as u32, height.max(2) as u32)?;
         ctx.create_semaphores()?;
@@ -972,6 +987,32 @@ impl VulkanContext {
             | (caps.supported_usage_flags & VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         self.image_usage = image_usage;
 
+        let mut mode_count: u32 = 0;
+        unsafe {
+            (self.fns.get_physical_device_surface_present_modes_khr)(
+                self.phys_device,
+                self.surface,
+                &mut mode_count,
+                ptr::null_mut(),
+            )
+        };
+        let mut modes = vec![0i32; mode_count as usize];
+        if mode_count > 0 {
+            unsafe {
+                (self.fns.get_physical_device_surface_present_modes_khr)(
+                    self.phys_device,
+                    self.surface,
+                    &mut mode_count,
+                    modes.as_mut_ptr(),
+                )
+            };
+        }
+        let present_mode = if modes.contains(&VK_PRESENT_MODE_MAILBOX_KHR) {
+            VK_PRESENT_MODE_MAILBOX_KHR
+        } else {
+            VK_PRESENT_MODE_FIFO_KHR
+        };
+
         let old_swapchain = self.swapchain;
         let create_info = VkSwapchainCreateInfoKHR {
             s_type: VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -989,7 +1030,7 @@ impl VulkanContext {
             p_queue_family_indices: ptr::null(),
             pre_transform: caps.current_transform,
             composite_alpha: VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-            present_mode: VK_PRESENT_MODE_FIFO_KHR,
+            present_mode,
             clipped: 1,
             old_swapchain,
         };
@@ -1233,6 +1274,9 @@ impl Drop for VulkanContext {
             (self.fns.destroy_device)(self.device, ptr::null());
             (self.fns.destroy_surface_khr)(self.instance, self.surface, ptr::null());
             (self.fns.destroy_instance)(self.instance, ptr::null());
+            if !self.owned_xlib_display.is_null() {
+                x11::xlib::XCloseDisplay(self.owned_xlib_display as *mut x11::xlib::Display);
+            }
         }
     }
 }

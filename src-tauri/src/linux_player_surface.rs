@@ -15,7 +15,8 @@ use glib::ControlFlow;
 use gtk::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::{mpsc, Arc};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -63,9 +64,120 @@ impl VulkanSurfaceHandle {
     }
 }
 
+struct VulkanShared {
+    width: AtomicI32,
+    height: AtomicI32,
+    hdr: AtomicBool,
+    mpv_context_ready: AtomicBool,
+}
+
 struct VulkanState {
-    ctx: VulkanContext,
+    shared: Arc<VulkanShared>,
     surface_handle: VulkanSurfaceHandle,
+}
+
+const VULKAN_CONTEXT_PENDING: &str = "vulkan render context pending";
+
+fn spawn_vulkan_render_thread(app: AppHandle, mut ctx: VulkanContext, shared: Arc<VulkanShared>) {
+    std::thread::Builder::new()
+        .name("vulkan-player-render".into())
+        .spawn(move || loop {
+            let w = shared.width.load(Ordering::Acquire);
+            let h = shared.height.load(Ordering::Acquire);
+            if w > 1 && h > 1 {
+                if let Err(e) = ctx.resize(w, h) {
+                    log::warn!("linux_player_surface: Vulkan resize failed: {e}");
+                    std::thread::sleep(Duration::from_millis(100));
+                    continue;
+                }
+            }
+            shared.hdr.store(ctx.is_hdr(), Ordering::Release);
+
+            let state = app.state::<DesktopState>();
+            let mut wire_error = false;
+            let ready = {
+                let Ok(mut guard) = state.player_renderer.try_lock() else {
+                    std::thread::sleep(Duration::from_millis(2));
+                    continue;
+                };
+                match guard.as_mut() {
+                    None => {
+                        shared.mpv_context_ready.store(false, Ordering::Release);
+                        false
+                    }
+                    Some(renderer) => {
+                        if renderer.needs_vulkan_context() {
+                            shared.mpv_context_ready.store(false, Ordering::Release);
+                            let (instance, phys_device, device, queue_index, queue_count, get_proc_addr) =
+                                ctx.device_handles();
+                            let ext_ptrs = ctx.enabled_device_extension_ptrs();
+                            match renderer.create_vulkan_context(
+                                instance,
+                                phys_device,
+                                device,
+                                queue_index,
+                                queue_count,
+                                get_proc_addr,
+                                &ext_ptrs,
+                            ) {
+                                Ok(()) => shared.mpv_context_ready.store(true, Ordering::Release),
+                                Err(e) => {
+                                    log::error!("linux_player_surface: mpv Vulkan context failed: {e}");
+                                    wire_error = true;
+                                }
+                            }
+                        } else {
+                            shared.mpv_context_ready.store(true, Ordering::Release);
+                        }
+                        !wire_error && renderer.vulkan_frame_ready()
+                    }
+                }
+            };
+            if wire_error {
+                std::thread::sleep(Duration::from_millis(250));
+                continue;
+            }
+            if !ready {
+                std::thread::sleep(Duration::from_millis(4));
+                continue;
+            }
+
+            let image_usage = ctx.image_usage();
+            let result = ctx.render_and_present(|image, format, iw, ih, wait_semaphore, signal_semaphore| {
+                let mut guard = state
+                    .player_renderer
+                    .lock()
+                    .map_err(|_| "player renderer lock poisoned".to_string())?;
+                let renderer = guard
+                    .as_mut()
+                    .ok_or_else(|| "player renderer destroyed".to_string())?;
+                let mut target = VulkanTargetImage {
+                    image,
+                    format,
+                    w: iw as i32,
+                    h: ih as i32,
+                    usage: image_usage,
+                    layout: 0,
+                    wait_semaphore,
+                    signal_semaphore,
+                };
+                renderer.render_vulkan_frame(&mut target).map(|_| target.layout)
+            });
+            match result {
+                Ok(()) => {
+                    if let Ok(guard) = state.player_renderer.lock() {
+                        if let Some(r) = guard.as_ref() {
+                            r.report_swap();
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("linux_player_surface: Vulkan render failed: {e}");
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+            }
+        })
+        .expect("failed to spawn vulkan render thread");
 }
 
 fn create_vulkan_surface(
@@ -556,8 +668,19 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                                     Ok((surface_handle, native_surface)) => {
                                         match VulkanContext::new(native_surface, w, h) {
                                             Ok(ctx) => {
+                                                let shared = Arc::new(VulkanShared {
+                                                    width: AtomicI32::new(w),
+                                                    height: AtomicI32::new(h),
+                                                    hdr: AtomicBool::new(false),
+                                                    mpv_context_ready: AtomicBool::new(false),
+                                                });
+                                                spawn_vulkan_render_thread(
+                                                    command_app.clone(),
+                                                    ctx,
+                                                    shared.clone(),
+                                                );
                                                 *vulkan_state.borrow_mut() =
-                                                    Some(VulkanState { ctx, surface_handle })
+                                                    Some(VulkanState { shared, surface_handle })
                                             }
                                             Err(e) => log::error!(
                                                 "linux_player_surface: Vulkan context creation failed: {e}"
@@ -565,26 +688,6 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                                         }
                                     }
                                     Err(e) => log::error!("linux_player_surface: {e}"),
-                                }
-                            }
-                            if let Some(state) = vulkan_state.borrow().as_ref() {
-                                if let Ok(mut guard) = command_app.state::<DesktopState>().player_renderer.try_lock() {
-                                    if let Some(renderer) = guard.as_mut() {
-                                        if renderer.needs_vulkan_context() {
-                                            let (instance, phys_device, device, queue_index, queue_count, get_proc_addr) =
-                                                state.ctx.device_handles();
-                                            let ext_ptrs = state.ctx.enabled_device_extension_ptrs();
-                                            let _ = renderer.create_vulkan_context(
-                                                instance,
-                                                phys_device,
-                                                device,
-                                                queue_index,
-                                                queue_count,
-                                                get_proc_addr,
-                                                &ext_ptrs,
-                                            );
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -606,11 +709,20 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                                     command_gl_area.hide();
                                 }
                             }
+                            Err(e) if e == VULKAN_CONTEXT_PENDING => {
+                                pending_load_retries += 1;
+                                if pending_load_retries > 300 {
+                                    pending_load = None;
+                                    visible.set(false);
+                                    command_gl_area.hide();
+                                    let _ = command_app.emit("native-player-error", e);
+                                }
+                            }
                             Err(e) => {
                                 pending_load = None;
                                 visible.set(false);
                                 command_gl_area.hide();
-                                log::warn!("native OpenGL player load failed: {e}");
+                                log::warn!("native player load failed: {e}");
                                 let _ = command_app.emit("native-player-error", e);
                             }
                         }
@@ -675,36 +787,10 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
 
                     if backend == RenderBackend::Vulkan {
                         let (w, h) = vulkan_surface_size(&command_gl_area, &command_webview_widget);
-                        if let Some(state) = vulkan_state.borrow_mut().as_mut() {
+                        if let Some(state) = vulkan_state.borrow().as_ref() {
                             state.surface_handle.resize(w, h);
-                            if let Err(e) = state.ctx.resize(w, h) {
-                                log::warn!("linux_player_surface: Vulkan resize failed: {e}");
-                            }
-                            if let Ok(mut guard) = command_app.state::<DesktopState>().player_renderer.try_lock() {
-                                if let Some(renderer) = guard.as_mut() {
-                                    if renderer.vulkan_frame_ready() {
-                                        let image_usage = state.ctx.image_usage();
-                                        let result = state.ctx.render_and_present(|image, format, iw, ih, wait_semaphore, signal_semaphore| {
-                                            let mut target = VulkanTargetImage {
-                                                image,
-                                                format,
-                                                w: iw as i32,
-                                                h: ih as i32,
-                                                usage: image_usage,
-                                                layout: 0,
-                                                wait_semaphore,
-                                                signal_semaphore,
-                                            };
-                                            renderer.render_vulkan_frame(&mut target).map(|_| target.layout)
-                                        });
-                                        if let Err(e) = result {
-                                            log::warn!("linux_player_surface: Vulkan render failed: {e}");
-                                        } else {
-                                            renderer.report_swap();
-                                        }
-                                    }
-                                }
-                            }
+                            state.shared.width.store(w, Ordering::Release);
+                            state.shared.height.store(h, Ordering::Release);
                         }
                     }
 
@@ -758,29 +844,15 @@ fn prepare_and_load(
             renderer.prepare_opengl_context()?;
         }
         RenderBackend::Vulkan => {
-            if renderer.needs_vulkan_context() {
-                let handles = vulkan_state
-                    .borrow()
-                    .as_ref()
-                    .map(|vs| vs.ctx.device_handles());
-                let (instance, phys_device, device, queue_index, queue_count, get_proc_addr) = handles
-                    .ok_or_else(|| "Vulkan context not ready yet".to_string())?;
-                let ext_ptrs = vulkan_state
-                    .borrow()
-                    .as_ref()
-                    .map(|vs| vs.ctx.enabled_device_extension_ptrs())
-                    .unwrap_or_default();
-                renderer.create_vulkan_context(
-                    instance,
-                    phys_device,
-                    device,
-                    queue_index,
-                    queue_count,
-                    get_proc_addr,
-                    &ext_ptrs,
-                )?;
+            let shared = vulkan_state
+                .borrow()
+                .as_ref()
+                .map(|vs| vs.shared.clone())
+                .ok_or_else(|| VULKAN_CONTEXT_PENDING.to_string())?;
+            if renderer.needs_vulkan_context() && !shared.mpv_context_ready.load(Ordering::Acquire) {
+                return Err(VULKAN_CONTEXT_PENDING.to_string());
             }
-            if vulkan_state.borrow().as_ref().map(|vs| vs.ctx.is_hdr()).unwrap_or(false) {
+            if shared.hdr.load(Ordering::Acquire) {
                 let _ = renderer.set_option("target-trc", "linear");
                 let _ = renderer.set_option("target-prim", "bt.709");
             }
