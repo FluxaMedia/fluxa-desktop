@@ -569,7 +569,7 @@ export default function App() {
         }}
         onContinueLocal={async () => {
           await storageWrite('welcome_done', true);
-          const profile = createProfileObject('Local', '#FFFFFF');
+          const profile = await createProfileObject('Local', '#FFFFFF');
           const profiles = await saveProfile(profile);
           await setActiveProfileId(profile.id);
           invalidateLibraryKeyCache();

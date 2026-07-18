@@ -22,7 +22,7 @@ export async function fetchAddonManifest(payload: Record<string, unknown>): Prom
       const parsed = await parseManifest(JSON.stringify(data), candidateUrl);
       if (!parsed) continue;
       const resolved = await resolveManifestAssets(parsed);
-      return normalizeAddonDescriptor((resolved ?? parsed) as AddonDescriptor);
+      return await normalizeAddonDescriptor((resolved ?? parsed) as AddonDescriptor);
     } catch {
       // Try the next candidate, matching Android's manifest fetch behavior.
     }
@@ -38,7 +38,7 @@ export async function refreshInstalledAddons(_payload: Record<string, unknown>):
     try {
       const manifest = await fetchAddonManifest({ transportUrl: addon.transportUrl });
       const merged = await mergeLiveManifest(addon, manifest, addonName(addon));
-      refreshed.push(normalizeAddonDescriptor((merged ?? manifest) as AddonDescriptor));
+      refreshed.push(await normalizeAddonDescriptor((merged ?? manifest) as AddonDescriptor));
     } catch {
       refreshed.push(addon);
     }

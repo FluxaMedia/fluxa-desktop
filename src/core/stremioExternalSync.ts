@@ -187,7 +187,7 @@ export async function syncStremioNow(payload: Record<string, unknown>): Promise<
   let addonCount = 0;
   try {
     const addons = await stremioPullAddons(authKey);
-    await saveAddons(addons.map(normalizeAddonDescriptor));
+    await saveAddons(await Promise.all(addons.map(normalizeAddonDescriptor)));
     addonCount = addons.length;
   } catch {}
 

@@ -106,8 +106,7 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
   };
 
   const saveRecentSearch = (value: string, meta?: Meta) => {
-    const next = addRecentSearch(value, recentSearches, meta);
-    setRecentSearches(next);
+    void addRecentSearch(value, recentSearches, meta).then(setRecentSearches);
   };
 
   const submit = (value: string) => {
@@ -183,11 +182,11 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
   };
 
   const handleClearHistory = () => {
-    setRecentSearches(clearRecentSearches());
+    void clearRecentSearches().then(setRecentSearches);
   };
 
   const handleRemoveRecent = (value: string) => {
-    setRecentSearches((current) => removeRecentSearch(value, current));
+    void removeRecentSearch(value, recentSearches).then(setRecentSearches);
   };
 
   if (!expanded) {

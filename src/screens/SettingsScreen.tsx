@@ -46,8 +46,8 @@ import { AddonAddedDialog } from '../components/AddonAddedDialog';
 
 function mergeAddons(existing: AddonDescriptor[], incoming: AddonDescriptor[]): AddonDescriptor[] {
   const merged = new Map<string, AddonDescriptor>();
-  for (const addon of existing.map(normalizeAddonDescriptor)) merged.set(addonKey(addon), addon);
-  for (const addon of incoming.map(normalizeAddonDescriptor)) merged.set(addonKey(addon), addon);
+  for (const addon of existing) merged.set(addonKey(addon), addon);
+  for (const addon of incoming) merged.set(addonKey(addon), addon);
   return [...merged.values()];
 }
 
@@ -98,7 +98,7 @@ async function loadAddonManifestFromUrl(rawUrl: string): Promise<AddonDescriptor
       const parsed = await parseManifest(JSON.stringify(manifest), candidateUrl);
       if (!parsed) throw new Error('Manifest parse returned empty result');
       const resolved = await resolveManifestAssets(parsed);
-      return normalizeAddonDescriptor((resolved ?? parsed) as AddonDescriptor);
+      return await normalizeAddonDescriptor((resolved ?? parsed) as AddonDescriptor);
     } catch (error) {
       lastError = error;
     }
@@ -261,10 +261,10 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     try {
       const addon = await loadAddonManifestFromUrl(rawUrl);
       const normalizedUrl = await normalizeManifestUrl(addon.transportUrl || rawUrl);
-      const normalizedAddon = normalizeAddonDescriptor({ ...addon, transportUrl: normalizedUrl });
+      const normalizedAddon = await normalizeAddonDescriptor({ ...addon, transportUrl: normalizedUrl });
       const stored = await loadAddons();
       const plan = await coreAddonCollectionMutationPlan({ existing: stored, incoming: [normalizedAddon] });
-      const updated = ((plan?.addons as AddonDescriptor[] | undefined) ?? mergeAddons(stored, [normalizedAddon])).map(normalizeAddonDescriptor);
+      const updated = await Promise.all(((plan?.addons as AddonDescriptor[] | undefined) ?? mergeAddons(stored, [normalizedAddon])).map(normalizeAddonDescriptor));
       await saveAddons(updated);
 
       let syncProfile = activeProfile;

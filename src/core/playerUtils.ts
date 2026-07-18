@@ -83,9 +83,3 @@ export function formatNextEpisodeSubtitle(ep: Video): string {
   return name || t('auto.next_episode');
 }
 
-export function isEpisodeReleasedForPlayback(video: Video): boolean {
-  if (!video.released) return true;
-  const releasedAt = Date.parse(video.released);
-  return Number.isNaN(releasedAt) || releasedAt <= Date.now();
-}
-

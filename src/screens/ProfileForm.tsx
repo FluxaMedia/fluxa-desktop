@@ -145,7 +145,7 @@ export function ProfileForm({
       const base: UserProfile = existing
         ? { ...existing, name: name.trim(), color, avatarUrl }
         : {
-          ...createProfileObject(name, color),
+          ...await createProfileObject(name, color),
           ...(inheritedNuvio && nextRemoteIndex != null && nextRemoteIndex <= 6 ? {
             email: inheritedNuvio.email,
             nuvioAccessToken: inheritedNuvio.nuvioAccessToken,
@@ -189,7 +189,7 @@ export function ProfileForm({
   );
 
   const previewProfile: UserProfile = {
-    ...(existing ?? createProfileObject(name || 'Profile', PROFILE_COLORS[0])),
+    ...(existing ?? { id: 'preview', name: name || 'Profile', color: PROFILE_COLORS[0] }),
     name: name.trim() || t('auto.profile'),
     avatarUrl,
   };

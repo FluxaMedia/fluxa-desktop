@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import * as Sentry from '@sentry/react';
-import { dispatchAction, coreDetectAnimePlayback, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream, coreTorrentStatusInfo, coreTorrentReadyBudget } from '../core/engine';
+import { dispatchAction, coreDetectAnimePlayback, coreInvoke, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream, coreTorrentStatusInfo, coreTorrentReadyBudget } from '../core/engine';
 
 function debugLog(msg: string) {
   void invoke('debug_log', { msg }).catch(() => {});
@@ -38,7 +38,6 @@ import {
   playerDisplayTitle,
   playerArtwork,
   formatNextEpisodeSubtitle,
-  isEpisodeReleasedForPlayback,
   withCloseTimeout,
 } from '../core/playerUtils';
 import type { PlayerDisplayTitle, PlayerArtwork, PlaybackPreparePlan } from '../core/playerUtils';
@@ -201,33 +200,21 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     if (shouldStopTorrent) await stopTorrentStream().catch(() => false);
   }, []);
 
-  const nextRetrySource = useCallback((currentStream: Stream | null, force: boolean = false): Stream | null => {
+  const nextRetrySource = useCallback(async (currentStream: Stream | null, force: boolean = false): Promise<Stream | null> => {
     const prefs = appPrefs(stateRef.current);
-    if (!force && !prefBool(prefs, 'autoRetryNextSource', false)) return null;
     const candidates = playingSourceCandidatesRef.current;
-    if (candidates.length < 2 || !currentStream) return null;
-
-    const currentKey = streamKey(currentStream);
-    const bingeGroup = prefBool(prefs, 'tryBingeGroup', false)
-      ? currentStream.behaviorHints?.bingeGroup?.trim()
-      : undefined;
-    if (currentKey) attemptedSourceKeysRef.current.add(currentKey);
-    const startIndex = Math.max(0, candidates.findIndex((candidate) => streamKey(candidate) === currentKey));
-    const p2pEnabled = prefBool(prefs, 'p2pEnabled', true);
-
-    for (let offset = 1; offset <= candidates.length; offset += 1) {
-      const candidate = candidates[(startIndex + offset) % candidates.length];
-      const key = streamKey(candidate);
-      if (!key || attemptedSourceKeysRef.current.has(key)) continue;
-      if (bingeGroup && candidate.behaviorHints?.bingeGroup !== bingeGroup) continue;
-      if (!p2pEnabled && streamIsP2P(candidate)) {
-        attemptedSourceKeysRef.current.add(key);
-        continue;
-      }
-      attemptedSourceKeysRef.current.add(key);
-      return candidate;
-    }
-    return null;
+    if (!currentStream) return null;
+    const plan = await coreInvoke<{ stream: Stream | null; attemptedKeys: string[] }>('nextRetrySourcePlan', JSON.stringify({
+      currentStream,
+      candidates,
+      attemptedKeys: [...attemptedSourceKeysRef.current],
+      autoRetry: prefBool(prefs, 'autoRetryNextSource', false),
+      force,
+      tryBingeGroup: prefBool(prefs, 'tryBingeGroup', false),
+      p2pEnabled: prefBool(prefs, 'p2pEnabled', true),
+    }));
+    attemptedSourceKeysRef.current = new Set(plan?.attemptedKeys ?? []);
+    return plan?.stream ?? null;
   }, [stateRef]);
 
   const showPlayerLoading = useCallback((
@@ -383,114 +370,43 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       if (status && captureMeta) {
         const timePos = parseFloat(status.timePos ?? '0');
         const duration = parseFloat(status.duration ?? '0');
-        if (timePos > 30 && duration > 0) {
+        const closePrefs = appPrefs(stateRef.current);
+        const closePlan = await coreInvoke<{
+          shouldScrobble: boolean;
+          progressAction: Record<string, unknown>;
+          markWatchedAction: Record<string, unknown> | null;
+          upNextAction: Record<string, unknown> | null;
+          reloadHome: boolean;
+        }>('playbackClosePlan', JSON.stringify({
+          meta: captureMeta,
+          episode: captureEpisode,
+          stream: captureStream,
+          nextEpisode: playingNextEpisodeRef.current,
+          timePos,
+          duration,
+          streamIndex: stateRef.current.player.currentStreamIndex ?? null,
+          watchedThresholdPercent: Number(prefString(closePrefs, 'watchedThresholdPercent', '90')) || 90,
+        }));
+        if (closePlan?.shouldScrobble) {
           traktScrobbleOnClose(activeProfileRef.current, captureMeta, captureEpisode, timePos, duration);
           simklScrobbleOnClose(activeProfileRef.current, captureMeta, captureEpisode, timePos, duration, (revoked) => {
             void saveProfile(revoked);
             onProfileUpdated?.(revoked);
           });
-          try {
-            const closePrefs = appPrefs(stateRef.current);
-            const watchedThreshold = (Number(prefString(closePrefs, 'watchedThresholdPercent', '90')) || 90) / 100;
-            const isWatched = duration > 0 && timePos / duration >= watchedThreshold;
-            const saveResult = await dispatchAction(JSON.stringify({
-              type: 'savePlaybackProgressRequested',
-              meta: captureMeta,
-              timeOffset: Math.floor(timePos),
-              duration: Math.floor(duration),
-              lastVideoId: captureEpisode?.id ?? null,
-              lastStreamIndex: stateRef.current.player.currentStreamIndex ?? null,
-              lastEpisodeName: captureEpisode?.name ?? captureEpisode?.title ?? null,
-              lastEpisodeSeason: captureEpisode?.season ?? null,
-              lastEpisodeNumber: captureEpisode?.episode ?? captureEpisode?.number ?? null,
-              lastEpisodeThumbnail: captureEpisode?.thumbnail ?? null,
-              lastStreamUrl: captureStream?.playableUrl ?? captureStream?.url ?? null,
-              lastStreamTitle: captureStream?.title ?? captureStream?.name ?? null,
-              lastAudioLanguage: null,
-              lastSubtitleLanguage: null,
-              scrobbleTraktPause: true,
-            }));
-            if (saveResult) {
-              updateState(saveResult.state);
-              if (saveResult.effects.length > 0) await pumpEffects(saveResult.effects, updateState);
-              if (isWatched) {
-                const videoId = captureEpisode?.id ?? captureMeta.id;
-                const watchedResult = await dispatchAction(JSON.stringify({
-                  type: 'markWatchedRequested',
-                  seriesId: captureMeta.id,
-                  videoIds: [videoId],
-                  watched: true,
-                  meta: captureMeta,
-                  episodes: captureEpisode ? [{
-                    id: captureEpisode.id,
-                    name: captureEpisode.name ?? captureEpisode.title,
-                    season: captureEpisode.season,
-                    number: captureEpisode.episode ?? captureEpisode.number,
-                    thumbnail: captureEpisode.thumbnail,
-                  }] : [],
-                })).catch(() => null);
-                if (watchedResult) {
-                  updateState(watchedResult.state);
-                  if (watchedResult.effects.length > 0) await pumpEffects(watchedResult.effects, updateState);
-                }
-                const nextEp = playingNextEpisodeRef.current;
-                if (nextEp && captureMeta.type === 'series') {
-                  const upNextResult = await dispatchAction(JSON.stringify({
-                    type: 'savePlaybackProgressRequested',
-                    meta: captureMeta,
-                    timeOffset: 1,
-                    duration: 99999,
-                    lastVideoId: nextEp.id ?? null,
-                    lastStreamIndex: null,
-                    lastEpisodeName: nextEp.name ?? nextEp.title ?? null,
-                    lastEpisodeSeason: nextEp.season ?? null,
-                    lastEpisodeNumber: nextEp.episode ?? nextEp.number ?? null,
-                    lastEpisodeThumbnail: nextEp.thumbnail ?? null,
-                    lastStreamUrl: null,
-                    lastStreamTitle: null,
-                    lastAudioLanguage: null,
-                    lastSubtitleLanguage: null,
-                    scrobbleTraktPause: false,
-                  })).catch(() => null);
-                  if (upNextResult) {
-                    updateState(upNextResult.state);
-                    if (upNextResult.effects.length > 0) await pumpEffects(upNextResult.effects, updateState);
-                  }
-                }
-              }
-              void dispatchAction(JSON.stringify({ type: 'homeLoadRequested', language: getLanguage(), force: true }))
-                .then((reloadResult) => {
-                  if (reloadResult) {
-                    updateState(reloadResult.state);
-                    if (reloadResult.effects.length > 0) void pumpEffects(reloadResult.effects, updateState);
-                  }
-                }).catch(() => undefined);
-            }
-          } catch {}
-        } else {
-          try {
-            const saveResult = await dispatchAction(JSON.stringify({
-              type: 'savePlaybackProgressRequested',
-              meta: captureMeta,
-              timeOffset: 1,
-              duration: duration > 0 ? Math.floor(duration) : 99999,
-              lastVideoId: captureEpisode?.id ?? null,
-              lastStreamIndex: stateRef.current.player.currentStreamIndex ?? null,
-              lastEpisodeName: captureEpisode?.name ?? captureEpisode?.title ?? null,
-              lastEpisodeSeason: captureEpisode?.season ?? null,
-              lastEpisodeNumber: captureEpisode?.episode ?? captureEpisode?.number ?? null,
-              lastEpisodeThumbnail: captureEpisode?.thumbnail ?? null,
-              lastStreamUrl: captureStream?.playableUrl ?? captureStream?.url ?? null,
-              lastStreamTitle: captureStream?.title ?? captureStream?.name ?? null,
-              lastAudioLanguage: null,
-              lastSubtitleLanguage: null,
-              scrobbleTraktPause: true,
-            }));
-            if (saveResult) {
-              updateState(saveResult.state);
-              if (saveResult.effects.length > 0) await pumpEffects(saveResult.effects, updateState);
-            }
-          } catch {}
+        }
+        for (const action of [closePlan?.progressAction, closePlan?.markWatchedAction, closePlan?.upNextAction]) {
+          if (!action) continue;
+          const result = await dispatchAction(JSON.stringify(action)).catch(() => null);
+          if (!result) continue;
+          updateState(result.state);
+          if (result.effects.length > 0) await pumpEffects(result.effects, updateState);
+        }
+        if (closePlan?.reloadHome) {
+          void dispatchAction(JSON.stringify({ type: 'homeLoadRequested', language: getLanguage(), force: true })).then((result) => {
+            if (!result) return;
+            updateState(result.state);
+            if (result.effects.length > 0) void pumpEffects(result.effects, updateState);
+          }).catch(() => undefined);
         }
       }
     } finally {
@@ -619,7 +535,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     lastTotalDurationSecondsRef.current = effectiveTotalDuration;
 
     const retryNextOrFail = async (message: string) => {
-      const nextSource = nextRetrySource(stream, message === t('player.torrent_no_peers') || message === t('player.torrent_too_slow'));
+      const nextSource = await nextRetrySource(stream, message === t('player.torrent_no_peers') || message === t('player.torrent_too_slow'));
       if (nextSource && meta && !isCancelled()) {
         setLoadingStatus(t('player.status_trying_next_source'));
         await handlePlay(nextSource, meta, episode, resumeAtSeconds, effectiveTotalDuration, undefined, openSourcePickerOnFailure);
@@ -634,7 +550,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
 
     debugLog('handlePlay:resolving next episode');
     const nextEp = episode
-      ? (await coreResolveNextEpisode(JSON.stringify(meta?.videos ?? []), episode.season ?? 0, episode.episode ?? episode.number ?? 0, Date.now(), false)) as Video | null
+      ? (await coreResolveNextEpisode(JSON.stringify(meta?.videos ?? []), episode.season ?? 0, episode.episode ?? episode.number ?? 0, Date.now(), true)) as Video | null
       : null;
     playingNextEpisodeRef.current = nextEp;
 
@@ -690,7 +606,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     const skipThreshold = Number(prefString(skipPrefs, 'nextEpisodeThresholdPercent', '85')) || 85;
     const skipAutoPlay = prefBool(skipPrefs, 'autoPlayNextEpisode', true);
     const skipCountdown = Number(prefString(skipPrefs, 'autoPlayCountdownSecs', '7')) || 7;
-    const playableInitialNextEp = nextEp && isEpisodeReleasedForPlayback(nextEp) ? nextEp : null;
+    const playableInitialNextEp = nextEp;
     await playerSetSkipInfo(
       '[]',
       playableInitialNextEp ? formatNextEpisodeSubtitle(playableInitialNextEp) : undefined,
@@ -872,11 +788,11 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         const videoList = fetchedVideos.length > 0 ? fetchedVideos : episodeList;
         let resolvedNextEp = nextEp;
         if (fetchedVideos.length > 0 && episode) {
-          resolvedNextEp = (await coreResolveNextEpisode(JSON.stringify(videoList), episode.season ?? 0, episode.episode ?? episode.number ?? 0, Date.now(), false)) as Video | null;
+          resolvedNextEp = (await coreResolveNextEpisode(JSON.stringify(videoList), episode.season ?? 0, episode.episode ?? episode.number ?? 0, Date.now(), true)) as Video | null;
           playingNextEpisodeRef.current = resolvedNextEp;
         }
 
-        const resolvedPlayableNextEp = resolvedNextEp && isEpisodeReleasedForPlayback(resolvedNextEp) ? resolvedNextEp : null;
+        const resolvedPlayableNextEp = resolvedNextEp;
         if (segmentResult.length === 0 && !resolvedPlayableNextEp) return;
 
         const threshold = Number(prefString(prefs, 'nextEpisodeThresholdPercent', '85')) || 85;
@@ -916,7 +832,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
   }, [stateRef, showPlayerLoading, failPlayerLoading, playInEmbeddedMpv, nextRetrySource, setLoadingStatus, onEpisodePlaybackFailed]);
 
   const handleNativePlayerError = useCallback(async (message: string) => {
-    const nextSource = nextRetrySource(playingStreamRef.current);
+    const nextSource = await nextRetrySource(playingStreamRef.current);
     if (nextSource && playingMetaRef.current) {
       const status = await embeddedMpvStatus().catch(() => null);
       const timePos = Number.parseFloat(status?.timePos ?? '');

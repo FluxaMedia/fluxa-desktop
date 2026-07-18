@@ -1,3 +1,4 @@
+use fluxa_core::FluxaCore;
 use serde_json::json;
 
 const TRAKT_CLIENT_ID: &str = env!("FLUXA_TRAKT_CLIENT_ID");
@@ -67,19 +68,50 @@ fn describe_reqwest_error(e: reqwest::Error) -> String {
     message
 }
 
-fn trakt_client() -> Result<reqwest::Client, String> {
+fn oauth_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .user_agent("Fluxa Desktop/1.0")
-        .default_headers({
-            let mut h = reqwest::header::HeaderMap::new();
-            h.insert("Content-Type", "application/json".parse().unwrap());
-            h.insert("trakt-api-version", "2".parse().unwrap());
-            h.insert("trakt-api-key", TRAKT_CLIENT_ID.parse().unwrap());
-            h
-        })
         .build()
         .map_err(|e| e.to_string())
+}
+
+async fn execute_oauth_request(
+    service: &str,
+    operation: &str,
+    code: Option<&str>,
+    refresh_token: Option<&str>,
+) -> Result<(u16, String), String> {
+    let (client_id, client_secret) = match service {
+        "trakt" => (TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET),
+        "anilist" => (ANILIST_CLIENT_ID, ANILIST_CLIENT_SECRET),
+        "simkl" => (SIMKL_CLIENT_ID, SIMKL_CLIENT_SECRET),
+        _ => return Err("unsupported OAuth service".to_string()),
+    };
+    if client_id.is_empty()
+        || ((operation == "exchange" || operation == "refresh") && client_secret.is_empty())
+    {
+        return Err(format!("{service} OAuth client is not configured"));
+    }
+    let request = json!({"service": service, "operation": operation, "clientId": client_id, "clientSecret": client_secret, "code": code, "refreshToken": refresh_token});
+    let plan_json = FluxaCore::oauth_request_plan_json(&request.to_string())
+        .ok_or_else(|| "invalid OAuth request".to_string())?;
+    let plan: serde_json::Value =
+        serde_json::from_str(&plan_json).map_err(|error| error.to_string())?;
+    let response = oauth_client()?
+        .post(
+            plan.get("url")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| "OAuth request has no URL".to_string())?,
+        )
+        .header("Content-Type", "application/json")
+        .json(plan.get("body").unwrap_or(&serde_json::Value::Null))
+        .send()
+        .await
+        .map_err(describe_reqwest_error)?;
+    let status = response.status().as_u16();
+    let text = response.text().await.map_err(describe_reqwest_error)?;
+    Ok((status, text))
 }
 
 #[tauri::command]
@@ -94,145 +126,52 @@ pub fn get_oauth_client_id(service: &str) -> &'static str {
 
 #[tauri::command]
 pub async fn trakt_device_start() -> Result<String, String> {
-    let res = trakt_client()?
-        .post("https://api.trakt.tv/oauth/device/code")
-        .json(&json!({ "client_id": TRAKT_CLIENT_ID }))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    let status = res.status();
-    let text = res.text().await.map_err(|e| e.to_string())?;
-    if !status.is_success() {
-        return Err(format!("Trakt device code request failed: HTTP {status}"));
-    }
-    Ok(text)
+    let (status, text) = execute_oauth_request("trakt", "device_start", None, None).await?;
+    (FluxaCore::oauth_response_outcome("trakt", "device_start", status) == "success")
+        .then_some(text)
+        .ok_or_else(|| format!("Trakt device code request failed: HTTP {status}"))
 }
 
 #[tauri::command]
 pub async fn trakt_device_poll(device_code: String) -> Result<String, String> {
-    let res = trakt_client()?
-        .post("https://api.trakt.tv/oauth/device/token")
-        .json(&json!({ "code": device_code, "client_id": TRAKT_CLIENT_ID }))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    match res.status().as_u16() {
-        200 => Ok(res.text().await.map_err(|e| e.to_string())?),
-        400 | 429 => Ok("pending".to_string()),
+    let (status, text) =
+        execute_oauth_request("trakt", "device_poll", Some(&device_code), None).await?;
+    match FluxaCore::oauth_response_outcome("trakt", "device_poll", status) {
+        "success" => Ok(text),
+        "pending" => Ok("pending".to_string()),
         _ => Err("expired".to_string()),
     }
 }
 
 #[tauri::command]
 pub async fn trakt_oauth_exchange(code: String) -> Result<String, String> {
-    let res = trakt_client()?
-        .post("https://api.trakt.tv/oauth/token")
-        .json(&serde_json::json!({
-            "code": code,
-            "client_id": TRAKT_CLIENT_ID,
-            "client_secret": TRAKT_CLIENT_SECRET,
-            "redirect_uri": "fluxa://oauth/trakt",
-            "grant_type": "authorization_code",
-        }))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    let status = res.status();
-    let text = res.text().await.map_err(|e| e.to_string())?;
-    if !status.is_success() {
-        return Err(format!(
-            "Trakt token exchange failed: HTTP {status}: {text}"
-        ));
-    }
-    Ok(text)
+    let (status, text) = execute_oauth_request("trakt", "exchange", Some(&code), None).await?;
+    (FluxaCore::oauth_response_outcome("trakt", "exchange", status) == "success")
+        .then_some(text.clone())
+        .ok_or_else(|| format!("Trakt token exchange failed: HTTP {status}: {text}"))
 }
 
 #[tauri::command]
 pub async fn anilist_oauth_exchange(code: String) -> Result<String, String> {
-    if ANILIST_CLIENT_ID.is_empty() || ANILIST_CLIENT_SECRET.is_empty() {
-        return Err("AniList OAuth client is not configured".to_string());
-    }
-    let response = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-        .map_err(|e| e.to_string())?
-        .post("https://anilist.co/api/v2/oauth/token")
-        .header("Content-Type", "application/json")
-        .json(&serde_json::json!({
-            "grant_type": "authorization_code",
-            "client_id": ANILIST_CLIENT_ID,
-            "client_secret": ANILIST_CLIENT_SECRET,
-            "redirect_uri": "fluxa://oauth/anilist",
-            "code": code,
-        }))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    let status = response.status();
-    let text = response.text().await.map_err(|e| e.to_string())?;
-    if !status.is_success() {
-        return Err(format!(
-            "AniList token exchange failed: HTTP {status}: {text}"
-        ));
-    }
-    Ok(text)
+    let (status, text) = execute_oauth_request("anilist", "exchange", Some(&code), None).await?;
+    (FluxaCore::oauth_response_outcome("anilist", "exchange", status) == "success")
+        .then_some(text.clone())
+        .ok_or_else(|| format!("AniList token exchange failed: HTTP {status}: {text}"))
 }
 
 #[tauri::command]
 pub async fn anilist_oauth_refresh(refresh_token: String) -> Result<String, String> {
-    if ANILIST_CLIENT_ID.is_empty() || ANILIST_CLIENT_SECRET.is_empty() {
-        return Err("AniList OAuth client is not configured".to_string());
-    }
-    let response = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-        .map_err(|e| e.to_string())?
-        .post("https://anilist.co/api/v2/oauth/token")
-        .header("Content-Type", "application/json")
-        .json(&serde_json::json!({
-            "grant_type": "refresh_token",
-            "client_id": ANILIST_CLIENT_ID,
-            "client_secret": ANILIST_CLIENT_SECRET,
-            "refresh_token": refresh_token,
-        }))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    let status = response.status();
-    let text = response.text().await.map_err(|e| e.to_string())?;
-    if !status.is_success() {
-        return Err(format!(
-            "AniList token refresh failed: HTTP {status}: {text}"
-        ));
-    }
-    Ok(text)
+    let (status, text) =
+        execute_oauth_request("anilist", "refresh", None, Some(&refresh_token)).await?;
+    (FluxaCore::oauth_response_outcome("anilist", "refresh", status) == "success")
+        .then_some(text.clone())
+        .ok_or_else(|| format!("AniList token refresh failed: HTTP {status}: {text}"))
 }
 
 #[tauri::command]
 pub async fn simkl_oauth_exchange(code: String) -> Result<String, String> {
-    let body = serde_json::json!({
-        "code": code,
-        "client_id": SIMKL_CLIENT_ID,
-        "client_secret": SIMKL_CLIENT_SECRET,
-        "redirect_uri": "fluxa://oauth/simkl",
-        "grant_type": "authorization_code",
-    });
-    let response = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-        .map_err(|e| e.to_string())?
-        .post("https://api.simkl.com/oauth/token")
-        .header("Content-Type", "application/json")
-        .body(body.to_string())
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    let status = response.status();
-    let text = response.text().await.map_err(|e| e.to_string())?;
-    if !status.is_success() {
-        return Err(format!(
-            "SIMKL token exchange failed: HTTP {status}: {text}"
-        ));
-    }
-    Ok(text)
+    let (status, text) = execute_oauth_request("simkl", "exchange", Some(&code), None).await?;
+    (FluxaCore::oauth_response_outcome("simkl", "exchange", status) == "success")
+        .then_some(text.clone())
+        .ok_or_else(|| format!("SIMKL token exchange failed: HTTP {status}: {text}"))
 }

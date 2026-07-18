@@ -12,7 +12,7 @@ import { tryFetchJson } from './httpClient';
 import { fetchPluginStreams } from './pluginRuntime';
 import { resolveTmdbId, tmdbContentType, tmdbUrl } from './tmdbShared';
 import { fetchTraktSimilarItems, fetchSimklSimilarItems } from './similarTitles';
-import { isTraktConnected, isSimklConnected } from './profiles';
+import { profileConnectionState } from './profiles';
 import type { AppState, Video } from './types';
 import { DEFAULT_APP_PREFS, prefBool, prefString } from './appPrefs';
 import { stringValue } from './playerUtils';
@@ -323,8 +323,9 @@ async function fetchSimilarItems({
   if (source === 'tmdb') return tmdbFallback();
 
   const profile = await loadActiveProfile();
-  const traktAvailable = source !== 'simkl' && isTraktConnected(profile);
-  const simklAvailable = source !== 'trakt' && isSimklConnected(profile);
+  const connection = await profileConnectionState(profile);
+  const traktAvailable = source !== 'simkl' && connection.trakt;
+  const simklAvailable = source !== 'trakt' && connection.simkl;
 
   if (source === 'trakt' && !traktAvailable) return tmdbFallback();
   if (source === 'simkl' && !simklAvailable) return tmdbFallback();

@@ -5,7 +5,7 @@ import type { Meta, Stream, Video } from '../core/types';
 import { appPrefs } from '../core/appPrefs';
 import { embeddedMpvSetTitle, embeddedMpvSetLoadingArtwork, embeddedMpvStop } from '../core/mpvPlayer';
 import { fetchStreamsForEpisode } from '../core/effectRunner';
-import { playerArtwork, playerDisplayTitle, isEpisodeReleasedForPlayback } from '../core/playerUtils';
+import { playerArtwork, playerDisplayTitle } from '../core/playerUtils';
 import { coreResolveNextEpisode, coreSelectNextEpisodeStream } from '../core/engine';
 import type { AppState } from '../core/types';
 
@@ -69,7 +69,6 @@ export function usePlayerNativeEvents({
       void (async () => {
         try {
         let nextEp = playingNextEpisodeRef.current;
-        if (nextEp && !isEpisodeReleasedForPlayback(nextEp)) nextEp = null;
         if (!nextEp && meta?.videos?.length && currentEp) {
           nextEp = (await coreResolveNextEpisode(
             JSON.stringify(meta.videos),

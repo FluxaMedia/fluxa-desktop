@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react';
-import { completeEffect, coreMergeContinueWatchingLists, dispatchAction, enqueueOfflineDownload, httpExecuteText, libraryContinueWatchingDelete, libraryProgressDelete, registerTrailerProxyUrl } from './engine';
+import { completeEffect, coreMergeContinueWatchingLists, coreResolveNextEpisode, dispatchAction, enqueueOfflineDownload, httpExecuteText, libraryContinueWatchingDelete, libraryProgressDelete, registerTrailerProxyUrl } from './engine';
 import { startTorrentStream, stopTorrentStream } from './mpvPlayer';
 import { effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, loadPrefs, saveLibrary, buildContinueWatching, persistLastWatchedEpisode } from './libraryOps';
 import { readHomeBootstrap, refreshReleasedContinueWatching } from './homeEffects';
@@ -88,26 +88,20 @@ async function executeYoutubeTrailerRequest(payload: Record<string, unknown>): P
   return { statusCode: response.statusCode, body: response.body };
 }
 
-function episodeOrderKey(ep: { season?: number; episode?: number; number?: number }): number {
-  return (Number(ep.season ?? 1) * 10000) + Number(ep.episode ?? ep.number ?? 0);
-}
-
 async function deriveNextProgressFromLastWatched(metaObj: Record<string, unknown>): Promise<WatchProgressInfo | undefined> {
   const id = metaObj.id as string | undefined;
   if (!id || metaObj.type !== 'series') return undefined;
   const currentSeason = metaObj.lastEpisodeSeason as number | undefined;
   const currentEpisode = metaObj.lastEpisodeNumber as number | undefined;
   if (currentSeason == null || currentEpisode == null) return undefined;
-  const currentOrder = episodeOrderKey({ season: currentSeason, episode: currentEpisode });
   const videos = await fetchVideosForSeries(id, await loadAddons());
-  const now = Date.now();
-  const next = videos
-    .filter((ep) => {
-      if (episodeOrderKey(ep) <= currentOrder) return false;
-      if (ep.released && new Date(ep.released).getTime() > now) return false;
-      return true;
-    })
-    .sort((a, b) => episodeOrderKey(a) - episodeOrderKey(b))[0];
+  const next = await coreResolveNextEpisode(
+    JSON.stringify(videos),
+    currentSeason,
+    currentEpisode,
+    Date.now(),
+    false,
+  ) as { id?: string; season?: number; episode?: number; number?: number } | null;
   if (!next?.id) return undefined;
   return {
     contentId: id,

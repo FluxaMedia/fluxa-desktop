@@ -1,5 +1,6 @@
 import {
   coreAirDateRefreshCandidates,
+  coreInvoke,
   coreLibraryApplyMarkWatched,
   coreLibraryLocalStatePlan,
   coreMergeProgressMeta,
@@ -14,13 +15,14 @@ import {
   storageRead,
   storageWrite,
 } from './engine';
-import { buildContinueWatching, effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, persistProgressMerge, saveLibrary } from './libraryOps';
+import { buildContinueWatching, effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, persistContinueWatchingMerge, persistProgressMerge, persistWatchedMerge, saveLibrary } from './libraryOps';
 import { pushLibraryStatusExternal, pushMarkWatchedExternal, pushPlaybackProgressExternal, pushWatchlistExternal, type WatchedEpisodeInfo, type WatchProgressInfo } from './externalSync';
 import { fetchVideosForSeries, runWithConcurrency } from './fetchPlanning';
 import { fetchTraktCalendarItems } from './traktExternalSync';
 import { fetchSimklCalendarItems } from './simklExternalSync';
 import { fetchAniListCalendarItems } from './anilistExternalSync';
 import { getOAuthClientId } from './traktSync';
+import { profileConnectionState } from './profiles';
 import { notify } from './notifications';
 import { t } from '../i18n';
 import type { LibraryItem } from './types';
@@ -75,15 +77,16 @@ export async function refreshExternalCalendarItems(): Promise<void> {
   if (!profile) return;
 
   const tasks: Promise<Record<string, unknown>[]>[] = [];
+  const connection = await profileConnectionState(profile);
 
-  if (profile.traktAccessToken && !(profile.traktTokenExpiresAt && Date.now() / 1000 > profile.traktTokenExpiresAt)) {
+  if (connection.trakt) {
     tasks.push((async () => {
       const clientId = await getOAuthClientId('trakt');
       return fetchTraktCalendarItems(profile.traktAccessToken!, clientId);
     })().catch(() => []));
   }
 
-  if (profile.simklAccessToken) {
+  if (connection.simkl) {
     tasks.push((async () => {
       const clientId = await getOAuthClientId('simkl');
       return fetchSimklCalendarItems(profile.simklAccessToken!, clientId);
@@ -104,11 +107,6 @@ export async function refreshExternalCalendarItems(): Promise<void> {
 }
 
 const NOTIFIED_EPISODES_KEY = 'notified_released_episode_ids';
-const NOTIFIED_EPISODES_LIMIT = 500;
-
-function episodeOrderKey(ep: { season?: number; episode?: number; number?: number }): number {
-  return (Number(ep.season ?? 1) * 10000) + Number(ep.episode ?? ep.number ?? 0);
-}
 
 async function deriveNextProgressInfo(
   seriesId: string | undefined,
@@ -116,18 +114,13 @@ async function deriveNextProgressInfo(
   watchedEpisodes: Array<{ season?: number; episode?: number; number?: number }>,
 ): Promise<WatchProgressInfo | undefined> {
   if (!seriesId || watchedEpisodes.length === 0) return undefined;
-  const lastWatchedOrder = Math.max(...watchedEpisodes.map(episodeOrderKey));
-  if (!Number.isFinite(lastWatchedOrder)) return undefined;
   const addons = await loadAddons();
   const videos = await fetchVideosForSeries(seriesId, addons);
-  const now = Date.now();
-  const next = videos
-    .filter((ep) => {
-      if (episodeOrderKey(ep) <= lastWatchedOrder) return false;
-      if (ep.released && new Date(ep.released).getTime() > now) return false;
-      return true;
-    })
-    .sort((a, b) => episodeOrderKey(a) - episodeOrderKey(b))[0];
+  const next = await coreInvoke<{ id?: string; season?: number; episode?: number; number?: number }>('resolveNextAfterWatched', JSON.stringify({
+    videos,
+    watchedEpisodes,
+    nowMs: Date.now(),
+  }));
   if (!next?.id) return undefined;
   return {
     contentId: seriesId,
@@ -144,210 +137,128 @@ async function deriveNextProgressInfo(
 export async function notifyReleasedEpisodes(payload: Record<string, unknown>): Promise<void> {
   const items = (payload.items as Array<Record<string, unknown>> | undefined) ?? [];
   const todayIso = new Date().toISOString().slice(0, 10);
-  const dueItems = items.filter((item) => (item.dateIso as string | undefined)?.slice(0, 10) === todayIso);
-  if (dueItems.length === 0) return;
+  const plan = await coreInvoke<{ items: Array<Record<string, unknown>>; notifiedIds: string[] }>('desktopCalendarNotificationPlan', JSON.stringify({
+    items,
+    todayIso,
+    notifiedIds: (await storageRead<string[]>(NOTIFIED_EPISODES_KEY)) ?? [],
+    limit: 500,
+  }));
+  if (!plan?.items.length) return;
 
-  const notifiedIds = new Set((await storageRead<string[]>(NOTIFIED_EPISODES_KEY)) ?? []);
-  const freshItems = dueItems.filter((item) => item.id && !notifiedIds.has(item.id as string));
-  if (freshItems.length === 0) return;
-
-  for (const item of freshItems) {
+  for (const item of plan.items) {
     const body = (item.episodeTitle as string | undefined) ?? (item.subtitle as string | undefined);
     void notify(t('notifications.new_episode_title', item.title as string), body);
-    notifiedIds.add(item.id as string);
   }
-  const trimmed = [...notifiedIds].slice(-NOTIFIED_EPISODES_LIMIT);
-  await storageWrite(NOTIFIED_EPISODES_KEY, trimmed);
+  await storageWrite(NOTIFIED_EPISODES_KEY, plan.notifiedIds);
 }
 
 export async function applyLibraryCommand(payload: Record<string, unknown>): Promise<unknown> {
-  const lib = await loadLibrary();
-  const command = payload.command as {
-    type: string;
-    item?: unknown;
-    meta?: unknown;
-    list?: string;
-    watched?: boolean;
-    videoIds?: string[];
-    episodes?: Array<{ id?: string; name?: string; title?: string; season?: number; episode?: number; number?: number }>;
-    seriesId?: string;
-  } | undefined;
-  if (!command) return lib;
+  const before = await loadLibrary();
+  const command = payload.command as Record<string, unknown> | undefined;
+  if (!command) return before;
+  const plan = await coreInvoke<{
+    library: Record<string, unknown>;
+    statusMutation: { mediaId: string; status: 'watchlist' | 'completed' | 'dropped' | null; item?: unknown } | null;
+    externalAction: Record<string, unknown>;
+  }>('libraryCommandPlan', JSON.stringify({
+    library: before,
+    command,
+    nowIso: new Date().toISOString(),
+  }));
+  if (!plan) return before;
 
-  if (command.type === 'toggleLibraryStatus' && command.item && (command.list === 'dropped' || command.list === 'completed')) {
-    const item = command.item as LibraryItem;
-    const list = lib[command.list] as LibraryItem[] | undefined ?? [];
-    const idx = list.findIndex((i) => i.id === item.id);
-    const plan = await coreWatchlistTogglePlan({
-      item: command.item,
-      isCurrentlyInWatchlist: idx >= 0,
-      profileId: payload.profileId,
-    }) as { command?: 'add' | 'remove' } | null;
-    const nextCommand = plan?.command ?? (idx >= 0 ? 'remove' : 'add');
-    const stampedItem = { ...item, statusChangedAt: new Date().toISOString() };
-    lib[command.list] = nextCommand === 'remove' ? list.filter((_, i) => i !== idx) : [stampedItem, ...list];
-    await libraryStatusSet(await effectRunnerLibraryKey(), item.id, nextCommand === 'add' ? command.list : null, nextCommand === 'add' ? stampedItem : undefined);
-    if (nextCommand === 'add') {
-      const watchlist = (lib.watchlist as LibraryItem[] | undefined) ?? [];
-      lib.watchlist = watchlist.filter((i) => i.id !== item.id);
-      const otherList = command.list === 'dropped' ? 'completed' : 'dropped';
-      lib[otherList] = ((lib[otherList] as LibraryItem[] | undefined) ?? []).filter((i) => i.id !== item.id);
-      const progressMap = (lib.progress as Record<string, unknown> | undefined) ?? {};
-      delete progressMap[item.id];
-      lib.progress = progressMap;
-      lib.continueWatching = await buildContinueWatching(progressMap);
-      await libraryProgressDelete(await effectRunnerLibraryKey(), item.id);
-    }
-    void loadActiveProfile().then((profile) =>
-      pushLibraryStatusExternal(command.item as Record<string, unknown>, command.list!, nextCommand, profile)
-    );
-    await saveLibrary(lib);
-    invalidateCalendarCache();
-    return lib;
-  }
-
-  if (command.type === 'toggleWatchlist' && command.item) {
-    const item = command.item as { id: string };
-    const watchlist = (lib.watchlist as LibraryItem[] | undefined) ?? [];
-    const idx = watchlist.findIndex((i) => i.id === item.id);
-    const plan = await coreWatchlistTogglePlan({
-      item: command.item,
-      isCurrentlyInWatchlist: idx >= 0,
-      profileId: payload.profileId,
-    }) as { command?: 'add' | 'remove' } | null;
-    const nextCommand = plan?.command ?? (idx >= 0 ? 'remove' : 'add');
-    if (nextCommand === 'remove') {
-      lib.watchlist = watchlist.filter((_, i) => i !== idx);
-      await libraryStatusSet(await effectRunnerLibraryKey(), item.id, null);
-    } else {
-      lib.watchlist = [command.item as LibraryItem, ...watchlist];
-      await libraryStatusSet(await effectRunnerLibraryKey(), item.id, 'watchlist', command.item);
-      lib.dropped = ((lib.dropped as LibraryItem[] | undefined) ?? []).filter((i) => i.id !== item.id);
-      lib.completed = ((lib.completed as LibraryItem[] | undefined) ?? []).filter((i) => i.id !== item.id);
-    }
-    // Fire-and-forget push to external services
-    void loadActiveProfile().then((profile) =>
-      pushWatchlistExternal(command.item as Record<string, unknown>, nextCommand, profile)
+  const after = plan.library;
+  const key = await effectRunnerLibraryKey();
+  if (plan.statusMutation) {
+    await libraryStatusSet(
+      key,
+      plan.statusMutation.mediaId,
+      plan.statusMutation.status,
+      plan.statusMutation.item,
     );
   }
-
-  if (command.type === 'markWatched' && command.videoIds) {
-    const watched = (lib.watched as Record<string, boolean> | undefined) ?? {};
-    for (const vid of command.videoIds) {
-      watched[vid] = command.watched !== false;
-      await libraryWatchedSet(await effectRunnerLibraryKey(), vid, command.watched !== false);
-    }
-    lib.watched = watched;
-
-    const seriesId = command.seriesId;
-    const progressBeforeUpdate = seriesId
-      ? ((lib.progress as Record<string, unknown> | undefined) ?? {})[seriesId] as Record<string, unknown> | undefined
-      : undefined;
-    const itemMeta = (command.item as Record<string, unknown> | undefined)
-      ?? (command.meta as Record<string, unknown> | undefined);
-    const contentType = String(itemMeta?.type ?? (progressBeforeUpdate?.meta as Record<string, unknown> | undefined)?.type ?? 'series');
-    const episodeInfos: WatchedEpisodeInfo[] = seriesId
-      ? (command.episodes ?? [])
-        .map((ep, index) => ({
-          contentId: seriesId,
-          contentType,
-          videoId: ep.id,
-          season: ep.season,
-          episode: ep.episode ?? ep.number,
-          title: ep.name ?? ep.title ?? String(command.videoIds?.[index] ?? ''),
-        }))
-        .filter((ep) => ep.season != null && ep.episode != null)
-      : [];
-    const progressEpisodeInfo: WatchedEpisodeInfo | undefined = progressBeforeUpdate && seriesId ? {
-      contentId: seriesId,
-      contentType: String((progressBeforeUpdate.meta as Record<string, unknown> | undefined)?.type ?? 'series'),
-      season: progressBeforeUpdate.lastEpisodeSeason as number | undefined,
-      episode: progressBeforeUpdate.lastEpisodeNumber as number | undefined,
-      title: String((progressBeforeUpdate.meta as Record<string, unknown> | undefined)?.name ?? ''),
-    } : undefined;
-
-    if (command.watched !== false) {
-      const progressBeforeMarkWatched = { ...((lib.progress as Record<string, unknown> | undefined) ?? {}) };
-      const updatedLib = await coreLibraryApplyMarkWatched(JSON.stringify(lib), JSON.stringify(command.videoIds));
-      if (updatedLib) Object.assign(lib, updatedLib);
-      await persistProgressMerge(progressBeforeMarkWatched, (lib.progress as Record<string, unknown> | undefined) ?? {});
-    }
-    const progressAfterUpdate = seriesId
-      ? ((lib.progress as Record<string, unknown> | undefined) ?? {})[seriesId] as Record<string, unknown> | undefined
-      : undefined;
-    const progressMeta = progressAfterUpdate?.meta as Record<string, unknown> | undefined;
-    const progressInfo: WatchProgressInfo | undefined = progressAfterUpdate && seriesId && progressAfterUpdate.lastVideoId ? {
-      contentId: seriesId,
-      contentType: String(progressMeta?.type ?? contentType),
-      videoId: String(progressAfterUpdate.lastVideoId),
-      positionSeconds: Number(progressAfterUpdate.timeOffset ?? 0),
-      durationSeconds: Number(progressAfterUpdate.duration ?? 0),
-      lastWatched: progressAfterUpdate.savedAt ? new Date(String(progressAfterUpdate.savedAt)).getTime() : Date.now(),
-      season: progressAfterUpdate.lastEpisodeSeason as number | undefined,
-      episode: progressAfterUpdate.lastEpisodeNumber as number | undefined,
-    } : await deriveNextProgressInfo(seriesId, contentType, command.episodes ?? []);
-    await loadActiveProfile().then((profile) =>
-      pushMarkWatchedExternal(
-        command.videoIds as string[],
-        command.watched !== false,
-        itemMeta,
-        profile,
-        episodeInfos.length > 0 ? episodeInfos : progressEpisodeInfo,
-        progressInfo,
-      )
-    ).catch(() => undefined);
-  }
-
-  await saveLibrary(lib);
+  await persistWatchedMerge(
+    (before.watched as Record<string, boolean> | undefined) ?? {},
+    (after.watched as Record<string, boolean> | undefined) ?? {},
+  );
+  await persistProgressMerge(
+    (before.progress as Record<string, unknown> | undefined) ?? {},
+    (after.progress as Record<string, unknown> | undefined) ?? {},
+  );
+  await persistContinueWatchingMerge(
+    (before.continueWatching as Record<string, unknown>[] | undefined) ?? [],
+    (after.continueWatching as Record<string, unknown>[] | undefined) ?? [],
+  );
+  await saveLibrary(after);
   invalidateCalendarCache();
-  return lib;
-}
 
-export async function writePlaybackProgress(payload: Record<string, unknown>): Promise<unknown> {
-  const lib = await loadLibrary();
-  const progress = payload.progress as Record<string, unknown> | undefined;
-  const meta = progress?.meta as { id?: string; name?: string; type?: string; poster?: string } | undefined;
-  if (meta?.id) {
-    const playbackProgress = progress;
-    const contentId = meta.id;
-    const progressMap = (lib.progress as Record<string, unknown> | undefined) ?? {};
-    const existing = (progressMap[meta.id] as Record<string, unknown> | undefined) ?? {};
-    const mergePlan = await corePlaybackProgressMergePlan({
-      existing,
-      incoming: progress,
-    }) as Record<string, unknown> | null;
-    const existingMeta = (existing.meta as Record<string, unknown> | undefined) ?? {};
-    const mergedMeta = await coreMergeProgressMeta(JSON.stringify(meta), JSON.stringify(existingMeta));
-    progressMap[meta.id] = {
-      ...existing,
-      ...progress,
-      ...(mergePlan ?? {}),
-      meta: mergedMeta,
-      savedAt: new Date().toISOString(),
-    };
-    lib.progress = progressMap;
-    lib.continueWatching = await buildContinueWatching(progressMap);
-    await libraryProgressUpsert(await effectRunnerLibraryKey(), meta.id, progressMap[meta.id]);
-    await saveLibrary(lib);
-    invalidateCalendarCache();
-    const duration = Number(playbackProgress?.duration ?? 0);
-    const videoId = typeof playbackProgress?.lastVideoId === 'string' ? playbackProgress.lastVideoId : contentId;
-    if (duration > 0 && videoId) {
-      void loadActiveProfile().then((profile) => pushPlaybackProgressExternal({
-        contentId,
-        contentType: String(meta.type ?? 'movie'),
-        videoId,
-        positionSeconds: Number(playbackProgress?.timeOffset ?? 0),
-        durationSeconds: duration,
-        lastWatched: Date.now(),
-        season: typeof playbackProgress?.lastEpisodeSeason === 'number' ? playbackProgress.lastEpisodeSeason : undefined,
-        episode: typeof playbackProgress?.lastEpisodeNumber === 'number' ? playbackProgress.lastEpisodeNumber : undefined,
-      }, meta as Record<string, unknown>, profile));
+  const action = plan.externalAction;
+  const profile = await loadActiveProfile();
+  if (action.kind === 'watchlist') {
+    void pushWatchlistExternal(
+      action.item as Record<string, unknown>,
+      action.command as 'add' | 'remove',
+      profile,
+    );
+  } else if (action.kind === 'status') {
+    void pushLibraryStatusExternal(
+      action.item as Record<string, unknown>,
+      action.list as 'completed' | 'dropped',
+      action.command as 'add' | 'remove',
+      profile,
+    );
+  } else if (action.kind === 'watched') {
+    let progressInfo = action.progressInfo as WatchProgressInfo | undefined;
+    if (!progressInfo && typeof action.seriesId === 'string') {
+      progressInfo = await deriveNextProgressInfo(
+        action.seriesId,
+        String((action.meta as Record<string, unknown> | undefined)?.type ?? 'series'),
+        (command.episodes as Array<{ id?: string; name?: string; title?: string; season?: number; episode?: number; number?: number }> | undefined) ?? [],
+      );
     }
+    void pushMarkWatchedExternal(
+      action.videoIds as string[],
+      action.watched !== false,
+      action.meta as Record<string, unknown> | undefined,
+      profile,
+      action.episodeInfos as WatchedEpisodeInfo[] | undefined,
+      progressInfo,
+    );
+  }
+  return after;
+}
+export async function writePlaybackProgress(payload: Record<string, unknown>): Promise<unknown> {
+  const before = await loadLibrary();
+  const progress = payload.progress as Record<string, unknown> | undefined;
+  if (!progress) return {};
+  const nowMs = Date.now();
+  const plan = await coreInvoke<{
+    library: Record<string, unknown>;
+    entry: unknown;
+    contentId: string;
+    externalProgress?: WatchProgressInfo;
+  }>('playbackProgressWritePlan', JSON.stringify({
+    library: before,
+    progress,
+    nowIso: new Date(nowMs).toISOString(),
+    nowMs,
+  }));
+  if (!plan) return {};
+  await libraryProgressUpsert(await effectRunnerLibraryKey(), plan.contentId, plan.entry);
+  await persistContinueWatchingMerge(
+    (before.continueWatching as Record<string, unknown>[] | undefined) ?? [],
+    (plan.library.continueWatching as Record<string, unknown>[] | undefined) ?? [],
+  );
+  await saveLibrary(plan.library);
+  invalidateCalendarCache();
+  if (plan.externalProgress) {
+    const meta = progress.meta as Record<string, unknown> | undefined;
+    void loadActiveProfile().then((profile) =>
+      pushPlaybackProgressExternal(plan.externalProgress!, meta ?? {}, profile)
+    );
   }
   return {};
 }
-
 export async function writeSettings(payload: Record<string, unknown>): Promise<unknown> {
   const existing = (await storageRead<Record<string, unknown>>('settings')) ?? {};
   const updated = { ...existing, ...payload };
@@ -390,33 +301,12 @@ export async function readCalendarMonth(payload: Record<string, unknown>): Promi
     ...(((lib.watchlist as unknown[] | undefined) ?? [])),
     ...(((lib.continueWatching as unknown[] | undefined) ?? [])),
   ];
-  const seen = new Set<string>();
-  const localItems = (libraryItems as LibraryItem[])
-    .filter((item) => item.type === 'series' && typeof item.nextEpisodeAirDate === 'string')
-    .map((item) => {
-      const dateIso = String(item.nextEpisodeAirDate);
-      return {
-        id: `${item.id}:${dateIso.slice(0, 10)}`,
-        title: item.name,
-        name: item.name,
-        dateIso,
-        poster: item.poster,
-        contentId: item.id,
-        seriesId: item.id,
-      };
-    })
-    .filter((item) => !monthPrefix || item.dateIso.startsWith(monthPrefix))
-    .filter((item) => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    });
-  const externalItems = ((lib.externalCalendarItems as unknown[] | undefined) ?? [])
-    .filter((item) => {
-      const dateIso = (item as Record<string, unknown>).dateIso as string | undefined;
-      return !monthPrefix || dateIso?.startsWith(monthPrefix);
-    });
-  const result = { items: plannedItems, localItems, externalItems };
+  const result = (await coreInvoke('desktopCalendarReadPlan', JSON.stringify({
+    monthPrefix,
+    plannedItems,
+    libraryItems,
+    externalItems: (lib.externalCalendarItems as unknown[] | undefined) ?? [],
+  }))) ?? { items: plannedItems, localItems: [], externalItems: [] };
   calendarCache.set(monthPrefix, result);
   return result;
 }

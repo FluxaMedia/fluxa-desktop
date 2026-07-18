@@ -100,10 +100,17 @@ export const HeroSection = React.memo(function HeroSection({
   const activeTrailerSubtitleRef = useRef('');
   const trailerActive = !!trailerStreamUrl && trailerReady;
   const trailerPending = trailerResolving || trailerLoading || !!trailerStreamUrl;
-  const selectedTrailerSubtitle = useMemo(
-    () => selectTrailerSubtitle(trailerSubtitles, preferredSubtitleLanguage, secondarySubtitleLanguage),
-    [trailerSubtitles, preferredSubtitleLanguage, secondarySubtitleLanguage],
-  );
+  const [selectedTrailerSubtitle, setSelectedTrailerSubtitle] = useState<YoutubeTrailerSubtitleTrack | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    selectTrailerSubtitle(trailerSubtitles, preferredSubtitleLanguage, secondarySubtitleLanguage).then((track) => {
+      if (!cancelled) setSelectedTrailerSubtitle(track);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trailerSubtitles, preferredSubtitleLanguage, secondarySubtitleLanguage]);
 
   const imdbNum = activeMeta.imdbRating != null ? Number(activeMeta.imdbRating) : NaN;
   const releaseYear = activeMeta.year ?? parseReleaseYear(activeMeta.releaseInfo);
@@ -195,9 +202,10 @@ export const HeroSection = React.memo(function HeroSection({
     activeTrailerSubtitleRef.current = '';
     if (!selectedTrailerSubtitle?.url || !trailerStreamUrl) return;
 
-    httpFetchText(normalizeTrailerSubtitleUrl(selectedTrailerSubtitle.url)).then((response) => {
+    normalizeTrailerSubtitleUrl(selectedTrailerSubtitle.url).then(httpFetchText).then(async (response) => {
       if (cancelled || response.statusCode < 200 || response.statusCode > 299 || !response.body.trim()) return;
-      const cues = parseTrailerSubtitleCues(response.body);
+      const cues = await parseTrailerSubtitleCues(response.body);
+      if (cancelled) return;
       setTrailerSubtitleCues(cues);
       updateActiveTrailerSubtitle(trailerVideoRef.current?.currentTime ?? 0, cues);
     }).catch(() => undefined);

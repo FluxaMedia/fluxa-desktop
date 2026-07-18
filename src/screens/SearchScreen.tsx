@@ -44,7 +44,7 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
 
   useEffect(() => {
     if (trimmedQuery.length < 2) return;
-    setRecentSearches((current) => addRecentSearch(trimmedQuery, current));
+    void addRecentSearch(trimmedQuery, recentSearches).then(setRecentSearches);
     if (searchResultsCache.has(trimmedQuery)) return;
     onDispatch(JSON.stringify({ type: 'searchRequested', query: trimmedQuery, language: getLanguage() }));
   }, [trimmedQuery, onDispatch]);
@@ -71,11 +71,11 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
   };
 
   const handleRemoveRecent = (value: string) => {
-    setRecentSearches((current) => removeRecentSearch(value, current));
+    void removeRecentSearch(value, recentSearches).then(setRecentSearches);
   };
 
   const handleClearRecent = () => {
-    setRecentSearches(clearRecentSearches());
+    void clearRecentSearches().then(setRecentSearches);
   };
 
   const categories = useMemo(

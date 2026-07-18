@@ -5,7 +5,7 @@ import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { storageRead, storageWrite } from '../../core/engine';
 import type { UserProfile } from '../../core/types';
 import { t } from '../../i18n';
-import { isTraktConnected, profileColor, saveProfile } from '../../core/profiles';
+import { profileConnectionState, profileColor, saveProfile } from '../../core/profiles';
 import { AvatarPreview } from '../../screens/ProfileForm';
 import { syncExternalIntegrationNow } from '../../core/effectRunner';
 import { refreshAnimeTrackingProfile } from '../../core/animeExternalSync';
@@ -227,11 +227,21 @@ export function AccountSection({
     storageRead<SyncMeta>('stremio_sync_meta').then((m) => { if (m) setStremioSyncMeta(m); });
   }, []);
 
-  const traktConnected = isTraktConnected(activeProfile);
+  const [traktConnected, setTraktConnected] = useState(false);
   const anilistConnected = Boolean(activeProfile?.anilistAccessToken);
   const simklConnected = Boolean(activeProfile?.simklAccessToken);
   const nuvioConnected = Boolean(activeProfile?.nuvioAccessToken || activeProfile?.nuvioRefreshToken);
   const stremioConnected = Boolean(activeProfile?.stremioAuthKey);
+
+  useEffect(() => {
+    let cancelled = false;
+    profileConnectionState(activeProfile).then((state) => {
+      if (!cancelled) setTraktConnected(state.trakt);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfile]);
 
   useEffect(() => { if (traktConnected) setTraktBusy(false); }, [traktConnected]);
   useEffect(() => { if (anilistConnected) setAnilistBusy(false); }, [anilistConnected]);

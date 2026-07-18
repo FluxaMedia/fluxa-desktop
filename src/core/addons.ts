@@ -1,3 +1,4 @@
+import { coreInvoke } from './engine';
 import type { AddonDescriptor, AddonManifest, AddonResourceSpec, CatalogDef } from './types';
 
 type LegacyAddon = Partial<AddonDescriptor> & {
@@ -13,32 +14,10 @@ type LegacyAddon = Partial<AddonDescriptor> & {
   catalogs?: CatalogDef[];
 };
 
-export function normalizeAddonDescriptor(addon: LegacyAddon): AddonDescriptor {
-  if (addon.manifest) {
-    return {
-      ...addon,
-      transportUrl: addon.transportUrl ?? '',
-      manifest: addon.manifest,
-    };
-  }
-
-  const manifest: AddonManifest = {
-    id: addon.id ?? '',
-    name: addon.name?.trim() || 'Unknown Addon',
-    description: addon.description ?? null,
-    version: addon.version ?? null,
-    resources: addon.resources ?? [],
-    types: addon.types ?? [],
-    catalogs: addon.catalogs ?? [],
-    logo: addon.logo ?? null,
-    background: addon.background ?? null,
-    configurable: addon.behaviorHints?.configurable ?? null,
-  };
-
-  return {
-    transportUrl: addon.transportUrl ?? addon.id ?? '',
-    manifest,
-  };
+export async function normalizeAddonDescriptor(addon: LegacyAddon): Promise<AddonDescriptor> {
+  const normalized = await coreInvoke<AddonDescriptor>('normalizeAddonDescriptor', JSON.stringify({ addonJson: JSON.stringify(addon) }));
+  if (!normalized) throw new Error('Invalid addon descriptor');
+  return normalized;
 }
 
 export function addonKey(addon: AddonDescriptor): string {
@@ -46,7 +25,7 @@ export function addonKey(addon: AddonDescriptor): string {
 }
 
 export function addonManifest(addon: AddonDescriptor): AddonManifest {
-  return addon.manifest ?? normalizeAddonDescriptor(addon).manifest;
+  return addon.manifest;
 }
 
 export function addonName(addon: AddonDescriptor): string {
@@ -73,4 +52,3 @@ export function addonTypes(addon: AddonDescriptor): string[] {
 export function addonCatalogs(addon: AddonDescriptor): CatalogDef[] {
   return addonManifest(addon).catalogs ?? [];
 }
-

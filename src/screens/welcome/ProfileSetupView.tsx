@@ -17,7 +17,7 @@ export function ProfileSetupView({ onBack, onDone }: ProfileSetupViewProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    const profile = createProfileObject(name.trim() || t('auth.profile.default_name'), '#FFFFFF');
+    const profile = await createProfileObject(name.trim() || t('auth.profile.default_name'), '#FFFFFF');
     await saveProfile(profile);
     await setActiveProfileId(profile.id);
     await onDone(profile);

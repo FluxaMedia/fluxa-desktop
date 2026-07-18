@@ -43,7 +43,7 @@ export async function addonsStorageKey(): Promise<string> {
 }
 
 export async function loadAddons(): Promise<AddonDescriptor[]> {
-  return ((await storageRead<AddonDescriptor[]>(await addonsStorageKey())) ?? []).map(normalizeAddonDescriptor);
+  return Promise.all(((await storageRead<AddonDescriptor[]>(await addonsStorageKey())) ?? []).map(normalizeAddonDescriptor));
 }
 
 export async function saveAddons(addons: AddonDescriptor[]): Promise<void> {
