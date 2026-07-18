@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Bell, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import type { AppState, LibraryItem } from '../core/types';
 import { refreshExternalCalendarItems, refreshWatchlistAirDates } from '../core/libraryEffects';
+import { coreInvoke } from '../core/engine';
 import { t } from '../i18n';
 
 const NAV_RAIL_WIDTH = 6.5;
@@ -77,12 +78,13 @@ export const CalendarScreen = React.memo(function CalendarScreen({ state, onDisp
     [calendarState.items, calendarState.localItems, calendarState.externalItems],
   );
   const completedItems = (state.library.lastWrite?.completed ?? state.library.completed ?? []) as LibraryItem[];
-  const completedIds = useMemo(() => new Set(completedItems.map((item) => item.id)), [completedItems]);
-  const completedNames = useMemo(() => new Set(completedItems.map((item) => item.name.toLowerCase())), [completedItems]);
-  const visibleItems = useMemo(
-    () => showCompleted ? items : items.filter((item) => !isCompletedCalendarItem(item, completedIds, completedNames)),
-    [items, showCompleted, completedIds, completedNames],
-  );
+  const [visibleItems, setVisibleItems] = useState<CalendarItem[]>([]);
+  useEffect(() => {
+    let active = true;
+    void coreInvoke<CalendarItem[]>('calendarVisibilityPlan', JSON.stringify({ items, completedItems, showCompleted }))
+      .then((plan) => { if (active) setVisibleItems(plan ?? []); });
+    return () => { active = false; };
+  }, [items, completedItems, showCompleted]);
   const itemsByDate = useMemo(() => groupItemsByDate(visibleItems), [visibleItems]);
   const cells = useMemo(() => buildMonthCells(monthStart), [monthStart]);
   const selectedDayItems = selectedDateIso ? (itemsByDate[selectedDateIso] ?? []) : [];
@@ -269,14 +271,6 @@ function groupItemsByDate(items: CalendarItem[]): Record<string, CalendarItem[]>
 
 function todayIso(): string {
   return localDateKey(new Date());
-}
-
-function isCompletedCalendarItem(item: CalendarItem, completedIds: Set<string>, completedNames: Set<string>): boolean {
-  const ids = [item.contentId, item.seriesId, item.id].filter((id): id is string => !!id);
-  if (ids.some((id) => completedIds.has(id))) return true;
-  if (ids.some((id) => [...completedIds].some((completedId) => id === completedId || id.startsWith(`${completedId}:`)))) return true;
-  const name = (item.title ?? item.name ?? '').toLowerCase();
-  return !!name && completedNames.has(name);
 }
 
 function EventBadge({ item }: { item: CalendarItem }) {

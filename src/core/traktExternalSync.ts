@@ -1,5 +1,6 @@
 import {
   coreBuildTraktIds,
+  coreInvoke,
   coreMergeExternalWatched,
   coreMergeExternalWatchlist,
   coreTraktMarkWatchedBody,
@@ -14,19 +15,24 @@ import { traktHeaders } from './traktSync';
 import { enrichWithAddonMeta, replaceExternalContinueWatching } from './externalSyncUtils';
 
 async function fetchAllPages(url: string, headers: HeadersInit, limit: number): Promise<Record<string, unknown>[]> {
-  const sep = url.includes('?') ? '&' : '?';
-  const items: Record<string, unknown>[] = [];
-  for (let page = 1; page <= 100; page++) {
-    const res = await platformFetch(`${url}${sep}page=${page}&limit=${limit}`, { headers });
-    if (!res.ok) break;
-    const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) break;
-    items.push(...(data as Record<string, unknown>[]));
+  type PaginationPlan = { items: Record<string, unknown>[]; done: boolean; page: number; requestUrl?: string | null };
+  let plan = await coreInvoke<PaginationPlan>('providerPaginationPlan', JSON.stringify({ baseUrl: url, limit }));
+  while (plan && !plan.done && plan.requestUrl) {
+    const res = await platformFetch(plan.requestUrl, { headers });
+    const data = res.ok ? await res.json().catch(() => []) : [];
+    const pageItems = Array.isArray(data) ? data : [];
     const pageCount = Number(res.headers.get('x-pagination-page-count'));
-    if (Number.isFinite(pageCount) && page >= pageCount) break;
-    if (data.length < limit) break;
+    plan = await coreInvoke<PaginationPlan>('providerPaginationPlan', JSON.stringify({
+      baseUrl: url,
+      limit,
+      page: plan.page,
+      items: plan.items,
+      pageItems,
+      pageCount: Number.isFinite(pageCount) ? pageCount : null,
+      responseOk: res.ok,
+    }));
   }
-  return items;
+  return plan?.items ?? [];
 }
 
 async function mergeExternalWatchlist(externalItems: Record<string, unknown>[]): Promise<void> {
@@ -106,44 +112,7 @@ export async function fetchTraktCalendarItems(token: string, clientId: string): 
       .then((res) => (res.ok ? res.json() : [])).catch(() => []),
   ]);
 
-  const showItems = (Array.isArray(shows) ? shows : []).map((raw) => {
-    const entry = raw as Record<string, unknown>;
-    const episode = entry.episode as Record<string, unknown> | undefined;
-    const show = entry.show as Record<string, unknown> | undefined;
-    const ids = show?.ids as Record<string, unknown> | undefined;
-    const imdb = typeof ids?.imdb === 'string' ? ids.imdb : undefined;
-    const tmdb = ids?.tmdb != null ? `tmdb:${ids.tmdb}` : undefined;
-    const seriesId = imdb ?? tmdb;
-    const dateIso = typeof entry.first_aired === 'string' ? entry.first_aired : undefined;
-    if (!seriesId || !dateIso) return null;
-    return {
-      id: `${seriesId}:${episode?.season}:${episode?.number}`,
-      title: show?.title,
-      episodeTitle: episode?.title,
-      dateIso,
-      contentId: seriesId,
-      seriesId,
-    } as Record<string, unknown>;
-  }).filter((item): item is Record<string, unknown> => item !== null);
-
-  const movieItems = (Array.isArray(movies) ? movies : []).map((raw) => {
-    const entry = raw as Record<string, unknown>;
-    const movie = entry.movie as Record<string, unknown> | undefined;
-    const ids = movie?.ids as Record<string, unknown> | undefined;
-    const imdb = typeof ids?.imdb === 'string' ? ids.imdb : undefined;
-    const tmdb = ids?.tmdb != null ? `tmdb:${ids.tmdb}` : undefined;
-    const contentId = imdb ?? tmdb;
-    const dateIso = typeof entry.released === 'string' ? entry.released : undefined;
-    if (!contentId || !dateIso) return null;
-    return {
-      id: contentId,
-      title: movie?.title,
-      dateIso,
-      contentId,
-    } as Record<string, unknown>;
-  }).filter((item): item is Record<string, unknown> => item !== null);
-
-  return [...showItems, ...movieItems];
+  return (await coreInvoke<Record<string, unknown>[]>('providerCalendarItems', JSON.stringify({ provider: 'trakt', shows, movies }))) ?? [];
 }
 
 export async function pushMarkWatchedTrakt(

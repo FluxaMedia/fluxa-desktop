@@ -448,6 +448,10 @@ export async function coreSimklScrobbleBody(
   return coreInvoke('simklScrobbleBody', JSON.stringify({ idsJson, isEpisode, season, epNumber, timePosSec, durationSec }));
 }
 
+export async function coreSimklLookupIdForType(lookupJson: string, wantType: string): Promise<number | null> {
+  return coreInvoke('simklLookupIdForType', JSON.stringify({ lookupJson, wantType }));
+}
+
 export async function coreTraktPlaybackItemsToLibrary(itemsJson: string): Promise<unknown[] | null> {
   return coreInvoke('traktPlaybackItemsToLibrary', itemsJson);
 }
@@ -627,6 +631,16 @@ export async function coreResolveNextEpisode(
   }));
 }
 
+export async function coreStreamShellPlan(stream: unknown): Promise<{
+  identityKey: string;
+  isTorrent: boolean;
+  requestHeaders?: Record<string, string>;
+  sourceLink?: string;
+  downloadLink?: string;
+} | null> {
+  return coreInvoke('streamShellPlan', JSON.stringify(stream));
+}
+
 export async function coreFormatEpisodeLine(
   lastEpisodeName?: string | null,
   lastEpisodeSeason?: number | null,
@@ -770,6 +784,14 @@ export async function coreNuvioImportMergePlan(args: {
 
 export async function coreNuvioMapCollections(collections: unknown[]): Promise<unknown[] | null> {
   return coreInvoke('nuvioMapCollections', JSON.stringify({ collections }));
+}
+
+export async function coreNuvioSortAddonsByPriority<T>(addons: T[]): Promise<T[] | null> {
+  return coreInvoke('nuvioSortAddonsByPriority', JSON.stringify({ addons }));
+}
+
+export async function coreFilterEnabledAddons<T>(addons: T[], disabledKeys: string[]): Promise<T[] | null> {
+  return coreInvoke('filterEnabledAddons', JSON.stringify({ addons, disabledKeys }));
 }
 
 export async function coreAirDateRefreshCandidates(items: unknown[], nowMs: number): Promise<string[]> {

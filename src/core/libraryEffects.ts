@@ -1,5 +1,4 @@
 import {
-  coreAirDateRefreshCandidates,
   coreInvoke,
   coreLibraryApplyMarkWatched,
   coreLibraryLocalStatePlan,
@@ -41,12 +40,10 @@ export async function refreshWatchlistAirDates(): Promise<void> {
   const watchlist = (lib.watchlist as LibraryItem[] | undefined) ?? [];
   const continueWatching = (lib.continueWatching as LibraryItem[] | undefined) ?? [];
 
-  const dueIds = new Set(await coreAirDateRefreshCandidates([...watchlist, ...continueWatching], nowMs));
-  const byId = new Map<string, LibraryItem>();
-  for (const item of [...watchlist, ...continueWatching]) {
-    if (!byId.has(item.id)) byId.set(item.id, item);
-  }
-  const candidates = [...byId.values()].filter((item) => dueIds.has(item.id));
+  const candidates = (await coreInvoke<LibraryItem[]>('airDateRefreshPlan', JSON.stringify({
+    items: [...watchlist, ...continueWatching],
+    nowMs,
+  }))) ?? [];
   if (candidates.length === 0) return;
 
   const addons = await loadAddons();
@@ -58,15 +55,14 @@ export async function refreshWatchlistAirDates(): Promise<void> {
     return { id: item.id, nextEpisodeAirDate: next?.released, lastAirDateCheckedAt: nowIso };
   });
 
-  const updatesById = new Map(updates.map((update) => [update.id, update]));
-  const applyUpdate = (item: LibraryItem): LibraryItem => {
-    const update = updatesById.get(item.id);
-    return update
-      ? { ...item, nextEpisodeAirDate: update.nextEpisodeAirDate, lastAirDateCheckedAt: update.lastAirDateCheckedAt }
-      : item;
-  };
-  lib.watchlist = watchlist.map(applyUpdate);
-  lib.continueWatching = continueWatching.map(applyUpdate);
+  const applied = await coreInvoke<{ watchlist: LibraryItem[]; continueWatching: LibraryItem[] }>('applyAirDateUpdates', JSON.stringify({
+    watchlist,
+    continueWatching,
+    updates,
+  }));
+  if (!applied) return;
+  lib.watchlist = applied.watchlist;
+  lib.continueWatching = applied.continueWatching;
 
   await saveLibrary(lib);
   invalidateCalendarCache();
@@ -116,22 +112,13 @@ async function deriveNextProgressInfo(
   if (!seriesId || watchedEpisodes.length === 0) return undefined;
   const addons = await loadAddons();
   const videos = await fetchVideosForSeries(seriesId, addons);
-  const next = await coreInvoke<{ id?: string; season?: number; episode?: number; number?: number }>('resolveNextAfterWatched', JSON.stringify({
+  return (await coreInvoke<WatchProgressInfo>('nextProgressInfoPlan', JSON.stringify({
+    contentId: seriesId,
+    contentType,
     videos,
     watchedEpisodes,
     nowMs: Date.now(),
-  }));
-  if (!next?.id) return undefined;
-  return {
-    contentId: seriesId,
-    contentType,
-    videoId: next.id,
-    positionSeconds: 0,
-    durationSeconds: 0,
-    lastWatched: Date.now(),
-    season: next.season,
-    episode: next.episode ?? next.number,
-  };
+  }))) ?? undefined;
 }
 
 export async function notifyReleasedEpisodes(payload: Record<string, unknown>): Promise<void> {

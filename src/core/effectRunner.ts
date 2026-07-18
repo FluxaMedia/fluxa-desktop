@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react';
-import { completeEffect, coreMergeContinueWatchingLists, coreResolveNextEpisode, dispatchAction, enqueueOfflineDownload, httpExecuteText, libraryContinueWatchingDelete, libraryProgressDelete, registerTrailerProxyUrl } from './engine';
+import { completeEffect, coreInvoke, coreMergeContinueWatchingLists, dispatchAction, enqueueOfflineDownload, httpExecuteText, libraryContinueWatchingDelete, libraryProgressDelete, registerTrailerProxyUrl } from './engine';
 import { startTorrentStream, stopTorrentStream } from './mpvPlayer';
 import { effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, loadPrefs, saveLibrary, buildContinueWatching, persistLastWatchedEpisode } from './libraryOps';
 import { readHomeBootstrap, refreshReleasedContinueWatching } from './homeEffects';
@@ -95,24 +95,13 @@ async function deriveNextProgressFromLastWatched(metaObj: Record<string, unknown
   const currentEpisode = metaObj.lastEpisodeNumber as number | undefined;
   if (currentSeason == null || currentEpisode == null) return undefined;
   const videos = await fetchVideosForSeries(id, await loadAddons());
-  const next = await coreResolveNextEpisode(
-    JSON.stringify(videos),
-    currentSeason,
-    currentEpisode,
-    Date.now(),
-    false,
-  ) as { id?: string; season?: number; episode?: number; number?: number } | null;
-  if (!next?.id) return undefined;
-  return {
+  return (await coreInvoke<WatchProgressInfo>('nextProgressInfoPlan', JSON.stringify({
     contentId: id,
     contentType: 'series',
-    videoId: next.id,
-    positionSeconds: 0,
-    durationSeconds: 0,
-    lastWatched: Date.now(),
-    season: next.season,
-    episode: next.episode ?? next.number,
-  };
+    videos,
+    watchedEpisodes: [{ season: currentSeason, episode: currentEpisode }],
+    nowMs: Date.now(),
+  }))) ?? undefined;
 }
 
 async function runEffect(

@@ -4,12 +4,12 @@ import {
   coreComputeContinueWatchingBadges,
   coreDiscoverCatalogOptions,
   coreEffectiveMetadataFeedSelection,
+  coreFilterEnabledAddons,
   coreMergeContinueWatchingLists,
   coreResolveFeedOptionGenre,
   storageRead,
   storageWrite,
 } from './engine';
-import { addonKey } from './addons';
 import { buildResourceUrl } from './addonManifest';
 import { effectRunnerLibraryKey, loadActiveProfile, loadAddons, loadLibrary, loadPrefs } from './libraryOps';
 import { fetchBuiltinCatalog, isBuiltinTmdbAddon, withBuiltinTmdbAddon } from './tmdbAddon';
@@ -110,10 +110,8 @@ export async function readHomeBootstrap(
   const allAddons = await loadAddons();
   const library = await loadLibrary();
   const prefs = await loadPrefs();
-  const addons = await withBuiltinTmdbAddon(
-    allAddons.filter((addon) => !disabledAddonKeys.includes(addonKey(addon))),
-    prefs,
-  );
+  const enabledAddons = (await coreFilterEnabledAddons(allAddons, disabledAddonKeys)) ?? allAddons;
+  const addons = await withBuiltinTmdbAddon(enabledAddons, prefs);
 
   const localContinueWatching = (library.continueWatching as Record<string, unknown>[] | undefined) ?? [];
   const externalContinueWatching = (library.externalContinueWatching as Record<string, unknown>[] | undefined) ?? [];

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { coreParseVideoId } from './engine';
+import { coreInvoke } from './engine';
 import { dropTraktPlaybackProgress } from './traktSync';
 import { syncTraktNow, pushMarkWatchedTrakt, pushWatchlistTrakt } from './traktExternalSync';
 import { syncSimklNow, pushMarkWatchedSimkl, pushWatchlistSimkl } from './simklExternalSync';
@@ -57,42 +57,27 @@ export async function promoteExternalProgress(
   const lib = await loadLibrary();
   const progress = (lib.progress as Record<string, Record<string, unknown>> | undefined) ?? {};
   const progressBefore = { ...progress };
-  let changed = false;
-  for (const item of items) {
-    const id = typeof item.id === 'string' ? item.id : '';
-    const videoId = typeof item.lastVideoId === 'string' ? item.lastVideoId : '';
-    const duration = Number(item.duration ?? 0);
-    const offset = Number(item.timeOffset ?? 0);
-    const savedAt = typeof item.savedAt === 'string' ? item.savedAt : '';
-    if (!id || !videoId || duration <= 0 || !savedAt) continue;
-    const existing = progress[id];
-    if (existing?.savedAt && new Date(String(existing.savedAt)).getTime() >= new Date(savedAt).getTime()) continue;
-    const existingMeta = (existing?.meta as Record<string, unknown> | undefined) ?? {};
-    const itemFields = Object.fromEntries(Object.entries(item).filter(([, v]) => v !== null && v !== undefined));
-    const next = { ...existing, ...itemFields, meta: { ...existingMeta, ...itemFields }, source, savedAt };
-    progress[id] = next;
-    changed = true;
-    await pushPlaybackProgressExternal({
-      contentId: id,
-      contentType: String(item.type ?? 'movie'),
-      videoId,
-      positionSeconds: offset,
-      durationSeconds: duration,
-      lastWatched: new Date(savedAt).getTime(),
-      season: typeof item.lastEpisodeSeason === 'number' ? item.lastEpisodeSeason : undefined,
-      episode: typeof item.lastEpisodeNumber === 'number' ? item.lastEpisodeNumber : undefined,
-    }, item, profile);
-    const meta = { id, type: String(item.type ?? 'movie'), name: String(item.name ?? '') } as import('./types').Meta;
-    const episode = typeof item.lastEpisodeSeason === 'number' && typeof item.lastEpisodeNumber === 'number'
-      ? { id: videoId, season: item.lastEpisodeSeason, episode: item.lastEpisodeNumber, number: item.lastEpisodeNumber } as import('./types').Video
-      : null;
-    if (source !== 'trakt') traktScrobbleOnClose(profile, meta, episode, offset, duration);
-    if (source !== 'simkl') simklScrobbleOnClose(profile, meta, episode, offset, duration);
+  const plan = await coreInvoke<{
+    progress: Record<string, Record<string, unknown>>;
+    promotions: Array<{
+      item: Record<string, unknown>;
+      externalProgress: WatchProgressInfo;
+      meta: import('./types').Meta;
+      episode: import('./types').Video | null;
+      scrobbleTrakt: boolean;
+      scrobbleSimkl: boolean;
+    }>;
+  }>('promoteExternalProgressPlan', JSON.stringify({ progress, items, source }));
+  if (!plan) return;
+  for (const promotion of plan.promotions) {
+    await pushPlaybackProgressExternal(promotion.externalProgress, promotion.item, profile);
+    if (promotion.scrobbleTrakt) traktScrobbleOnClose(profile, promotion.meta, promotion.episode, promotion.externalProgress.positionSeconds, promotion.externalProgress.durationSeconds);
+    if (promotion.scrobbleSimkl) simklScrobbleOnClose(profile, promotion.meta, promotion.episode, promotion.externalProgress.positionSeconds, promotion.externalProgress.durationSeconds);
   }
-  if (changed) {
-    lib.progress = progress;
-    lib.continueWatching = await buildContinueWatching(progress);
-    await persistProgressMerge(progressBefore, progress);
+  if (plan.promotions.length > 0) {
+    lib.progress = plan.progress;
+    lib.continueWatching = await buildContinueWatching(plan.progress);
+    await persistProgressMerge(progressBefore, plan.progress);
     await saveLibrary(lib);
   }
 }
@@ -153,79 +138,60 @@ export async function pushMarkWatchedExternal(
 ): Promise<void> {
   if (!profile) return;
   const tasks: Promise<void>[] = [];
+  const plan = await coreInvoke<{
+    trakt: boolean; simkl: boolean; anilist: boolean; stremio: boolean; nuvio: boolean;
+    animeEpisode?: WatchedEpisodeInfo; animeProgressEpisode?: number;
+    episodes: WatchedEpisodeInfo[];
+    watchedKeys: Array<{ content_id: string; season?: number; episode?: number }>;
+    historyItems: Array<{ content_id: string; content_type: string; title?: string; season?: number; episode?: number; watched_at: number }>;
+    progressEntry?: { content_id: string; content_type: string; video_id: string; position: number; duration: number; last_watched: number; season?: number; episode?: number };
+  }>('externalProviderActionPlan', JSON.stringify({ kind: 'markWatched', profile, videoIds, watched, meta, episodeInfo, progressInfo, nowMs: Date.now() }));
+  if (!plan) return;
 
-  if (profile.traktAccessToken && !(profile.traktTokenExpiresAt && Date.now() / 1000 > profile.traktTokenExpiresAt)) {
+  if (plan.trakt) {
     tasks.push((async () => {
       const clientId = await getOAuthClientId('trakt');
       await pushMarkWatchedTrakt(videoIds, watched, profile.traktAccessToken!, clientId);
     })().catch(() => undefined));
   }
 
-  if (profile.simklAccessToken) {
+  if (plan.simkl) {
     tasks.push((async () => {
       const clientId = await getOAuthClientId('simkl');
       await pushMarkWatchedSimkl(videoIds, watched, meta, profile.simklAccessToken!, clientId);
     })().catch(() => undefined));
   }
 
-  if (profile.anilistAccessToken && watched) {
-    const animeEpisodeInfo = Array.isArray(episodeInfo) ? episodeInfo[episodeInfo.length - 1] : episodeInfo;
+  if (plan.anilist) {
     tasks.push(pushAnimeTrackingExternal({
       meta,
-      episode: animeEpisodeInfo,
-      progressEpisode: progressInfo?.episode ?? animeEpisodeInfo?.episode,
+      episode: plan.animeEpisode,
+      progressEpisode: plan.animeProgressEpisode,
       watched,
     }, profile).catch(() => undefined));
   }
 
-  const nuvioEpisodes = (Array.isArray(episodeInfo) ? episodeInfo : episodeInfo ? [episodeInfo] : [])
-    .filter((info) => info.contentId);
-  if (profile.stremioAuthKey) {
-    tasks.push(pushStremioWatched(meta, watched, nuvioEpisodes, profile).catch(() => undefined));
+  if (plan.stremio) {
+    tasks.push(pushStremioWatched(meta, watched, plan.episodes, profile).catch(() => undefined));
   }
-  if (profile.nuvioAccessToken) {
+  if (plan.nuvio) {
     tasks.push((async () => {
       let nuvioProfile = await validNuvioProfile(profile);
       const push = async () => {
         const token = nuvioProfile.nuvioAccessToken!;
         const profileIdx = nuvioProfile.nuvioProfileIndex ?? 1;
-        const watchedKeys = nuvioEpisodes.length > 0
-          ? nuvioEpisodes.map((info) => ({ content_id: info.contentId, season: info.season, episode: info.episode }))
-          : [{ content_id: String(meta?.id ?? videoIds[0] ?? ''), season: undefined, episode: undefined }]
-            .filter((key) => key.content_id);
         if (!watched) {
-          if (watchedKeys.length > 0) await nuvioDeleteWatchHistory(token, profileIdx, watchedKeys);
+          if (plan.watchedKeys.length > 0) await nuvioDeleteWatchHistory(token, profileIdx, plan.watchedKeys);
           return;
         }
-        if (nuvioEpisodes.length > 0) {
-          await Promise.all(nuvioEpisodes.map((info) =>
+        if (plan.episodes.length > 0) {
+          await Promise.all(plan.episodes.map((info) =>
             nuvioDeleteWatchProgress(token, profileIdx, info.contentId, info.season, info.episode).catch(() => undefined),
           ));
-          const watchedAt = Date.now();
-          await nuvioPushWatchHistory(
-            token,
-            profileIdx,
-            nuvioEpisodes.map((info) => ({
-              content_id: info.contentId,
-              content_type: info.contentType,
-              title: info.title ?? '',
-              season: info.season,
-              episode: info.episode,
-              watched_at: watchedAt,
-            })),
-          );
+          await nuvioPushWatchHistory(token, profileIdx, plan.historyItems);
         }
-        if (progressInfo?.contentId && progressInfo.videoId && progressInfo.durationSeconds > 0) {
-          await nuvioPushWatchProgress(token, profileIdx, [{
-            content_id: progressInfo.contentId,
-            content_type: progressInfo.contentType,
-            video_id: progressInfo.videoId,
-            position: Math.round(progressInfo.positionSeconds * 1000),
-            duration: Math.round(progressInfo.durationSeconds * 1000),
-            last_watched: progressInfo.lastWatched,
-            season: progressInfo.season,
-            episode: progressInfo.episode,
-          }]);
+        if (plan.progressEntry) {
+          await nuvioPushWatchProgress(token, profileIdx, [plan.progressEntry]);
         }
       };
       try {
@@ -250,31 +216,32 @@ export async function pushWatchlistExternal(
   const id = String(item.id ?? '');
   const contentType = String(item.type ?? 'movie');
   const tasks: Promise<void>[] = [];
+  const plan = await coreInvoke<{ trakt: boolean; simkl: boolean; anilist: boolean; stremio: boolean; nuvio: boolean }>('externalProviderActionPlan', JSON.stringify({ kind: 'watchlist', profile, item, command, nowMs: Date.now() }));
+  if (!plan) return;
 
-  if (profile.traktAccessToken && !(profile.traktTokenExpiresAt && Date.now() / 1000 > profile.traktTokenExpiresAt)) {
+  if (plan.trakt) {
     tasks.push((async () => {
       const clientId = await getOAuthClientId('trakt');
       await pushWatchlistTrakt(id, contentType, command, profile.traktAccessToken!, clientId);
     })().catch(() => undefined));
   }
 
-  if (profile.simklAccessToken && command === 'add') {
+  if (plan.simkl) {
     tasks.push((async () => {
       const clientId = await getOAuthClientId('simkl');
-      const parsed = await coreParseVideoId(id);
-      await pushWatchlistSimkl(id, contentType, parsed, profile.simklAccessToken!, clientId);
+      await pushWatchlistSimkl(id, contentType, profile.simklAccessToken!, clientId);
     })().catch(() => undefined));
   }
 
-  if (profile.anilistAccessToken) {
-    tasks.push(pushWatchlistAniList(id, command, profile.anilistAccessToken).catch(() => undefined));
+  if (plan.anilist) {
+    tasks.push(pushWatchlistAniList(id, command, profile.anilistAccessToken!).catch(() => undefined));
   }
 
-  if (profile.stremioAuthKey) {
+  if (plan.stremio) {
     tasks.push(pushStremioWatchlist(item, command, profile).catch(() => undefined));
   }
 
-  if (profile.nuvioAccessToken) {
+  if (plan.nuvio) {
     const queueKey = `${profile.nuvioUserId ?? profile.id}:${profile.nuvioProfileIndex ?? 1}`;
     tasks.push(queueNuvioLibraryMutation(queueKey, async () => {
       let nuvioProfile = await validNuvioProfile(profile);
@@ -282,29 +249,8 @@ export async function pushWatchlistExternal(
       if (!token) return;
       const profileIdx = nuvioProfile.nuvioProfileIndex ?? 1;
       const remote = await nuvioPullLibrary(token, profileIdx);
-      const existingIndex = remote.findIndex((entry) => entry.content_id === id && entry.content_type === contentType);
-      if (command === 'remove') {
-        if (existingIndex < 0) return;
-        remote.splice(existingIndex, 1);
-      } else {
-        const entry = {
-          content_id: id,
-          content_type: contentType,
-          name: String(item.name ?? ''),
-          poster: (item.poster as string | undefined) ?? null,
-          poster_shape: 'poster',
-          background: (item.background as string | undefined) ?? null,
-          description: (item.description as string | undefined) ?? null,
-          release_info: (item.releaseInfo as string | undefined) ?? null,
-          imdb_rating: typeof item.imdbRating === 'number' ? item.imdbRating : null,
-          genres: Array.isArray(item.genres) ? item.genres.filter((genre): genre is string => typeof genre === 'string') : [],
-          addon_base_url: null,
-          added_at: Date.now(),
-        };
-        if (existingIndex >= 0) remote[existingIndex] = { ...remote[existingIndex], ...entry };
-        else remote.push(entry);
-      }
-      await nuvioPushLibrary(token, profileIdx, remote);
+      const updated = await coreInvoke<typeof remote>('nuvioLibraryMutationPlan', JSON.stringify({ remote, item, command, nowMs: Date.now() }));
+      if (updated) await nuvioPushLibrary(token, profileIdx, updated);
     }).catch(() => undefined));
   }
 
@@ -316,25 +262,21 @@ export async function pushPlaybackProgressExternal(
   meta: Record<string, unknown>,
   profile: UserProfile | null,
 ): Promise<void> {
-  if (!profile || progress.durationSeconds <= 0) return;
+  if (!profile) return;
+  const plan = await coreInvoke<{
+    stremio: boolean; nuvio: boolean;
+    progressEntry?: { content_id: string; content_type: string; video_id: string; position: number; duration: number; last_watched: number; season?: number; episode?: number };
+  }>('externalProviderActionPlan', JSON.stringify({ kind: 'progress', profile, progress, nowMs: Date.now() }));
+  if (!plan) return;
   const tasks: Promise<void>[] = [];
-  if (profile.stremioAuthKey) {
+  if (plan.stremio) {
     tasks.push(pushStremioPlaybackProgress(meta, progress, profile).catch(() => undefined));
   }
-  if (profile.nuvioAccessToken) {
+  if (plan.nuvio && plan.progressEntry) {
     tasks.push((async () => {
       const fresh = await validNuvioProfile(profile);
       if (!fresh.nuvioAccessToken) return;
-      await nuvioPushWatchProgress(fresh.nuvioAccessToken, fresh.nuvioProfileIndex ?? 1, [{
-        content_id: progress.contentId,
-        content_type: progress.contentType,
-        video_id: progress.videoId,
-        position: Math.round(progress.positionSeconds * 1000),
-        duration: Math.round(progress.durationSeconds * 1000),
-        last_watched: progress.lastWatched,
-        season: progress.season,
-        episode: progress.episode,
-      }]);
+      await nuvioPushWatchProgress(fresh.nuvioAccessToken, fresh.nuvioProfileIndex ?? 1, [plan.progressEntry!]);
     })().catch(() => undefined));
   }
   await Promise.all(tasks);
@@ -346,29 +288,32 @@ export async function pushLibraryStatusExternal(
   command: 'add' | 'remove',
   profile: UserProfile | null,
 ): Promise<void> {
-  if (!profile?.anilistAccessToken) return;
+  if (!profile) return;
+  const plan = await coreInvoke<{ anilist: boolean }>('externalProviderActionPlan', JSON.stringify({ kind: 'status', profile, item, list, command, nowMs: Date.now() }));
+  if (!plan?.anilist) return;
   const id = String(item.id ?? '');
-  await pushLibraryStatusAniList(id, list, command, profile.anilistAccessToken).catch(() => undefined);
+  await pushLibraryStatusAniList(id, list, command, profile.anilistAccessToken!).catch(() => undefined);
 }
 
 export async function dropExternalPlaybackProgress(item: Record<string, unknown>): Promise<void> {
-  const reason = String(item.reason ?? '').toLowerCase();
   const id = String(item.id ?? '');
   if (!id) return;
-  if (reason === 'trakt') {
+  const plan = await coreInvoke<{ dropTrakt: boolean }>('externalProviderActionPlan', JSON.stringify({ kind: 'dropProgress', profile: {}, item, nowMs: Date.now() }));
+  if (plan?.dropTrakt) {
     await dropTraktPlaybackProgress(id);
   }
-  // Simkl: no playback progress API — local removal is sufficient.
 }
 
 export async function syncExternalIntegrationNow(payload: Record<string, unknown>): Promise<unknown> {
-  const provider = String(payload.provider ?? 'trakt').toLowerCase();
+  const plan = await coreInvoke<{ provider: string; supported: boolean; error?: string }>('externalProviderActionPlan', JSON.stringify({ kind: 'sync', provider: payload.provider }));
+  const provider = plan?.provider ?? '';
+  if (!plan?.supported) return { synced: false, error: plan?.error };
   if (provider === 'anilist') return syncAniListNow(payload);
   if (provider === 'simkl') return syncSimklNow(payload);
   if (provider === 'trakt') return syncTraktNow(payload);
   if (provider === 'stremio') return syncStremioNow(payload);
   if (provider === 'nuvio') return syncNuvioNow(payload);
-  return { synced: false, error: `Unsupported external sync provider: ${provider}` };
+  return { synced: false };
 }
 
 async function syncNuvioNow(payload: Record<string, unknown>): Promise<unknown> {

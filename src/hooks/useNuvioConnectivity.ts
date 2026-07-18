@@ -3,63 +3,24 @@ import { nuvioHealthCheck, nuvioPushWatchProgress, nuvioPushLibrary, nuvioPushWa
 import { loadLibrary } from '../core/libraryOps';
 import { freshNuvioProfile, importNuvioProfileData, recordNuvioSyncMeta } from '../core/nuvioSync';
 import type { UserProfile } from '../core/types';
+import { coreInvoke } from '../core/engine';
 
 async function pushLocalToNuvio(profile: UserProfile): Promise<void> {
   const freshProfile = await freshNuvioProfile(profile).catch(() => profile);
   const token = freshProfile.nuvioAccessToken!;
   const profileIdx = freshProfile.nuvioProfileIndex ?? 1;
   const lib = await loadLibrary();
-
-  const progressMap = (lib.progress as Record<string, Record<string, unknown>> | undefined) ?? {};
-  const progressEntries = Object.entries(progressMap)
-    .map(([contentId, e]) => {
-      const meta = e.meta as { type?: string } | undefined;
-      const timeOffset = Number(e.timeOffset ?? 0);
-      const duration = Number(e.duration ?? 0);
-      if (duration <= 0) return null;
-      const videoId = e.lastVideoId ? String(e.lastVideoId) : contentId;
-      return {
-        content_id: contentId,
-        content_type: String(meta?.type ?? 'movie'),
-        video_id: videoId,
-        position: Math.round(timeOffset * 1000),
-        duration: Math.round(duration * 1000),
-        last_watched: e.savedAt ? new Date(String(e.savedAt)).getTime() : Date.now(),
-        season: e.lastEpisodeSeason != null ? Number(e.lastEpisodeSeason) : undefined,
-        episode: e.lastEpisodeNumber != null ? Number(e.lastEpisodeNumber) : undefined,
-      };
-    })
-    .filter((e): e is NonNullable<typeof e> => e !== null);
-
-  const watchlist = (lib.watchlist as Array<Record<string, unknown>> | undefined) ?? [];
-  const libraryItems = watchlist
-    .map((item) => ({
-      content_id: String(item.id ?? ''),
-      content_type: String(item.type ?? 'movie'),
-      name: String(item.name ?? ''),
-      poster: (item.poster as string | undefined) ?? null,
-      background: (item.background as string | undefined) ?? null,
-    }))
-    .filter((i) => i.content_id);
-
-  const watchedMap = (lib.watched as Record<string, boolean> | undefined) ?? {};
-  const historyItems = Object.keys(watchedMap).map((videoId) => {
-    const parts = videoId.split(':');
-    const isSeries = parts.length === 3;
-    return {
-      content_id: parts[0],
-      content_type: isSeries ? 'series' : 'movie',
-      title: '',
-      season: isSeries ? Number(parts[1]) : undefined,
-      episode: isSeries ? Number(parts[2]) : undefined,
-      watched_at: Date.now(),
-    };
-  });
+  const plan = await coreInvoke<{
+    progressEntries: Array<{ content_id: string; content_type: string; video_id: string; position: number; duration: number; last_watched: number; season?: number; episode?: number }>;
+    libraryItems: Array<{ content_id: string; content_type: string; name?: string; poster?: string | null; background?: string | null }>;
+    historyItems: Array<{ content_id: string; content_type: string; title?: string; season?: number; episode?: number; watched_at: number }>;
+  }>('nuvioExportPushPlan', JSON.stringify({ library: lib, nowMs: Date.now() }));
+  if (!plan) return;
 
   await Promise.allSettled([
-    progressEntries.length > 0 ? nuvioPushWatchProgress(token, profileIdx, progressEntries) : Promise.resolve(),
-    libraryItems.length > 0 ? nuvioPushLibrary(token, profileIdx, libraryItems) : Promise.resolve(),
-    historyItems.length > 0 ? nuvioPushWatchHistory(token, profileIdx, historyItems) : Promise.resolve(),
+    plan.progressEntries.length > 0 ? nuvioPushWatchProgress(token, profileIdx, plan.progressEntries) : Promise.resolve(),
+    plan.libraryItems.length > 0 ? nuvioPushLibrary(token, profileIdx, plan.libraryItems) : Promise.resolve(),
+    plan.historyItems.length > 0 ? nuvioPushWatchHistory(token, profileIdx, plan.historyItems) : Promise.resolve(),
   ]);
 }
 

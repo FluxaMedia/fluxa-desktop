@@ -1,7 +1,7 @@
 import {
   coreMergeExternalWatched,
   coreMergeExternalWatchlist,
-  coreParseVideoId,
+  coreInvoke,
   coreSimklWatchedToIds,
   coreSimklWatchingToItems,
   coreSimklWatchlistToItems,
@@ -95,44 +95,7 @@ export async function fetchSimklCalendarItems(token: string, clientId: string): 
       .then((res) => (res.ok ? res.json() : [])).catch(() => []),
   ]);
 
-  const showItems = (Array.isArray(shows) ? shows : []).map((raw) => {
-    const entry = raw as Record<string, unknown>;
-    const episode = entry.episode as Record<string, unknown> | undefined;
-    const show = entry.show as Record<string, unknown> | undefined;
-    const ids = show?.ids as Record<string, unknown> | undefined;
-    const imdb = typeof ids?.imdb === 'string' ? ids.imdb : undefined;
-    const tmdb = ids?.tmdb != null ? `tmdb:${ids.tmdb}` : undefined;
-    const seriesId = imdb ?? tmdb;
-    const dateIso = typeof entry.date === 'string' ? entry.date : undefined;
-    if (!seriesId || !dateIso) return null;
-    return {
-      id: `${seriesId}:${episode?.season}:${episode?.episode}`,
-      title: show?.title,
-      episodeTitle: episode?.title,
-      dateIso,
-      contentId: seriesId,
-      seriesId,
-    } as Record<string, unknown>;
-  }).filter((item): item is Record<string, unknown> => item !== null);
-
-  const movieItems = (Array.isArray(movies) ? movies : []).map((raw) => {
-    const entry = raw as Record<string, unknown>;
-    const movie = entry.movie as Record<string, unknown> | undefined;
-    const ids = movie?.ids as Record<string, unknown> | undefined;
-    const imdb = typeof ids?.imdb === 'string' ? ids.imdb : undefined;
-    const tmdb = ids?.tmdb != null ? `tmdb:${ids.tmdb}` : undefined;
-    const contentId = imdb ?? tmdb;
-    const dateIso = typeof entry.date === 'string' ? entry.date : undefined;
-    if (!contentId || !dateIso) return null;
-    return {
-      id: contentId,
-      title: movie?.title,
-      dateIso,
-      contentId,
-    } as Record<string, unknown>;
-  }).filter((item): item is Record<string, unknown> => item !== null);
-
-  return [...showItems, ...movieItems];
+  return (await coreInvoke<Record<string, unknown>[]>('providerCalendarItems', JSON.stringify({ provider: 'simkl', shows, movies }))) ?? [];
 }
 
 export async function pushMarkWatchedSimkl(
@@ -148,35 +111,8 @@ export async function pushMarkWatchedSimkl(
     'Content-Type': 'application/json',
   };
   const endpoint = watched ? '/sync/history' : '/sync/history/remove';
-  const moviePayloads: Record<string, unknown>[] = [];
-  const showPayloads: Map<string, Record<string, unknown>> = new Map();
-
-  for (const vid of videoIds) {
-    const parsed = await coreParseVideoId(vid);
-    if (!parsed.imdb && !parsed.tmdb) continue;
-    const ids: Record<string, unknown> = parsed.imdb ? { imdb: parsed.imdb } : { tmdb: parsed.tmdb };
-    if (parsed.isEpisode) {
-      const showId = String(parsed.imdb ?? parsed.tmdb ?? '');
-      if (!showPayloads.has(showId)) showPayloads.set(showId, { ids, seasons: [] });
-      const showEntry = showPayloads.get(showId)!;
-      const seasons = showEntry.seasons as Record<string, unknown>[];
-      let seasonEntry = seasons.find((s) => s.number === parsed.season);
-      if (!seasonEntry) { seasonEntry = { number: parsed.season, episodes: [] }; seasons.push(seasonEntry); }
-      (seasonEntry.episodes as Record<string, unknown>[]).push({ number: parsed.episode });
-    } else {
-      const contentType = (meta?.type ?? 'movie') === 'series' ? 'shows' : 'movies';
-      if (contentType === 'movies') {
-        moviePayloads.push({ ids, watched_at: 'now' });
-      } else {
-        showPayloads.set(String(parsed.imdb ?? parsed.tmdb ?? ''), { ids });
-      }
-    }
-  }
-
-  if (moviePayloads.length > 0 || showPayloads.size > 0) {
-    const body: Record<string, unknown> = {};
-    if (moviePayloads.length > 0) body.movies = moviePayloads;
-    if (showPayloads.size > 0) body.shows = [...showPayloads.values()];
+  const body = await coreInvoke<Record<string, unknown>>('simklMarkWatchedBody', JSON.stringify({ videoIds, meta }));
+  if (body) {
     await platformFetch(`https://api.simkl.com${endpoint}?client_id=${encodeURIComponent(clientId)}`, {
       method: 'POST', headers: simklHeaders, body: JSON.stringify(body),
     });
@@ -186,7 +122,6 @@ export async function pushMarkWatchedSimkl(
 export async function pushWatchlistSimkl(
   id: string,
   contentType: string,
-  parsed: { imdb?: string; tmdb?: string },
   token: string,
   clientId: string,
 ): Promise<void> {
@@ -195,11 +130,8 @@ export async function pushWatchlistSimkl(
     'simkl-api-key': clientId,
     'Content-Type': 'application/json',
   };
-  const ids: Record<string, unknown> = parsed.imdb ? { imdb: parsed.imdb } : parsed.tmdb ? { tmdb: parsed.tmdb } : {};
-  if (Object.keys(ids).length === 0) return;
-  const body = contentType === 'series'
-    ? { shows: [{ ids, to: 'plantowatch' }] }
-    : { movies: [{ ids, to: 'plantowatch' }] };
+  const body = await coreInvoke<Record<string, unknown>>('simklWatchlistBody', JSON.stringify({ id, contentType }));
+  if (!body) return;
   await platformFetch(`https://api.simkl.com/sync/add-to-list?client_id=${encodeURIComponent(clientId)}`, {
     method: 'POST', headers: simklHeaders, body: JSON.stringify(body),
   });

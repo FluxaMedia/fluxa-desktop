@@ -6,6 +6,7 @@ import { getLanguage, t } from '../i18n';
 import { FilterDropdown } from '../components/FilterDropdown';
 import { DiscoverDetailPanel } from '../components/DiscoverDetailPanel';
 import { VirtualizedPosterGrid } from '../components/VirtualizedPosterGrid';
+import { coreInvoke } from '../core/engine';
 
 interface Props {
   state: AppState;
@@ -32,17 +33,6 @@ interface DiscoverCatalog {
   }>;
 }
 
-function cacheKey(catalogKey: string | null, extraName: string | null, extraValue: string | null): string {
-  return `${catalogKey ?? ''}|${extraName ?? ''}|${extraValue ?? ''}`;
-}
-
-function isSearchOnlyCatalog(cat: { extra?: Array<{ name?: string; isRequired?: boolean; options?: string[] }> }): boolean {
-  const extra = cat.extra ?? [];
-  const requiresSearch = extra.some((e) => e.name === 'search' && e.isRequired);
-  if (!requiresSearch) return false;
-  return !extra.some((e) => e.name !== 'search' && e.name !== 'skip' && (e.options?.length ?? 0) > 0);
-}
-
 function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre }: Props) {
   const discover = state.discover;
   const [contentType, setContentType] = useState<string>('movie');
@@ -53,10 +43,18 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
   const isGridScrollingRef = useRef(false);
   const scrollIdleTimerRef = useRef<number | null>(null);
   const hoveredMetaRef = useRef<Meta | null>(null);
-  const catalogs = ((discover.catalogs ?? []) as DiscoverCatalog[]).filter((catalog) => catalog.type === contentType);
-  const selectedCatalog = catalogs.find((catalog) => catalog.key === selectedCatalogKey) ?? null;
-  const selectedExtra = selectedCatalog?.extras?.[0] ?? null;
-  const key = cacheKey(selectedCatalog?.key ?? null, selectedExtra?.name ?? null, extraValue);
+  const [selectionPlan, setSelectionPlan] = useState<{
+    catalogs: DiscoverCatalog[];
+    selectedCatalogKey: string | null;
+    selectedCatalog: DiscoverCatalog | null;
+    selectedExtra: NonNullable<DiscoverCatalog['extras']>[number] | null;
+    extraValue: string | null;
+    key: string;
+  }>({ catalogs: [], selectedCatalogKey: null, selectedCatalog: null, selectedExtra: null, extraValue: null, key: '||' });
+  const catalogs = selectionPlan.catalogs;
+  const selectedCatalog = selectionPlan.selectedCatalog;
+  const selectedExtra = selectionPlan.selectedExtra;
+  const key = selectionPlan.key;
   const cachedResults = discoverResultsCache.get(key) ?? null;
   const lastDispatchedKeyRef = useRef<string | null>(null);
   const posterPrefs = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
@@ -70,13 +68,17 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
   }, [contentType]);
 
   useEffect(() => {
-    if (!selectedCatalogKey && catalogs.length > 0) setSelectedCatalogKey(catalogs[0].key);
-  }, [catalogs, selectedCatalogKey]);
-
-  useEffect(() => {
-    if (!selectedCatalog) return;
-    if (extraValue && !selectedExtra?.options.includes(extraValue)) setExtraValue(null);
-  }, [selectedCatalog, selectedExtra, extraValue]);
+    let active = true;
+    void coreInvoke<typeof selectionPlan>('discoverSelectionPlan', JSON.stringify({
+      catalogs: discover.catalogs ?? [], contentType, selectedCatalogKey, extraValue,
+    })).then((plan) => {
+      if (!active || !plan) return;
+      setSelectionPlan(plan);
+      if (plan.selectedCatalogKey !== selectedCatalogKey) setSelectedCatalogKey(plan.selectedCatalogKey);
+      if (plan.extraValue !== extraValue) setExtraValue(plan.extraValue);
+    });
+    return () => { active = false; };
+  }, [discover.catalogs, contentType, selectedCatalogKey, extraValue]);
 
   useEffect(() => {
     if (!selectedCatalog || discoverResultsCache.has(key)) return;
@@ -115,15 +117,16 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
     pendingPagingKeyRef.current = null;
   }, [key]);
 
-  const displayResults = useMemo(() => {
-    const seen = new Set<string>();
-    const merged: Meta[] = [];
-    for (const item of [...baseResults, ...(pagingExtra[key] ?? [])]) {
-      if (seen.has(item.id)) continue;
-      seen.add(item.id);
-      merged.push(item);
-    }
-    return merged;
+  const [displayResults, setDisplayResults] = useState<Meta[]>([]);
+  useEffect(() => {
+    let active = true;
+    void coreInvoke<{ items: Meta[] }>('mergeDiscoverPages', JSON.stringify({
+      baseItems: baseResults,
+      existingItems: pagingExtra[key] ?? [],
+      incomingItems: [],
+    })).then((plan) => { if (active) setDisplayResults(plan?.items ?? []); })
+      .catch(() => { if (active) setDisplayResults(baseResults); });
+    return () => { active = false; };
   }, [baseResults, pagingExtra, key]);
 
   const handleLoadMore = useCallback(() => {
@@ -146,35 +149,37 @@ function DiscoverScreenInner({ state, onDispatch, onNavigateDetail, initialGenre
     if (!paging || !pendingKey || paging.isLoading) return;
     pendingPagingKeyRef.current = null;
     const items = Array.isArray(paging.items) ? paging.items : [];
-    if (paging.error || items.length === 0) {
+    if (paging.error) {
       pagingNoMoreRef.current.add(pendingKey);
       return;
     }
-    setPagingExtra((prev) => {
-      const existing = prev[pendingKey] ?? [];
-      const knownIds = new Set([...baseResults.map((m) => m.id), ...existing.map((m) => m.id)]);
-      const newItems = items.filter((item) => !knownIds.has(item.id));
-      if (newItems.length === 0) {
-        pagingNoMoreRef.current.add(pendingKey);
-        return prev;
-      }
-      return { ...prev, [pendingKey]: [...existing, ...newItems] };
-    });
+    void (async () => {
+      const existing = pagingExtra[pendingKey] ?? [];
+      const plan = await coreInvoke<{ appendedItems: Meta[]; exhausted: boolean }>('mergeDiscoverPages', JSON.stringify({
+        baseItems: baseResults,
+        existingItems: existing,
+        incomingItems: items,
+      }));
+      if (!plan || plan.exhausted) pagingNoMoreRef.current.add(pendingKey);
+      if (!plan?.appendedItems.length) return;
+      setPagingExtra((prev) => ({
+        ...prev,
+        [pendingKey]: [...(prev[pendingKey] ?? []), ...plan.appendedItems],
+      }));
+    })().catch(() => pagingNoMoreRef.current.add(pendingKey));
   }, [discover.paging, baseResults]);
 
+  const [contentTypes, setContentTypes] = useState<string[]>(['movie', 'series']);
+  useEffect(() => {
+    void coreInvoke<string[]>('discoverContentTypes', JSON.stringify(state.addons?.installed ?? []))
+      .then((types) => { if (types) setContentTypes(types); });
+  }, [state.addons?.installed]);
   const typeOptions = useMemo(() => {
-    const types = ['movie', 'series'];
-    for (const addon of state.addons?.installed ?? []) {
-      for (const cat of addon.manifest?.catalogs ?? addon.catalogs ?? []) {
-        if (!cat.type || types.includes(cat.type) || isSearchOnlyCatalog(cat)) continue;
-        types.push(cat.type);
-      }
-    }
-    return types.map((ty) => ({
+    return contentTypes.map((ty) => ({
       value: ty,
       label: ty === 'movie' ? t('auto.movies') : ty === 'series' ? t('auto.series') : ty.charAt(0).toUpperCase() + ty.slice(1),
     }));
-  }, [state.addons?.installed]);
+  }, [contentTypes]);
 
   const handleGridScroll = useCallback(() => {
     isGridScrollingRef.current = true;

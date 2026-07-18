@@ -9,15 +9,14 @@ import { CollectionShelfRow } from '../components/CollectionShelfRow';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefBool, prefString } from '../core/appPrefs';
 import { buildResourceUrl } from '../core/addonManifest';
-import { httpFetchText } from '../core/engine';
+import { coreInvoke, httpFetchText } from '../core/engine';
 import { prewarmYoutubeTrailerConfig } from '../core/effectRunner';
 import { fetchTmdbTrailers } from '../core/detailEffects';
-import { youtubeVideoId } from '../components/detail/TrailerCarousel';
 import type { AppState, HomeCategory, Meta, NuvioRemoteCollectionSource, Trailer } from '../core/types';
 import { getLanguage, t } from '../i18n';
 import { useInViewport } from '../hooks/useInViewport';
-import { isNuvioCollectionSource, loadNuvioCollectionSource } from '../core/collectionSources';
-import { fetchBuiltinCatalog, isBuiltinTmdbAddon } from '../core/tmdbAddon';
+import { loadNuvioCollectionSource } from '../core/collectionSources';
+import { fetchBuiltinCatalog } from '../core/tmdbAddon';
 import { loadPrefs } from '../core/libraryOps';
 
 const ROW_PLACEHOLDER_HEIGHT = 340;
@@ -63,97 +62,50 @@ type FolderSourceBatch = { type: string; items: Meta[] };
 type AddonFolderSource = { transportUrl: string; catalogId: string; type: string; genre?: string };
 type FolderSource = AddonFolderSource | NuvioRemoteCollectionSource;
 
-// A source whose page overlaps entirely with what we've already seen from it isn't
-// necessarily exhausted (addons can reshuffle/resort between requests) — tolerate a
-// few consecutive duplicate-only pages, advancing skip through them, before giving up.
-const DUPLICATE_FOLDER_PAGE_LIMIT = 3;
-
 interface FolderSourceState {
   skip: number;
   exhausted: boolean;
   duplicateStreak: number;
   items: Meta[];
-  seen: Set<string>;
-}
-
-function folderItemKey(item: Meta): string {
-  return `${item.type}:${item.id}`;
 }
 
 function initFolderSourceState(): FolderSourceState {
-  return { skip: 0, exhausted: false, duplicateStreak: 0, items: [], seen: new Set() };
-}
-
-function applyFolderPage(state: FolderSourceState, batch: FolderSourceBatch): FolderSourceState {
-  if (batch.items.length === 0) {
-    return { ...state, exhausted: true };
-  }
-  const newItems = batch.items.filter((item) => !state.seen.has(folderItemKey(item)));
-  const seen = state.seen;
-  for (const item of newItems) seen.add(folderItemKey(item));
-  const skip = state.skip + batch.items.length;
-  if (newItems.length === 0) {
-    const duplicateStreak = state.duplicateStreak + 1;
-    return { ...state, skip, duplicateStreak, exhausted: duplicateStreak >= DUPLICATE_FOLDER_PAGE_LIMIT };
-  }
-  return { ...state, skip, duplicateStreak: 0, items: [...state.items, ...newItems] };
-}
-
-// Interleaves each source's own items round-robin (rather than "all of source A, then
-// all of source B") so multi-source folders present a balanced blend, deduping globally
-// across sources as it merges.
-function mergeFolderSources(perSourceItems: Meta[][]): FolderItemsResult {
-  const seen = new Set<string>();
-  const items: Meta[] = [];
-  const iterators = perSourceItems.map((list) => list[Symbol.iterator]());
-  const active = iterators.map(() => true);
-  while (active.some(Boolean)) {
-    iterators.forEach((it, i) => {
-      if (!active[i]) return;
-      const next = it.next();
-      if (next.done) { active[i] = false; return; }
-      const key = folderItemKey(next.value);
-      if (seen.has(key)) return;
-      seen.add(key);
-      items.push(next.value);
-    });
-  }
-  const groupsByType = new Map<string, Meta[]>();
-  for (const item of items) {
-    const list = groupsByType.get(item.type);
-    if (list) list.push(item); else groupsByType.set(item.type, [item]);
-  }
-  return { items, groups: Array.from(groupsByType, ([type, groupItems]) => ({ type, items: groupItems })) };
+  return { skip: 0, exhausted: false, duplicateStreak: 0, items: [] };
 }
 
 async function loadFolderSourcePage(
   source: FolderSource,
   skip: number,
 ): Promise<FolderSourceBatch> {
-  if (isNuvioCollectionSource(source)) {
-    const type = source.mediaType?.toUpperCase() === 'TV' ? 'series' : 'movie';
-    return { type, items: await loadNuvioCollectionSource(source, Math.floor(skip / 50) + 1) };
+  const plan = await coreInvoke<{
+    kind: 'remote' | 'builtinTmdb' | 'addon';
+    type: string;
+    page?: number;
+    transportUrl?: string;
+    catalogId?: string;
+    extra?: Record<string, unknown>;
+  }>('folderSourcePagePlan', JSON.stringify({ source, skip }));
+  if (!plan) return { type: 'movie', items: [] };
+  if (plan.kind === 'remote') {
+    return { type: plan.type, items: await loadNuvioCollectionSource(source as NuvioRemoteCollectionSource, plan.page) };
   }
-  const extra: Record<string, unknown> = {};
-  if (source.genre) extra.genre = source.genre;
-  if (skip > 0) extra.skip = skip;
 
-  if (isBuiltinTmdbAddon(source.transportUrl)) {
+  if (plan.kind === 'builtinTmdb') {
     const prefs = await loadPrefs();
-    const { metas } = await fetchBuiltinCatalog(source.type, extra, String(prefs.tmdbApiKey ?? ''), getLanguage());
-    return { type: source.type, items: metas as Meta[] };
+    const { metas } = await fetchBuiltinCatalog(plan.type, plan.extra ?? {}, String(prefs.tmdbApiKey ?? ''), getLanguage());
+    return { type: plan.type, items: metas as Meta[] };
   }
 
-  const extraJson = Object.keys(extra).length ? JSON.stringify(extra) : undefined;
-  const url = await buildResourceUrl(source.transportUrl, 'catalog', source.type, source.catalogId, extraJson);
+  const extraJson = Object.keys(plan.extra ?? {}).length ? JSON.stringify(plan.extra) : undefined;
+  const url = await buildResourceUrl(plan.transportUrl!, 'catalog', plan.type, plan.catalogId!, extraJson);
   try {
     const res = await httpFetchText(url);
     if (res.statusCode === 200) {
       const data = JSON.parse(res.body) as { metas?: unknown };
-      return { type: source.type, items: Array.isArray(data?.metas) ? data.metas as Meta[] : [] };
+      return { type: plan.type, items: Array.isArray(data?.metas) ? data.metas as Meta[] : [] };
     }
   } catch { /* skip failed source */ }
-  return { type: source.type, items: [] as Meta[] };
+  return { type: plan.type, items: [] as Meta[] };
 }
 
 export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, onNavigateDetail, onPlay, onResume, onStartOver, onPlayManually, onOpenSettings, isActive, onScrolledChange, resetKey }: Props) {
@@ -255,8 +207,10 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     setFolderPaginated(true);
     try {
       const batches = await Promise.all(sources.map((source) => loadFolderSourcePage(source, 0)));
-      folderSourceStatesRef.current = folderSourceStatesRef.current.map((s, i) => applyFolderPage(s, batches[i]));
-      const { items, groups } = mergeFolderSources(folderSourceStatesRef.current.map((s) => s.items));
+      folderSourceStatesRef.current = await Promise.all(folderSourceStatesRef.current.map(async (state, index) =>
+        (await coreInvoke<FolderSourceState>('folderPageState', JSON.stringify({ state, batch: batches[index] }))) ?? state
+      ));
+      const { items, groups } = (await coreInvoke<FolderItemsResult>('mergeFolderSources', JSON.stringify(folderSourceStatesRef.current.map((state) => state.items)))) ?? { items: [], groups: [] };
       setViewAllCategory({ title: folderMeta.name, items, groups });
       setFolderError(items.length === 0);
     } finally {
@@ -271,13 +225,16 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     if (states.every((s) => s.exhausted)) return;
     setFolderLoadingMore(true);
     try {
-      const batches = await Promise.all(sources.map((source, i) => (
-        states[i].exhausted
-          ? Promise.resolve<FolderSourceBatch>({ type: isNuvioCollectionSource(source) && source.mediaType?.toUpperCase() === 'TV' ? 'series' : ('type' in source ? source.type : 'movie'), items: [] })
-          : loadFolderSourcePage(source, states[i].skip)
-      )));
-      folderSourceStatesRef.current = states.map((s, i) => (s.exhausted ? s : applyFolderPage(s, batches[i])));
-      const { items, groups } = mergeFolderSources(folderSourceStatesRef.current.map((s) => s.items));
+      const batches = await Promise.all(sources.map(async (source, i) => {
+        if (!states[i].exhausted) return loadFolderSourcePage(source, states[i].skip);
+        const plan = await coreInvoke<{ type: string }>('folderSourcePagePlan', JSON.stringify({ source, skip: states[i].skip }));
+        return { type: plan?.type ?? 'movie', items: [] };
+      }));
+      folderSourceStatesRef.current = await Promise.all(states.map(async (state, index) => state.exhausted
+        ? state
+        : (await coreInvoke<FolderSourceState>('folderPageState', JSON.stringify({ state, batch: batches[index] }))) ?? state
+      ));
+      const { items, groups } = (await coreInvoke<FolderItemsResult>('mergeFolderSources', JSON.stringify(folderSourceStatesRef.current.map((state) => state.items)))) ?? { items: [], groups: [] };
       setViewAllCategory((prev) => (prev ? { ...prev, items, groups } : prev));
     } finally {
       setFolderLoadingMore(false);
@@ -301,32 +258,35 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
   }, [home.isStale, onDispatch]);
 
   const continueWatching = useMemo(() => (home.continueWatching ?? []) as Meta[], [home.continueWatching]);
-  const categories = useMemo(
-    () => (home.categories ?? []).map((c) => (Array.isArray(c.items) ? c : { ...c, items: [] })),
-    [home.categories],
-  );
-  const contentCategories = useMemo(
-    () => categories.filter((c) => c.type !== 'collection' && c.type !== 'collection_folder'),
-    [categories],
-  );
+  const posterPrefs = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
+  const prefs = useMemo(() => appPrefs(state), [state.settings?.values]);
+  const [heroTrailers, setHeroTrailers] = useState<Record<string, Trailer[]>>({});
+  const [fetchedHeroTrailerIds, setFetchedHeroTrailerIds] = useState<string[]>([]);
+  const [homePlan, setHomePlan] = useState<{
+    categories: HomeCategory[];
+    billboard: Meta | null;
+    slides: Meta[];
+    trailerTargets: Meta[];
+    showHero: boolean;
+    autoplayTrailer: boolean;
+  }>({ categories: [], billboard: null, slides: [], trailerTargets: [], showHero: true, autoplayTrailer: false });
+  useEffect(() => {
+    let active = true;
+    void coreInvoke<typeof homePlan>('homeHeroPlan', JSON.stringify({
+      categories: home.categories ?? [], billboard: home.billboard ?? null, prefs,
+      fetchedTrailers: heroTrailers, fetchedIds: fetchedHeroTrailerIds,
+    })).then((plan) => { if (active && plan) setHomePlan(plan); });
+    return () => { active = false; };
+  }, [home.categories, home.billboard, prefs, heroTrailers, fetchedHeroTrailerIds]);
+  const categories = homePlan.categories;
   const nearEndCallbacks = useMemo(() => {
     const map = new Map<string, () => void>();
     for (const cat of categories) map.set(cat.id, () => handleLoadMoreCategory(cat));
     return map;
   }, [categories, handleLoadMoreCategory]);
-  const billboard = useMemo(
-    () => home.billboard ?? contentCategories[0]?.items?.[0] ?? null,
-    [home.billboard, contentCategories],
-  );
-  const heroSlides = useMemo(
-    () => buildHeroSlides(billboard, contentCategories.flatMap((c) => c.items)),
-    [billboard, contentCategories],
-  );
-  const posterPrefs = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
-  const prefs = useMemo(() => appPrefs(state), [state.settings?.values]);
-  const [heroTrailers, setHeroTrailers] = useState<Record<string, Trailer[]>>({});
-  const fetchedHeroTrailerIds = useRef<Set<string>>(new Set());
-  const autoplayTrailerEnabled = prefBool(prefs, 'homeHeroAutoplayTrailer', false);
+  const billboard = homePlan.billboard;
+  const heroSlides = homePlan.slides;
+  const autoplayTrailerEnabled = homePlan.autoplayTrailer;
 
   useEffect(() => {
     if (!autoplayTrailerEnabled) return;
@@ -335,12 +295,9 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
 
   useEffect(() => {
     const apiKey = prefString(prefs, 'tmdbApiKey');
-    if (!autoplayTrailerEnabled || !prefBool(prefs, 'tmdbTrailersEnabled', true) || !apiKey) return;
-    const targets = [billboard, ...heroSlides].filter(
-      (item): item is Meta => !!item && !hasPlayableTrailer(item) && !fetchedHeroTrailerIds.current.has(item.id),
-    );
+    const targets = homePlan.trailerTargets;
     if (!targets.length) return;
-    targets.forEach((item) => fetchedHeroTrailerIds.current.add(item.id));
+    setFetchedHeroTrailerIds((current) => Array.from(new Set([...current, ...targets.map((item) => item.id)])));
     let cancelled = false;
     const language = getLanguage();
     Promise.all(targets.map(async (item) => {
@@ -353,16 +310,10 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
       setHeroTrailers((prev) => ({ ...prev, ...Object.fromEntries(found) }));
     }).catch((err) => console.error('hero trailer fetch failed', err));
     return () => { cancelled = true; };
-  }, [billboard, heroSlides, autoplayTrailerEnabled, prefs]);
+  }, [homePlan.trailerTargets, prefs]);
 
-  const billboardWithTrailer = useMemo(
-    () => withHeroTrailer(billboard, heroTrailers),
-    [billboard, heroTrailers],
-  );
-  const heroSlidesWithTrailers = useMemo(
-    () => heroSlides.map((item) => withHeroTrailer(item, heroTrailers)),
-    [heroSlides, heroTrailers],
-  );
+  const billboardWithTrailer = billboard;
+  const heroSlidesWithTrailers = heroSlides;
   const addonIconByName = useMemo(() => {
     const map = new Map<string, string>();
     for (const addon of state.addons.installed ?? []) {
@@ -370,7 +321,7 @@ export const HomeScreen = React.memo(function HomeScreen({ state, onDispatch, on
     }
     return map;
   }, [state.addons.installed]);
-  const showHero = prefBool(prefs, 'showHeroSection', true);
+  const showHero = homePlan.showHero;
   const showContinueWatching = prefBool(prefs, 'continueWatchingEnabled', true);
   const gifAutoplayEnabled = prefBool(prefs, 'gifAutoplayEnabled', false);
   const topTenFeedKeys = useMemo(() => {
@@ -538,28 +489,6 @@ function formatCatalogTitle(name: string, type: string): string {
   else if (type) label = type.charAt(0).toUpperCase() + type.slice(1);
   else return name;
   return `${name} - ${label}`;
-}
-
-function hasPlayableTrailer(item: Meta): boolean {
-  return (item.trailers ?? []).some((trailer) => !!youtubeVideoId(trailer.url));
-}
-
-function withHeroTrailer<T extends Meta | null>(item: T, trailers: Record<string, Trailer[]>): T {
-  if (!item || hasPlayableTrailer(item) || !trailers[item.id]) return item;
-  return { ...item, trailers: trailers[item.id] };
-}
-
-function buildHeroSlides(billboard: Meta | null, items: Meta[]): Meta[] {
-  const seen = new Set<string>();
-  return [billboard, ...items]
-    .filter((item): item is Meta => !!item && !!(item.background || item.poster))
-    .filter((item) => {
-      const key = item.id || item.name;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 8);
 }
 
 function LoadingSkeleton() {

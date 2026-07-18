@@ -1,7 +1,7 @@
 import { platformFetch } from './httpClient';
 import { loadLibrary, saveLibrary, buildContinueWatching, persistStatusListMerge, persistWatchedMerge, persistProgressMerge } from './libraryOps';
 import { replaceExternalContinueWatching } from './externalSyncUtils';
-import { coreAnilistEntriesToSync, coreMergeLibraryItemsById } from './engine';
+import { coreAnilistEntriesToSync, coreInvoke, coreMergeLibraryItemsById } from './engine';
 
 type AniListEntry = {
   status?: string | null;
@@ -102,20 +102,7 @@ export async function fetchAniListCalendarItems(token: string): Promise<Record<s
   const data = await anilistGraphql<AniListCollectionResponse>(ANILIST_COLLECTION_QUERY, { userId }, token);
   const entries = (data?.MediaListCollection?.lists ?? []).flatMap((list) => list.entries ?? []);
 
-  return entries
-    .map((entry) => {
-      const media = entry.media;
-      const nextEpisode = media?.nextAiringEpisode;
-      if (!media?.id || !nextEpisode?.airingAt) return null;
-      return {
-        id: `anilist:${media.id}:${nextEpisode.episode}`,
-        title: media.title?.english ?? media.title?.romaji,
-        dateIso: new Date(nextEpisode.airingAt * 1000).toISOString(),
-        contentId: `anilist:${media.id}`,
-        seriesId: `anilist:${media.id}`,
-      } as Record<string, unknown>;
-    })
-    .filter((item): item is Record<string, unknown> => item !== null);
+  return (await coreInvoke<Record<string, unknown>[]>('providerCalendarItems', JSON.stringify({ provider: 'anilist', entries }))) ?? [];
 }
 
 export async function pushWatchlistAniList(

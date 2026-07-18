@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import * as Sentry from '@sentry/react';
-import { dispatchAction, coreDetectAnimePlayback, coreInvoke, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream, coreTorrentStatusInfo, coreTorrentReadyBudget } from '../core/engine';
+import { dispatchAction, coreDetectAnimePlayback, coreInvoke, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream, coreStreamShellPlan, coreTorrentStatusInfo, coreTorrentReadyBudget } from '../core/engine';
 
 function debugLog(msg: string) {
   void invoke('debug_log', { msg }).catch(() => {});
@@ -95,28 +95,6 @@ interface UsePlayerResult {
   closePlayer: () => Promise<void>;
   notifyFirstFrame: () => void;
   flushProgressOnQuit: () => Promise<void>;
-}
-
-function streamKey(stream: Stream | null | undefined): string {
-  if (!stream) return '';
-  return [
-    stream.url ?? '',
-    stream.playableUrl ?? '',
-    stream.infoHash ?? '',
-    stream.fileIdx ?? '',
-    stream.title ?? '',
-    stream.name ?? '',
-  ].join('|');
-}
-
-function streamIsP2P(stream: Stream): boolean {
-  return !!(stream.isTorrent || stream.infoHash);
-}
-
-function streamRequestHeaders(stream: Stream): Record<string, string> | undefined {
-  const headers = stream.behaviorHints?.requestHeaders ?? stream.behaviorHints?.proxyHeaders?.request;
-  if (!headers || Object.keys(headers).length === 0) return undefined;
-  return headers;
 }
 
 export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdated, onEpisodePlaybackFailed }: UsePlayerOptions): UsePlayerResult {
@@ -385,7 +363,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
           timePos,
           duration,
           streamIndex: stateRef.current.player.currentStreamIndex ?? null,
-          watchedThresholdPercent: Number(prefString(closePrefs, 'watchedThresholdPercent', '90')) || 90,
+          prefs: closePrefs,
         }));
         if (closePlan?.shouldScrobble) {
           traktScrobbleOnClose(activeProfileRef.current, captureMeta, captureEpisode, timePos, duration);
@@ -439,25 +417,23 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     lastPlaybackStatusRef.current = status;
     const timePos = parseFloat(status.timePos ?? '0');
     const duration = parseFloat(status.duration ?? '0');
-    if (!(timePos > 30 && duration > 0)) return;
     try {
-      const saveResult = await dispatchAction(JSON.stringify({
-        type: 'savePlaybackProgressRequested',
+      const plan = await coreInvoke<{
+        shouldScrobble: boolean;
+        progressAction: Record<string, unknown>;
+      }>('playbackClosePlan', JSON.stringify({
         meta: captureMeta,
-        timeOffset: Math.floor(timePos),
+        episode: captureEpisode,
+        stream: captureStream,
+        nextEpisode: null,
+        timePos,
         duration: Math.floor(duration),
-        lastVideoId: captureEpisode?.id ?? null,
-        lastStreamIndex: stateRef.current.player.currentStreamIndex ?? null,
-        lastEpisodeName: captureEpisode?.name ?? captureEpisode?.title ?? null,
-        lastEpisodeSeason: captureEpisode?.season ?? null,
-        lastEpisodeNumber: captureEpisode?.episode ?? captureEpisode?.number ?? null,
-        lastEpisodeThumbnail: captureEpisode?.thumbnail ?? null,
-        lastStreamUrl: captureStream?.playableUrl ?? captureStream?.url ?? null,
-        lastStreamTitle: captureStream?.title ?? captureStream?.name ?? null,
-        lastAudioLanguage: null,
-        lastSubtitleLanguage: null,
+        streamIndex: stateRef.current.player.currentStreamIndex ?? null,
+        prefs: appPrefs(stateRef.current),
         scrobbleTraktPause: false,
       }));
+      if (!plan?.shouldScrobble || !plan.progressAction) return;
+      const saveResult = await dispatchAction(JSON.stringify(plan.progressAction));
       if (saveResult) {
         updateState(saveResult.state);
         if (saveResult.effects.length > 0) await pumpEffects(saveResult.effects, updateState);
@@ -488,12 +464,14 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     const isCancelled = () => generation !== playGenerationRef.current;
     openSourcePickerOnFailureRef.current = openSourcePickerOnFailure;
     setPlayerUrl(null);
-    setPlayerUsesTorrent(streamIsP2P(stream));
-    const currentStreamKey = streamKey(stream);
+    const streamPlan = await coreStreamShellPlan(stream);
+    const currentStreamKey = streamPlan?.identityKey ?? '';
+    const candidatePlans = await Promise.all(playingSourceCandidatesRef.current.map(coreStreamShellPlan));
+    setPlayerUsesTorrent(streamPlan?.isTorrent === true);
     if (sourceCandidates?.length) {
       playingSourceCandidatesRef.current = sourceCandidates;
       attemptedSourceKeysRef.current = new Set();
-    } else if (!playingSourceCandidatesRef.current.some((candidate) => streamKey(candidate) === currentStreamKey)) {
+    } else if (!candidatePlans.some((candidate) => candidate?.identityKey === currentStreamKey)) {
       playingSourceCandidatesRef.current = [stream];
       attemptedSourceKeysRef.current = new Set();
     }
@@ -512,7 +490,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     setPlayerPosterUrl(earlyArtwork.background ?? meta?.poster);
     setPlayerLogoUrl(earlyArtwork.logo ?? undefined);
     setPlayerMetaId(meta?.id);
-    setPlayerStreamHeaders(streamRequestHeaders(stream));
+    setPlayerStreamHeaders(streamPlan?.requestHeaders);
     artworkPrefetchRef.current = prefetchPlayerArtwork(earlyArtwork.background, earlyArtwork.logo).catch(() => undefined);
     let loadingArtworkPromise = showPlayerLoading(generation, earlyTitle, earlyArtwork, stream);
 
@@ -603,9 +581,20 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
 
     await playerClearSkipInfo();
     const skipPrefs = appPrefs(stateRef.current);
-    const skipThreshold = Number(prefString(skipPrefs, 'nextEpisodeThresholdPercent', '85')) || 85;
-    const skipAutoPlay = prefBool(skipPrefs, 'autoPlayNextEpisode', true);
-    const skipCountdown = Number(prefString(skipPrefs, 'autoPlayCountdownSecs', '7')) || 7;
+    const playbackPrefs = await coreInvoke<{
+      nextEpisodeThresholdPercent: number;
+      autoPlayNextEpisode: boolean;
+      autoPlayCountdownSecs: number;
+      autoSkipIntro: boolean;
+      useIntroDb: boolean;
+      useAniSkip: boolean;
+      useAnimeSkip: boolean;
+      animeSkipClientId: string;
+    }>('playbackPreferencesPlan', JSON.stringify(skipPrefs));
+    if (!playbackPrefs) throw new Error();
+    const skipThreshold = playbackPrefs.nextEpisodeThresholdPercent;
+    const skipAutoPlay = playbackPrefs.autoPlayNextEpisode;
+    const skipCountdown = playbackPrefs.autoPlayCountdownSecs;
     const playableInitialNextEp = nextEp;
     await playerSetSkipInfo(
       '[]',
@@ -613,7 +602,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       skipThreshold,
       skipAutoPlay,
       skipCountdown,
-      prefBool(skipPrefs, 'autoSkipIntro', false),
+      playbackPrefs.autoSkipIntro,
     );
     void playerClearChapters();
     const episodeList = meta?.videos ?? [];
@@ -626,14 +615,14 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     );
     debugLog(`handlePlay:anime detection confidence=${animeDetection.confidence} isAnime=${animeDetection.isAnime} reasons=${animeDetection.reasons.join(', ')}`);
     const skipSegmentsPromise = (async () => {
-      const useIntroDb = prefBool(skipPrefs, 'useIntroDb', true);
-      const useAniSkip = prefBool(skipPrefs, 'useAniSkip', true);
-      const useAnimeSkip = prefBool(skipPrefs, 'useAnimeSkip', false);
+      const useIntroDb = playbackPrefs.useIntroDb;
+      const useAniSkip = playbackPrefs.useAniSkip;
+      const useAnimeSkip = playbackPrefs.useAnimeSkip;
       if ((!useIntroDb && !useAniSkip && !useAnimeSkip) || !episode) return [];
       const imdbId = useIntroDb && meta?.id ? await corePlaybackIntroLookupContentId(meta.id) : '';
       const season = episode.season ?? 1;
       const epNum = episode.episode ?? episode.number ?? 1;
-      return fetchPlaybackSkipSegments({ imdbId, season, episode: epNum, title: meta?.name ?? '', useIntroDb, useAniSkip, useAnimeSkip, animeSkipClientId: prefString(skipPrefs, 'animeSkipClientId', '') });
+      return fetchPlaybackSkipSegments({ imdbId, season, episode: epNum, title: meta?.name ?? '', useIntroDb, useAniSkip, useAnimeSkip, animeSkipClientId: playbackPrefs.animeSkipClientId });
     })();
     void skipSegmentsPromise.then((segments) => {
       if (isCancelled() || segments.length === 0) return;
@@ -643,7 +632,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         skipThreshold,
         skipAutoPlay,
         skipCountdown,
-        prefBool(skipPrefs, 'autoSkipIntro', false),
+        playbackPrefs.autoSkipIntro,
       );
     }).catch(() => undefined);
 
@@ -674,7 +663,8 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
 
     if (playbackPlan?.mode === 'torrent') {
       const budget = await coreTorrentReadyBudget();
-      const MAX_PEER_RETRIES = playingSourceCandidatesRef.current.some((candidate) => streamKey(candidate) !== currentStreamKey)
+      const retryCandidatePlans = await Promise.all(playingSourceCandidatesRef.current.map(coreStreamShellPlan));
+      const MAX_PEER_RETRIES = retryCandidatePlans.some((candidate) => candidate?.identityKey !== currentStreamKey)
         ? budget.maxPeerRetriesWithAlternatives
         : budget.maxPeerRetriesSingleSource;
       const TORRENT_READY_FIRST_ATTEMPT_MS = budget.firstAttemptMs;
@@ -759,7 +749,7 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         debugLog('handlePlay:calling playInEmbeddedMpv');
         setLoadingStatus(t('player.status_loading_stream'));
         void pollMpvLoadingStatus();
-        await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, streamRequestHeaders(stream), animeDetection.isAnime);
+        await playInEmbeddedMpv(generation, url, title, false, subtitlesPromise, loadingArtworkPromise, resumeAtSeconds, effectiveTotalDuration, streamPlan?.requestHeaders, animeDetection.isAnime);
         debugLog('handlePlay:playInEmbeddedMpv resolved');
       } catch (err) {
         loadingStatusPollActive = false;
@@ -769,7 +759,6 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       }
     }
 
-    // Background: fetch skip segments + prefetch next episode stream
     void (async () => {
       try {
         const prefs = appPrefs(stateRef.current);
@@ -795,16 +784,13 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
         const resolvedPlayableNextEp = resolvedNextEp;
         if (segmentResult.length === 0 && !resolvedPlayableNextEp) return;
 
-        const threshold = Number(prefString(prefs, 'nextEpisodeThresholdPercent', '85')) || 85;
-        const autoPlay = prefBool(prefs, 'autoPlayNextEpisode', true);
-        const countdown = Number(prefString(prefs, 'autoPlayCountdownSecs', '7')) || 7;
         await playerSetSkipInfo(
           JSON.stringify(segmentResult),
           resolvedPlayableNextEp ? formatNextEpisodeSubtitle(resolvedPlayableNextEp) : undefined,
-          threshold,
-          autoPlay,
-          countdown,
-          prefBool(prefs, 'autoSkipIntro', false),
+          playbackPrefs.nextEpisodeThresholdPercent,
+          playbackPrefs.autoPlayNextEpisode,
+          playbackPrefs.autoPlayCountdownSecs,
+          playbackPrefs.autoSkipIntro,
         );
 
         if (resolvedPlayableNextEp && await coreCanPrefetchNextEpisode(JSON.stringify(prefs), JSON.stringify(stream))) {

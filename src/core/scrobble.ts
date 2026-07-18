@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
-import { coreParseVideoId, coreSimklMatchEpisode, coreSimklScrobbleAction, coreSimklScrobbleBody, coreTraktScrobblePlan } from './engine';
+import { coreInvoke, coreParseVideoId, coreSimklLookupIdForType, coreSimklMatchEpisode, coreSimklScrobbleAction, coreSimklScrobbleBody, coreTraktScrobblePlan } from './engine';
 import { _appVersion } from './httpClient';
 import type { UserProfile, Meta, Video } from './types';
 
@@ -12,16 +12,15 @@ export function traktScrobbleOnClose(
   durationSec: number,
 ): void {
   if (!profile?.traktAccessToken || !meta) return;
-  if (profile.traktTokenExpiresAt && Date.now() / 1000 > profile.traktTokenExpiresAt) return;
-
-  const isEpisode = meta.type === 'series' && !!episode;
 
   void (async () => {
+    const context = await coreInvoke<{ videoId: string; isEpisode: boolean; season: number; episode: number; traktEnabled: boolean }>('scrobbleMediaContext', JSON.stringify({ meta, episode, profile, nowSeconds: Math.floor(Date.now() / 1000) }));
+    if (!context?.traktEnabled) return;
     const plan = await coreTraktScrobblePlan(
-      meta.id,
-      isEpisode,
-      isEpisode ? (episode!.season ?? 1) : null,
-      isEpisode ? (episode!.episode ?? episode!.number ?? 1) : null,
+      context.videoId,
+      context.isEpisode,
+      context.isEpisode ? context.season : null,
+      context.isEpisode ? context.episode : null,
       timePosSec,
       durationSec,
     );
@@ -51,12 +50,13 @@ export function simklScrobbleOnClose(
 ): void {
   if (!profile?.simklAccessToken || !meta) return;
 
-  const isEpisode = meta.type === 'series' && !!episode;
   const token = profile.simklAccessToken;
 
   void (async () => {
+    const context = await coreInvoke<{ videoId: string; isEpisode: boolean; simklType: string; season: number; episode: number; releaseDate?: string; episodeTitle: string }>('scrobbleMediaContext', JSON.stringify({ meta, episode, profile, nowSeconds: Math.floor(Date.now() / 1000) }));
+    if (!context) return;
     const action = await coreSimklScrobbleAction(timePosSec, durationSec);
-    const parsed = await coreParseVideoId(meta.id);
+    const parsed = await coreParseVideoId(context.videoId);
     const baseId = parsed.imdb;
     if (!baseId) return;
 
@@ -71,29 +71,23 @@ export function simklScrobbleOnClose(
       `https://api.simkl.com/search/id?imdb=${encodeURIComponent(baseId)}&${simklQuery}`,
       { headers: authHeaders },
     );
-    const lookupJson = lookupRes.ok
-      ? (await lookupRes.json() as Array<{ type?: string; ids?: Record<string, unknown> }>)
-      : [];
-    const wantType = isEpisode ? 'tv' : 'movie';
-    const found = lookupJson.find((item) => item.type === wantType);
-    const simklId = typeof found?.ids?.simkl === 'number' ? found.ids.simkl : null;
+    const lookupJson = lookupRes.ok ? await lookupRes.json() : [];
+    const simklId = await coreSimklLookupIdForType(JSON.stringify(lookupJson), context.simklType);
     const ids: Record<string, unknown> = simklId != null ? { simkl: simklId } : { imdb: baseId };
 
-    let scrobbleSeason = isEpisode ? (episode!.season ?? 1) : 1;
-    let scrobbleNumber = isEpisode ? (episode!.episode ?? episode!.number ?? 1) : 1;
+    let scrobbleSeason = context.season;
+    let scrobbleNumber = context.episode;
 
-    if (isEpisode && simklId != null) {
+    if (context.isEpisode && simklId != null) {
       const epRes = await tauriFetch(
         `https://api.simkl.com/tv/${simklId}/episodes?${simklQuery}`,
         { headers: authHeaders },
       );
       if (epRes.ok) {
         const epList = await epRes.json() as Array<{ season?: number; episode?: number; date?: string; title?: string }>;
-        const releaseDate = episode!.released?.slice(0, 10);
-        const epName = episode!.name ?? episode!.title ?? '';
         const matched = await coreSimklMatchEpisode(
           JSON.stringify(Array.isArray(epList) ? epList : []),
-          JSON.stringify({ releaseDate: releaseDate ?? '', title: epName }),
+          JSON.stringify({ releaseDate: context.releaseDate ?? '', title: context.episodeTitle }),
         );
         if (matched) {
           scrobbleSeason = matched.season;
@@ -104,7 +98,7 @@ export function simklScrobbleOnClose(
 
     const body = await coreSimklScrobbleBody(
       JSON.stringify(ids),
-      isEpisode,
+      context.isEpisode,
       scrobbleSeason,
       scrobbleNumber,
       timePosSec,

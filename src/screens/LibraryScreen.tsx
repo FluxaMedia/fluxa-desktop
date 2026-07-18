@@ -4,17 +4,18 @@ import { VirtualizedPosterGrid } from '../components/VirtualizedPosterGrid';
 import { FilterDropdown } from '../components/FilterDropdown';
 import { posterPrefsFromState } from '../core/posterPrefs';
 import { appPrefs, prefString } from '../core/appPrefs';
-import { effectiveCatalogId, effectiveCatalogType, exportCollectionsJson, importCollectionsJson } from '../core/collections';
+import { exportCollectionsJson, importCollectionsJson } from '../core/collections';
 import { getViewPrefs, setViewPref, whenViewPrefsReady } from '../core/viewPrefs';
 import { saveProfile } from '../core/profiles';
 import { nuvioPushCollections } from '../core/nuvioApi';
 import { freshNuvioProfile } from '../core/nuvioSync';
-import type { AppState, CatalogSource, HomeCategory, LibraryItem, Meta, UserCollection, UserCollectionFolder, UserProfile } from '../core/types';
+import type { AppState, HomeCategory, LibraryItem, Meta, NuvioRemoteCollectionSource, UserCollection, UserCollectionFolder, UserProfile } from '../core/types';
 import { t } from '../i18n';
 import { CategoryGridScreen } from './CategoryGridScreen';
 import { CollectionEditorScreen } from './CollectionEditorScreen';
 import { CollectionsTab } from '../components/library/CollectionsTab';
-import { isNuvioCollectionSource, loadNuvioCollectionSource } from '../core/collectionSources';
+import { loadNuvioCollectionSource } from '../core/collectionSources';
+import { coreInvoke } from '../core/engine';
 
 type Tab = 'watchlist' | 'watching' | 'completed' | 'dropped' | 'collections' | 'airing' | 'rated' | 'history';
 
@@ -89,15 +90,6 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   const watching = (library.lastWrite?.continueWatching ?? library.continueWatching ?? []) as LibraryItem[];
   const rawCompleted = (library.lastWrite?.completed ?? library.completed ?? []) as LibraryItem[];
   const rawDropped = (library.lastWrite?.dropped ?? library.dropped ?? []) as LibraryItem[];
-  const progressItems = Object.values((library.lastWrite?.progress ?? {}) as Record<string, LibraryItem>);
-  const completed = useMemo(
-    () => [...rawCompleted].sort((a, b) => (b.statusChangedAt ?? '').localeCompare(a.statusChangedAt ?? '')),
-    [rawCompleted]
-  );
-  const dropped = useMemo(
-    () => [...rawDropped].sort((a, b) => (b.statusChangedAt ?? '').localeCompare(a.statusChangedAt ?? '')),
-    [rawDropped]
-  );
   const posterPrefs = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
   const prefs = useMemo(() => appPrefs(state), [state.settings?.values]);
   const accent = prefString(prefs, 'accentColorArgb', '#FFFFFF');
@@ -105,52 +97,19 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   const collections: UserCollection[] = activeProfile?.libraryCollections ?? [];
   const homeCategories: HomeCategory[] = state.home.categories ?? [];
 
-  function getItemsForFolder(folder: UserCollectionFolder): { items: Meta[]; groups: Array<{ type: string; items: Meta[] }> } {
-    const modernAddonSources: CatalogSource[] = (folder.sources ?? [])
-      .filter((source) => source.provider === 'addon')
-      .map((source) => ({
-        addonId: source.addonId,
-        catalogId: source.catalogId,
-        type: source.type,
-        genre: source.genre,
-      }));
-    const sources = modernAddonSources.length
-      ? modernAddonSources
-      : folder.catalogSources?.length
-      ? folder.catalogSources
-      : effectiveCatalogId(folder)
-        ? [{ catalogId: effectiveCatalogId(folder)!, type: effectiveCatalogType(folder) ?? '' }]
-        : [];
-    const groupsByType = new Map<string, Meta[]>();
-    for (const source of sources) {
-      const cat = homeCategories.find((c) => c.id === source.catalogId || c.catalogId === source.catalogId);
-      if (!cat) continue;
-      const genre = source.genre ?? folder.genre;
-      const items = genre
-        ? cat.items.filter((m) => m.genres?.some((g) => g.toLowerCase() === genre.toLowerCase()))
-        : cat.items;
-      const existing = groupsByType.get(source.type);
-      if (existing) existing.push(...items);
-      else groupsByType.set(source.type, [...items]);
-    }
-    const groups = Array.from(groupsByType, ([type, items]) => ({ type, items }));
-    return { items: groups.flatMap((g) => g.items), groups };
+  async function getItemsForFolder(folder: UserCollectionFolder): Promise<{ items: Meta[]; groups: Array<{ type: string; items: Meta[] }>; remoteSources: NuvioRemoteCollectionSource[] }> {
+    return ((await coreInvoke('collectionFolderItemsPlan', JSON.stringify({ folder, categories: homeCategories }))) as { items: Meta[]; groups: Array<{ type: string; items: Meta[] }>; remoteSources: NuvioRemoteCollectionSource[] } | null) ?? { items: [], groups: [], remoteSources: [] };
   }
 
   async function openFolder(folder: UserCollectionFolder, title: string) {
     savedScrollRef.current = collectionsScrollRef.current?.scrollTop ?? 0;
-    const local = getItemsForFolder(folder);
+    const local = await getItemsForFolder(folder);
     setViewAllFolder({ title, ...local });
-    const specialSources = (folder.sources ?? []).filter(isNuvioCollectionSource);
+    const specialSources = local.remoteSources;
     if (!specialSources.length) return;
     const batches = await Promise.all(specialSources.map((source) => loadNuvioCollectionSource(source)));
-    const groupsByType = new Map(local.groups.map((group) => [group.type, [...group.items]]));
-    for (let index = 0; index < batches.length; index += 1) {
-      const type = specialSources[index].mediaType?.toUpperCase() === 'TV' ? 'series' : 'movie';
-      groupsByType.set(type, [...(groupsByType.get(type) ?? []), ...batches[index]]);
-    }
-    const groups = Array.from(groupsByType, ([type, items]) => ({ type, items }));
-    setViewAllFolder({ title, items: groups.flatMap((group) => group.items), groups });
+    const merged = (await coreInvoke<{ items: Meta[]; groups: Array<{ type: string; items: Meta[] }> }>('mergeFolderSources', JSON.stringify([local.items, ...batches]))) ?? local;
+    setViewAllFolder({ title, ...merged });
   }
 
   async function saveCollections(next: UserCollection[]) {
@@ -186,8 +145,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   async function handleImportJson(json: string) {
     const imported = await importCollectionsJson(json);
     if (!imported.length) return;
-    const existingIds = new Set(collections.map((c) => c.id));
-    const merged = [...collections, ...imported.filter((c) => !existingIds.has(c.id))];
+    const merged = (await coreInvoke<UserCollection[]>('collectionMergePlan', JSON.stringify({ existing: collections, incoming: imported }))) ?? collections;
     await saveCollections(merged);
     setEditingCollection(null);
   }
@@ -197,28 +155,25 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     await navigator.clipboard.writeText(json);
   }
 
-  const smartLists = useMemo(() => {
-    const all = uniqueLibraryItems([...watchlist, ...watching, ...completed, ...dropped, ...progressItems]);
-    const airing = uniqueLibraryItems([...watching, ...watchlist])
-      .filter((item) => Boolean(item.nextEpisodeAirDate || item.newEpisodeReleasedAt || item.continueWatchingBadge === 'newEpisode' || item.continueWatchingBadge === 'scheduledEpisode'))
-      .sort((a, b) => itemAirTime(a) - itemAirTime(b));
-    const rated = [...all]
-      .filter((item) => Number((item as unknown as Meta).imdbRating ?? 0) >= 7.5)
-      .sort((a, b) => Number((b as unknown as Meta).imdbRating ?? 0) - Number((a as unknown as Meta).imdbRating ?? 0));
-    const history = [...all]
-      .filter((item) => itemActivityTime(item) > 0)
-      .sort((a, b) => itemActivityTime(b) - itemActivityTime(a));
-    return { airing, rated, history };
-  }, [watchlist, watching, completed, dropped, progressItems]);
-
-  const items = tab === 'watchlist' ? watchlist
-    : tab === 'watching' ? watching
-    : tab === 'completed' ? completed
-    : tab === 'dropped' ? dropped
-    : tab === 'airing' ? smartLists.airing
-    : tab === 'rated' ? smartLists.rated
-    : tab === 'history' ? smartLists.history
-    : [];
+  const [viewPlan, setViewPlan] = useState<{
+    completed: LibraryItem[];
+    dropped: LibraryItem[];
+    smartLists: { airing: LibraryItem[]; rated: LibraryItem[]; history: LibraryItem[] };
+    tabItems: LibraryItem[];
+    items: LibraryItem[];
+  }>({ completed: [], dropped: [], smartLists: { airing: [], rated: [], history: [] }, tabItems: [], items: [] });
+  useEffect(() => {
+    let active = true;
+    void coreInvoke<typeof viewPlan>('libraryViewPlan', JSON.stringify({
+      watchlist, watching, completed: rawCompleted, dropped: rawDropped,
+      progress: library.lastWrite?.progress ?? {}, tab, query, sortBy,
+    })).then((plan) => { if (active && plan) setViewPlan(plan); });
+    return () => { active = false; };
+  }, [watchlist, watching, rawCompleted, rawDropped, library.lastWrite?.progress, tab, query, sortBy]);
+  const completed = viewPlan.completed;
+  const dropped = viewPlan.dropped;
+  const smartLists = viewPlan.smartLists;
+  const items = viewPlan.tabItems;
 
   useEffect(() => {
     setSelectedIds((current) => {
@@ -229,13 +184,7 @@ export const LibraryScreen = React.memo(function LibraryScreen({
     });
   }, [items]);
 
-  const q = query.trim().toLowerCase();
-  const shown = q ? items.filter((it) => it.name.toLowerCase().includes(q)) : items;
-  const sorted = sortBy === 'title'
-    ? [...shown].sort((a, b) => a.name.localeCompare(b.name))
-    : sortBy === 'rating'
-    ? [...shown].sort((a, b) => Number((b as Meta).imdbRating ?? 0) - Number((a as Meta).imdbRating ?? 0) || a.name.localeCompare(b.name))
-    : shown;
+  const sorted = viewPlan.items;
 
   const subtitle = tab === 'watchlist' ? t('auto.movies_and_shows_you_saved_to_watch_later')
     : tab === 'watching' ? t('library.subtitle_watching')
@@ -500,17 +449,6 @@ export const LibraryScreen = React.memo(function LibraryScreen({
   prev.onProfileUpdated === next.onProfileUpdated,
 );
 
-function uniqueLibraryItems(items: LibraryItem[]): LibraryItem[] {
-  const seen = new Set<string>();
-  const next: LibraryItem[] = [];
-  for (const item of items) {
-    if (!item?.id || seen.has(item.id)) continue;
-    seen.add(item.id);
-    next.push(item);
-  }
-  return next;
-}
-
 function itemActivityTime(item: LibraryItem): number {
   const raw = (item as LibraryItem & { savedAt?: string; updatedAt?: string; lastWatchedAt?: string }).savedAt
     ?? (item as LibraryItem & { savedAt?: string; updatedAt?: string; lastWatchedAt?: string }).lastWatchedAt
@@ -520,12 +458,6 @@ function itemActivityTime(item: LibraryItem): number {
     ?? (item as LibraryItem & { updatedAt?: string }).updatedAt;
   const parsed = raw ? Date.parse(raw) : 0;
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function itemAirTime(item: LibraryItem): number {
-  const raw = item.nextEpisodeAirDate ?? item.newEpisodeReleasedAt;
-  const parsed = raw ? Date.parse(raw) : Number.POSITIVE_INFINITY;
-  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
 }
 
 function HistoryTimeline({ items, onNavigateDetail }: { items: LibraryItem[]; onNavigateDetail: (meta: Meta) => void }) {

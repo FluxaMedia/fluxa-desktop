@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { coreApplyPreferenceUpdate, httpFetchText, storageRead, storageWrite } from '../core/engine';
+import { coreApplyPreferenceUpdate, coreInvoke, httpFetchText, storageRead, storageWrite } from '../core/engine';
 import { Keyboard, Search } from 'lucide-react';
 import {
   coreAddonCollectionMutationPlan,
@@ -43,41 +43,6 @@ import { ContentSection } from '../components/settings/ContentSection';
 import { AddonsSection } from '../components/settings/AddonsSection';
 import { DownloadsSection } from '../components/settings/DownloadsSection';
 import { AddonAddedDialog } from '../components/AddonAddedDialog';
-
-function mergeAddons(existing: AddonDescriptor[], incoming: AddonDescriptor[]): AddonDescriptor[] {
-  const merged = new Map<string, AddonDescriptor>();
-  for (const addon of existing) merged.set(addonKey(addon), addon);
-  for (const addon of incoming) merged.set(addonKey(addon), addon);
-  return [...merged.values()];
-}
-
-function addonUrlIdentity(url: string): string {
-  return url
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(/^https?:\/\//i, '')
-    .toLowerCase();
-}
-
-function profileLocalAddons(profile: UserProfile | null): string[] {
-  return profile?.addonSettings?.localAddons ?? profile?.localAddons ?? [];
-}
-
-function withInstalledLocalAddon(profile: UserProfile, normalizedUrl: string): UserProfile {
-  const existing = profileLocalAddons(profile);
-  const next = existing.some((url) => addonUrlIdentity(url) === addonUrlIdentity(normalizedUrl))
-    ? existing
-    : [...existing, normalizedUrl];
-  return {
-    ...profile,
-    localAddons: next,
-    addonSettings: {
-      ...(profile.addonSettings ?? {}),
-      localAddons: next,
-      disabledLocalAddons: profile.addonSettings?.disabledLocalAddons ?? profile.disabledLocalAddons ?? [],
-    },
-  };
-}
 
 async function settingsFetchJson(url: string): Promise<unknown> {
   const response = await httpFetchText(url);
@@ -213,7 +178,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     if (engineAddons.length > 0) {
       loadAddons().then((stored) => {
         coreAddonCollectionMutationPlan({ existing: stored, incoming: engineAddons })
-          .then((plan) => ((plan?.addons as AddonDescriptor[] | undefined) ?? mergeAddons(stored, engineAddons)))
+          .then((plan) => ((plan?.addons as AddonDescriptor[] | undefined) ?? stored))
           .then((merged) => {
             setInstalledAddons(merged);
           });
@@ -264,12 +229,12 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
       const normalizedAddon = await normalizeAddonDescriptor({ ...addon, transportUrl: normalizedUrl });
       const stored = await loadAddons();
       const plan = await coreAddonCollectionMutationPlan({ existing: stored, incoming: [normalizedAddon] });
-      const updated = await Promise.all(((plan?.addons as AddonDescriptor[] | undefined) ?? mergeAddons(stored, [normalizedAddon])).map(normalizeAddonDescriptor));
+      const updated = await Promise.all(((plan?.addons as AddonDescriptor[] | undefined) ?? stored).map(normalizeAddonDescriptor));
       await saveAddons(updated);
 
       let syncProfile = activeProfile;
       if (activeProfile) {
-        const updatedProfile = withInstalledLocalAddon(activeProfile, normalizedUrl);
+        const updatedProfile = (await coreInvoke<UserProfile>('addonProfileMutationPlan', JSON.stringify({ profile: activeProfile, command: 'install', addonKey: normalizedUrl }))) ?? activeProfile;
         await saveProfile(updatedProfile);
         onProfileUpdated(updatedProfile);
         syncProfile = updatedProfile;
@@ -295,16 +260,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     await saveAddons(updated);
     setInstalledAddons(updated);
     if (activeProfile) {
-      const nextUrls = profileLocalAddons(activeProfile).filter((url) => addonUrlIdentity(url) !== addonUrlIdentity(removeKey));
-      const updatedProfile: UserProfile = {
-        ...activeProfile,
-        localAddons: nextUrls,
-        addonSettings: {
-          ...(activeProfile.addonSettings ?? {}),
-          localAddons: nextUrls,
-          disabledLocalAddons: activeProfile.addonSettings?.disabledLocalAddons ?? activeProfile.disabledLocalAddons ?? [],
-        },
-      };
+      const updatedProfile = (await coreInvoke<UserProfile>('addonProfileMutationPlan', JSON.stringify({ profile: activeProfile, command: 'remove', addonKey: removeKey }))) ?? activeProfile;
       await saveProfile(updatedProfile);
       onProfileUpdated(updatedProfile);
       void syncNuvioAddons(updatedProfile, updated);
@@ -322,17 +278,7 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
   const handleToggleAddon = async (addon: AddonDescriptor) => {
     if (!activeProfile) return;
     const key = addonKey(addon);
-    const disabled = activeProfile.addonSettings?.disabledLocalAddons ?? activeProfile.disabledLocalAddons ?? [];
-    const isDisabled = disabled.includes(key);
-    const nextDisabled = isDisabled ? disabled.filter((k) => k !== key) : [...disabled, key];
-    const updatedProfile: UserProfile = {
-      ...activeProfile,
-      addonSettings: {
-        ...(activeProfile.addonSettings ?? {}),
-        localAddons: profileLocalAddons(activeProfile),
-        disabledLocalAddons: nextDisabled,
-      },
-    };
+    const updatedProfile = (await coreInvoke<UserProfile>('addonProfileMutationPlan', JSON.stringify({ profile: activeProfile, command: 'toggle', addonKey: key }))) ?? activeProfile;
     await saveProfile(updatedProfile);
     onProfileUpdated(updatedProfile);
     void syncNuvioAddons(updatedProfile, installedAddons);

@@ -6,6 +6,7 @@ import { posterPrefsFromState, type PosterPrefs } from '../core/posterPrefs';
 import { addRecentSearch, clearRecentSearches, loadRecentSearches, removeRecentSearch, type RecentSearch } from '../core/searchHistory';
 import type { AppState, HomeCategory, Meta } from '../core/types';
 import { getLanguage, t } from '../i18n';
+import { coreInvoke } from '../core/engine';
 
 interface Props {
   state: AppState;
@@ -37,25 +38,53 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
   const search = state.search;
   const posterPrefs = posterPrefsFromState(state, 0.85);
   const trimmedQuery = query.trim();
+  const lastRecentQueryRef = useRef('');
+  const [screenPlan, setScreenPlan] = useState<{
+    query: string;
+    queryEligible: boolean;
+    shouldDispatch: boolean;
+    shouldCache: boolean;
+    categories: HomeCategory[];
+    resultCount: number;
+    categoryCount: number;
+    isLoading: boolean;
+  }>({ query: '', queryEligible: false, shouldDispatch: false, shouldCache: false, categories: [], resultCount: 0, categoryCount: 0, isLoading: false });
 
   useEffect(() => {
     loadRecentSearches().then(setRecentSearches);
   }, []);
 
-  useEffect(() => {
-    if (trimmedQuery.length < 2) return;
-    void addRecentSearch(trimmedQuery, recentSearches).then(setRecentSearches);
-    if (searchResultsCache.has(trimmedQuery)) return;
-    onDispatch(JSON.stringify({ type: 'searchRequested', query: trimmedQuery, language: getLanguage() }));
-  }, [trimmedQuery, onDispatch]);
-
-  const resultsMatchCurrentQuery = search.query === trimmedQuery;
-  if (resultsMatchCurrentQuery && (search.categories?.length ?? 0) > 0) {
-    searchResultsCache.set(trimmedQuery, search.categories as HomeCategory[]);
-  }
   const cachedCategories = searchResultsCache.get(trimmedQuery) ?? null;
-  const rawCategories = resultsMatchCurrentQuery ? (search.categories ?? cachedCategories ?? []) : (cachedCategories ?? []);
-  const isLoading = search.isLoading && !cachedCategories;
+  useEffect(() => {
+    let active = true;
+    void coreInvoke<typeof screenPlan>('searchScreenPlan', JSON.stringify({
+      query,
+      searchQuery: search.query,
+      searchCategories: search.categories ?? [],
+      cachedCategories: cachedCategories ?? [],
+      hasCache: cachedCategories != null,
+      searchLoading: search.isLoading,
+      typeFilter,
+    })).then((plan) => {
+      if (!active || !plan) return;
+      if (plan.shouldCache) searchResultsCache.set(plan.query, search.categories as HomeCategory[]);
+      setScreenPlan(plan);
+    });
+    return () => { active = false; };
+  }, [query, search.query, search.categories, search.isLoading, cachedCategories, typeFilter]);
+
+  useEffect(() => {
+    if (!screenPlan.queryEligible || screenPlan.query !== trimmedQuery) return;
+    if (lastRecentQueryRef.current !== screenPlan.query) {
+      lastRecentQueryRef.current = screenPlan.query;
+      void addRecentSearch(screenPlan.query, recentSearches).then(setRecentSearches);
+    }
+    if (screenPlan.shouldDispatch) onDispatch(JSON.stringify({ type: 'searchRequested', query: screenPlan.query, language: getLanguage() }));
+  }, [screenPlan.query, screenPlan.queryEligible, screenPlan.shouldDispatch, trimmedQuery, onDispatch]);
+
+  const categories = screenPlan.categories;
+  const resultCount = screenPlan.resultCount;
+  const isLoading = screenPlan.isLoading;
 
   const handleGenreClick = (genreKey: string) => {
     onQueryChange(t(genreKey));
@@ -78,23 +107,6 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
     void clearRecentSearches().then(setRecentSearches);
   };
 
-  const categories = useMemo(
-    () =>
-      rawCategories
-        .map((category) => ({
-          ...category,
-          items: typeFilter
-            ? category.items.filter((meta) => meta.type === typeFilter)
-            : category.items,
-        }))
-        .filter((category) => category.items.length > 0),
-    [rawCategories, typeFilter],
-  );
-  const resultCount = useMemo(
-    () => categories.reduce((sum, category) => sum + category.items.length, 0),
-    [categories],
-  );
-
   return (
     <div style={styles.screen}>
       <div style={styles.content}>
@@ -107,7 +119,7 @@ export const SearchScreen = React.memo(function SearchScreen({ state, onDispatch
           <p style={styles.eyebrow}>{t('auto.search_results')}</p>
           <h1 style={styles.title}>{query.trim() ? query.trim() : t('auto.search')}</h1>
           {query.trim().length >= 2 && !isLoading && (
-            <p style={styles.subtitle}>{t('search.results_across_catalogs', resultCount, categories.length)}</p>
+            <p style={styles.subtitle}>{t('search.results_across_catalogs', resultCount, screenPlan.categoryCount)}</p>
           )}
         </div>
 

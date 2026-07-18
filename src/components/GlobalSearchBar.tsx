@@ -4,6 +4,7 @@ import { t, getLanguage } from '../i18n';
 import { addRecentSearch, loadRecentSearches, clearRecentSearches, removeRecentSearch, type RecentSearch } from '../core/searchHistory';
 import { setSearchPartialHandler } from '../core/catalogEffects';
 import { appPrefs, prefBool } from '../core/appPrefs';
+import { coreInvoke } from '../core/engine';
 import type { AppState, Meta } from '../core/types';
 
 interface Props {
@@ -67,21 +68,37 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
     return () => setSearchPartialHandler(null);
   }, []);
 
-  const localSuggestions = useMemo<Meta[]>(() => {
+  const [localSuggestions, setLocalSuggestions] = useState<Meta[]>([]);
+  useEffect(() => {
+    let active = true;
     const needle = inputValue.trim().toLowerCase();
-    if (needle.length < 2) return [];
-    return rankByNeedle(flattenCategories(state.home.categories), needle);
+    void coreInvoke<Meta[]>('searchSuggestionsPlan', JSON.stringify({ categories: state.home.categories, needle, limit: MAX_SUGGESTIONS }))
+      .then((items) => { if (active) setLocalSuggestions(items ?? []); });
+    return () => { active = false; };
   }, [state.home.categories, inputValue]);
 
-  const networkSuggestions = useMemo<Meta[]>(() => {
+  const [networkSuggestions, setNetworkSuggestions] = useState<Meta[]>([]);
+  useEffect(() => {
+    let active = true;
     const trimmed = inputValue.trim();
     const needle = trimmed.toLowerCase();
-    if (needle.length < 2) return [];
-    if (partialQueryRef.current === trimmed && partialResults.length > 0) {
-      return rankByNeedle(partialResults, needle);
+    if (needle.length < 2) {
+      setNetworkSuggestions([]);
+      return () => { active = false; };
     }
-    if ((state.search.query ?? '').trim().toLowerCase() !== needle) return [];
-    return rankByNeedle(flattenCategories(state.search.categories), needle);
+    let request: Record<string, unknown> | null = null;
+    if (partialQueryRef.current === trimmed && partialResults.length > 0) {
+      request = { items: partialResults, needle, limit: MAX_SUGGESTIONS };
+    } else if ((state.search.query ?? '').trim().toLowerCase() === needle) {
+      request = { categories: state.search.categories, needle, limit: MAX_SUGGESTIONS };
+    }
+    if (!request) {
+      setNetworkSuggestions([]);
+      return () => { active = false; };
+    }
+    void coreInvoke<Meta[]>('searchSuggestionsPlan', JSON.stringify(request))
+      .then((items) => { if (active) setNetworkSuggestions(items ?? []); });
+    return () => { active = false; };
   }, [partialResults, state.search.categories, state.search.query, inputValue]);
 
   const suggestions = networkSuggestions.length > 0 ? networkSuggestions : localSuggestions;
@@ -341,33 +358,6 @@ export function GlobalSearchBar({ query, onSearch, onBack, focusSignal, state, o
       )}
     </div>
   );
-}
-
-function flattenCategories(categories: { items: Meta[] }[] | undefined): Meta[] {
-  const seen = new Set<string>();
-  const items: Meta[] = [];
-  for (const category of categories ?? []) {
-    for (const meta of category.items) {
-      if (seen.has(meta.id)) continue;
-      seen.add(meta.id);
-      items.push(meta);
-    }
-  }
-  return items;
-}
-
-function rankByNeedle(items: Meta[], needle: string): Meta[] {
-  const startsWith: Meta[] = [];
-  const includes: Meta[] = [];
-  const seenNames = new Set<string>();
-  for (const meta of items) {
-    const name = (meta.name ?? '').toLowerCase();
-    if (!name.includes(needle)) continue;
-    if (seenNames.has(name)) continue;
-    seenNames.add(name);
-    (name.startsWith(needle) ? startsWith : includes).push(meta);
-  }
-  return [...startsWith, ...includes].slice(0, MAX_SUGGESTIONS);
 }
 
 const dropdownStyles: Record<string, React.CSSProperties> = {

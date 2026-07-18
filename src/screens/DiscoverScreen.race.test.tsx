@@ -1,9 +1,30 @@
 import React, { useState } from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DiscoverScreen } from './DiscoverScreen';
 import type { AppState, DiscoverCatalog } from '../core/types';
+
+vi.mock('../core/engine', () => ({
+  coreInvoke: async (method: string, argsJson: string) => {
+    const args = JSON.parse(argsJson);
+    if (method === 'discoverContentTypes') return ['movie', 'series'];
+    if (method === 'discoverSelectionPlan') {
+      const catalogs = args.catalogs.filter((catalog: DiscoverCatalog) => catalog.type === args.contentType);
+      const selectedCatalog = catalogs.find((catalog: DiscoverCatalog) => catalog.key === args.selectedCatalogKey) ?? catalogs[0] ?? null;
+      return {
+        catalogs,
+        selectedCatalogKey: selectedCatalog?.key ?? null,
+        selectedCatalog,
+        selectedExtra: null,
+        extraValue: null,
+        key: `${selectedCatalog?.key ?? ''}||`,
+      };
+    }
+    if (method === 'mergeDiscoverPages') return { items: args.baseItems, appendedItems: [], exhausted: true };
+    return null;
+  },
+}));
 
 const MOVIE_CATALOGS: DiscoverCatalog[] = [
   { key: 'cinemeta-movie-top', label: 'Cinemeta: Popular', type: 'movie', extras: [] },

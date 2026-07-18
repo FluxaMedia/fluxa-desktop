@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { t } from '../i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
@@ -46,7 +46,7 @@ import { EpisodePanel, epLabel } from './player/EpisodePanel';
 import type { EpisodeInfo } from './player/EpisodePanel';
 import type { Meta, Stream, Video } from '../core/types';
 import { streamMagnetLink, enqueueOfflineDownload } from '../core/engine';
-import { buildOfflineDownloadRequest, streamDownloadLink, streamIsTorrent, streamSourceLink } from '../core/streamLinks';
+import { buildOfflineDownloadRequest, streamShellPlan } from '../core/streamLinks';
 import { ContextMenu } from './ui/ContextMenu';
 import { TrackPopover, type SubtitleCaptureCue } from './player/TrackPopover';
 import { CastPopover } from './player/CastPopover';
@@ -54,7 +54,7 @@ import { TorrentStatsPopover } from './player/TorrentStatsPopover';
 import { PlayerSettingsPopover } from './player/PlayerSettingsPopover';
 import { SegmentMarkerPanel } from './player/SegmentMarkerPanel';
 import { Popover } from './ui/Popover';
-import { corePlaybackIntroLookupContentId } from '../core/engine';
+import { corePlaybackIntroLookupContentId, coreResolveNextEpisode } from '../core/engine';
 import { imdbButtonFor, updateDiscordPresence } from '../core/discordPresence';
 import { castDisconnect, castPlay, castPause, castSeek, castSetVolume, discoverCastDevices, proxyMediaUrl, resolveCastMediaUrl, startCasting } from '../core/cast';
 import type { CastDevice } from '../core/cast';
@@ -180,17 +180,23 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [countdown, setCountdown] = useState<number | null>(null);
   const [nextEpDismissed, setNextEpDismissed] = useState(false);
   const [episodes, setEpisodes] = useState<EpisodeInfo[]>([]);
-  const nextEpThumbnail = useMemo(() => {
-    if (!currentEpisode) return null;
-    const sorted = [...episodes].sort((a, b) => {
-      const sa = a.season ?? 1, sb = b.season ?? 1;
-      if (sa !== sb) return sa - sb;
-      return (a.episode ?? a.number ?? 0) - (b.episode ?? b.number ?? 0);
+  const [nextEpThumbnail, setNextEpThumbnail] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (!currentEpisode) {
+      setNextEpThumbnail(null);
+      return () => { active = false; };
+    }
+    void coreResolveNextEpisode(
+      JSON.stringify(episodes),
+      currentEpisode.season ?? 1,
+      currentEpisode.episode ?? currentEpisode.number ?? 0,
+      Date.now(),
+      false,
+    ).then((next) => {
+      if (active) setNextEpThumbnail((next as EpisodeInfo | null)?.thumbnail ?? null);
     });
-    const curSeason = currentEpisode.season ?? 1;
-    const curEp = currentEpisode.episode ?? currentEpisode.number ?? 0;
-    const curIndex = sorted.findIndex((ep) => (ep.season ?? 1) === curSeason && (ep.episode ?? ep.number ?? 0) === curEp);
-    return curIndex >= 0 ? sorted[curIndex + 1]?.thumbnail ?? null : null;
+    return () => { active = false; };
   }, [episodes, currentEpisode]);
   const [showEpisodePanel, setShowEpisodePanel] = useState(false);
   const [activeSkip, setActiveSkip] = useState<ActiveSkip | null>(null);
@@ -199,6 +205,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const [showNextEpCard, setShowNextEpCard] = useState(false);
   const [trackPopover, setTrackPopover] = useState<'audio' | 'sub' | 'speed' | null>(null);
   const [streamLinksMenuPoint, setStreamLinksMenuPoint] = useState<{ x: number; y: number } | null>(null);
+  const [streamLinksPlan, setStreamLinksPlan] = useState<{ isTorrent: boolean; sourceLink?: string; downloadLink?: string } | null>(null);
   const streamLinksBtnRef = useRef<HTMLButtonElement | null>(null);
   const [miniPlayerActive, setMiniPlayerActive] = useState(false);
   const miniPlayerActiveRef = useRef(false);
@@ -1632,6 +1639,8 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
             e.stopPropagation();
             resetActivity();
             const rect = streamLinksBtnRef.current?.getBoundingClientRect();
+            const stream = streamRef?.current;
+            if (stream) void streamShellPlan(stream).then(setStreamLinksPlan);
             setStreamLinksMenuPoint(rect ? { x: Math.max(0, rect.right - 216), y: rect.bottom + 8 } : null);
           }}
           className="fluxa-ibtn"
@@ -1771,11 +1780,11 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
           const stream = streamRef?.current;
           const meta = metaRef?.current;
           if (!stream) return [];
-          const sourceLink = streamSourceLink(stream);
-          const downloadLink = streamDownloadLink(stream);
+          const sourceLink = streamLinksPlan?.sourceLink;
+          const downloadLink = streamLinksPlan?.downloadLink;
           return [
             ...(sourceLink ? [{ icon: <Link2 size={15} />, label: t('player.copy_stream_link'), onSelect: () => { void navigator.clipboard.writeText(sourceLink); } }] : []),
-            ...(streamIsTorrent(stream) ? [{ icon: <Magnet size={15} />, label: t('player.copy_magnet_link'), onSelect: () => { void streamMagnetLink(stream).then((link) => { if (link) void navigator.clipboard.writeText(link); }); } }] : []),
+            ...(streamLinksPlan?.isTorrent ? [{ icon: <Magnet size={15} />, label: t('player.copy_magnet_link'), onSelect: () => { void streamMagnetLink(stream).then((link) => { if (link) void navigator.clipboard.writeText(link); }); } }] : []),
             ...(meta && downloadLink ? [{ icon: <Download size={15} />, label: t('player.download_this_video'), onSelect: () => { void enqueueOfflineDownload(buildOfflineDownloadRequest(meta, stream, currentEpisode)); } }] : []),
           ];
         })()}

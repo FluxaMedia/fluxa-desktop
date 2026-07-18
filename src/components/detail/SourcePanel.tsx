@@ -5,7 +5,7 @@ import { EP, MS, SS, spinnerStyle } from './detailStyles';
 import type { Meta, Stream, Video } from '../../core/types';
 import { useDragScroll } from '../../hooks/useDragScroll';
 import { streamMagnetLink, enqueueOfflineDownload } from '../../core/engine';
-import { buildOfflineDownloadRequest, streamDownloadLink, streamIsTorrent, streamSourceLink } from '../../core/streamLinks';
+import { buildOfflineDownloadRequest, streamShellPlan } from '../../core/streamLinks';
 import { ContextMenu } from '../ui/ContextMenu';
 
 export function streamDisplayText(value: string | undefined): string | undefined {
@@ -16,6 +16,12 @@ export function streamDisplayText(value: string | undefined): string | undefined
 export function SourceRow({ stream, onClick, meta, episode }: { stream: Stream; onClick: () => void; meta?: Meta; episode?: Video | null }) {
   const [hovered, setHovered] = useState(false);
   const [menuPoint, setMenuPoint] = useState<{ x: number; y: number } | null>(null);
+  const [linkPlan, setLinkPlan] = useState<{ isTorrent: boolean; sourceLink?: string; downloadLink?: string } | null>(null);
+  useEffect(() => {
+    let active = true;
+    void streamShellPlan(stream).then((plan) => { if (active) setLinkPlan(plan); });
+    return () => { active = false; };
+  }, [stream]);
   const heading = streamDisplayText(stream.name) || streamDisplayText(stream.title) || streamDisplayText(stream.description) || t('player.source');
   const seenLines = new Set<string>();
   const lines = [stream.title, stream.description]
@@ -26,9 +32,9 @@ export function SourceRow({ stream, onClick, meta, episode }: { stream: Stream; 
       return true;
     });
 
-  const isTorrent = streamIsTorrent(stream);
-  const sourceLink = streamSourceLink(stream);
-  const downloadLink = streamDownloadLink(stream);
+  const isTorrent = linkPlan?.isTorrent === true;
+  const sourceLink = linkPlan?.sourceLink;
+  const downloadLink = linkPlan?.downloadLink;
 
   return (
     <>

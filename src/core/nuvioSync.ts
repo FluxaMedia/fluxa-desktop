@@ -20,6 +20,7 @@ import {
   coreNuvioLibraryToWatchlist,
   coreNuvioMapCollections,
   coreNuvioProgressMetaNeeds,
+  coreNuvioSortAddonsByPriority,
   storageRead,
   storageWrite,
 } from './engine';
@@ -86,7 +87,7 @@ async function fetchAddonManifests(addons: NuvioAddon[]): Promise<{
   manifestIdByUrl: Map<string, string>;
   descriptors: Array<Record<string, unknown>>;
 }> {
-  const sorted = [...addons].sort((a, b) => a.sort_order - b.sort_order);
+  const sorted = (await coreNuvioSortAddonsByPriority(addons)) ?? addons;
   const enabled = sorted.filter((a) => a.enabled);
   const manifestIdByUrl = new Map<string, string>();
   const manifests = await Promise.allSettled(

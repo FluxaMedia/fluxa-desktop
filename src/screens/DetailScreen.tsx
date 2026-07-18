@@ -53,26 +53,6 @@ interface Props {
   playbackFailure?: string | null;
 }
 
-function orderStreamsByPrefs(streams: Stream[], prefs: Record<string, unknown>): Stream[] {
-  const mode = prefString(prefs, 'streamSourceSelectionMode', 'manual');
-  if (mode === 'regex') {
-    const pattern = prefString(prefs, 'streamSourceRegexPattern');
-    if (!pattern) return streams;
-    try {
-      const regex = new RegExp(pattern, 'i');
-      return [...streams].sort((a, b) => Number(regex.test(streamText(b))) - Number(regex.test(streamText(a))));
-    } catch {
-      return streams;
-    }
-  }
-  return streams;
-}
-
-function streamText(stream: Stream): string {
-  return [stream.name, stream.title, stream.description, stream.url, stream.playableUrl, stream.infoHash].filter(Boolean).join(' ');
-}
-
-
 export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail, onNavigateGenre, onBack, initialEpisode, autoShowStreams, playbackFailure }: Props) {
   const detail = state.detail;
   const [bgError, setBgError] = useState(false);
@@ -160,10 +140,13 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
     onDispatch(JSON.stringify({ type: 'detailStreamsRequested', contentType: meta.type, requestIds: [meta.id], language: getLanguage() }));
   }, [detail.meta, meta.id, meta.type, detail.isLoadingStreams, detail.streams?.length]);
 
-  const streams = useMemo(
-    () => orderStreamsByPrefs((detail.streams ?? []) as Stream[], prefs),
-    [detail.streams, prefs],
-  );
+  const [streams, setStreams] = useState<Stream[]>([]);
+  useEffect(() => {
+    let active = true;
+    void coreInvoke<Stream[]>('orderStreamsPlan', JSON.stringify({ streams: detail.streams ?? [], prefs }))
+      .then((plan) => { if (active) setStreams(plan ?? (detail.streams ?? []) as Stream[]); });
+    return () => { active = false; };
+  }, [detail.streams, prefs]);
   const poster = useMemo(() => posterPrefsFromState(state), [state.settings?.values]);
 
   useEffect(() => {
@@ -185,22 +168,10 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
   const fanartArtwork = detail.fanartArtwork;
   const metaEpisodes = displayMeta.videos ?? [];
   const episodes = useMemo(() => metaEpisodes, [metaEpisodes]);
-  const fallbackSeasonNumbers = useMemo(
-    () => isSeries ? [...new Set(episodes.map((e) => e.season ?? 1))].sort((a, b) => a - b) : [],
-    [isSeries, episodes],
-  );
-  const fallbackFilteredEps = useMemo(
-    () => episodes.filter((e) => (e.season ?? 1) === selectedSeason),
-    [episodes, selectedSeason],
-  );
-  const seasonNumbers = useMemo(
-    () => [...new Set([...(episodePlan?.seasonNumbers ?? []), ...fallbackSeasonNumbers, selectedSeason])].sort((a, b) => a - b),
-    [episodePlan?.seasonNumbers, fallbackSeasonNumbers, selectedSeason],
-  );
+  const seasonNumbers = episodePlan?.seasonNumbers ?? [];
   const filteredEps = useMemo(() => {
     const plannedSeasonMatches = episodePlan?.selectedSeason == null || episodePlan?.selectedSeason === selectedSeason;
-    const planned = plannedSeasonMatches && episodePlan?.episodes?.length ? episodePlan.episodes : null;
-    const computed = planned ?? fallbackFilteredEps;
+    const computed = plannedSeasonMatches ? (episodePlan?.episodes ?? []) : [];
     if (computed.length > 0) {
       prevFilteredEpsRef.current = { metaId: meta.id, season: selectedSeason, episodes: computed };
       return computed;
@@ -208,7 +179,7 @@ export function DetailScreen({ meta, state, onDispatch, onPlay, onNavigateDetail
     const prev = prevFilteredEpsRef.current;
     if (prev.metaId === meta.id && prev.season === selectedSeason && prev.episodes.length > 0) return prev.episodes;
     return computed;
-  }, [episodePlan, selectedSeason, fallbackFilteredEps, meta.id]);
+  }, [episodePlan, selectedSeason, meta.id]);
 
   const { seasonWatchedMap, dispatchMarkSeason, toggleEpisodeWatched } = useSeasonWatched({
     meta,
