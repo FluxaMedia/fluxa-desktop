@@ -400,19 +400,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const setPlayerFullscreen = useCallback(async (next: boolean) => {
     isFullscreenRef.current = next;
     const win = getCurrentWindow();
-    if (await invoke<boolean>('is_linux')) {
-      // Native xdg_toplevel fullscreen doesn't reliably composite our
-      // Wayland subsurface video layer on some compositors (e.g. Hyprland),
-      // so use a borderless maximize instead of true fullscreen on Linux.
-      await win.setDecorations(!next);
-      if (next) {
-        await win.maximize();
-      } else {
-        await win.unmaximize();
-      }
-    } else {
-      await win.setFullscreen(next);
-    }
+    await win.setFullscreen(next);
   }, []);
 
   const toggleFullscreen = useCallback(async () => {
