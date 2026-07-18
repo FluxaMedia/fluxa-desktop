@@ -49,7 +49,6 @@ export const CORE_METHODS = [
   'createProfilePlan',
   'curateHomeItems',
   'dataFailurePolicy',
-  'desktopCalendarNotificationPlan',
   'desktopCalendarReadPlan',
   'detailEpisodePlan',
   'detailSeasonLoadPlan',

@@ -107,8 +107,8 @@ async function deriveNextProgressFromLastWatched(metaObj: Record<string, unknown
     contentId: id,
     contentType: 'series',
     videoId: next.id,
-    positionSeconds: 1,
-    durationSeconds: 99999,
+    positionSeconds: 0,
+    durationSeconds: 0,
     lastWatched: Date.now(),
     season: next.season,
     episode: next.episode ?? next.number,
@@ -159,8 +159,8 @@ async function runEffect(
             lastVideoId: e.lastVideoId,
             lastEpisodeSeason: e.lastEpisodeSeason,
             lastEpisodeNumber: e.lastEpisodeNumber,
-            timeOffset: 1,
-            duration: 99999,
+            timeOffset: 0,
+            duration: 0,
             savedAt: e.savedAt,
           };
         });

@@ -126,8 +126,8 @@ async function deriveNextProgressInfo(
     contentId: seriesId,
     contentType,
     videoId: next.id,
-    positionSeconds: 1,
-    durationSeconds: 99999,
+    positionSeconds: 0,
+    durationSeconds: 0,
     lastWatched: Date.now(),
     season: next.season,
     episode: next.episode ?? next.number,
@@ -137,11 +137,20 @@ async function deriveNextProgressInfo(
 export async function notifyReleasedEpisodes(payload: Record<string, unknown>): Promise<void> {
   const items = (payload.items as Array<Record<string, unknown>> | undefined) ?? [];
   const todayIso = new Date().toISOString().slice(0, 10);
-  const plan = await coreInvoke<{ items: Array<Record<string, unknown>>; notifiedIds: string[] }>('desktopCalendarNotificationPlan', JSON.stringify({
-    items,
+  const plan = await coreInvoke<{ items: Array<Record<string, unknown>>; storedKeys: string[] }>('calendarNotificationContent', JSON.stringify({
+    items: items.map((item) => ({
+      ...item,
+      dateIso: String(item.dateIso ?? '').slice(0, 10),
+      metaId: item.contentId ?? item.seriesId ?? item.metaId ?? item.id,
+      metaType: item.metaType ?? item.type ?? 'series',
+      artworkUrl: item.artworkUrl ?? item.poster,
+    })),
     todayIso,
-    notifiedIds: (await storageRead<string[]>(NOTIFIED_EPISODES_KEY)) ?? [],
-    limit: 500,
+    alreadyNotifiedKeys: (await storageRead<string[]>(NOTIFIED_EPISODES_KEY)) ?? [],
+    profileId: await storageRead<string>('active_profile_id'),
+    notificationsEnabled: true,
+    alertNewEpisodes: true,
+    maxStoredKeys: 500,
   }));
   if (!plan?.items.length) return;
 
@@ -149,7 +158,7 @@ export async function notifyReleasedEpisodes(payload: Record<string, unknown>): 
     const body = (item.episodeTitle as string | undefined) ?? (item.subtitle as string | undefined);
     void notify(t('notifications.new_episode_title', item.title as string), body);
   }
-  await storageWrite(NOTIFIED_EPISODES_KEY, plan.notifiedIds);
+  await storageWrite(NOTIFIED_EPISODES_KEY, plan.storedKeys);
 }
 
 export async function applyLibraryCommand(payload: Record<string, unknown>): Promise<unknown> {
