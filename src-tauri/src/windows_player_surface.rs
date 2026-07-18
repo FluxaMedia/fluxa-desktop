@@ -14,6 +14,7 @@ use crate::windows_d3d11::D3d11Context;
 use crate::windows_egl::{self, EglContext};
 use crate::windows_vulkan::VulkanContext;
 use crate::DesktopState;
+use fluxa_core::FluxaCore;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{mpsc, Mutex, OnceLock};
@@ -760,7 +761,7 @@ fn check_player_events(app: &AppHandle) {
         }
         let next_sub = state.next_ep_subtitle.lock().unwrap().clone();
         let auto_play = *state.auto_play_next_episode.lock().unwrap();
-        if !next_sub.is_empty() && auto_play {
+        if FluxaCore::should_play_next_episode(!next_sub.is_empty(), auto_play) {
             log::info!("player surface: eof reached, auto-playing next episode");
             let _ = app.emit("native-player-next-episode", ());
         } else {

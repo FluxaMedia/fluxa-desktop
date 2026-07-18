@@ -7,6 +7,7 @@
 use crate::macos_vulkan::VulkanContext;
 use crate::mpv_render::VulkanTargetImage;
 use crate::DesktopState;
+use fluxa_core::FluxaCore;
 use std::ffi::{c_void, CString};
 use std::sync::{mpsc, OnceLock};
 use std::time::Duration;
@@ -816,7 +817,7 @@ fn check_player_events(app: &AppHandle) {
 
     let next_sub = state.next_ep_subtitle.lock().unwrap().clone();
     let auto_play = *state.auto_play_next_episode.lock().unwrap();
-    if !next_sub.is_empty() && auto_play {
+    if FluxaCore::should_play_next_episode(!next_sub.is_empty(), auto_play) {
         let _ = app.emit("native-player-next-episode", ());
     } else {
         let _ = app.emit("native-player-close-requested", ());

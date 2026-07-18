@@ -11,6 +11,7 @@
 use crate::linux_vulkan::{NativeSurface, VulkanContext};
 use crate::mpv_render::VulkanTargetImage;
 use crate::DesktopState;
+use fluxa_core::FluxaCore;
 use glib::ControlFlow;
 use gtk::prelude::*;
 use std::cell::RefCell;
@@ -325,57 +326,6 @@ fn chapters_to_json(chapters: &[Chapter]) -> String {
         .map(|c| serde_json::json!({ "title": c.title, "startTime": c.start_ms }))
         .collect();
     serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
-}
-
-fn classify_chapter_skip_type(title: &str) -> Option<&'static str> {
-    let t = title.trim().to_lowercase();
-    match t.as_str() {
-        "op" | "opening" | "intro" | "introduction" | "op sequence" | "mixed-intro"
-        | "opening sequence" | "opening theme" => return Some("intro"),
-        "ed" | "ending" | "outro" | "credits" | "end credits" | "closing" | "ending theme"
-        | "ending sequence" => return Some("outro"),
-        "recap" | "previously" | "previously on" | "cold open" => return Some("recap"),
-        _ => {}
-    }
-    if t.starts_with("op ")
-        || t.starts_with("opening ")
-        || t.contains("intro")
-        || t.contains("opening")
-    {
-        return Some("intro");
-    }
-    if t.starts_with("ed ")
-        || t.starts_with("ending ")
-        || t.contains("ending")
-        || t.contains("outro")
-        || t.contains("credits")
-    {
-        return Some("outro");
-    }
-    if t.contains("recap") || t.contains("previously") {
-        return Some("recap");
-    }
-    None
-}
-
-fn derive_skip_segments_from_chapters(chapters: &[Chapter]) -> Vec<serde_json::Value> {
-    chapters
-        .iter()
-        .enumerate()
-        .filter_map(|(i, ch)| {
-            let seg_type = classify_chapter_skip_type(&ch.title)?;
-            let end_ms = chapters.get(i + 1).map(|next| next.start_ms)?;
-            if end_ms > ch.start_ms {
-                Some(serde_json::json!({
-                    "type": seg_type,
-                    "startTime": ch.start_ms,
-                    "endTime": end_ms,
-                }))
-            } else {
-                None
-            }
-        })
-        .collect()
 }
 
 // Surface commands
@@ -764,18 +714,17 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                                     if let Some(renderer) = guard.as_ref() {
                                         let native = read_mpv_chapters(renderer);
                                         if !native.is_empty() {
+                                            let chapters_json = chapters_to_json(&native);
                                             *state.chapters_json.lock().unwrap() =
-                                                Some(chapters_to_json(&native));
+                                                Some(chapters_json.clone());
                                             let skip_already_set =
                                                 state.skip_segments_json.lock().unwrap().is_some();
                                             let chapter_skip_enabled =
                                                 *state.use_chapter_skip.lock().unwrap();
                                             if !skip_already_set && chapter_skip_enabled {
-                                                let derived = derive_skip_segments_from_chapters(&native);
-                                                if !derived.is_empty() {
-                                                    if let Ok(json) = serde_json::to_string(&derived) {
-                                                        *state.skip_segments_json.lock().unwrap() = Some(json);
-                                                    }
+                                                let derived = FluxaCore::chapter_skip_segments_json(&chapters_json);
+                                                if derived != "[]" {
+                                                    *state.skip_segments_json.lock().unwrap() = Some(derived);
                                                 }
                                             }
                                         }
@@ -965,7 +914,7 @@ fn check_player_events(app: &AppHandle) {
 
     let next_sub = state.next_ep_subtitle.lock().unwrap().clone();
     let auto_play = *state.auto_play_next_episode.lock().unwrap();
-    if !next_sub.is_empty() && auto_play {
+    if FluxaCore::should_play_next_episode(!next_sub.is_empty(), auto_play) {
         let _ = app.emit("native-player-next-episode", ());
     } else {
         let _ = app.emit("native-player-close-requested", ());
