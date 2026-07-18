@@ -1,6 +1,14 @@
 import { invoke } from '@tauri-apps/api/core';
 import { platformFetch } from './httpClient';
-import { storageRead, storageWrite } from './engine';
+import {
+  coreAnilistMediaListStatus,
+  coreAnilistSaveMediaListEntryVariables,
+  coreAnilistSearchBestMatch,
+  coreExtractAnilistIdFromLinks,
+  coreShouldAttemptAnimeTracking,
+  storageRead,
+  storageWrite,
+} from './engine';
 import { saveProfile } from './profiles';
 import type { Meta, UserProfile } from './types';
 
@@ -29,7 +37,7 @@ export async function pushAnimeTrackingExternal(
   const validProfile = await refreshAnimeTrackingProfile(profile).catch(() => profile);
 
   const meta = update.meta as unknown as Meta;
-  if (!shouldAttemptAnimeTracking(meta)) return;
+  if (!(await coreShouldAttemptAnimeTracking(meta))) return;
 
   const progressEpisode = update.progressEpisode
     ?? update.episode?.episode
@@ -71,9 +79,9 @@ async function resolveAnimeIds(meta: Meta): Promise<AnimeIds | null> {
   const cache = (await storageRead<AnimeIdCache>(ANIME_ID_CACHE_KEY)) ?? {};
   if (cacheKey && cache[cacheKey]) return cache[cacheKey];
 
-  const fromLinks = extractAnimeIdsFromLinks(meta);
-  if (fromLinks.anilistId) {
-    const resolved = await completeIdsFromAniList(fromLinks, meta);
+  const linkedAnilistId = await coreExtractAnilistIdFromLinks(meta);
+  if (linkedAnilistId) {
+    const resolved = await completeIdsFromAniList({ anilistId: linkedAnilistId }, meta);
     if (cacheKey && resolved) {
       cache[cacheKey] = resolved;
       await storageWrite(ANIME_ID_CACHE_KEY, cache);
@@ -87,22 +95,6 @@ async function resolveAnimeIds(meta: Meta): Promise<AnimeIds | null> {
     await storageWrite(ANIME_ID_CACHE_KEY, cache);
   }
   return searched;
-}
-
-function shouldAttemptAnimeTracking(meta?: Meta | null): boolean {
-  if (!meta || meta.type !== 'series') return false;
-  const linkText = (meta.links ?? []).map((link) => `${link.name} ${link.category} ${link.url}`).join(' ');
-  if (/anilist\.co|kitsu\.io|anidb\.net/i.test(linkText)) return true;
-  if ((meta.genres ?? []).some((genre) => genre.toLowerCase() === 'anime')) return true;
-  return /\banime\b|anilist/i.test(`${meta.id} ${meta.name} ${meta.description ?? ''}`);
-}
-
-function extractAnimeIdsFromLinks(meta: Meta): Partial<AnimeIds> {
-  const text = (meta.links ?? []).map((link) => `${link.url} ${link.name}`).join(' ');
-  const anilistMatch = text.match(/anilist\.co\/anime\/(\d+)/i);
-  return {
-    anilistId: anilistMatch ? Number(anilistMatch[1]) : undefined,
-  };
 }
 
 async function completeIdsFromAniList(ids: Partial<AnimeIds>, meta: Meta): Promise<AnimeIds | null> {
@@ -129,20 +121,13 @@ async function searchAniList(meta: Meta): Promise<AnimeIds | null> {
       }
     }
   `;
-  const year = typeof meta.year === 'number' ? meta.year : parseYear(meta.releaseInfo);
+  const year = typeof meta.year === 'number' ? meta.year : undefined;
   const data = await anilistGraphql<{ Page?: { media?: Array<{ id?: number; seasonYear?: number | null; title?: Record<string, string | null> }> } }>(
     query,
     { search, year },
   );
-  const items = data?.Page?.media ?? [];
-  const normalizedName = normalizeTitle(search);
-  const best = items.find((item) =>
-    Object.values(item.title ?? {}).some((title) => title && normalizeTitle(title) === normalizedName)
-    && (!year || !item.seasonYear || Math.abs(item.seasonYear - year) <= 1),
-  ) ?? items.find((item) => !year || !item.seasonYear || Math.abs(item.seasonYear - year) <= 1);
-
-  if (!best?.id) return null;
-  return { anilistId: best.id, confidence: 'title-year' };
+  const candidates = data?.Page?.media ?? [];
+  return coreAnilistSearchBestMatch(meta, candidates);
 }
 
 async function anilistGraphql<T>(query: string, variables: Record<string, unknown>, token?: string): Promise<T | null> {
@@ -171,16 +156,11 @@ async function pushAniListProgress(anilistId: number, progressEpisode: number, m
       }
     }
   `;
-  await anilistGraphql(query, {
-    mediaId: anilistId,
-    progress: Math.max(0, Math.floor(progressEpisode)),
-    status: isComplete(meta, progressEpisode) ? 'COMPLETED' : 'CURRENT',
-  }, token);
-}
-
-function isComplete(meta: Meta, progressEpisode: number): boolean {
   const totalEpisodes = Array.isArray(meta.videos) ? meta.videos.length : 0;
-  return totalEpisodes > 0 && progressEpisode >= totalEpisodes;
+  const status = await coreAnilistMediaListStatus(totalEpisodes, progressEpisode);
+  const variables = (await coreAnilistSaveMediaListEntryVariables(`anilist:${anilistId}`, status, Math.max(0, Math.floor(progressEpisode))))
+    ?? { mediaId: anilistId, progress: Math.max(0, Math.floor(progressEpisode)), status };
+  await anilistGraphql(query, variables, token);
 }
 
 function firstEpisodeNumberFromMeta(meta: Meta): number | undefined {

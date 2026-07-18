@@ -400,6 +400,33 @@ export async function coreMergeLibraryItemsById(local: unknown[], incoming: unkn
   return (await coreInvoke<Record<string, unknown>[]>('mergeLibraryItemsById', JSON.stringify({ local, incoming }))) ?? [];
 }
 
+export async function coreShouldAttemptAnimeTracking(meta: unknown): Promise<boolean> {
+  return (await coreInvoke<boolean>('shouldAttemptAnimeTracking', JSON.stringify(meta))) ?? false;
+}
+
+export async function coreExtractAnilistIdFromLinks(meta: unknown): Promise<number | null> {
+  return coreInvoke('extractAnilistIdFromLinks', JSON.stringify(meta));
+}
+
+export async function coreAnilistSearchBestMatch(meta: unknown, candidates: unknown[]): Promise<{
+  anilistId: number;
+  confidence: 'title-year';
+} | null> {
+  return coreInvoke('anilistSearchBestMatch', JSON.stringify({ meta, candidates }));
+}
+
+export async function coreAnilistMediaListStatus(totalEpisodes: number, progressEpisode: number): Promise<'COMPLETED' | 'CURRENT'> {
+  return (await coreInvoke<'COMPLETED' | 'CURRENT'>('anilistMediaListStatus', JSON.stringify({ totalEpisodes, progressEpisode }))) ?? 'CURRENT';
+}
+
+export async function coreAnilistSaveMediaListEntryVariables(
+  contentId: string,
+  status: 'COMPLETED' | 'CURRENT',
+  progress?: number,
+): Promise<Record<string, unknown> | null> {
+  return coreInvoke('anilistSaveMediaListEntryVariables', JSON.stringify({ contentId, status, progress }));
+}
+
 export async function coreTmdbPeopleRequestPlan(meta: unknown, apiKey: string, language: string): Promise<{
   creditsUrl?: string; findUrl?: string;
 } | null> {
