@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import * as Sentry from '@sentry/react';
 import { dispatchAction, coreDetectAnimePlayback, coreInvoke, corePlaybackIntroLookupContentId, corePlaybackPreparePlan, coreResolveNextEpisode, coreCanPrefetchNextEpisode, coreSelectNextEpisodeStream, coreStreamShellPlan, coreTorrentStatusInfo, coreTorrentReadyBudget } from '../core/engine';
 
@@ -541,6 +542,12 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     }) as PlaybackPreparePlan | null;
     debugLog(`handlePlay:plan ready mode=${playbackPlan?.mode} url=${(playbackPlan?.url ?? stream.playableUrl ?? stream.url)?.slice(0, 80)}`);
     if (isCancelled()) return;
+
+    if (playbackPlan?.mode === 'external') {
+      if (playbackPlan.url) await shellOpen(playbackPlan.url).catch(() => undefined);
+      if (!isCancelled()) await failPlayerLoading(t('player.opened_in_browser'));
+      return;
+    }
 
     const url = playbackPlan?.url ?? stream.playableUrl ?? stream.url;
     if (!url) {

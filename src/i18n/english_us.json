@@ -1087,6 +1087,7 @@
   "player.choose_source": "Choose source",
   "player.incompatible_desktop_stream": "This stream does not look compatible with the desktop player.",
   "player.no_playable_url": "No playable URL found for this stream.",
+  "player.opened_in_browser": "Opened in your browser.",
   "player.status_preparing": "Preparing stream",
   "player.status_starting_torrent": "Starting stream",
   "player.status_fetching_torrent": "Fetching torrent · %s%",

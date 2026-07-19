@@ -19,7 +19,7 @@ export type PlayerArtwork = {
 };
 
 export type PlaybackPreparePlan = {
-  mode?: 'direct' | 'torrent' | 'reject';
+  mode?: 'direct' | 'torrent' | 'external' | 'reject';
   url?: string;
   rejectReason?: string;
   subtitleExtraArgs?: string;

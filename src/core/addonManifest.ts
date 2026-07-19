@@ -8,8 +8,8 @@ export async function manifestFetchPlan(rawUrl: string): Promise<{ normalizedTra
   return coreInvoke('manifestFetchPlan', JSON.stringify({ url: rawUrl }));
 }
 
-export async function parseManifest(body: string, transportUrl: string): Promise<unknown | null> {
-  return coreInvoke('parseManifest', JSON.stringify({ body, transportUrl }));
+export async function parseManifest(body: string, transportUrl: string, unknownName = 'Unknown Addon'): Promise<unknown | null> {
+  return coreInvoke('parseManifest', JSON.stringify({ body, transportUrl, unknownName }));
 }
 
 export async function resolveManifestAssets(descriptor: unknown): Promise<unknown | null> {
