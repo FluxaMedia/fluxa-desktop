@@ -66,6 +66,8 @@ export interface Video {
 
 export interface Stream {
   url?: string;
+  externalUrl?: string;
+  playerFrameUrl?: string;
   infoHash?: string;
   fileIdx?: number;
   name?: string;

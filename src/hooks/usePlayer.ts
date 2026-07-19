@@ -463,6 +463,19 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
     try {
     const generation = ++playGenerationRef.current;
     const isCancelled = () => generation !== playGenerationRef.current;
+
+    const playbackPlan = await corePlaybackPreparePlan({
+      stream,
+      meta,
+      episode,
+      preferredPlayer: prefString(appPrefs(stateRef.current), 'preferredPlayer', 'mpv'),
+    }) as PlaybackPreparePlan | null;
+    if (isCancelled()) return;
+    if (playbackPlan?.mode === 'external') {
+      if (playbackPlan.url) await shellOpen(playbackPlan.url).catch(() => undefined);
+      return;
+    }
+
     openSourcePickerOnFailureRef.current = openSourcePickerOnFailure;
     setPlayerUrl(null);
     const streamPlan = await coreStreamShellPlan(stream);
@@ -533,21 +546,8 @@ export function usePlayer({ stateRef, activeProfile, updateState, onProfileUpdat
       : null;
     playingNextEpisodeRef.current = nextEp;
 
-    debugLog('handlePlay:preparing plan');
-    const playbackPlan = await corePlaybackPreparePlan({
-      stream,
-      meta,
-      episode,
-      preferredPlayer: prefString(appPrefs(stateRef.current), 'preferredPlayer', 'mpv'),
-    }) as PlaybackPreparePlan | null;
     debugLog(`handlePlay:plan ready mode=${playbackPlan?.mode} url=${(playbackPlan?.url ?? stream.playableUrl ?? stream.url)?.slice(0, 80)}`);
     if (isCancelled()) return;
-
-    if (playbackPlan?.mode === 'external') {
-      if (playbackPlan.url) await shellOpen(playbackPlan.url).catch(() => undefined);
-      if (!isCancelled()) await failPlayerLoading(t('player.opened_in_browser'));
-      return;
-    }
 
     const url = playbackPlan?.url ?? stream.playableUrl ?? stream.url;
     if (!url) {

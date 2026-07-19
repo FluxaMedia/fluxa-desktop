@@ -1087,7 +1087,6 @@
   "player.choose_source": "Kaynak seç",
   "player.incompatible_desktop_stream": "Bu stream desktop player ile uyumlu görünmüyor.",
   "player.no_playable_url": "Bu stream için oynatılabilir URL bulunamadı.",
-  "player.opened_in_browser": "Tarayıcınızda açıldı.",
   "player.status_preparing": "Yayın hazırlanıyor",
   "player.status_starting_torrent": "Yayın başlatılıyor",
   "player.status_fetching_torrent": "Torrent getiriliyor · %s%",
