@@ -88,6 +88,7 @@ const DEFAULT_STATE: AppState = {
   discover: {},
   calendar: {},
   addons: { installed: [] },
+  plugins: { repositories: [], scrapers: [] },
   settings: {},
   profile: {},
   pendingEffects: [],

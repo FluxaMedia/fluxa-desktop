@@ -1,4 +1,4 @@
-export type Tab = 'account' | 'general' | 'appearance' | 'playback' | 'shortcuts' | 'content' | 'addons' | 'downloads';
+export type Tab = 'account' | 'general' | 'appearance' | 'playback' | 'shortcuts' | 'content' | 'addons' | 'plugins' | 'downloads';
 
 export interface Prefs {
   language: string;

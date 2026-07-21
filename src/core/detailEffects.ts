@@ -132,18 +132,29 @@ export async function fetchMetaVideos(id: string, contentType: string): Promise<
 async function fetchPluginStreamsForDetail(
   contentType: string,
   id: string | undefined,
+  detail: unknown,
 ): Promise<Array<Record<string, unknown>>> {
   if (!id) return [];
   try {
     const prefs = { ...DEFAULT_APP_PREFS, ...(await loadPrefs()) };
     const apiKey = prefString(prefs, 'tmdbApiKey');
     const language = prefString(prefs, 'language', 'en');
-    const [parsed, tmdbId] = await Promise.all([
+    const detailRecord = detail && typeof detail === 'object' && !Array.isArray(detail)
+      ? detail as Record<string, unknown>
+      : {};
+    const detailIds = detailRecord.ids && typeof detailRecord.ids === 'object'
+      ? detailRecord.ids as Record<string, unknown>
+      : {};
+    const embeddedTmdbId = [detailRecord.tmdbId, detailRecord.tmdb_id, detailIds.tmdb]
+      .map((value) => typeof value === 'number' || typeof value === 'string' ? String(value).trim() : '')
+      .find((value) => /^\d+$/.test(value));
+    const [parsed, resolvedTmdbId] = await Promise.all([
       coreParseVideoId(id),
       resolveTmdbId({ contentType, id, language, apiKey }),
     ]);
-    if (!tmdbId) return [];
-    return await fetchPluginStreams(contentType, tmdbId, parsed.season, parsed.episode);
+    const pluginContentId = embeddedTmdbId || resolvedTmdbId || parsed.imdb;
+    if (!pluginContentId) return [];
+    return await fetchPluginStreams(contentType, pluginContentId, parsed.season, parsed.episode);
   } catch {
     return [];
   }
@@ -154,8 +165,8 @@ export async function fetchDetailStreams(
   onStateUpdate?: (state: Partial<AppState>) => void,
   generation?: number,
 ): Promise<unknown> {
-  const idField = payload.id as string | undefined;
-  const requestIds = (payload.requestIds as string[] | undefined) ?? (idField ? [idField] : []);
+  const requestIds = (payload.requestIds as string[] | undefined) ?? (typeof payload.id === 'string' ? [payload.id] : []);
+  const idField = (typeof payload.id === 'string' ? payload.id : undefined) ?? requestIds[0];
   const addons = await loadAddons();
   const contentType = payload.contentType as string;
 
@@ -194,7 +205,7 @@ export async function fetchDetailStreams(
 
   const streams = values.flatMap((value) => ((value as { streams?: unknown[] })?.streams ?? []));
 
-  const pluginStreams = await fetchPluginStreamsForDetail(contentType, idField);
+  const pluginStreams = await fetchPluginStreamsForDetail(contentType, idField, payload.detail);
   if (pluginStreams.length > 0) streams.push(...pluginStreams);
 
   const availableAddons = [...new Set(

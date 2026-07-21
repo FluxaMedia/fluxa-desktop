@@ -4,6 +4,8 @@ mod dom_bridge;
 use crate::net_guard;
 use dom_bridge::DomBridge;
 use rquickjs::{AsyncContext, AsyncRuntime, CatchResultExt, Ctx, Function};
+use serde::Deserialize;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -76,7 +78,11 @@ async fn run(
 
                 function fetch(url, options) {{
                     options = options || {{}};
-                    return __native_fetch(url).then(function(raw) {{
+                    return __native_fetch(url, JSON.stringify({{
+                        method: options.method,
+                        headers: options.headers,
+                        body: options.body
+                    }})).then(function(raw) {{
                         var parsed = JSON.parse(raw);
                         return {{
                             ok: parsed.ok,
@@ -154,19 +160,43 @@ async fn run(
     Ok(result)
 }
 
-async fn native_fetch(url: String) -> rquickjs::Result<String> {
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PluginFetchOptions {
+    method: Option<String>,
+    headers: Option<HashMap<String, String>>,
+    body: Option<String>,
+}
+
+async fn native_fetch(url: String, options_json: String) -> rquickjs::Result<String> {
     let client = match net_guard::vetted_client(&url, Duration::from_secs(FETCH_TIMEOUT_SECS)).await
     {
         Ok(client) => client,
         Err(message) => return Ok(fetch_error_json(&url, &message)),
     };
 
-    match client
-        .get(&url)
-        .header("User-Agent", "Fluxa/1.0")
-        .send()
-        .await
-    {
+    let options = serde_json::from_str::<PluginFetchOptions>(&options_json).unwrap_or_default();
+    let method = options
+        .method
+        .as_deref()
+        .and_then(|value| reqwest::Method::from_bytes(value.as_bytes()).ok())
+        .unwrap_or(reqwest::Method::GET);
+    let mut request = client.request(method, &url);
+    if let Some(headers) = options.headers {
+        for (name, value) in headers {
+            if let (Ok(name), Ok(value)) = (
+                reqwest::header::HeaderName::from_bytes(name.as_bytes()),
+                reqwest::header::HeaderValue::from_str(&value),
+            ) {
+                request = request.header(name, value);
+            }
+        }
+    }
+    if let Some(body) = options.body {
+        request = request.body(body);
+    }
+
+    match request.send().await {
         Ok(response) => {
             let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();

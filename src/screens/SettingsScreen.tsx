@@ -8,7 +8,7 @@ import {
   parseManifest,
   resolveManifestAssets,
 } from '../core/addonManifest';
-import type { AddonDescriptor, AppState, UserProfile } from '../core/types';
+import type { AddonDescriptor, AppState, PluginRepository, PluginScraper, UserProfile } from '../core/types';
 import { addonKey, normalizeAddonDescriptor } from '../core/addons';
 import { saveProfile } from '../core/profiles';
 import { loadAddons, saveAddons } from '../core/libraryOps';
@@ -41,6 +41,7 @@ import { PlaybackSection } from '../components/settings/PlaybackSection';
 import { ShortcutsSection } from '../components/settings/ShortcutsSection';
 import { ContentSection } from '../components/settings/ContentSection';
 import { AddonsSection } from '../components/settings/AddonsSection';
+import { PluginsSection } from '../components/settings/PluginsSection';
 import { DownloadsSection } from '../components/settings/DownloadsSection';
 import { AddonAddedDialog } from '../components/AddonAddedDialog';
 
@@ -80,6 +81,7 @@ const TABS: { id: Tab; labelKey: string; subtitleKey: string; icon: React.ReactN
   { id: 'shortcuts', labelKey: 'settings.shortcuts_tab', subtitleKey: 'settings.shortcuts_tab_desc', icon: <Keyboard size={22} /> },
   { id: 'content', labelKey: 'auto.catalogs', subtitleKey: 'auto.categories_sources_and_ranking', icon: <StorageIcon /> },
   { id: 'addons', labelKey: 'auto.add_ons', subtitleKey: 'auto.installed_add_ons_and_settings', icon: <ExtensionIcon /> },
+  { id: 'plugins', labelKey: 'plugins.title', subtitleKey: 'plugins.subtitle', icon: <ExtensionIcon /> },
   { id: 'downloads', labelKey: 'auto.downloads', subtitleKey: 'auto.download_and_storage_settings', icon: <DownloadIcon /> },
 ];
 
@@ -91,6 +93,7 @@ const SETTINGS_SEARCH_TERMS: Record<Tab, string[]> = {
   shortcuts: ['keyboard', 'shortcuts', 'keybindings', 'hotkeys', 'rebind'],
   content: ['catalog', 'home', 'ranking', 'top 10', 'tmdb', 'rpdb', 'omdb', 'fanart', 'episodes'],
   addons: ['addons', 'manifest', 'install', 'remove', 'reorder', 'source'],
+  plugins: ['plugins', 'scrapers', 'repository', 'manifest', 'install', 'remove', 'source'],
   downloads: ['download', 'storage', 'folder', 'subtitles'],
 };
 
@@ -109,10 +112,13 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
   const [tab, setTab] = useState<Tab>('account');
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [addonUrl, setAddonUrl] = useState('');
+  const [pluginUrl, setPluginUrl] = useState('');
   const [settingsQuery, setSettingsQuery] = useState('');
   const [installedAddons, setInstalledAddons] = useState<AddonDescriptor[]>([]);
   const [addonInstallStatus, setAddonInstallStatus] = useState<{ loading: boolean; error: string | null }>({ loading: false, error: null });
   const [addedAddonName, setAddedAddonName] = useState<string | null>(null);
+  const [pluginInstallLoading, setPluginInstallLoading] = useState(false);
+  const [pluginInstallError, setPluginInstallError] = useState<string | null>(null);
 
   useEffect(() => {
     storageRead<Prefs>('prefs').then((p) => {
@@ -306,6 +312,48 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
     onDispatch(JSON.stringify({ type: 'addonsRefreshRequested' }));
   };
 
+  const pluginRepositories = state.plugins?.repositories ?? [];
+  const pluginScrapers = state.plugins?.scrapers ?? [];
+  const pluginStateError = typeof state.plugins?.error === 'string'
+    ? state.plugins.error
+    : state.plugins?.error?.message ?? null;
+
+  const handleInstallPlugin = async () => {
+    const rawUrl = pluginUrl.trim();
+    if (!rawUrl || pluginInstallLoading) return;
+    setPluginInstallLoading(true);
+    setPluginInstallError(null);
+    try {
+      const normalizedUrl = await coreInvoke<string>('normalizePluginRepositoryUrl', JSON.stringify({ url: rawUrl }));
+      if (!normalizedUrl) throw new Error(t('plugins.invalid_url'));
+      await onDispatch(JSON.stringify({ type: 'pluginRepositoryAddRequested', manifestUrl: normalizedUrl }));
+      const persisted = await storageRead<string[]>('plugin_repository_urls') ?? [];
+      await storageWrite('plugin_repository_urls', [...new Set([...persisted, normalizedUrl])]);
+      setPluginUrl('');
+    } catch (error) {
+      setPluginInstallError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPluginInstallLoading(false);
+    }
+  };
+
+  const handleRemovePlugin = async (repository: PluginRepository) => {
+    await onDispatch(JSON.stringify({ type: 'pluginRepositoryRemoveRequested', manifestUrl: repository.manifestUrl }));
+    const persisted = await storageRead<string[]>('plugin_repository_urls') ?? [];
+    await storageWrite('plugin_repository_urls', persisted.filter((url) => url !== repository.manifestUrl));
+  };
+
+  const handleRefreshPlugin = async (repository: PluginRepository) => {
+    await onDispatch(JSON.stringify({ type: 'pluginRepositoryAddRequested', manifestUrl: repository.manifestUrl }));
+  };
+
+  const handleTogglePluginScraper = async (scraper: PluginScraper) => {
+    const enabled = !scraper.enabled;
+    await onDispatch(JSON.stringify({ type: 'pluginScraperToggled', scraperId: scraper.id, enabled }));
+    const overrides = await storageRead<Record<string, boolean>>('plugin_scraper_enabled') ?? {};
+    await storageWrite('plugin_scraper_enabled', { ...overrides, [scraper.id]: enabled });
+  };
+
   const disabledAddonKeys = activeProfile?.addonSettings?.disabledLocalAddons ?? activeProfile?.disabledLocalAddons ?? [];
   const normalizedSettingsQuery = settingsQuery.trim().toLowerCase();
   const searchResults = normalizedSettingsQuery
@@ -393,6 +441,20 @@ export function SettingsScreen({ state, onDispatch, activeProfile, onProfileUpda
             onToggle={handleToggleAddon}
             onReorder={handleReorderAddon}
             onDispatch={onDispatch}
+          />
+        )}
+        {tab === 'plugins' && (
+          <PluginsSection
+            pluginUrl={pluginUrl}
+            setPluginUrl={setPluginUrl}
+            repositories={pluginRepositories}
+            scrapers={pluginScrapers}
+            loading={pluginInstallLoading || !!state.plugins?.addingRepositoryUrl}
+            error={pluginInstallError ?? pluginStateError}
+            onInstall={handleInstallPlugin}
+            onRemove={handleRemovePlugin}
+            onRefresh={handleRefreshPlugin}
+            onToggleScraper={handleTogglePluginScraper}
           />
         )}
         {tab === 'downloads' && <DownloadsSection prefs={prefs} setPref={setPref} />}

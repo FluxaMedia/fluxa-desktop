@@ -144,6 +144,10 @@ export interface LibraryItem {
   newEpisodeReleasedAt?: string;
   inWatchlist?: boolean;
   nextEpisodeAirDate?: string;
+  nextEpisodeSeason?: number;
+  nextEpisodeNumber?: number;
+  nextEpisodeTitle?: string;
+  nextEpisodePoster?: string;
   lastAirDateCheckedAt?: string;
   statusChangedAt?: string;
 }
@@ -428,6 +432,30 @@ export interface AddonsState {
   error?: string | null;
 }
 
+export interface PluginRepository {
+  manifestUrl: string;
+  name?: string;
+  description?: string;
+  version?: string;
+  scraperCount?: number;
+}
+
+export interface PluginScraper {
+  id: string;
+  name: string;
+  repositoryUrl: string;
+  filename?: string;
+  enabled: boolean;
+  supportedTypes?: string[];
+}
+
+export interface PluginsState {
+  repositories?: PluginRepository[];
+  scrapers?: PluginScraper[];
+  addingRepositoryUrl?: string | null;
+  error?: { code?: string; message?: string } | string | null;
+}
+
 export interface SettingsState {
   values?: Record<string, unknown>;
 }
@@ -446,6 +474,7 @@ export interface AppState {
   library: LibraryStateSlice;
   discover: DiscoverState;
   addons: AddonsState;
+  plugins?: PluginsState;
   settings: SettingsState;
   profile: { active?: UserProfile };
   pendingEffects: Effect[];
