@@ -14,11 +14,12 @@ use crate::DesktopState;
 use fluxa_core::FluxaCore;
 use glib::ControlFlow;
 use gtk::prelude::*;
+use webkit2gtk::WebViewExt;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{mpsc, Arc};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -79,10 +80,14 @@ struct VulkanState {
 
 const VULKAN_CONTEXT_PENDING: &str = "vulkan render context pending";
 
+const PRESENT_WATCHDOG_INTERVAL: Duration = Duration::from_millis(200);
+
 fn spawn_vulkan_render_thread(app: AppHandle, mut ctx: VulkanContext, shared: Arc<VulkanShared>) {
     std::thread::Builder::new()
         .name("vulkan-player-render".into())
-        .spawn(move || loop {
+        .spawn(move || {
+            let mut last_present = Instant::now();
+            loop {
             let w = shared.width.load(Ordering::Acquire);
             let h = shared.height.load(Ordering::Acquire);
             if w > 1 && h > 1 {
@@ -92,6 +97,7 @@ fn spawn_vulkan_render_thread(app: AppHandle, mut ctx: VulkanContext, shared: Ar
                     continue;
                 }
             }
+            let forced = last_present.elapsed() >= PRESENT_WATCHDOG_INTERVAL;
             shared.hdr.store(ctx.is_hdr(), Ordering::Release);
 
             let state = app.state::<DesktopState>();
@@ -130,7 +136,7 @@ fn spawn_vulkan_render_thread(app: AppHandle, mut ctx: VulkanContext, shared: Ar
                         } else {
                             shared.mpv_context_ready.store(true, Ordering::Release);
                         }
-                        !wire_error && renderer.vulkan_frame_ready()
+                        !wire_error && (forced || renderer.vulkan_frame_ready())
                     }
                 }
             };
@@ -166,6 +172,7 @@ fn spawn_vulkan_render_thread(app: AppHandle, mut ctx: VulkanContext, shared: Ar
             });
             match result {
                 Ok(()) => {
+                    last_present = Instant::now();
                     if let Ok(guard) = state.player_renderer.lock() {
                         if let Some(r) = guard.as_ref() {
                             r.report_swap();
@@ -176,6 +183,7 @@ fn spawn_vulkan_render_thread(app: AppHandle, mut ctx: VulkanContext, shared: Ar
                     log::warn!("linux_player_surface: Vulkan render failed: {e}");
                     std::thread::sleep(Duration::from_millis(50));
                 }
+            }
             }
         })
         .expect("failed to spawn vulkan render thread");
@@ -215,6 +223,7 @@ fn create_vulkan_surface(
         if parent_wl_surface.is_null() || wl_display.is_null() || wl_compositor.is_null() {
             return Err("Vulkan surface setup: could not resolve Wayland handles".into());
         }
+        log::debug!("linux_player_surface: creating subsurface with parent_wl_surface={parent_wl_surface:p}");
         let subsurface = crate::linux_wayland_subsurface::VideoSubsurface::new(
             wl_display as *mut _,
             wl_compositor as *mut _,
@@ -242,6 +251,22 @@ fn create_vulkan_surface(
     let native_surface = native_surface_for_gdk_window(&window)
         .ok_or("Vulkan surface setup: could not resolve a native surface for the X11 window")?;
     Ok((VulkanSurfaceHandle::X11(window), native_surface))
+}
+
+fn log_current_toplevel_wl_surface(gl_area: &gtk::GLArea, label: &str) {
+    use glib::translate::ToGlibPtr;
+    let Some(toplevel) = gl_area.toplevel() else { return };
+    let Ok(toplevel_window) = toplevel.downcast::<gtk::Window>() else { return };
+    let Some(gdk_window) = toplevel_window.window() else { return };
+    let Ok(wl_window) = gdk_window.downcast::<gdkwayland::WaylandWindow>() else { return };
+    let wl_surface = unsafe { gdkwayland::ffi::gdk_wayland_window_get_wl_surface(wl_window.to_glib_none().0) };
+    log::debug!("linux_player_surface: {label} current toplevel wl_surface={wl_surface:p}");
+}
+
+fn reassert_webview_transparency(webview_widget: &gtk::Widget) {
+    if let Ok(webview) = webview_widget.clone().downcast::<webkit2gtk::WebView>() {
+        webview.set_background_color(&gdk::RGBA::new(0.0, 0.0, 0.0, 1.0 / 255.0));
+    }
 }
 
 fn vulkan_surface_size(gl_area: &gtk::GLArea, webview_widget: &gtk::Widget) -> (i32, i32) {
@@ -463,6 +488,7 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             webview_widget.show();
             webview_widget.queue_resize();
             webview_widget.queue_draw();
+            reassert_webview_transparency(&webview_widget);
             video_overlay.queue_resize();
             video_overlay.queue_draw();
             // gl_area stays hidden (no_show_all) until the first Load command.
@@ -519,6 +545,9 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
             let mut pending_load_retries: u32 = 0;
             let mut latch_grace_ticks: u32 = 0;
             let mut chapters_native_loaded = false;
+            let mut transparency_reassert_ticks: u32 = 0;
+            let mut screenshot_countdown_ticks: i32 = -1;
+            let mut screenshot_seq: u32 = 0;
 
             glib::timeout_add_local(Duration::from_millis(16), move || {
                 // Drain surface commands
@@ -738,8 +767,31 @@ pub fn install(app_handle: AppHandle) -> Result<NativePlayerSurface, String> {
                         let (w, h) = vulkan_surface_size(&command_gl_area, &command_webview_widget);
                         if let Some(state) = vulkan_state.borrow().as_ref() {
                             state.surface_handle.resize(w, h);
-                            state.shared.width.store(w, Ordering::Release);
-                            state.shared.height.store(h, Ordering::Release);
+                            let prev_w = state.shared.width.swap(w, Ordering::AcqRel);
+                            let prev_h = state.shared.height.swap(h, Ordering::AcqRel);
+                            transparency_reassert_ticks += 1;
+                            if prev_w != w || prev_h != h || transparency_reassert_ticks >= 60 {
+                                transparency_reassert_ticks = 0;
+                                reassert_webview_transparency(&command_webview_widget);
+                            }
+                            if prev_w != w || prev_h != h {
+                                log_current_toplevel_wl_surface(&command_gl_area, "resize");
+                                screenshot_countdown_ticks = 30;
+                            }
+                        }
+                    }
+
+                    if screenshot_countdown_ticks >= 0 {
+                        screenshot_countdown_ticks -= 1;
+                        if screenshot_countdown_ticks == 0 {
+                            if let Ok(guard) = command_app.state::<DesktopState>().player_renderer.try_lock() {
+                                if let Some(r) = guard.as_ref() {
+                                    screenshot_seq += 1;
+                                    let path = format!("/tmp/fluxa_mpv_screenshot_{screenshot_seq}.png");
+                                    let _ = r.command_string(&format!("screenshot-to-file \"{path}\""));
+                                    log::debug!("linux_player_surface: mpv screenshot-to-file requested at {path}");
+                                }
+                            }
                         }
                     }
 

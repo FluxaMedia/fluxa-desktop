@@ -23,6 +23,8 @@ const VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO: i32 = 1;
 const VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO: i32 = 2;
 const VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO: i32 = 3;
 const VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO: i32 = 9;
+const VK_STRUCTURE_TYPE_FENCE_CREATE_INFO: i32 = 8;
+const VK_FENCE_CREATE_SIGNALED_BIT: u32 = 1;
 const VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR: i32 = 1000001000;
 const VK_STRUCTURE_TYPE_PRESENT_INFO_KHR: i32 = 1000001001;
 const VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR: i32 = 1000004000;
@@ -31,6 +33,7 @@ const VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES: i32 = 10002
 const VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES: i32 = 1000314007;
 const VK_STRUCTURE_TYPE_SUBMIT_INFO: i32 = 4;
 const VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO: i32 = 39;
+const VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT: u32 = 2;
 const VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO: i32 = 40;
 const VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO: i32 = 42;
 const VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER: i32 = 45;
@@ -209,6 +212,13 @@ struct VkSemaphoreCreateInfo {
 }
 
 #[repr(C)]
+struct VkFenceCreateInfo {
+    s_type: i32,
+    p_next: *const c_void,
+    flags: u32,
+}
+
+#[repr(C)]
 struct VkPresentInfoKHR {
     s_type: i32,
     p_next: *const c_void,
@@ -367,6 +377,16 @@ type PfnCreateSemaphore = unsafe extern "system" fn(
     *mut VkSemaphore,
 ) -> VkResult;
 type PfnDestroySemaphore = unsafe extern "system" fn(VkDevice, VkSemaphore, *const c_void);
+type PfnCreateFence = unsafe extern "system" fn(
+    VkDevice,
+    *const VkFenceCreateInfo,
+    *const c_void,
+    *mut VkFence,
+) -> VkResult;
+type PfnDestroyFence = unsafe extern "system" fn(VkDevice, VkFence, *const c_void);
+type PfnWaitForFences =
+    unsafe extern "system" fn(VkDevice, u32, *const VkFence, u32, u64) -> VkResult;
+type PfnResetFences = unsafe extern "system" fn(VkDevice, u32, *const VkFence) -> VkResult;
 type PfnDeviceWaitIdle = unsafe extern "system" fn(VkDevice) -> VkResult;
 type PfnCreateCommandPool = unsafe extern "system" fn(
     VkDevice,
@@ -415,6 +435,10 @@ struct VkFns {
     queue_present_khr: PfnQueuePresentKHR,
     create_semaphore: PfnCreateSemaphore,
     destroy_semaphore: PfnDestroySemaphore,
+    create_fence: PfnCreateFence,
+    destroy_fence: PfnDestroyFence,
+    wait_for_fences: PfnWaitForFences,
+    reset_fences: PfnResetFences,
     device_wait_idle: PfnDeviceWaitIdle,
     create_command_pool: PfnCreateCommandPool,
     destroy_command_pool: PfnDestroyCommandPool,
@@ -477,6 +501,7 @@ pub struct VulkanContext {
     acquire_semaphore: VkSemaphore,
     render_done_semaphore: VkSemaphore,
     transition_semaphore: VkSemaphore,
+    in_flight_fence: VkFence,
     command_pool: VkCommandPool,
     command_buffer: VkCommandBuffer,
     hdr: AtomicBool,
@@ -521,13 +546,16 @@ impl VulkanContext {
             CString::new("VK_EXT_swapchain_colorspace").unwrap(),
         ];
         let extension_ptrs: Vec<*const i8> = extensions.iter().map(|e| e.as_ptr()).collect();
+        let validation_layer = CString::new("VK_LAYER_KHRONOS_validation").unwrap();
+        let want_validation = std::env::var_os("FLUXA_VULKAN_VALIDATION").is_some();
+        let layer_ptrs: Vec<*const i8> = if want_validation { vec![validation_layer.as_ptr()] } else { vec![] };
         let instance_create_info = VkInstanceCreateInfo {
             s_type: VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             p_next: ptr::null(),
             flags: 0,
             p_application_info: &app_info,
-            enabled_layer_count: 0,
-            pp_enabled_layer_names: ptr::null(),
+            enabled_layer_count: layer_ptrs.len() as u32,
+            pp_enabled_layer_names: layer_ptrs.as_ptr(),
             enabled_extension_count: extension_ptrs.len() as u32,
             pp_enabled_extension_names: extension_ptrs.as_ptr(),
         };
@@ -773,6 +801,10 @@ impl VulkanContext {
         let queue_present_khr: PfnQueuePresentKHR = dproc!("vkQueuePresentKHR");
         let create_semaphore: PfnCreateSemaphore = dproc!("vkCreateSemaphore");
         let destroy_semaphore: PfnDestroySemaphore = dproc!("vkDestroySemaphore");
+        let create_fence: PfnCreateFence = dproc!("vkCreateFence");
+        let destroy_fence: PfnDestroyFence = dproc!("vkDestroyFence");
+        let wait_for_fences: PfnWaitForFences = dproc!("vkWaitForFences");
+        let reset_fences: PfnResetFences = dproc!("vkResetFences");
         let device_wait_idle: PfnDeviceWaitIdle = dproc!("vkDeviceWaitIdle");
         let create_command_pool: PfnCreateCommandPool = dproc!("vkCreateCommandPool");
         let destroy_command_pool: PfnDestroyCommandPool = dproc!("vkDestroyCommandPool");
@@ -802,6 +834,10 @@ impl VulkanContext {
             queue_present_khr,
             create_semaphore,
             destroy_semaphore,
+            create_fence,
+            destroy_fence,
+            wait_for_fences,
+            reset_fences,
             device_wait_idle,
             create_command_pool,
             destroy_command_pool,
@@ -832,6 +868,7 @@ impl VulkanContext {
             acquire_semaphore: 0,
             render_done_semaphore: 0,
             transition_semaphore: 0,
+            in_flight_fence: 0,
             command_pool: ptr::null_mut(),
             command_buffer: ptr::null_mut(),
             hdr: AtomicBool::new(false),
@@ -864,6 +901,18 @@ impl VulkanContext {
         self.acquire_semaphore = acquire;
         self.render_done_semaphore = render_done;
         self.transition_semaphore = transition;
+
+        let fence_info = VkFenceCreateInfo {
+            s_type: VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            p_next: ptr::null(),
+            flags: VK_FENCE_CREATE_SIGNALED_BIT,
+        };
+        let mut fence: VkFence = 0;
+        let r4 = unsafe { (self.fns.create_fence)(self.device, &fence_info, ptr::null(), &mut fence) };
+        if r4 != VK_SUCCESS {
+            return Err(format!("vkCreateFence failed: {r4}"));
+        }
+        self.in_flight_fence = fence;
         Ok(())
     }
 
@@ -871,7 +920,7 @@ impl VulkanContext {
         let pool_info = VkCommandPoolCreateInfo {
             s_type: VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
             p_next: ptr::null(),
-            flags: 0,
+            flags: VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
             queue_family_index: self.queue_family_index,
         };
         let mut pool: VkCommandPool = ptr::null_mut();
@@ -1128,10 +1177,14 @@ impl VulkanContext {
                     (self.fns.destroy_semaphore)(self.device, sem, ptr::null());
                 }
             }
+            if self.in_flight_fence != 0 {
+                (self.fns.destroy_fence)(self.device, self.in_flight_fence, ptr::null());
+            }
         }
         self.acquire_semaphore = 0;
         self.render_done_semaphore = 0;
         self.transition_semaphore = 0;
+        self.in_flight_fence = 0;
         let extent = self.extent;
         let _ = self.create_semaphores();
         let _ = self.create_swapchain(extent.width, extent.height);
@@ -1141,6 +1194,17 @@ impl VulkanContext {
     where
         F: FnMut(u64, i32, u32, u32, u64, u64) -> Result<i32, String>,
     {
+        unsafe {
+            let wait_result =
+                (self.fns.wait_for_fences)(self.device, 1, &self.in_flight_fence, 1, u64::MAX);
+            if wait_result != VK_SUCCESS {
+                return Err(format!("vkWaitForFences failed: {wait_result}"));
+            }
+            let reset_result = (self.fns.reset_fences)(self.device, 1, &self.in_flight_fence);
+            if reset_result != VK_SUCCESS {
+                return Err(format!("vkResetFences failed: {reset_result}"));
+            }
+        }
         let mut image_index: u32 = 0;
         let result = unsafe {
             (self.fns.acquire_next_image_khr)(
@@ -1228,7 +1292,7 @@ impl VulkanContext {
                 signal_semaphore_count: 1,
                 p_signal_semaphores: &self.transition_semaphore,
             };
-            let result = (self.fns.queue_submit)(self.queue, 1, &submit_info, 0);
+            let result = (self.fns.queue_submit)(self.queue, 1, &submit_info, self.in_flight_fence);
             if result != VK_SUCCESS {
                 return Err(format!("vkQueueSubmit failed: VkResult {result}"));
             }
@@ -1264,6 +1328,9 @@ impl Drop for VulkanContext {
             }
             if self.transition_semaphore != 0 {
                 (self.fns.destroy_semaphore)(self.device, self.transition_semaphore, ptr::null());
+            }
+            if self.in_flight_fence != 0 {
+                (self.fns.destroy_fence)(self.device, self.in_flight_fence, ptr::null());
             }
             if !self.command_pool.is_null() {
                 (self.fns.destroy_command_pool)(self.device, self.command_pool, ptr::null());
