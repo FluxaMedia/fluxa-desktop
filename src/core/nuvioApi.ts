@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { coreInvoke } from './engine';
 
 export interface NuvioSession {
   access_token: string;
@@ -285,38 +286,25 @@ export async function nuvioReplaceAddons(
   addons: Array<{ url: string; name?: string; enabled?: boolean; sort_order?: number }>,
 ): Promise<void> {
   const current = await nuvioPullAddons(token, profileId);
-  const desiredByUrl = new Map(addons.map((addon, index) => [addon.url, {
-    url: addon.url,
-    name: addon.name ?? null,
-    enabled: addon.enabled ?? true,
-    sort_order: addon.sort_order ?? index,
-  }]));
+  const plan = await coreInvoke<{
+    deleteIds: string[];
+    updates: Array<{ id: string; payload: Record<string, unknown> }>;
+    creates: Record<string, unknown>[];
+  }>('nuvioAddonReconciliationPlan', JSON.stringify({ current, desired: addons, userId, profileId }));
+  if (!plan) return;
 
-  await Promise.all(current
-    .filter((addon) => !desiredByUrl.has(addon.url))
-    .map((addon) => nuvioRequest<void>(
+  await Promise.all(plan.deleteIds.map((id) => nuvioRequest<void>(
       'DELETE',
-      `/rest/v1/addons?id=eq.${encodeURIComponent(addon.id)}&profile_id=eq.${profileId}`,
+      `/rest/v1/addons?id=eq.${encodeURIComponent(id)}&profile_id=eq.${profileId}`,
       undefined,
       token,
     )));
-
-  await Promise.all([...desiredByUrl.values()].map(async (addon) => {
-    const existing = current.find((candidate) => candidate.url === addon.url);
-    if (existing) {
-      await patch<void>(
-        `/rest/v1/addons?id=eq.${encodeURIComponent(existing.id)}&profile_id=eq.${profileId}`,
-        addon,
-        token,
-      );
-    } else {
-      await post<void>('/rest/v1/addons', {
-        user_id: userId,
-        profile_id: profileId,
-        ...addon,
-      }, token);
-    }
-  }));
+  await Promise.all(plan.updates.map(({ id, payload }) => patch<void>(
+    `/rest/v1/addons?id=eq.${encodeURIComponent(id)}&profile_id=eq.${profileId}`,
+    payload,
+    token,
+  )));
+  await Promise.all(plan.creates.map((payload) => post<void>('/rest/v1/addons', payload, token)));
 }
 
 export async function nuvioPullPlugins(token: string, profileId: number): Promise<unknown[]> {

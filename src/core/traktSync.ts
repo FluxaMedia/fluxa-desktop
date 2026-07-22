@@ -1,6 +1,7 @@
 import { platformFetch } from './httpClient';
 import { loadActiveProfile } from './libraryOps';
 import { invoke } from '@tauri-apps/api/core';
+import { coreInvoke } from './engine';
 
 export async function getOAuthClientId(service: string): Promise<string> {
   try {
@@ -35,28 +36,13 @@ export async function dropTraktPlaybackProgress(showId: string): Promise<void> {
     const playbackItems = await res.json() as unknown[];
     if (!Array.isArray(playbackItems)) return;
 
-    const deletePromises: Promise<void>[] = [];
-    for (const raw of playbackItems) {
-      const entry = raw as Record<string, unknown>;
-      const traktNumericId = typeof entry.id === 'number' ? entry.id : null;
-      if (!traktNumericId) continue;
-
-      const show = entry.show as Record<string, unknown> | undefined;
-      const movie = entry.movie as Record<string, unknown> | undefined;
-      const source = show ?? movie;
-      const ids = source?.ids as Record<string, unknown> | undefined;
-      const imdb = typeof ids?.imdb === 'string' ? ids.imdb : null;
-      const tmdb = ids?.tmdb != null ? `tmdb:${ids.tmdb}` : null;
-
-      if (imdb === showId || tmdb === showId) {
-        deletePromises.push(
-          platformFetch(`https://api.trakt.tv/sync/playback/${traktNumericId}`, {
-            method: 'DELETE',
-            headers,
-          }).then(() => undefined).catch(() => undefined),
-        );
-      }
-    }
+    const deleteIds = await coreInvoke<number[]>('traktPlaybackDeleteIds', JSON.stringify({ contentId: showId, items: playbackItems })) ?? [];
+    const deletePromises = deleteIds.map((id) =>
+      platformFetch(`https://api.trakt.tv/sync/playback/${id}`, {
+        method: 'DELETE',
+        headers,
+      }).then(() => undefined).catch(() => undefined),
+    );
 
     await Promise.all(deletePromises);
   } catch {
