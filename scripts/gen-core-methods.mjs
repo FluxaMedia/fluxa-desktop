@@ -1,18 +1,25 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ffiPath = path.resolve(here, '../../fluxa-core/src/ffi.rs');
 const outPath = path.resolve(here, '../src/core/coreMethods.ts');
+const routesPath = path.join(path.dirname(ffiPath), 'ffi');
 
 if (!existsSync(ffiPath)) {
   console.error(`gen-core-methods: ${ffiPath} not found (fluxa-core must be checked out next to fluxa-desktop, same as the Cargo path dependency)`);
   process.exit(1);
 }
 
-const source = readFileSync(ffiPath, 'utf8');
-const methods = [...source.matchAll(/^ {8}"([A-Za-z.]+)" =>/gm)].map((m) => m[1]);
+const routeFiles = existsSync(routesPath)
+  ? readdirSync(routesPath)
+      .filter((name) => name.endsWith('_routes.rs'))
+      .map((name) => path.join(routesPath, name))
+  : [];
+const methods = [ffiPath, ...routeFiles].flatMap((sourcePath) =>
+  [...readFileSync(sourcePath, 'utf8').matchAll(/^ {8}"([A-Za-z.]+)" =>/gm)].map((m) => m[1]),
+);
 const unique = [...new Set(methods)].sort();
 
 if (unique.length !== methods.length) {
