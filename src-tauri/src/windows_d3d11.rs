@@ -12,9 +12,9 @@ use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_FORMAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R16G16B16A16_FLOAT, DXGI_SAMPLE_DESC,
 };
 use windows::Win32::Graphics::Dxgi::{
-    IDXGIDevice, IDXGIFactory2, IDXGIOutput6, IDXGISwapChain1, IDXGISwapChain3,
-    DXGI_SCALING_STRETCH, DXGI_SWAP_CHAIN_DESC1, DXGI_SWAP_EFFECT_FLIP_DISCARD,
-    DXGI_USAGE_RENDER_TARGET_OUTPUT,
+    IDXGIDevice, IDXGIFactory2, IDXGISwapChain1, IDXGISwapChain3, DXGI_SCALING_STRETCH,
+    DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT, DXGI_SWAP_CHAIN_DESC1,
+    DXGI_SWAP_EFFECT_FLIP_DISCARD, DXGI_USAGE_RENDER_TARGET_OUTPUT,
 };
 
 pub struct D3d11Context {
@@ -31,16 +31,15 @@ pub struct D3d11Context {
 unsafe impl Send for D3d11Context {}
 
 fn display_wants_hdr(swap_chain: &IDXGISwapChain1) -> bool {
-    let Ok(output) = (unsafe { swap_chain.GetContainingOutput() }) else {
+    let Ok(swap_chain3) = swap_chain.cast::<IDXGISwapChain3>() else {
         return false;
     };
-    let Ok(output6): windows::core::Result<IDXGIOutput6> = output.cast() else {
+    let Ok(support) =
+        (unsafe { swap_chain3.CheckColorSpaceSupport(DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020) })
+    else {
         return false;
     };
-    let Ok(desc) = (unsafe { output6.GetDesc1() }) else {
-        return false;
-    };
-    desc.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020
+    support & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT.0 as u32 != 0
 }
 
 impl D3d11Context {
@@ -93,17 +92,16 @@ impl D3d11Context {
             Flags: 0,
         };
 
-        let swap_chain = unsafe { factory.CreateSwapChainForHwnd(&device, hwnd, &sdr_desc, None, None) }
-            .map_err(|e| format!("CreateSwapChainForHwnd failed: {e}"))?;
+        let swap_chain =
+            unsafe { factory.CreateSwapChainForHwnd(&device, hwnd, &sdr_desc, None, None) }
+                .map_err(|e| format!("CreateSwapChainForHwnd failed: {e}"))?;
 
         let mut format = DXGI_FORMAT_B8G8R8A8_UNORM;
         let mut hdr = false;
         if display_wants_hdr(&swap_chain) {
             if let Ok(swap_chain3) = swap_chain.cast::<IDXGISwapChain3>() {
-                if unsafe {
-                    swap_chain3.SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020)
-                }
-                .is_ok()
+                if unsafe { swap_chain3.SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020) }
+                    .is_ok()
                 {
                     hdr = true;
                     format = DXGI_FORMAT_R16G16B16A16_FLOAT;
@@ -117,8 +115,9 @@ impl D3d11Context {
                 Format: DXGI_FORMAT_R16G16B16A16_FLOAT,
                 ..sdr_desc
             };
-            let sc = unsafe { factory.CreateSwapChainForHwnd(&device, hwnd, &hdr_desc, None, None) }
-                .map_err(|e| format!("CreateSwapChainForHwnd (HDR) failed: {e}"))?;
+            let sc =
+                unsafe { factory.CreateSwapChainForHwnd(&device, hwnd, &hdr_desc, None, None) }
+                    .map_err(|e| format!("CreateSwapChainForHwnd (HDR) failed: {e}"))?;
             if let Ok(sc3) = sc.cast::<IDXGISwapChain3>() {
                 let _ = unsafe { sc3.SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709) };
             }
@@ -154,12 +153,22 @@ impl D3d11Context {
     pub fn resize(&self, width: i32, height: i32) -> Result<(), String> {
         let width = width.max(2);
         let height = height.max(2);
-        if self.width.load(Ordering::Acquire) == width && self.height.load(Ordering::Acquire) == height {
+        if self.width.load(Ordering::Acquire) == width
+            && self.height.load(Ordering::Acquire) == height
+        {
             return Ok(());
         }
         unsafe { self.context.ClearState() };
-        unsafe { self.swap_chain.ResizeBuffers(0, width as u32, height as u32, self.format, 0) }
-            .map_err(|e| format!("IDXGISwapChain1::ResizeBuffers failed: {e}"))?;
+        unsafe {
+            self.swap_chain.ResizeBuffers(
+                0,
+                width as u32,
+                height as u32,
+                self.format,
+                Default::default(),
+            )
+        }
+        .map_err(|e| format!("IDXGISwapChain1::ResizeBuffers failed: {e}"))?;
         self.width.store(width, Ordering::Release);
         self.height.store(height, Ordering::Release);
         Ok(())
@@ -179,9 +188,12 @@ impl D3d11Context {
     }
 
     pub fn present(&self, vsync: bool) -> Result<(), String> {
-        unsafe { self.swap_chain.Present(if vsync { 1 } else { 0 }, Default::default()) }
-            .ok()
-            .map_err(|e| format!("IDXGISwapChain1::Present failed: {e}"))
+        unsafe {
+            self.swap_chain
+                .Present(if vsync { 1 } else { 0 }, Default::default())
+        }
+        .ok()
+        .map_err(|e| format!("IDXGISwapChain1::Present failed: {e}"))
     }
 
     pub fn hwnd(&self) -> HWND {

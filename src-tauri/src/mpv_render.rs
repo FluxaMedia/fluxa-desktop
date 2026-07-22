@@ -1456,6 +1456,7 @@ pub fn read_gl_pixels_rgba(w: i32, h: i32) -> Option<Vec<u8>> {
 #[cfg(target_os = "linux")]
 mod platform_gl;
 
+#[cfg(target_os = "linux")]
 use platform_gl::*;
 
 impl Drop for MpvRenderer {
