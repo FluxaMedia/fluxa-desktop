@@ -10,12 +10,10 @@ import {
   Captions,
   Cast,
   ChevronLeft,
-  Clock,
   Download,
   Fullscreen,
   GalleryVerticalEnd,
   Gauge,
-  Info,
   Link2,
   Magnet,
   Minimize2,
@@ -40,7 +38,6 @@ import { embeddedMpvRenderFrame, embeddedMpvSetCursorVisible, playerGetPlaybackI
 import { subscribePlayerStatus } from '../core/playerStatusStore';
 import type { PlayerTrackOption } from '../core/mpvPlayer';
 import { VolumeBar } from './player/VolumeBar';
-import { Toast } from './Toast';
 import { NextEpCard } from './player/NextEpCard';
 import { EpisodePanel, epLabel } from './player/EpisodePanel';
 import type { EpisodeInfo } from './player/EpisodePanel';
@@ -53,92 +50,19 @@ import { CastPopover } from './player/CastPopover';
 import { TorrentStatsPopover } from './player/TorrentStatsPopover';
 import { PlayerSettingsPopover } from './player/PlayerSettingsPopover';
 import { SegmentMarkerPanel } from './player/SegmentMarkerPanel';
-import { Popover } from './ui/Popover';
+import { PlayerSeekBar } from './player/PlayerSeekBar';
+import { PlayerBufferingOverlay } from './player/PlayerBufferingOverlay';
+import { PlayerStatusToasts } from './player/PlayerStatusToasts';
+import { PlayerShortcutsDialog } from './player/PlayerShortcutsDialog';
+import { PlayerContextMenu } from './player/PlayerContextMenu';
+import { PlayerHeader } from './player/PlayerHeader';
 import { corePlaybackIntroLookupContentId, coreResolveNextEpisode } from '../core/engine';
 import { imdbButtonFor, updateDiscordPresence } from '../core/discordPresence';
 import { castDisconnect, castPlay, castPause, castSeek, castSetVolume, discoverCastDevices, proxyMediaUrl, resolveCastMediaUrl, startCasting } from '../core/cast';
 import type { CastDevice } from '../core/cast';
-import { comboFromEvent, findActionForCombo, formatCombo, loadShortcutOverrides, onShortcutsChanged, resolveCombo, type ShortcutOverrides } from '../core/shortcuts';
+import { comboFromEvent, findActionForCombo, loadShortcutOverrides, onShortcutsChanged, type ShortcutOverrides } from '../core/shortcuts';
 
-type Chapter = { title: string; startMs: number };
-type SkipSegment = { type: string; startTime: number; endTime: number };
-type ActiveSkip = { label: string; startMs: number; endMs: number };
-type FeedbackFlash = { icon: 'play' | 'pause' | 'seekBack' | 'seekFwd' | 'speed' | 'abLoop' | 'screenshot' | 'subDelay' | 'volume' | 'anime4k'; label: string };
-
-const ANIME4K_MODES = ['a', 'b', 'c', 'aa', 'bb', 'ca'] as const;
-
-function fmtTime(s: number): string {
-  if (!isFinite(s) || s < 0) return '0:00';
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = Math.floor(s % 60);
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  return `${m}:${String(sec).padStart(2, '0')}`;
-}
-
-function sendCmd(command: string) {
-  invoke('player_command', { command }).catch(() => undefined);
-}
-
-function parseChapters(json: string | null | undefined): Chapter[] {
-  if (!json) return [];
-  try {
-    const arr = JSON.parse(json) as Array<{ title?: string; startTime?: number }>;
-    return arr.map((c) => ({ title: c.title ?? '', startMs: c.startTime ?? 0 }));
-  } catch { return []; }
-}
-
-function parseSegments(json: string | null | undefined): SkipSegment[] {
-  if (!json) return [];
-  try { return JSON.parse(json) as SkipSegment[]; } catch { return []; }
-}
-
-function parseEpisodes(json: string | null | undefined): EpisodeInfo[] {
-  if (!json) return [];
-  try { return JSON.parse(json) as EpisodeInfo[]; } catch { return []; }
-}
-
-function skipLabelForType(type: string): string {
-  switch (type) {
-    case 'intro': return t('player.skip_intro');
-    case 'outro': return t('player.skip_outro');
-    case 'recap': return t('player.skip_recap');
-    case 'preview': return t('player.skip_preview');
-    default: return t('player.skip');
-  }
-}
-
-function IconVolume({ muted, level }: { muted: boolean; level: number }) {
-  if (muted || level === 0) return <VolumeOff size={24} />;
-  if (level < 50) return <Volume1 size={24} />;
-  return <Volume2 size={24} />;
-}
-
-const SPARKLINE_MAX_SAMPLES = 60;
-
-function Sparkline({ data, w = 64, h = 16, gradId }: { data: number[]; w?: number; h?: number; gradId: string }) {
-  if (data.length < 2) return <span style={{ display: 'inline-block', width: w, height: h, verticalAlign: 'middle' }} />;
-  const max = Math.max(...data, 0.001);
-  const pad = 1;
-  const pts = data.map((v, i) => [
-    pad + (i / (data.length - 1)) * (w - pad * 2),
-    h - pad - (v / max) * (h - pad * 2),
-  ]);
-  const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
-  const area = `${line} L${(w - pad).toFixed(1)},${h} L${pad},${h} Z`;
-  return (
-    <svg width={w} height={h} style={{ display: 'inline-block', verticalAlign: 'middle', overflow: 'visible', flexShrink: 0 }}>
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.1)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill={`url(#${gradId})`} />
-      <path d={line} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-}
+import { ANIME4K_MODES, addSparklineSample, fmtTime, IconVolume, parseChapters, parseEpisodes, parseSegments, sendCmd, skipLabelForType, Sparkline, type ActiveSkip, type Chapter, type FeedbackFlash, type SkipSegment } from './player/PlayerOverlayPrimitives';
 
 interface Props {
   closePlayer: () => Promise<void>;
@@ -277,7 +201,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   const currentTimeRef = useRef<HTMLSpanElement>(null);
   const durationRef = useRef<HTMLSpanElement>(null);
   const seekbarRef = useRef<HTMLDivElement>(null);
-  const [seekbarHovered, setSeekbarHovered] = useState(false);
   const softwareCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const subTrackBtnRef = useRef<HTMLButtonElement>(null);
@@ -566,11 +489,9 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       pausedRef.current = isPaused;
 
       const bh = bufferHistoryRef.current;
-      if (bh.length >= SPARKLINE_MAX_SAMPLES) bh.shift();
-      bh.push(buffered);
+      bufferHistoryRef.current = addSparklineSample(bh, buffered);
       const nh = netSpeedHistoryRef.current;
-      if (nh.length >= SPARKLINE_MAX_SAMPLES) nh.shift();
-      nh.push(parseInt(status.cacheSpeed ?? '0') || 0);
+      netSpeedHistoryRef.current = addSparklineSample(nh, parseInt(status.cacheSpeed ?? '0') || 0);
 
       const presenceKey = `${title}|${episodeTitle}|${isPaused}`;
       const presenceDue = Date.now() - discordPresenceSentAtRef.current > 25000;
@@ -686,7 +607,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       torrentStatsRef.current = ts;
       setTorrentStatsSnap(ts);
       if (liveStatusRef.current?.pausedForCache === 'yes' && ts) setBufferingProgress(Math.max(0, Math.min(100, ts.preload)));
-      if (ts) setTorrentSpeedHistory((h) => [...h.slice(-(SPARKLINE_MAX_SAMPLES - 1)), ts.download_speed]);
+      if (ts) setTorrentSpeedHistory((history) => addSparklineSample(history, ts.download_speed));
     };
     void tick();
     const id = setInterval(() => { void tick(); }, (showStats || showTorrentPopover) ? 500 : 1500);
@@ -1494,18 +1415,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       onWheel={onOverlayWheel}
       onContextMenu={(e) => { e.preventDefault(); resetActivity(); setContextMenu({ x: e.clientX, y: e.clientY }); }}
     >
-      {isBuffering && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: 'rgba(0,0,0,0.48)', pointerEvents: 'none' }}>
-          {initialLogoUrl && (
-            <div style={{ position: 'relative', width: 'min(30rem, 72vw)', height: '10rem' }}>
-              <img src={initialLogoUrl} alt="" className="fluxa-loading-logo-dim fluxa-loading-motion" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: 0.35, filter: 'drop-shadow(0 0.25rem 1.5rem rgba(0,0,0,0.8)) brightness(0.72)' }} />
-              <div className="fluxa-loading-logo-reveal" style={{ position: 'absolute', inset: 0, clipPath: `inset(0 ${(100 - bufferingProgress).toFixed(2)}% 0 0)` }}>
-                <img src={initialLogoUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 0.25rem 1.5rem rgba(0,0,0,0.8))' }} />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {isBuffering && <PlayerBufferingOverlay logoUrl={initialLogoUrl} progress={bufferingProgress} />}
       <style>{`
         @keyframes fluxa-seek-spin { to { transform: rotate(360deg); } }
         @keyframes fluxa-skip-in { from { opacity: 0; transform: translateX(0.75rem); } to { opacity: 1; transform: translateX(0); } }
@@ -1531,145 +1441,35 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
       <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '8.75rem', background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)', zIndex: 1, opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.4s ease', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '14.375rem', background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.5) 45%, transparent 100%)', zIndex: 1, opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.4s ease', pointerEvents: 'none' }} />
 
-      {playbackError && (
-        <div
-          style={{
-            position: 'absolute',
-            top: `calc(${bannerOffset}px + 1rem)`,
-            right: '1rem',
-            zIndex: 40,
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onMouseUp={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Toast
-            variant="error"
-            title={t('player.playback_error_title')}
-            message={t('player.playback_error_detail')}
-            details={playbackError}
-            detailsLabel={t('player.error_show_details')}
-            detailsHideLabel={t('player.error_hide_details')}
-            actions={[{ label: t('player.back'), onClick: () => void closePlayer(), primary: true }]}
-            onClose={() => void closePlayer()}
-          />
-        </div>
-      )}
+      <PlayerStatusToasts bannerOffset={bannerOffset} playbackError={playbackError} subtitleWarning={subtitleWarning} onClosePlayer={() => { void closePlayer(); }} onDismissSubtitleWarning={onDismissSubtitleWarning} />
 
-      {!playbackError && subtitleWarning && subtitleWarning.length > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: `calc(${bannerOffset}px + 1rem)`,
-            right: '1rem',
-            zIndex: 40,
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onMouseUp={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Toast
-            variant="warning"
-            title={t('player.subtitle_addons_failed_title')}
-            message={t('player.subtitle_addons_failed', subtitleWarning.join(', '))}
-            onClose={onDismissSubtitleWarning}
-          />
-        </div>
-      )}
-
-      <div style={{ ...opacityStyle, position: 'absolute', top: bannerOffset, left: 0, right: 0, zIndex: 3, display: 'flex', alignItems: 'center', padding: '0.875rem 0.75rem', gap: '0.375rem' }}>
-        <button
-          onClick={(e) => { e.stopPropagation(); resetActivity(); void closePlayer(); }}
-          className="fluxa-ibtn"
-          style={styles.iconBtn}
-          title={t('player.back')}
-        >
-          <ChevronLeft size={22} />
-        </button>
-        <div style={{ flex: 1, minWidth: 0, padding: '0 0.375rem', overflow: 'hidden' }}>
-          {(title || episodeTitle) && (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.375rem', overflow: 'hidden' }}>
-              {title && (
-                <span style={{ color: '#fff', fontSize: '0.9375rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: '0 1 auto', minWidth: 0 }}>
-                  {title}
-                </span>
-              )}
-              {title && episodeTitle && (
-                <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.875rem', flexShrink: 0 }}>·</span>
-              )}
-              {episodeTitle && (
-                <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8125rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
-                  {episodeTitle}
-                </span>
-              )}
-            </div>
-          )}
-          {activeCastDeviceId && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginTop: '0.125rem' }}>
-              <Cast size={11} style={{ color: 'var(--primary-accent-color)' }} />
-              <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.6875rem' }}>{t('player.casting_to', activeCastDeviceName)}</span>
-            </div>
-          )}
-        </div>
-        {activeCastDeviceId && (
-          <button onClick={(e) => { e.stopPropagation(); resetActivity(); toggleCastPause(); }} className="fluxa-ibtn" style={styles.iconBtn} title={castPaused ? t('player.play') : t('player.pause')}>
-            {castPaused ? <Play size={18} /> : <Pause size={18} />}
-          </button>
-        )}
-        <button
-          ref={castBtnRef}
-          onClick={(e) => { e.stopPropagation(); void openCastPopover(); }}
-          className="fluxa-ibtn"
-          style={{ ...styles.iconBtn, color: '#fff' }}
-          title={t('player.cast')}
-        >
-          <Cast size={20} />
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); resetActivity(); void toggleMiniPlayer(); }}
-          className="fluxa-ibtn"
-          style={{ ...styles.iconBtn, color: '#fff' }}
-          title={t('player.picture_in_picture')}
-        >
-          <PictureInPicture2 size={20} />
-        </button>
-        <button
-          ref={streamLinksBtnRef}
-          onClick={(e) => {
-            e.stopPropagation();
-            resetActivity();
-            const rect = streamLinksBtnRef.current?.getBoundingClientRect();
-            const stream = streamRef?.current;
-            if (stream) void streamShellPlan(stream).then(setStreamLinksPlan);
-            setStreamLinksMenuPoint(rect ? { x: Math.max(0, rect.right - 216), y: rect.bottom + 8 } : null);
-          }}
-          className="fluxa-ibtn"
-          style={{ ...styles.iconBtn, color: '#fff' }}
-          title={t('player.stream_links')}
-        >
-          <Link2 size={20} />
-        </button>
-        <button
-          ref={playerSettingsBtnRef}
-          onClick={(e) => { e.stopPropagation(); resetActivity(); setShowPlayerSettings((v) => !v); }}
-          className="fluxa-ibtn"
-          style={{ ...styles.iconBtn, color: '#fff' }}
-          title={t('player.settings')}
-        >
-          <Settings size={20} />
-        </button>
-        {introDbSubmitEnabled && introDbApiKey && (
-          <button
-            onClick={(e) => { e.stopPropagation(); resetActivity(); setShowSegmentMarker((v) => !v); }}
-            className="fluxa-ibtn"
-            style={{ ...styles.iconBtn, color: showSegmentMarker ? 'var(--primary-accent-color)' : '#fff' }}
-            title={t('player.mark_segment_title')}
-          >
-            <ListPlus size={20} />
-          </button>
-        )}
-      </div>
-
+      <PlayerHeader
+        style={opacityStyle}
+        bannerOffset={bannerOffset}
+        title={title}
+        episodeTitle={episodeTitle}
+        activeCastDeviceId={activeCastDeviceId}
+        activeCastDeviceName={activeCastDeviceName}
+        castPaused={castPaused}
+        castButtonRef={castBtnRef}
+        streamLinksButtonRef={streamLinksBtnRef}
+        settingsButtonRef={playerSettingsBtnRef}
+        showSegmentMarker={showSegmentMarker}
+        canMarkSegments={introDbSubmitEnabled && Boolean(introDbApiKey)}
+        onClose={() => { void closePlayer(); }}
+        onResetActivity={resetActivity}
+        onToggleCastPause={toggleCastPause}
+        onOpenCast={() => { void openCastPopover(); }}
+        onToggleMiniPlayer={() => { void toggleMiniPlayer(); }}
+        onOpenStreamLinks={() => {
+          const rect = streamLinksBtnRef.current?.getBoundingClientRect();
+          const stream = streamRef?.current;
+          if (stream) void streamShellPlan(stream).then(setStreamLinksPlan);
+          setStreamLinksMenuPoint(rect ? { x: Math.max(0, rect.right - 216), y: rect.bottom + 8 } : null);
+        }}
+        onToggleSettings={() => setShowPlayerSettings((value) => !value)}
+        onToggleSegmentMarker={() => setShowSegmentMarker((value) => !value)}
+      />
       <div style={{ flex: 1, cursor: 'default' }} onMouseDown={onCenterMouseDown} onMouseUp={releaseCenterHold} onMouseLeave={releaseCenterHold} onClick={onCenterClick} />
 
       {feedback && (
@@ -1826,73 +1626,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         />
       )}
 
-      {showShortcutsHelp && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
-          onClick={() => setShowShortcutsHelp(false)}
-        >
-          <div
-            style={{ background: 'rgba(14,16,22,0.97)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.75rem', padding: '1.25rem 1.5rem', maxWidth: '36.25rem', width: '90vw', maxHeight: '80vh', overflowY: 'auto' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '1rem' }}>{t('player.shortcuts_help')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 2rem' }}>
-              {([
-                { heading: t('player.shortcut_group_playback'), rows: [
-                  ['Space', t('player.shortcut_play_pause_hold')],
-                  [formatCombo(resolveCombo('player_play_pause', shortcutOverrides)), t('player.shortcut_play_pause')],
-                  [formatCombo(resolveCombo('player_mute', shortcutOverrides)), t('player.shortcut_mute')],
-                ]},
-                { heading: t('player.shortcut_group_seek'), rows: [
-                  [`${formatCombo(resolveCombo('player_seek_back', shortcutOverrides))}  ${formatCombo(resolveCombo('player_seek_forward', shortcutOverrides))}`, t('player.shortcut_seek_10')],
-                  [`${formatCombo(resolveCombo('player_seek_big_back', shortcutOverrides))}  ${formatCombo(resolveCombo('player_seek_big_forward', shortcutOverrides))}`, t('player.shortcut_seek_60')],
-                  ['0 – 9', t('player.shortcut_percent_seek')],
-                  ['Shift + 1 – 9', t('player.shortcut_chapter_jump')],
-                  [`${formatCombo(resolveCombo('player_seek_start', shortcutOverrides))} / ${formatCombo(resolveCombo('player_seek_end', shortcutOverrides))}`, t('player.shortcut_seek_start_end')],
-                ]},
-                { heading: t('player.shortcut_group_speed'), rows: [
-                  [`${formatCombo(resolveCombo('player_speed_decrease', shortcutOverrides))} ${formatCombo(resolveCombo('player_speed_increase', shortcutOverrides))}`, t('player.shortcut_speed_step')],
-                ]},
-                { heading: t('player.shortcut_group_volume'), rows: [
-                  [`${formatCombo(resolveCombo('player_volume_up', shortcutOverrides))} ${formatCombo(resolveCombo('player_volume_down', shortcutOverrides))}`, t('player.shortcut_volume')],
-                ]},
-                { heading: t('player.shortcut_group_frame'), rows: [
-                  [`${formatCombo(resolveCombo('player_frame_step_back', shortcutOverrides))} ${formatCombo(resolveCombo('player_frame_step_forward', shortcutOverrides))}`, t('player.shortcut_frame_step')],
-                  [`${formatCombo(resolveCombo('player_sub_delay_earlier', shortcutOverrides))}  ${formatCombo(resolveCombo('player_sub_delay_later', shortcutOverrides))}`, t('player.shortcut_sub_delay')],
-                ]},
-                { heading: t('player.shortcut_group_tracks'), rows: [
-                  [formatCombo(resolveCombo('player_cycle_subtitle', shortcutOverrides)), t('player.shortcut_cycle_sub')],
-                  [formatCombo(resolveCombo('player_cycle_audio', shortcutOverrides)), t('player.shortcut_cycle_audio')],
-                ]},
-                { heading: t('player.shortcut_group_interface'), rows: [
-                  [`${formatCombo(resolveCombo('player_fullscreen', shortcutOverrides))} / F11`, t('player.shortcut_fullscreen')],
-                  [`${formatCombo(resolveCombo('player_skip_active', shortcutOverrides))} / Enter`, t('player.shortcut_skip')],
-                  [formatCombo(resolveCombo('player_next_episode', shortcutOverrides)), t('player.shortcut_next_ep')],
-                  [formatCombo(resolveCombo('player_toggle_stats', shortcutOverrides)), t('player.shortcut_stats')],
-                  [formatCombo(resolveCombo('player_toggle_shortcuts_help', shortcutOverrides)), t('player.shortcut_this_help')],
-                  ['Backspace', t('player.shortcut_close')],
-                ]},
-                { heading: t('player.shortcut_group_extras'), rows: [
-                  [formatCombo(resolveCombo('player_toggle_pip', shortcutOverrides)), t('player.shortcut_pip')],
-                  [formatCombo(resolveCombo('player_open_cast', shortcutOverrides)), t('player.shortcut_cast')],
-                  [formatCombo(resolveCombo('player_ab_loop', shortcutOverrides)), t('player.shortcut_ab_loop')],
-                  [formatCombo(resolveCombo('player_screenshot', shortcutOverrides)), t('player.shortcut_screenshot')],
-                ]},
-              ] as { heading: string; rows: [string, string][] }[]).map(({ heading, rows }) => (
-                <div key={heading} style={{ marginBottom: '1rem' }}>
-                  <div style={{ fontSize: '0.625rem', fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.375rem' }}>{heading}</div>
-                  {rows.map(([key, desc]) => (
-                    <div key={key} style={{ display: 'flex', alignItems: 'baseline', gap: '0.625rem', marginBottom: '0.25rem' }}>
-                      <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#fff', background: 'rgba(255,255,255,0.08)', borderRadius: '0.25rem', padding: '1px 0.375rem', whiteSpace: 'nowrap', flexShrink: 0, minWidth: '3.25rem', textAlign: 'center' }}>{key}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.4 }}>{desc}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {showShortcutsHelp && <PlayerShortcutsDialog overrides={shortcutOverrides} onClose={() => setShowShortcutsHelp(false)} />}
 
       {showStats && (
         <div
@@ -2040,58 +1774,7 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         </div>
       )}
 
-      {contextMenu && (
-        <Popover open onClose={() => setContextMenu(null)} point={contextMenu} width="11.25rem">
-          <button
-            className="ui-popover-row"
-            onClick={() => { cycleAbLoop(); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: abLoopStage !== 'none' ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
-          >
-            <Repeat size={15} />
-            {abLoopStage === 'none' ? t('player.ab_loop') : abLoopStage === 'a' ? t('player.ab_loop_a_set') : t('player.ab_loop_active')}
-          </button>
-          <button
-            className="ui-popover-row"
-            onClick={() => { void copyTimestamp(); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
-          >
-            <Clock size={15} />
-            {t('player.copy_timestamp')}
-          </button>
-          <button
-            className="ui-popover-row"
-            onClick={() => { setShowStats((s) => !s); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: showStats ? 'var(--primary-accent-color)' : 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
-          >
-            <Info size={15} />
-            {t('player.stats')}
-          </button>
-          <button
-            className="ui-popover-row"
-            onClick={() => { setShowShortcutsHelp((s) => !s); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
-          >
-            <Gauge size={15} />
-            {t('player.shortcuts_help')}
-          </button>
-          <button
-            className="ui-popover-row"
-            onClick={() => { void openTrackPopover('audio'); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
-          >
-            <AudioLines size={15} />
-            {t('player.track_info')}
-          </button>
-          <button
-            className="ui-popover-row"
-            onClick={() => { void takeScreenshot(); setContextMenu(null); }}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: '0.8125rem', padding: '0.5rem 0.875rem', cursor: 'pointer', textAlign: 'left' }}
-          >
-            <Camera size={15} />
-            {t('player.screenshot')}
-          </button>
-        </Popover>
-      )}
+      {contextMenu && <PlayerContextMenu point={contextMenu} abLoopStage={abLoopStage} showStats={showStats} onClose={() => setContextMenu(null)} onCycleAbLoop={cycleAbLoop} onCopyTimestamp={() => { void copyTimestamp(); }} onToggleStats={() => setShowStats((value) => !value)} onToggleShortcuts={() => setShowShortcutsHelp((value) => !value)} onOpenAudioTracks={() => { void openTrackPopover('audio'); }} onScreenshot={() => { void takeScreenshot(); }} />}
 
       <div
         style={{
@@ -2105,55 +1788,19 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
         onMouseEnter={() => { isOverControlsRef.current = true; }}
         onMouseLeave={() => { isOverControlsRef.current = false; }}
       >
-        <div
-          ref={seekbarRef}
-          className="fluxa-seekbar"
-          style={{ position: 'relative', width: '100%', height: '2.25rem', cursor: 'pointer', overflow: 'visible', display: 'flex', alignItems: 'center' }}
-          onMouseDown={onSeekMouseDown}
-          onMouseEnter={() => setSeekbarHovered(true)}
-          onMouseLeave={() => setSeekbarHovered(false)}
-        >
-          <div className="fluxa-seek-track" style={{ position: 'absolute', left: 0, right: 0, top: '50%', height: seekbarHovered ? '0.3125rem' : '0.1875rem', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.22)', borderRadius: '0.1875rem' }} />
-          {!chapterSegments && skipMarkers.map((seg, i) => (
-            <div
-              key={`${seg.start}-${seg.end}-${i}`}
-              className="fluxa-seek-track"
-              style={{
-                position: 'absolute',
-                left: `${seg.start * 100}%`,
-                width: `${(seg.end - seg.start) * 100}%`,
-                top: '50%',
-                height: seekbarHovered ? '0.3125rem' : '0.1875rem',
-                transform: 'translateY(-50%)',
-                background: 'color-mix(in srgb, var(--primary-accent-color) 20%, transparent)',
-                borderRadius: '0.1875rem',
-                pointerEvents: 'none',
-              }}
-            />
-          ))}
-
-          {chapterSegments ? (
-            chapterSegments.map((seg, i) => (
-              <div key={i} className="fluxa-seek-track" style={{ position: 'absolute', left: `calc(${seg.start * 100}% + 0.125rem)`, width: `calc(${(seg.end - seg.start) * 100}% - 0.25rem)`, top: '50%', height: seekbarHovered ? '0.3125rem' : '0.1875rem', transform: 'translateY(-50%)', overflow: 'hidden', background: 'rgba(255,255,255,0.18)', borderRadius: '0.125rem' }}>
-                <div ref={(el) => { segBufRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'rgba(255,255,255,0.3)' }} />
-                <div ref={(el) => { segFillRefs.current[i] = el; }} style={{ position: 'absolute', left: 0, top: 0, width: '0%', height: '100%', background: 'var(--primary-accent-color)' }} />
-              </div>
-            ))
-          ) : (
-            <>
-              <div ref={seekBufferRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', height: seekbarHovered ? '0.3125rem' : '0.1875rem', transform: 'translateY(-50%)', width: '0%', background: 'rgba(255,255,255,0.3)', borderRadius: '0.1875rem' }} />
-              <div ref={seekFillRef} className="fluxa-seek-track" style={{ position: 'absolute', left: 0, top: '50%', height: seekbarHovered ? '0.3125rem' : '0.1875rem', transform: 'translateY(-50%)', width: '0%', background: 'var(--primary-accent-color)', borderRadius: '0.1875rem' }} />
-            </>
-          )}
-
-          <div
-            ref={seekDotRef}
-            className="fluxa-seek-dot"
-            style={{ position: 'absolute', left: '0%', top: '50%', width: seekbarHovered ? '0.875rem' : '0.6875rem', height: seekbarHovered ? '0.875rem' : '0.6875rem', borderRadius: '50%', background: 'var(--primary-accent-color)', transform: 'translate(-50%, -50%)', boxShadow: '0 1px 0.375rem rgba(0,0,0,0.7)', pointerEvents: 'none' }}
-          />
-
-          <SeekPreview barRef={seekbarRef} durRef={durRef} chaptersRef={chaptersRef} />
-        </div>
+        <PlayerSeekBar
+          barRef={seekbarRef}
+          fillRef={seekFillRef}
+          bufferRef={seekBufferRef}
+          dotRef={seekDotRef}
+          segmentFillRefs={segFillRefs}
+          segmentBufferRefs={segBufRefs}
+          durationRef={durRef}
+          chaptersRef={chaptersRef}
+          chapterSegments={chapterSegments}
+          skipMarkers={skipMarkers}
+          onSeekStart={onSeekMouseDown}
+        />
 
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 0.5rem 0.875rem', gap: 0 }}>
           <button
@@ -2261,81 +1908,6 @@ export function ReactPlayerOverlay({ closePlayer, onFirstFrame, initialTitle, in
   );
 }
 
-function SeekPreview({ barRef, durRef, chaptersRef }: {
-  barRef: React.RefObject<HTMLDivElement | null>;
-  durRef: React.MutableRefObject<number>;
-  chaptersRef: React.MutableRefObject<Chapter[]>;
-}) {
-  const [preview, setPreview] = useState<{ x: number; time: number; chapter: string | null } | null>(null);
-  const [thumbImg, setThumbImg] = useState<string | null>(null);
-  const thumbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const thumbRequestTimeRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const bar = barRef.current;
-    if (!bar) return;
-    const onMove = (e: MouseEvent) => {
-      const rect = bar.getBoundingClientRect();
-      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const previewTime = frac * durRef.current;
-      const chaps = chaptersRef.current;
-      let chapterName: string | null = null;
-      if (chaps.length > 0) {
-        let found = chaps[0].title;
-        for (const ch of chaps) {
-          if (ch.startMs / 1000 <= previewTime) found = ch.title;
-          else break;
-        }
-        chapterName = found || null;
-      }
-      setPreview({ x: e.clientX - rect.left, time: previewTime, chapter: chapterName });
-    };
-    const onLeave = () => setPreview(null);
-    bar.addEventListener('mousemove', onMove);
-    bar.addEventListener('mouseleave', onLeave);
-    return () => {
-      bar.removeEventListener('mousemove', onMove);
-      bar.removeEventListener('mouseleave', onLeave);
-    };
-  }, [barRef, durRef, chaptersRef]);
-
-  useEffect(() => {
-    if (!preview) { setThumbImg(null); return; }
-    const requestedTime = preview.time;
-    thumbRequestTimeRef.current = requestedTime;
-    if (thumbTimerRef.current) clearTimeout(thumbTimerRef.current);
-    thumbTimerRef.current = setTimeout(() => {
-      invoke<string>('player_get_seek_thumbnail', { timePos: requestedTime })
-        .then((img) => { if (img && thumbRequestTimeRef.current === requestedTime) setThumbImg(img); })
-        .catch(() => undefined);
-    }, 120);
-    return () => {
-      if (thumbTimerRef.current) clearTimeout(thumbTimerRef.current);
-    };
-  }, [preview?.time]);
-
-  if (!preview) return null;
-
-  return (
-    <div style={{ position: 'absolute', bottom: '1.375rem', left: preview.x, transform: 'translateX(-50%)', pointerEvents: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
-      {thumbImg && (
-        <div style={{ width: '10rem', height: '5.625rem', borderRadius: '0.25rem', overflow: 'hidden', boxShadow: '0 0.125rem 0.75rem rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
-          <img src={thumbImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-        </div>
-      )}
-      <div style={{ whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.125rem' }}>
-        {preview.chapter && (
-          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'rgba(255,255,255,0.85)', letterSpacing: '0.0125rem', textShadow: '0 1px 0.375rem rgba(0,0,0,1), 0 0 0.75rem rgba(0,0,0,0.9)' }}>
-            {preview.chapter}
-          </span>
-        )}
-        <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#fff', letterSpacing: '0.025rem', textShadow: '0 1px 0.375rem rgba(0,0,0,1), 0 0 0.75rem rgba(0,0,0,0.9)' }}>
-          {fmtTime(preview.time)}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 const styles = {
   iconBtn: {
