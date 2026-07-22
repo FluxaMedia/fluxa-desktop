@@ -1,5 +1,6 @@
 use super::*;
 
+#[cfg(target_os = "linux")]
 pub(super) fn x11_display_ptr() -> Option<*mut c_void> {
     use gdk::prelude::*;
     use glib::translate::ToGlibPtr;
